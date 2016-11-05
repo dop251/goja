@@ -142,7 +142,7 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 			seen := map[string]bool{}
 			propertyList := make([]Value, length)
 			length = 0
-			for index, _ := range propertyList {
+			for index := range propertyList {
 				var name string
 				value := replacer.self.get(intToValue(int64(index)))
 				if s, ok := value.assertString(); ok {
@@ -410,28 +410,28 @@ func (ctx *_builtinJSON_stringifyContext) quote(str valueString) {
 		if err != nil {
 			break
 		}
-		if r < 0x0020 {
-			switch r {
-			case '"', '\\':
-				ctx.buf.WriteByte('\\')
-				ctx.buf.WriteByte(byte(r))
-			case 0x0008:
-				ctx.buf.WriteString("\\b")
-			case 0x0009:
-				ctx.buf.WriteString("\\t")
-			case 0x000A:
-				ctx.buf.WriteString("\\n")
-			case 0x000C:
-				ctx.buf.WriteString("\\f")
-			case 0x000D:
-				ctx.buf.WriteString("\\r")
-			default:
+		switch r {
+		case '"', '\\':
+			ctx.buf.WriteByte('\\')
+			ctx.buf.WriteByte(byte(r))
+		case 0x08:
+			ctx.buf.WriteString(`\b`)
+		case 0x09:
+			ctx.buf.WriteString(`\t`)
+		case 0x0A:
+			ctx.buf.WriteString(`\n`)
+		case 0x0C:
+			ctx.buf.WriteString(`\f`)
+		case 0x0D:
+			ctx.buf.WriteString(`\r`)
+		default:
+			if r < 0x20 {
 				ctx.buf.WriteString(`\u00`)
-				ctx.buf.WriteByte(hex[r>>4])
-				ctx.buf.WriteByte(hex[r&0xF])
+				ctx.buf.WriteByte(hex[r >> 4])
+				ctx.buf.WriteByte(hex[r & 0xF])
+			} else {
+				ctx.buf.WriteRune(r)
 			}
-		} else {
-			ctx.buf.WriteRune(r)
 		}
 	}
 	ctx.buf.WriteByte('"')

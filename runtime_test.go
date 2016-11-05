@@ -486,6 +486,15 @@ func TestGoFuncError(t *testing.T) {
 	}
 }
 
+func TestJSONEscape(t *testing.T) {
+	const SCRIPT = `
+	var a = "\\+1";
+	JSON.stringify(a);
+	`
+
+	testScript1(SCRIPT, asciiString(`"\\+1"`), t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
