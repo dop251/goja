@@ -3,78 +3,138 @@ package goja
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"strings"
 )
 
 var hex = "0123456789abcdef"
 
 func (r *Runtime) builtinJSON_parse(call FunctionCall) Value {
+	d := json.NewDecoder(bytes.NewBufferString(call.Argument(0).String()))
+
+	value, err := r.builtinJSON_decodeValue(d)
+	if err != nil {
+		panic(r.newError(r.global.SyntaxError, err.Error()))
+	}
+
+	if tok, err := d.Token(); err != io.EOF {
+		panic(r.newError(r.global.SyntaxError, "Unexpected token at the end: %v", tok))
+	}
+
 	var reviver func(FunctionCall) Value
 
 	if arg1 := call.Argument(1); arg1 != _undefined {
 		reviver, _ = arg1.ToObject(r).self.assertCallable()
 	}
 
-	var root interface{}
-	err := json.Unmarshal([]byte(call.Argument(0).String()), &root)
-
-	if err != nil {
-		panic(r.newError(r.global.SyntaxError, err.Error()))
-	}
-
-	value, exists := r.builtinJSON_parseWalk(root)
-	if !exists {
-		value = _undefined
-	}
 	if reviver != nil {
 		root := r.NewObject()
 		root.self.putStr("", value, false)
 		return r.builtinJSON_reviveWalk(reviver, root, stringEmpty)
 	}
+
 	return value
 }
 
-func (r *Runtime) builtinJSON_parseWalk(rawValue interface{}) (Value, bool) {
-	switch value := rawValue.(type) {
+func (r *Runtime) builtinJSON_decodeToken(d *json.Decoder, tok json.Token) (Value, error) {
+	switch tok := tok.(type) {
+	case json.Delim:
+		switch tok {
+		case '{':
+			return r.builtinJSON_decodeObject(d)
+		case '[':
+			return r.builtinJSON_decodeArray(d)
+		}
 	case nil:
-		return _null, true
+		return _null, nil
+	case string:
+		return newStringValue(tok), nil
+	case float64:
+		return floatToValue(tok), nil
 	case bool:
-		if value {
-			return valueTrue, true
+		if tok {
+			return valueTrue, nil
+		}
+		return valueFalse, nil
+	}
+	return nil, fmt.Errorf("Unexpected token (%T): %v", tok, tok)
+}
+
+func (r *Runtime) builtinJSON_decodeValue(d *json.Decoder) (Value, error) {
+	tok, err := d.Token()
+	if err != nil {
+		return nil, err
+	}
+	return r.builtinJSON_decodeToken(d, tok)
+}
+
+func (r *Runtime) builtinJSON_decodeObject(d *json.Decoder) (*Object, error) {
+	object := r.NewObject()
+	for {
+		key, end, err := r.builtinJSON_decodeObjectKey(d)
+		if err != nil {
+			return nil, err
+		}
+		if end {
+			break
+		}
+		value, err := r.builtinJSON_decodeValue(d)
+		if err != nil {
+			return nil, err
+		}
+
+		if key == "__proto__" {
+			descr := r.NewObject().self
+			descr.putStr("value", value, false)
+			descr.putStr("writable", valueTrue, false)
+			descr.putStr("enumerable", valueTrue, false)
+			descr.putStr("configurable", valueTrue, false)
+			object.self.defineOwnProperty(string__proto__, descr, false)
 		} else {
-			return valueFalse, true
+			object.self.putStr(key, value, false)
+		}
+	}
+	return object, nil
+}
+
+func (r *Runtime) builtinJSON_decodeObjectKey(d *json.Decoder) (string, bool, error) {
+	tok, err := d.Token()
+	if err != nil {
+		return "", false, err
+	}
+	switch tok := tok.(type) {
+	case json.Delim:
+		if tok == '}' {
+			return "", true, nil
 		}
 	case string:
-		return newStringValue(value), true
-	case float64:
-		return floatToValue(value), true
-	case []interface{}:
-		arrayValue := make([]Value, len(value))
-		for index, rawValue := range value {
-			if value, exists := r.builtinJSON_parseWalk(rawValue); exists {
-				arrayValue[index] = value
-			}
-		}
-		return r.newArrayValues(arrayValue), true
-	case map[string]interface{}:
-		object := r.NewObject()
-		for name, rawValue := range value {
-			if value, exists := r.builtinJSON_parseWalk(rawValue); exists {
-				if name == "__proto__" {
-					descr := r.NewObject().self
-					descr.putStr("value", value, false)
-					descr.putStr("writable", valueTrue, false)
-					descr.putStr("enumerable", valueTrue, false)
-					descr.putStr("configurable", valueTrue, false)
-					object.self.defineOwnProperty(string__proto__, descr, false)
-				} else {
-					object.self.putStr(name, value, false)
-				}
-			}
-		}
-		return object, true
+		return tok, false, nil
 	}
-	return _undefined, false
+
+	return "", false, fmt.Errorf("Unexpected token (%T): %v", tok, tok)
+}
+
+func (r *Runtime) builtinJSON_decodeArray(d *json.Decoder) (*Object, error) {
+	var arrayValue []Value
+	for {
+		tok, err := d.Token()
+		if err != nil {
+			return nil, err
+		}
+		if delim, ok := tok.(json.Delim); ok {
+			if delim == ']' {
+				break
+			}
+			return nil, fmt.Errorf("Unexpected delimiter: %v, expecting ']'", delim)
+		}
+		value, err := r.builtinJSON_decodeToken(d, tok)
+		if err != nil {
+			return nil, err
+		}
+		arrayValue = append(arrayValue, value)
+	}
+	return r.newArrayValues(arrayValue), nil
 }
 
 func isArray(object *Object) bool {
@@ -427,8 +487,8 @@ func (ctx *_builtinJSON_stringifyContext) quote(str valueString) {
 		default:
 			if r < 0x20 {
 				ctx.buf.WriteString(`\u00`)
-				ctx.buf.WriteByte(hex[r >> 4])
-				ctx.buf.WriteByte(hex[r & 0xF])
+				ctx.buf.WriteByte(hex[r>>4])
+				ctx.buf.WriteByte(hex[r&0xF])
 			} else {
 				ctx.buf.WriteRune(r)
 			}
