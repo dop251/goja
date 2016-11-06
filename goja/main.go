@@ -88,10 +88,10 @@ func run() error {
 	}
 
 	//log.Println("Compiling...")
-	prg, err := goja.Compile(filename, string(src))
-	log.Println("Running...")
+	prg, err := goja.Compile(filename, string(src), false)
+	//log.Println("Running...")
 	_, err = vm.RunProgram(prg)
-	log.Println("Finished.")
+	//log.Println("Finished.")
 	return err
 }
 
