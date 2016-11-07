@@ -126,7 +126,6 @@ func (r *Runtime) builtinJSON_decodeArray(d *json.Decoder) (*Object, error) {
 			if delim == ']' {
 				break
 			}
-			return nil, fmt.Errorf("Unexpected delimiter: %v, expecting ']'", delim)
 		}
 		value, err := r.builtinJSON_decodeToken(d, tok)
 		if err != nil {

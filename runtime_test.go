@@ -495,6 +495,15 @@ func TestJSONEscape(t *testing.T) {
 	testScript1(SCRIPT, asciiString(`"\\+1"`), t)
 }
 
+func TestJSONObjectInArray(t *testing.T) {
+	const SCRIPT = `
+	var a = "[{\"a\":1},{\"a\":2}]";
+	JSON.stringify(JSON.parse(a)) == a;
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
