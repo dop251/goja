@@ -29,17 +29,11 @@ func (o *objectGoMapSimple) _getStr(name string) Value {
 }
 
 func (o *objectGoMapSimple) get(n Value) Value {
-	if v := o._get(n); v != nil {
-		return v
-	}
-	return o.baseObject.get(n)
+	return o.getStr(n.String())
 }
 
 func (o *objectGoMapSimple) getProp(n Value) Value {
-	if v := o._get(n); v != nil {
-		return v
-	}
-	return o.baseObject.getProp(n)
+	return o.getPropStr(n.String())
 }
 
 func (o *objectGoMapSimple) getPropStr(name string) Value {
@@ -53,7 +47,7 @@ func (o *objectGoMapSimple) getStr(name string) Value {
 	if v := o._getStr(name); v != nil {
 		return v
 	}
-	return o.baseObject.getStr(name)
+	return o.baseObject._getStr(name)
 }
 
 func (o *objectGoMapSimple) getOwnProp(name string) Value {

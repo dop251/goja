@@ -132,7 +132,7 @@ func (o *baseObject) className() string {
 }
 
 func (o *baseObject) getPropStr(name string) Value {
-	if val, exists := o.values[name]; exists {
+	if val := o.getOwnProp(name); val != nil {
 		return val
 	}
 	if o.prototype != nil {
@@ -153,15 +153,21 @@ func (o *baseObject) hasPropertyStr(name string) bool {
 	return o.val.self.getPropStr(name) != nil
 }
 
+func (o *baseObject) _getStr(name string) Value {
+	p := o.getOwnProp(name)
+	if p, ok := p.(*valueProperty); ok {
+		return p.get(o.val)
+	}
+
+	return p
+}
+
 func (o *baseObject) getStr(name string) Value {
 	p := o.val.self.getPropStr(name)
 	if p, ok := p.(*valueProperty); ok {
 		return p.get(o.val)
 	}
 
-	if p == nil && name == "__proto__" {
-		return o.prototype
-	}
 	return p
 }
 
@@ -215,7 +221,11 @@ func (o *baseObject) put(n Value, val Value, throw bool) {
 }
 
 func (o *baseObject) getOwnProp(name string) Value {
-	return o.values[name]
+	v := o.values[name]
+	if v == nil && name == "__proto" {
+		return o.prototype
+	}
+	return v
 }
 
 func (o *baseObject) putStr(name string, val Value, throw bool) {

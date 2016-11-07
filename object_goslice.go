@@ -50,14 +50,21 @@ func (o *objectGoSlice) get(n Value) Value {
 	if v := o._get(n); v != nil {
 		return v
 	}
-	return o.baseObject.get(n)
+	return o.baseObject._getStr(n.String())
+}
+
+func (o *objectGoSlice) getStr(name string) Value {
+	if v := o._getStr(name); v != nil {
+		return v
+	}
+	return o.baseObject._getStr(name)
 }
 
 func (o *objectGoSlice) getProp(n Value) Value {
 	if v := o._get(n); v != nil {
 		return v
 	}
-	return o.baseObject.getProp(n)
+	return o.baseObject.getPropStr(n.String())
 }
 
 func (o *objectGoSlice) getPropStr(name string) Value {
@@ -65,13 +72,6 @@ func (o *objectGoSlice) getPropStr(name string) Value {
 		return v
 	}
 	return o.baseObject.getPropStr(name)
-}
-
-func (o *objectGoSlice) getStr(name string) Value {
-	if v := o._getStr(name); v != nil {
-		return v
-	}
-	return o.baseObject.getStr(name)
 }
 
 func (o *objectGoSlice) getOwnProp(name string) Value {

@@ -64,7 +64,7 @@ func (o *objectGoReflect) getStr(name string) Value {
 	if v := o._get(name); v != nil {
 		return v
 	}
-	return o.baseObject.getStr(name)
+	return o.baseObject._getStr(name)
 }
 
 func (o *objectGoReflect) getProp(n Value) Value {
@@ -72,7 +72,7 @@ func (o *objectGoReflect) getProp(n Value) Value {
 	if p := o.getOwnProp(name); p != nil {
 		return p
 	}
-	return o.baseObject.getProp(n)
+	return o.baseObject.getOwnProp(name)
 }
 
 func (o *objectGoReflect) getPropStr(name string) Value {
@@ -314,7 +314,11 @@ func (i *goreflectPropIter) nextMethod() (propIterItem, iterNextFunc) {
 		}
 	}
 
-	return i.o.baseObject._enumerate(i.recursive)()
+	if i.recursive {
+		return i.o.baseObject._enumerate(true)()
+	}
+
+	return propIterItem{}, nil
 }
 
 func (o *objectGoReflect) _enumerate(recusrive bool) iterNextFunc {
