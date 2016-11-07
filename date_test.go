@@ -84,7 +84,7 @@ func TestDateUTC(t *testing.T) {
 func TestNewDate(t *testing.T) {
 	const SCRIPT = `
 	var d1 = new Date("2016-09-01T12:34:56Z");
-	d1.getHours() === 13 && d1.getUTCHours() === 12;
+	d1.getUTCHours() === 12;
 
 	`
 	testScript1(SCRIPT, valueTrue, t)
@@ -92,10 +92,10 @@ func TestNewDate(t *testing.T) {
 
 func TestNewDate0(t *testing.T) {
 	const SCRIPT = `
-	(new Date(0)).toString();
+	(new Date(0)).toUTCString();
 
 	`
-	testScript1(SCRIPT, asciiString("Thu Jan 01 1970 01:00:00 GMT+0100 (BST)"), t)
+	testScript1(SCRIPT, asciiString("Thu Jan 01 1970 00:00:00 GMT+0000 (UTC)"), t)
 }
 
 func TestSetHour(t *testing.T) {
