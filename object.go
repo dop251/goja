@@ -155,6 +155,11 @@ func (o *baseObject) hasPropertyStr(name string) bool {
 
 func (o *baseObject) _getStr(name string) Value {
 	p := o.getOwnProp(name)
+
+	if p == nil && o.prototype != nil {
+		p = o.prototype.self.getPropStr(name)
+	}
+
 	if p, ok := p.(*valueProperty); ok {
 		return p.get(o.val)
 	}

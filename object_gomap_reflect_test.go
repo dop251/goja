@@ -100,3 +100,23 @@ func TestGoMapReflectJSON(t *testing.T) {
 		t.Fatalf("Not a function: %v", f)
 	}
 }
+
+func TestGoMapReflectProto(t *testing.T) {
+	const SCRIPT = `
+	m.hasOwnProperty("t");
+	`
+
+	vm := New()
+	m := map[string]string{
+		"t": "42",
+	}
+	vm.Set("m", m)
+	_ = "breakpoint"
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.StrictEquals(valueTrue) {
+		t.Fatalf("Expected true, got %v", v)
+	}
+}
