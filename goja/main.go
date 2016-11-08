@@ -1,23 +1,22 @@
 package main
 
 import (
+	crand "crypto/rand"
+	"encoding/binary"
 	"flag"
-	"os"
 	"fmt"
-	"io/ioutil"
 	"github.com/dop251/goja"
+	"io/ioutil"
 	"log"
+	"math/rand"
+	"os"
+	"runtime/debug"
 	"runtime/pprof"
 	"time"
-	"runtime/debug"
-	crand "crypto/rand"
-	"math/rand"
-	"encoding/binary"
 )
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var timelimit = flag.Int("timelimit", 0, "max time to run (in seconds)")
-
 
 func readSource(filename string) ([]byte, error) {
 	if filename == "" || filename == "-" {
@@ -77,12 +76,12 @@ func run() error {
 	vm.SetRandSource(newRandSource())
 
 	vm.Set("console", createConsole(vm))
-	vm.Set("load", func(call goja.FunctionCall) goja.Value{
+	vm.Set("load", func(call goja.FunctionCall) goja.Value {
 		return load(vm, call)
 	})
 
 	if *timelimit > 0 {
-		time.AfterFunc(time.Duration(*timelimit) * time.Second, func() {
+		time.AfterFunc(time.Duration(*timelimit)*time.Second, func() {
 			vm.Interrupt("timeout")
 		})
 	}
@@ -128,4 +127,3 @@ func main() {
 		os.Exit(64)
 	}
 }
-
