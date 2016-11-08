@@ -89,6 +89,9 @@ func run() error {
 
 	//log.Println("Compiling...")
 	prg, err := goja.Compile(filename, string(src), false)
+	if err != nil {
+		return err
+	}
 	//log.Println("Running...")
 	_, err = vm.RunProgram(prg)
 	//log.Println("Finished.")
@@ -113,14 +116,14 @@ func main() {
 	}
 
 	if err := run(); err != nil {
-		fmt.Printf("err type: %T\n", err)
+		//fmt.Printf("err type: %T\n", err)
 		switch err := err.(type) {
 		case *goja.Exception:
-			fmt.Print(err.String())
+			fmt.Println(err.String())
 		case *goja.InterruptedError:
-			fmt.Print(err.String())
+			fmt.Println(err.String())
 		default:
-			fmt.Printf("err: %v\n", err)
+			fmt.Println(err)
 		}
 		os.Exit(64)
 	}
