@@ -249,7 +249,7 @@ func (s *stash) createBinding(name string) {
 	if s.names == nil {
 		s.names = make(map[string]uint32)
 	}
-	s.names[name] = uint32(len(s.values))
+	s.names[name] = uint32(len(s.names))
 	s.values = append(s.values, _undefined)
 }
 

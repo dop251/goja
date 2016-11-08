@@ -506,6 +506,7 @@ func (c *compiler) compileIfStatement(v *ast.IfStatement, needResult bool) {
 				c.p = p
 			}
 		} else {
+			// TODO: Properly implement dummy compilation (no garbage in block, scope, etc..)
 			p := c.p
 			c.p = &Program{}
 			c.compileStatement(v.Consequent, false)

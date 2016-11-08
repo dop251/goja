@@ -111,7 +111,6 @@ func TestGoMapReflectProto(t *testing.T) {
 		"t": "42",
 	}
 	vm.Set("m", m)
-	_ = "breakpoint"
 	v, err := vm.RunString(SCRIPT)
 	if err != nil {
 		t.Fatal(err)

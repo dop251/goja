@@ -158,7 +158,22 @@ var rv = A(1, 2, 3);
 	testScript(SCRIPT, intToValue(3), t)
 }
 
-func TestCallLessArgs1(t *testing.T) {
+func TestCallMoreArgsDynamic(t *testing.T) {
+	const SCRIPT = `
+function A(a, b) {
+	var c = 4;
+	if (false) {
+		eval("");
+	}
+	return a - b + c;
+}
+
+var rv = A(1, 2, 3);
+`
+	testScript(SCRIPT, intToValue(3), t)
+}
+
+func TestCallLessArgsDynamic(t *testing.T) {
 	const SCRIPT = `
 function A(a, b, c) {
 	// Make it stashful
@@ -171,6 +186,21 @@ function A(a, b, c) {
 var rv = A(1, 2);
 `
 	testScript(SCRIPT, asciiString("1 2 undefined"), t)
+}
+
+func TestCallLessArgsDynamicLocalVar(t *testing.T) {
+	const SCRIPT = `
+	function f(param) {
+		var a = 42;
+		if (false) {
+			eval("");
+		}
+		return a;
+	}
+	f();
+`
+
+	testScript1(SCRIPT, intToValue(42), t)
 }
 
 /*
