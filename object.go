@@ -524,17 +524,17 @@ func (o *baseObject) preventExtensions() {
 	o.extensible = false
 }
 
-func (o *baseObject) sortLen() int {
-	return int(toLength(o.val.self.getStr("length")))
+func (o *baseObject) sortLen() int64 {
+	return toLength(o.val.self.getStr("length"))
 }
 
-func (o *baseObject) sortGet(i int) Value {
-	return o.val.self.get(intToValue(int64(i)))
+func (o *baseObject) sortGet(i int64) Value {
+	return o.val.self.get(intToValue(i))
 }
 
-func (o *baseObject) swap(i, j int) {
-	ii := intToValue(int64(i))
-	jj := intToValue(int64(j))
+func (o *baseObject) swap(i, j int64) {
+	ii := intToValue(i)
+	jj := intToValue(j)
 
 	x := o.val.self.get(ii)
 	y := o.val.self.get(jj)

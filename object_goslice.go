@@ -25,8 +25,8 @@ func (o *objectGoSlice) _setLen() {
 	o.lengthProp.value = intToValue(int64(len(*o.data)))
 }
 
-func (o *objectGoSlice) getIdx(idx int) Value {
-	if idx < len(*o.data) {
+func (o *objectGoSlice) getIdx(idx int64) Value {
+	if idx < int64(len(*o.data)) {
 		return o.val.runtime.ToValue((*o.data)[idx])
 	}
 	return nil
@@ -85,8 +85,8 @@ func (o *objectGoSlice) getOwnProp(name string) Value {
 	return o.baseObject.getOwnProp(name)
 }
 
-func (o *objectGoSlice) grow(size int) {
-	newcap := cap(*o.data)
+func (o *objectGoSlice) grow(size int64) {
+	newcap := int64(cap(*o.data))
 	if newcap < size {
 		// Use the same algorithm as in runtime.growSlice
 		doublecap := newcap + newcap
@@ -111,8 +111,8 @@ func (o *objectGoSlice) grow(size int) {
 	o._setLen()
 }
 
-func (o *objectGoSlice) putIdx(idx int, v Value, throw bool) {
-	if idx >= len(*o.data) {
+func (o *objectGoSlice) putIdx(idx int64, v Value, throw bool) {
+	if idx >= int64(len(*o.data)) {
 		if !o.sliceExtensible {
 			o.val.runtime.typeErrorResult(throw, "Cannot extend Go slice")
 			return
@@ -142,14 +142,14 @@ func (o *objectGoSlice) putStr(name string, val Value, throw bool) {
 
 func (o *objectGoSlice) _has(n Value) bool {
 	if idx := toIdx(n); idx >= 0 {
-		return idx < len(*o.data)
+		return idx < int64(len(*o.data))
 	}
 	return false
 }
 
 func (o *objectGoSlice) _hasStr(name string) bool {
 	if idx := strToIdx(name); idx >= 0 {
-		return idx < len(*o.data)
+		return idx < int64(len(*o.data))
 	}
 	return false
 }
@@ -217,7 +217,7 @@ func (o *objectGoSlice) toPrimitive() Value {
 }
 
 func (o *objectGoSlice) deleteStr(name string, throw bool) bool {
-	if idx := strToIdx(name); idx >= 0 && idx < len(*o.data) {
+	if idx := strToIdx(name); idx >= 0 && idx < int64(len(*o.data)) {
 		(*o.data)[idx] = nil
 		return true
 	}
@@ -225,7 +225,7 @@ func (o *objectGoSlice) deleteStr(name string, throw bool) bool {
 }
 
 func (o *objectGoSlice) delete(name Value, throw bool) bool {
-	if idx := toIdx(name); idx >= 0 && idx < len(*o.data) {
+	if idx := toIdx(name); idx >= 0 && idx < int64(len(*o.data)) {
 		(*o.data)[idx] = nil
 		return true
 	}
@@ -284,20 +284,20 @@ func (o *objectGoSlice) equal(other objectImpl) bool {
 	return false
 }
 
-func (o *objectGoSlice) sortLen() int {
-	return len(*o.data)
+func (o *objectGoSlice) sortLen() int64 {
+	return int64(len(*o.data))
 }
 
-func (o *objectGoSlice) sortGet(i int) Value {
-	return o.getStr(strconv.Itoa(i))
+func (o *objectGoSlice) sortGet(i int64) Value {
+	return o.get(intToValue(i))
 }
 
-func (o *objectGoSlice) swap(i, j int) {
-	ii := strconv.Itoa(i)
-	jj := strconv.Itoa(j)
-	x := o.getStr(ii)
-	y := o.getStr(jj)
+func (o *objectGoSlice) swap(i, j int64) {
+	ii := intToValue(i)
+	jj := intToValue(j)
+	x := o.get(ii)
+	y := o.get(jj)
 
-	o.putStr(ii, y, false)
-	o.putStr(jj, x, false)
+	o.put(ii, y, false)
+	o.put(jj, x, false)
 }

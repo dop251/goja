@@ -287,7 +287,7 @@ func (r *regexpObject) execResultToArray(target valueString, result []int) Value
 	for index := 0; index < captureCount; index++ {
 		offset := index << 1
 		if result[offset] >= lowerBound {
-			valueArray[index] = target.substring(result[offset], result[offset+1])
+			valueArray[index] = target.substring(int64(result[offset]), int64(result[offset+1]))
 			lowerBound = result[offset]
 		} else {
 			valueArray[index] = _undefined
@@ -300,9 +300,9 @@ func (r *regexpObject) execResultToArray(target valueString, result []int) Value
 }
 
 func (r *regexpObject) execRegexp(target valueString) (match bool, result []int) {
-	lastIndex := 0
+	lastIndex := int64(0)
 	if p := r.getStr("lastIndex"); p != nil {
-		lastIndex = int(p.ToInteger())
+		lastIndex = p.ToInteger()
 		if lastIndex < 0 {
 			lastIndex = 0
 		}
@@ -312,7 +312,7 @@ func (r *regexpObject) execRegexp(target valueString) (match bool, result []int)
 		index = 0
 	}
 	if index >= 0 && index <= target.length() {
-		result = r.pattern.FindSubmatchIndex(target, index)
+		result = r.pattern.FindSubmatchIndex(target, int(index))
 	}
 	if result == nil {
 		r.putStr("lastIndex", intToValue(0), true)

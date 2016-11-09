@@ -225,12 +225,12 @@ func (s asciiString) baseObject(r *Runtime) *Object {
 	return ss.val
 }
 
-func (s asciiString) charAt(idx int) rune {
+func (s asciiString) charAt(idx int64) rune {
 	return rune(s[idx])
 }
 
-func (s asciiString) length() int {
-	return len(s)
+func (s asciiString) length() int64 {
+	return int64(len(s))
 }
 
 func (s asciiString) concat(other valueString) valueString {
@@ -253,7 +253,7 @@ func (s asciiString) concat(other valueString) valueString {
 	}
 }
 
-func (s asciiString) substring(start, end int) valueString {
+func (s asciiString) substring(start, end int64) valueString {
 	return asciiString(s[start:end])
 }
 
@@ -268,9 +268,9 @@ func (s asciiString) compareTo(other valueString) int {
 	}
 }
 
-func (s asciiString) index(substr valueString, start int) int {
+func (s asciiString) index(substr valueString, start int64) int64 {
 	if substr, ok := substr.(asciiString); ok {
-		p := strings.Index(string(s[start:]), string(substr))
+		p := int64(strings.Index(string(s[start:]), string(substr)))
 		if p >= 0 {
 			return p + start
 		}
@@ -278,16 +278,16 @@ func (s asciiString) index(substr valueString, start int) int {
 	return -1
 }
 
-func (s asciiString) lastIndex(substr valueString, pos int) int {
+func (s asciiString) lastIndex(substr valueString, pos int64) int64 {
 	if substr, ok := substr.(asciiString); ok {
-		end := pos + len(substr)
+		end := pos + int64(len(substr))
 		var ss string
-		if end > len(s) {
+		if end > int64(len(s)) {
 			ss = string(s)
 		} else {
 			ss = string(s[:end])
 		}
-		return strings.LastIndex(ss, string(substr))
+		return int64(strings.LastIndex(ss, string(substr)))
 	}
 	return -1
 }

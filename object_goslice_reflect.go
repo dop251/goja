@@ -25,21 +25,21 @@ func (o *objectGoSliceReflect) _setLen() {
 
 func (o *objectGoSliceReflect) _has(n Value) bool {
 	if idx := toIdx(n); idx >= 0 {
-		return idx < o.value.Len()
+		return idx < int64(o.value.Len())
 	}
 	return false
 }
 
 func (o *objectGoSliceReflect) _hasStr(name string) bool {
 	if idx := strToIdx(name); idx >= 0 {
-		return idx < o.value.Len()
+		return idx < int64(o.value.Len())
 	}
 	return false
 }
 
-func (o *objectGoSliceReflect) getIdx(idx int) Value {
-	if idx < o.value.Len() {
-		return o.val.runtime.ToValue(o.value.Index(idx).Interface())
+func (o *objectGoSliceReflect) getIdx(idx int64) Value {
+	if idx < int64(o.value.Len()) {
+		return o.val.runtime.ToValue(o.value.Index(int(idx)).Interface())
 	}
 	return nil
 }
@@ -86,8 +86,8 @@ func (o *objectGoSliceReflect) getOwnProp(name string) Value {
 	return o.objectGoReflect.getOwnProp(name)
 }
 
-func (o *objectGoSliceReflect) putIdx(idx int, v Value, throw bool) {
-	if idx >= o.value.Len() {
+func (o *objectGoSliceReflect) putIdx(idx int64, v Value, throw bool) {
+	if idx >= int64(o.value.Len()) {
 		o.val.runtime.typeErrorResult(throw, "Cannot extend a Go reflect slice")
 		return
 	}
@@ -96,7 +96,7 @@ func (o *objectGoSliceReflect) putIdx(idx int, v Value, throw bool) {
 		o.val.runtime.typeErrorResult(throw, "Go type conversion error: %v", err)
 		return
 	}
-	o.value.Index(idx).Set(val)
+	o.value.Index(int(idx)).Set(val)
 }
 
 func (o *objectGoSliceReflect) put(n Value, val Value, throw bool) {
@@ -174,16 +174,16 @@ func (o *objectGoSliceReflect) toPrimitive() Value {
 }
 
 func (o *objectGoSliceReflect) deleteStr(name string, throw bool) bool {
-	if idx := strToIdx(name); idx >= 0 && idx < o.value.Len() {
-		o.value.Index(idx).Set(reflect.Zero(o.value.Type().Elem()))
+	if idx := strToIdx(name); idx >= 0 && idx < int64(o.value.Len()) {
+		o.value.Index(int(idx)).Set(reflect.Zero(o.value.Type().Elem()))
 		return true
 	}
 	return o.objectGoReflect.deleteStr(name, throw)
 }
 
 func (o *objectGoSliceReflect) delete(name Value, throw bool) bool {
-	if idx := toIdx(name); idx >= 0 && idx < o.value.Len() {
-		o.value.Index(idx).Set(reflect.Zero(o.value.Type().Elem()))
+	if idx := toIdx(name); idx >= 0 && idx < int64(o.value.Len()) {
+		o.value.Index(int(idx)).Set(reflect.Zero(o.value.Type().Elem()))
 		return true
 	}
 	return true
@@ -232,20 +232,20 @@ func (o *objectGoSliceReflect) equal(other objectImpl) bool {
 	return false
 }
 
-func (o *objectGoSliceReflect) sortLen() int {
-	return o.value.Len()
+func (o *objectGoSliceReflect) sortLen() int64 {
+	return int64(o.value.Len())
 }
 
-func (o *objectGoSliceReflect) sortGet(i int) Value {
-	return o.getStr(strconv.Itoa(i))
+func (o *objectGoSliceReflect) sortGet(i int64) Value {
+	return o.get(intToValue(i))
 }
 
-func (o *objectGoSliceReflect) swap(i, j int) {
-	ii := strconv.Itoa(i)
-	jj := strconv.Itoa(j)
-	x := o.getStr(ii)
-	y := o.getStr(jj)
+func (o *objectGoSliceReflect) swap(i, j int64) {
+	ii := intToValue(i)
+	jj := intToValue(j)
+	x := o.get(ii)
+	y := o.get(jj)
 
-	o.putStr(ii, y, false)
-	o.putStr(jj, x, false)
+	o.put(ii, y, false)
+	o.put(jj, x, false)
 }

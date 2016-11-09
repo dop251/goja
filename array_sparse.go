@@ -8,14 +8,14 @@ import (
 )
 
 type sparseArrayItem struct {
-	idx   int
+	idx   int64
 	value Value
 }
 
 type sparseArrayObject struct {
 	baseObject
 	items          []sparseArrayItem
-	length         int
+	length         int64
 	propValueCount int
 	lengthProp     valueProperty
 }
@@ -28,16 +28,16 @@ func (a *sparseArrayObject) init() {
 }
 
 func (a *sparseArrayObject) getLength() Value {
-	return intToValue(int64(a.length))
+	return intToValue(a.length)
 }
 
-func (a *sparseArrayObject) findIdx(idx int) int {
+func (a *sparseArrayObject) findIdx(idx int64) int {
 	return sort.Search(len(a.items), func(i int) bool {
 		return a.items[i].idx >= idx
 	})
 }
 
-func (a *sparseArrayObject) _setLengthInt(l int, throw bool) bool {
+func (a *sparseArrayObject) _setLengthInt(l int64, throw bool) bool {
 	if l >= 0 && l <= math.MaxUint32 {
 		ret := true
 
@@ -78,19 +78,19 @@ func (a *sparseArrayObject) _setLengthInt(l int, throw bool) bool {
 }
 
 func (a *sparseArrayObject) setLengthInt(l int64, throw bool) bool {
-	if l == int64(a.length) {
+	if l == a.length {
 		return true
 	}
 	if !a.lengthProp.writable {
 		a.val.runtime.typeErrorResult(throw, "length is not writable")
 		return false
 	}
-	return a._setLengthInt(int(l), throw)
+	return a._setLengthInt(l, throw)
 }
 
 func (a *sparseArrayObject) setLength(v Value, throw bool) bool {
 	l, ok := toIntIgnoreNegZero(v)
-	if ok && l == int64(a.length) {
+	if ok && l == a.length {
 		return true
 	}
 	if !a.lengthProp.writable {
@@ -98,12 +98,12 @@ func (a *sparseArrayObject) setLength(v Value, throw bool) bool {
 		return false
 	}
 	if ok {
-		return a._setLengthInt(int(l), throw)
+		return a._setLengthInt(l, throw)
 	}
 	panic(a.val.runtime.newError(a.val.runtime.global.RangeError, "Invalid array length"))
 }
 
-func (a *sparseArrayObject) getIdx(idx int, origNameStr string, origName Value) (v Value) {
+func (a *sparseArrayObject) getIdx(idx int64, origNameStr string, origName Value) (v Value) {
 	i := a.findIdx(idx)
 	if i < len(a.items) && a.items[i].idx == idx {
 		return a.items[i].value
@@ -131,7 +131,7 @@ func (a *sparseArrayObject) getProp(n Value) Value {
 }
 
 func (a *sparseArrayObject) getLengthProp() Value {
-	a.lengthProp.value = intToValue(int64(a.length))
+	a.lengthProp.value = intToValue(a.length)
 	return &a.lengthProp
 }
 
@@ -159,7 +159,7 @@ func (a *sparseArrayObject) getPropStr(name string) Value {
 	return a.baseObject.getPropStr(name)
 }
 
-func (a *sparseArrayObject) putIdx(idx int, val Value, throw bool, origNameStr string, origName Value) {
+func (a *sparseArrayObject) putIdx(idx int64, val Value, throw bool, origNameStr string, origName Value) {
 	var prop Value
 	i := a.findIdx(idx)
 	if i < len(a.items) && a.items[i].idx == idx {
@@ -192,7 +192,7 @@ func (a *sparseArrayObject) putIdx(idx int, val Value, throw bool, origNameStr s
 		}
 
 		if idx >= a.length {
-			if !a.setLengthInt(int64(idx+1), throw) {
+			if !a.setLengthInt(idx+1, throw) {
 				return
 			}
 		}
@@ -286,7 +286,7 @@ func (a *sparseArrayObject) setValues(values []Value) {
 	for i, val := range values {
 		if val != nil {
 			a.items = append(a.items, sparseArrayItem{
-				idx:   i,
+				idx:   int64(i),
 				value: val,
 			})
 		}
@@ -323,7 +323,7 @@ func (a *sparseArrayObject) expand() bool {
 			//log.Println("Switching sparse->standard")
 			ar := &arrayObject{
 				baseObject:     a.baseObject,
-				length:         int(a.length),
+				length:         a.length,
 				propValueCount: a.propValueCount,
 			}
 			ar.setValuesFromSparse(a.items)
@@ -346,7 +346,7 @@ func (a *sparseArrayObject) defineOwnProperty(n Value, descr objectImpl, throw b
 		prop, ok := a.baseObject._defineOwnProperty(n, existing, descr, throw)
 		if ok {
 			if idx >= a.length {
-				if !a.setLengthInt(int64(idx+1), throw) {
+				if !a.setLengthInt(idx+1, throw) {
 					return false
 				}
 			}
@@ -380,7 +380,7 @@ func (a *sparseArrayObject) defineOwnProperty(n Value, descr objectImpl, throw b
 	}
 }
 
-func (a *sparseArrayObject) _deleteProp(idx int, throw bool) bool {
+func (a *sparseArrayObject) _deleteProp(idx int64, throw bool) bool {
 	i := a.findIdx(idx)
 	if i < len(a.items) && a.items[i].idx == idx {
 		if p, ok := a.items[i].value.(*valueProperty); ok {
@@ -411,15 +411,15 @@ func (a *sparseArrayObject) deleteStr(name string, throw bool) bool {
 	return a.baseObject.deleteStr(name, throw)
 }
 
-func (a *sparseArrayObject) sortLen() int {
+func (a *sparseArrayObject) sortLen() int64 {
 	if len(a.items) > 0 {
-		return int(a.items[len(a.items)-1].idx) + 1
+		return a.items[len(a.items)-1].idx + 1
 	}
 
 	return 0
 }
 
-func (a *sparseArrayObject) sortGet(i int) Value {
+func (a *sparseArrayObject) sortGet(i int64) Value {
 	idx := a.findIdx(i)
 	if idx < len(a.items) && a.items[idx].idx == i {
 		v := a.items[idx].value
@@ -431,7 +431,7 @@ func (a *sparseArrayObject) sortGet(i int) Value {
 	return nil
 }
 
-func (a *sparseArrayObject) swap(i, j int) {
+func (a *sparseArrayObject) swap(i, j int64) {
 	idxI := a.findIdx(i)
 	idxJ := a.findIdx(j)
 

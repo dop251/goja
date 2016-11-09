@@ -173,12 +173,12 @@ func (s unicodeString) baseObject(r *Runtime) *Object {
 	return ss.val
 }
 
-func (s unicodeString) charAt(idx int) rune {
+func (s unicodeString) charAt(idx int64) rune {
 	return rune(s[idx])
 }
 
-func (s unicodeString) length() int {
-	return len(s)
+func (s unicodeString) length() int64 {
+	return int64(len(s))
 }
 
 func (s unicodeString) concat(other valueString) valueString {
@@ -198,7 +198,7 @@ func (s unicodeString) concat(other valueString) valueString {
 	}
 }
 
-func (s unicodeString) substring(start, end int) valueString {
+func (s unicodeString) substring(start, end int64) valueString {
 	ss := s[start:end]
 	for _, c := range ss {
 		if c >= utf8.RuneSelf {
@@ -220,7 +220,7 @@ func (s unicodeString) compareTo(other valueString) int {
 	return strings.Compare(s.String(), other.String())
 }
 
-func (s unicodeString) index(substr valueString, start int) int {
+func (s unicodeString) index(substr valueString, start int64) int64 {
 	var ss []uint16
 	switch substr := substr.(type) {
 	case unicodeString:
@@ -235,9 +235,9 @@ func (s unicodeString) index(substr valueString, start int) int {
 	}
 
 	// TODO: optimise
-	end := len(s) - len(ss)
+	end := int64(len(s) - len(ss))
 	for start < end {
-		for i := 0; i < len(ss); i++ {
+		for i := int64(0); i < int64(len(ss)); i++ {
 			if s[start+i] != ss[i] {
 				goto nomatch
 			}
@@ -250,7 +250,7 @@ func (s unicodeString) index(substr valueString, start int) int {
 	return -1
 }
 
-func (s unicodeString) lastIndex(substr valueString, start int) int {
+func (s unicodeString) lastIndex(substr valueString, start int64) int64 {
 	var ss []uint16
 	switch substr := substr.(type) {
 	case unicodeString:
@@ -266,7 +266,7 @@ func (s unicodeString) lastIndex(substr valueString, start int) int {
 
 	// TODO: optimise
 	for start >= 0 {
-		for i := 0; i < len(ss); i++ {
+		for i := int64(0); i < int64(len(ss)); i++ {
 			if s[start+i] != ss[i] {
 				goto nomatch
 			}

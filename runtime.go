@@ -251,7 +251,7 @@ func (r *Runtime) newArrayValues(values []Value) *Object {
 	a.prototype = r.global.ArrayPrototype
 	a.init()
 	a.values = values
-	a.length = len(values)
+	a.length = int64(len(values))
 	a.objCount = a.length
 	return v
 }
@@ -811,7 +811,7 @@ func (r *Runtime) ToValue(i interface{}) Value {
 	case int64:
 		return intToValue(i)
 	case uint:
-		if i <= math.MaxInt64 {
+		if int64(i) <= math.MaxInt64 {
 			return intToValue(int64(i))
 		} else {
 			return floatToValue(float64(i))

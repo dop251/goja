@@ -67,7 +67,7 @@ func (r *Runtime) arrayproto_pop(call FunctionCall) Value {
 		if l > 0 {
 			var val Value
 			l--
-			if l < len(a.values) {
+			if l < int64(len(a.values)) {
 				val = a.values[l]
 			}
 			if val == nil {
@@ -168,13 +168,13 @@ func (r *Runtime) arrayproto_toLocaleString(call FunctionCall) Value {
 	array := call.This.ToObject(r)
 	if a, ok := array.self.(*arrayObject); ok {
 		var buf bytes.Buffer
-		for i := 0; i < a.length; i++ {
+		for i := int64(0); i < a.length; i++ {
 			var item Value
-			if i < len(a.values) {
+			if i < int64(len(a.values)) {
 				item = a.values[i]
 			}
 			if item == nil {
-				return r.arrayproto_toLocaleString_generic(array, int64(i), &buf)
+				return r.arrayproto_toLocaleString_generic(array, i, &buf)
 			}
 			if prop, ok := item.(*valueProperty); ok {
 				item = prop.get(array)
@@ -532,7 +532,7 @@ func (r *Runtime) arrayproto_map(call FunctionCall) Value {
 			Arguments: []Value{nil, nil, o},
 		}
 		a := r.newArrayObject()
-		a._setLengthInt(int(length), true)
+		a._setLengthInt(length, true)
 		a.values = make([]Value, length)
 		for k := int64(0); k < length; k++ {
 			idx := intToValue(k)
@@ -570,7 +570,7 @@ func (r *Runtime) arrayproto_filter(call FunctionCall) Value {
 				}
 			}
 		}
-		a.length = len(a.values)
+		a.length = int64(len(a.values))
 		a.objCount = a.length
 		return a.val
 	} else {
@@ -697,10 +697,11 @@ func (r *Runtime) arrayproto_reverse(call FunctionCall) Value {
 	if a, ok := o.self.(*arrayObject); ok {
 		l := a.length
 		middle := l / 2
-		for lower := 0; lower != middle; lower++ {
+		al := int64(len(a.values))
+		for lower := int64(0); lower != middle; lower++ {
 			upper := l - lower - 1
 			var lowerValue, upperValue Value
-			if upper >= len(a.values) || lower >= len(a.values) {
+			if upper >= al || lower >= al {
 				goto bailout
 			}
 			lowerValue = a.values[lower]
@@ -721,7 +722,7 @@ func (r *Runtime) arrayproto_reverse(call FunctionCall) Value {
 			a.values[lower], a.values[upper] = upperValue, lowerValue
 			continue
 		bailout:
-			arrayproto_reverse_generic_step(o, int64(lower), int64(upper))
+			arrayproto_reverse_generic_step(o, lower, upper)
 		}
 		//TODO: go arrays
 	} else {
@@ -820,9 +821,9 @@ func (r *Runtime) initArray() {
 }
 
 type sortable interface {
-	sortLen() int
-	sortGet(int) Value
-	swap(int, int)
+	sortLen() int64
+	sortGet(int64) Value
+	swap(int64, int64)
 }
 
 type arraySortCtx struct {
@@ -867,13 +868,13 @@ func (ctx *arraySortCtx) sortCompare(x, y Value) int {
 // sort.Interface
 
 func (a *arraySortCtx) Len() int {
-	return a.obj.sortLen()
+	return int(a.obj.sortLen())
 }
 
 func (a *arraySortCtx) Less(j, k int) bool {
-	return a.sortCompare(a.obj.sortGet(j), a.obj.sortGet(k)) == -1
+	return a.sortCompare(a.obj.sortGet(int64(j)), a.obj.sortGet(int64(k))) == -1
 }
 
 func (a *arraySortCtx) Swap(j, k int) {
-	a.obj.swap(j, k)
+	a.obj.swap(int64(j), int64(k))
 }

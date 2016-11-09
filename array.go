@@ -9,8 +9,8 @@ import (
 type arrayObject struct {
 	baseObject
 	values         []Value
-	length         int
-	objCount       int
+	length         int64
+	objCount       int64
 	propValueCount int
 	lengthProp     valueProperty
 }
@@ -23,20 +23,20 @@ func (a *arrayObject) init() {
 }
 
 func (a *arrayObject) getLength() Value {
-	return intToValue(int64(a.length))
+	return intToValue(a.length)
 }
 
-func (a *arrayObject) _setLengthInt(l int, throw bool) bool {
+func (a *arrayObject) _setLengthInt(l int64, throw bool) bool {
 	if l >= 0 && l <= math.MaxUint32 {
 		ret := true
 		if l <= a.length {
 			if a.propValueCount > 0 {
 				// Slow path
-				var s int
-				if a.length < len(a.values) {
+				var s int64
+				if a.length < int64(len(a.values)) {
 					s = a.length - 1
 				} else {
-					s = len(a.values) - 1
+					s = int64(len(a.values)) - 1
 				}
 				for i := s; i >= l; i-- {
 					if prop, ok := a.values[i].(*valueProperty); ok {
@@ -50,8 +50,8 @@ func (a *arrayObject) _setLengthInt(l int, throw bool) bool {
 				}
 			}
 		}
-		if l <= len(a.values) {
-			if l >= 16 && l < cap(a.values)>>2 {
+		if l <= int64(len(a.values)) {
+			if l >= 16 && l < int64(cap(a.values))>>2 {
 				ar := make([]Value, l)
 				copy(ar, a.values)
 				a.values = ar
@@ -73,19 +73,19 @@ func (a *arrayObject) _setLengthInt(l int, throw bool) bool {
 }
 
 func (a *arrayObject) setLengthInt(l int64, throw bool) bool {
-	if l == int64(a.length) {
+	if l == a.length {
 		return true
 	}
 	if !a.lengthProp.writable {
 		a.val.runtime.typeErrorResult(throw, "length is not writable")
 		return false
 	}
-	return a._setLengthInt(int(l), throw)
+	return a._setLengthInt(l, throw)
 }
 
 func (a *arrayObject) setLength(v Value, throw bool) bool {
 	l, ok := toIntIgnoreNegZero(v)
-	if ok && l == int64(a.length) {
+	if ok && l == a.length {
 		return true
 	}
 	if !a.lengthProp.writable {
@@ -93,13 +93,13 @@ func (a *arrayObject) setLength(v Value, throw bool) bool {
 		return false
 	}
 	if ok {
-		return a._setLengthInt(int(l), throw)
+		return a._setLengthInt(l, throw)
 	}
 	panic(a.val.runtime.newError(a.val.runtime.global.RangeError, "Invalid array length"))
 }
 
-func (a *arrayObject) getIdx(idx int, origNameStr string, origName Value) (v Value) {
-	if idx >= 0 && idx < len(a.values) {
+func (a *arrayObject) getIdx(idx int64, origNameStr string, origName Value) (v Value) {
+	if idx >= 0 && idx < int64(len(a.values)) {
 		v = a.values[idx]
 	}
 	if v == nil && a.prototype != nil {
@@ -112,11 +112,11 @@ func (a *arrayObject) getIdx(idx int, origNameStr string, origName Value) (v Val
 	return
 }
 
-func (a *arrayObject) sortLen() int {
-	return len(a.values)
+func (a *arrayObject) sortLen() int64 {
+	return int64(len(a.values))
 }
 
-func (a *arrayObject) sortGet(i int) Value {
+func (a *arrayObject) sortGet(i int64) Value {
 	v := a.values[i]
 	if p, ok := v.(*valueProperty); ok {
 		v = p.get(a.val)
@@ -124,33 +124,33 @@ func (a *arrayObject) sortGet(i int) Value {
 	return v
 }
 
-func (a *arrayObject) swap(i, j int) {
+func (a *arrayObject) swap(i, j int64) {
 	a.values[i], a.values[j] = a.values[j], a.values[i]
 }
 
-func toIdx(v Value) int {
-	idx := -1
+func toIdx(v Value) (idx int64) {
+	idx = -1
 	if idxVal, ok1 := v.(valueInt); ok1 {
-		idx = int(idxVal)
+		idx = int64(idxVal)
 	} else {
-		if i, err := strconv.Atoi(v.String()); err == nil {
+		if i, err := strconv.ParseInt(v.String(), 10, 64); err == nil {
 			idx = i
 		}
 	}
 	if idx >= 0 && idx < math.MaxUint32 {
-		return idx
+		return
 	}
 	return -1
 }
 
-func strToIdx(s string) int {
-	idx := -1
-	if i, err := strconv.Atoi(s); err == nil {
+func strToIdx(s string) (idx int64) {
+	idx = -1
+	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
 		idx = i
 	}
 
 	if idx >= 0 && idx < math.MaxUint32 {
-		return idx
+		return
 	}
 	return -1
 }
@@ -167,7 +167,7 @@ func (a *arrayObject) getProp(n Value) Value {
 }
 
 func (a *arrayObject) getLengthProp() Value {
-	a.lengthProp.value = intToValue(int64(a.length))
+	a.lengthProp.value = intToValue(a.length)
 	return &a.lengthProp
 }
 
@@ -183,7 +183,7 @@ func (a *arrayObject) getPropStr(name string) Value {
 
 func (a *arrayObject) getOwnProp(name string) Value {
 	if i := strToIdx(name); i >= 0 {
-		if i >= 0 && i < len(a.values) {
+		if i >= 0 && i < int64(len(a.values)) {
 			return a.values[i]
 		}
 	}
@@ -193,9 +193,9 @@ func (a *arrayObject) getOwnProp(name string) Value {
 	return a.baseObject.getOwnProp(name)
 }
 
-func (a *arrayObject) putIdx(idx int, val Value, throw bool, origNameStr string, origName Value) {
+func (a *arrayObject) putIdx(idx int64, val Value, throw bool, origNameStr string, origName Value) {
 	var prop Value
-	if idx < len(a.values) {
+	if idx < int64(len(a.values)) {
 		prop = a.values[idx]
 	}
 
@@ -224,11 +224,11 @@ func (a *arrayObject) putIdx(idx int, val Value, throw bool, origNameStr string,
 			return
 		}
 		if idx >= a.length {
-			if !a.setLengthInt(int64(idx+1), throw) {
+			if !a.setLengthInt(idx+1, throw) {
 				return
 			}
 		}
-		if idx >= len(a.values) {
+		if idx >= int64(len(a.values)) {
 			if !a.expand(idx) {
 				a.val.self.(*sparseArrayObject).putIdx(idx, val, throw, origNameStr, origName)
 				return
@@ -309,7 +309,7 @@ func (a *arrayObject) enumerate(all, recursive bool) iterNextFunc {
 
 func (a *arrayObject) hasOwnProperty(n Value) bool {
 	if idx := toIdx(n); idx >= 0 {
-		return idx < len(a.values) && a.values[idx] != nil && a.values[idx] != _undefined
+		return idx < int64(len(a.values)) && a.values[idx] != nil && a.values[idx] != _undefined
 	} else {
 		return a.baseObject.hasOwnProperty(n)
 	}
@@ -317,16 +317,16 @@ func (a *arrayObject) hasOwnProperty(n Value) bool {
 
 func (a *arrayObject) hasOwnPropertyStr(name string) bool {
 	if idx := strToIdx(name); idx >= 0 {
-		return idx < len(a.values) && a.values[idx] != nil && a.values[idx] != _undefined
+		return idx < int64(len(a.values)) && a.values[idx] != nil && a.values[idx] != _undefined
 	} else {
 		return a.baseObject.hasOwnPropertyStr(name)
 	}
 }
 
-func (a *arrayObject) expand(idx int) bool {
+func (a *arrayObject) expand(idx int64) bool {
 	targetLen := idx + 1
-	if targetLen > len(a.values) {
-		if targetLen < cap(a.values) {
+	if targetLen > int64(len(a.values)) {
+		if targetLen < int64(cap(a.values)) {
 			a.values = a.values[:targetLen]
 		} else {
 			if idx > 4096 && (a.objCount == 0 || idx/a.objCount > 10) {
@@ -342,7 +342,7 @@ func (a *arrayObject) expand(idx int) bool {
 				return false
 			} else {
 				// Use the same algorithm as in runtime.growSlice
-				newcap := cap(a.values)
+				newcap := int64(cap(a.values))
 				doublecap := newcap + newcap
 				if targetLen > doublecap {
 					newcap = targetLen
@@ -416,13 +416,13 @@ Reject:
 func (a *arrayObject) defineOwnProperty(n Value, descr objectImpl, throw bool) bool {
 	if idx := toIdx(n); idx >= 0 {
 		var existing Value
-		if idx < len(a.values) {
+		if idx < int64(len(a.values)) {
 			existing = a.values[idx]
 		}
 		prop, ok := a.baseObject._defineOwnProperty(n, existing, descr, throw)
 		if ok {
 			if idx >= a.length {
-				if !a.setLengthInt(int64(idx+1), throw) {
+				if !a.setLengthInt(idx+1, throw) {
 					return false
 				}
 			}
@@ -445,8 +445,8 @@ func (a *arrayObject) defineOwnProperty(n Value, descr objectImpl, throw bool) b
 	}
 }
 
-func (a *arrayObject) _deleteProp(idx int, throw bool) bool {
-	if idx < len(a.values) {
+func (a *arrayObject) _deleteProp(idx int64, throw bool) bool {
+	if idx < int64(len(a.values)) {
 		if v := a.values[idx]; v != nil {
 			if p, ok := v.(*valueProperty); ok {
 				if !p.configurable {

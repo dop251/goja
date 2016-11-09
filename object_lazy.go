@@ -181,19 +181,19 @@ func (o *lazyObject) equal(other objectImpl) bool {
 	return obj.equal(other)
 }
 
-func (o *lazyObject) sortLen() int {
+func (o *lazyObject) sortLen() int64 {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.sortLen()
 }
 
-func (o *lazyObject) sortGet(i int) Value {
+func (o *lazyObject) sortGet(i int64) Value {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.sortGet(i)
 }
 
-func (o *lazyObject) swap(i, j int) {
+func (o *lazyObject) swap(i, j int64) {
 	obj := o.create(o.val)
 	o.val.self = obj
 	obj.swap(i, j)

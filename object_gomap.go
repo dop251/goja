@@ -200,17 +200,17 @@ func (o *objectGoMapSimple) equal(other objectImpl) bool {
 	return false
 }
 
-func (o *objectGoMapSimple) sortLen() int {
-	return len(o.data)
+func (o *objectGoMapSimple) sortLen() int64 {
+	return int64(len(o.data))
 }
 
-func (o *objectGoMapSimple) sortGet(i int) Value {
-	return o.getStr(strconv.Itoa(i))
+func (o *objectGoMapSimple) sortGet(i int64) Value {
+	return o.getStr(strconv.FormatInt(i, 10))
 }
 
-func (o *objectGoMapSimple) swap(i, j int) {
-	ii := strconv.Itoa(i)
-	jj := strconv.Itoa(j)
+func (o *objectGoMapSimple) swap(i, j int64) {
+	ii := strconv.FormatInt(i, 10)
+	jj := strconv.FormatInt(j, 10)
 	x := o.getStr(ii)
 	y := o.getStr(jj)
 

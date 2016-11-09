@@ -42,14 +42,14 @@ var (
 
 type valueString interface {
 	Value
-	charAt(int) rune
-	length() int
+	charAt(int64) rune
+	length() int64
 	concat(valueString) valueString
-	substring(start, end int) valueString
+	substring(start, end int64) valueString
 	compareTo(valueString) int
 	reader(start int) io.RuneReader
-	index(valueString, int) int
-	lastIndex(valueString, int) int
+	index(valueString, int64) int64
+	lastIndex(valueString, int64) int64
 	toLower() valueString
 	toUpper() valueString
 	toTrimmedUTF8() string
@@ -58,7 +58,7 @@ type valueString interface {
 type stringObject struct {
 	baseObject
 	value      valueString
-	length     int
+	length     int64
 	lengthProp valueProperty
 }
 
@@ -84,7 +84,7 @@ func (s *stringObject) setLength() {
 	if s.value != nil {
 		s.length = s.value.length()
 	}
-	s.lengthProp.value = intToValue(int64(s.length))
+	s.lengthProp.value = intToValue(s.length)
 	s._put("length", &s.lengthProp)
 }
 
@@ -128,7 +128,7 @@ func (s *stringObject) getOwnProp(name string) Value {
 	return s.baseObject.getOwnProp(name)
 }
 
-func (s *stringObject) getIdx(idx int) Value {
+func (s *stringObject) getIdx(idx int64) Value {
 	return s.value.substring(idx, idx+1)
 }
 
@@ -162,13 +162,13 @@ func (s *stringObject) defineOwnProperty(n Value, descr objectImpl, throw bool) 
 type stringPropIter struct {
 	str         valueString // separate, because obj can be the singleton
 	obj         *stringObject
-	idx, length int
+	idx, length int64
 	recursive   bool
 }
 
 func (i *stringPropIter) next() (propIterItem, iterNextFunc) {
 	if i.idx < i.length {
-		name := strconv.Itoa(i.idx)
+		name := strconv.FormatInt(i.idx, 10)
 		i.idx++
 		return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.next
 	}

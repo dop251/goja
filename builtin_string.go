@@ -53,19 +53,6 @@ func (r *Runtime) builtin_newString(args []Value) *Object {
 	return r._newString(s)
 }
 
-func searchSubstring(str, search valueString) (ret [][]int) {
-	searchPos := 0
-	l := str.length()
-	if searchPos < l {
-		p := str.index(search, searchPos)
-		if p != -1 {
-			searchPos = p + search.length()
-			ret = append(ret, []int{p, searchPos})
-		}
-	}
-	return
-}
-
 func searchSubstringUTF8(str, search string) (ret [][]int) {
 	searchPos := 0
 	l := len(str)
@@ -127,20 +114,20 @@ func (r *Runtime) stringproto_charAt(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.ToString()
 	pos := call.Argument(0).ToInteger()
-	if pos < 0 || pos >= int64(s.length()) {
+	if pos < 0 || pos >= s.length() {
 		return stringEmpty
 	}
-	return newStringValue(string(s.charAt(int(pos))))
+	return newStringValue(string(s.charAt(pos)))
 }
 
 func (r *Runtime) stringproto_charCodeAt(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.ToString()
 	pos := call.Argument(0).ToInteger()
-	if pos < 0 || pos >= int64(s.length()) {
+	if pos < 0 || pos >= s.length() {
 		return _NaN
 	}
-	return intToValue(int64(s.charAt(int(pos)) & 0xFFFF))
+	return intToValue(int64(s.charAt(pos) & 0xFFFF))
 }
 
 func (r *Runtime) stringproto_concat(call FunctionCall) Value {
@@ -166,7 +153,7 @@ func (r *Runtime) stringproto_concat(call FunctionCall) Value {
 		return asciiString(buf.String())
 	} else {
 		buf := make([]uint16, totalLen)
-		pos := 0
+		pos := int64(0)
 		for _, s := range strs {
 			switch s := s.(type) {
 			case asciiString:
@@ -187,7 +174,7 @@ func (r *Runtime) stringproto_indexOf(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	value := call.This.ToString()
 	target := call.Argument(0).ToString()
-	pos := int(call.Argument(1).ToInteger())
+	pos := call.Argument(1).ToInteger()
 
 	if pos < 0 {
 		pos = 0
@@ -198,7 +185,7 @@ func (r *Runtime) stringproto_indexOf(call FunctionCall) Value {
 		}
 	}
 
-	return intToValue(int64(value.index(target, pos)))
+	return intToValue(value.index(target, pos))
 }
 
 func (r *Runtime) stringproto_lastIndexOf(call FunctionCall) Value {
@@ -207,11 +194,11 @@ func (r *Runtime) stringproto_lastIndexOf(call FunctionCall) Value {
 	target := call.Argument(0).ToString()
 	numPos := call.Argument(1).ToNumber()
 
-	var pos int
+	var pos int64
 	if f, ok := numPos.assertFloat(); ok && math.IsNaN(f) {
-		pos = int(value.length())
+		pos = value.length()
 	} else {
-		pos = int(numPos.ToInteger())
+		pos = numPos.ToInteger()
 		if pos < 0 {
 			pos = 0
 		} else {
@@ -222,7 +209,7 @@ func (r *Runtime) stringproto_lastIndexOf(call FunctionCall) Value {
 		}
 	}
 
-	return intToValue(int64(value.lastIndex(target, pos)))
+	return intToValue(value.lastIndex(target, pos))
 }
 
 func (r *Runtime) stringproto_localeCompare(call FunctionCall) Value {
@@ -261,7 +248,7 @@ func (r *Runtime) stringproto_match(call FunctionCall) Value {
 			} else {
 				previousLastIndex = thisIndex
 			}
-			a = append(a, s.substring(result[0], result[1]))
+			a = append(a, s.substring(int64(result[0]), int64(result[1])))
 		}
 		if len(a) == 0 {
 			return _null
@@ -439,10 +426,10 @@ func (r *Runtime) stringproto_slice(call FunctionCall) Value {
 	s := call.This.ToString()
 
 	l := s.length()
-	start := int(call.Argument(0).ToInteger())
-	var end int
+	start := call.Argument(0).ToInteger()
+	var end int64
 	if arg1 := call.Argument(1); arg1 != _undefined {
-		end = int(arg1.ToInteger())
+		end = arg1.ToInteger()
 	} else {
 		end = l
 	}
@@ -509,13 +496,13 @@ func (r *Runtime) stringproto_split(call FunctionCall) Value {
 		for _, match := range result {
 			if match[0] == match[1] {
 				// FIXME Ugh, this is a hack
-				if match[0] == 0 || match[0] == targetLength {
+				if match[0] == 0 || int64(match[0]) == targetLength {
 					continue
 				}
 			}
 
 			if lastIndex != match[0] {
-				valueArray = append(valueArray, s.substring(lastIndex, match[0]))
+				valueArray = append(valueArray, s.substring(int64(lastIndex), int64(match[0])))
 				found++
 			} else if lastIndex == match[0] {
 				if lastIndex != -1 {
@@ -534,7 +521,7 @@ func (r *Runtime) stringproto_split(call FunctionCall) Value {
 				offset := index * 2
 				var value Value
 				if match[offset] != -1 {
-					value = s.substring(match[offset], match[offset+1])
+					value = s.substring(int64(match[offset]), int64(match[offset+1]))
 				} else {
 					value = _undefined
 				}
@@ -547,8 +534,8 @@ func (r *Runtime) stringproto_split(call FunctionCall) Value {
 		}
 
 		if found != limit {
-			if lastIndex != targetLength {
-				valueArray = append(valueArray, s.substring(lastIndex, targetLength))
+			if int64(lastIndex) != targetLength {
+				valueArray = append(valueArray, s.substring(int64(lastIndex), targetLength))
 			} else {
 				valueArray = append(valueArray, stringEmpty)
 			}
@@ -592,10 +579,10 @@ func (r *Runtime) stringproto_substring(call FunctionCall) Value {
 	s := call.This.ToString()
 
 	l := s.length()
-	intStart := int(call.Argument(0).ToInteger())
-	var intEnd int
+	intStart := call.Argument(0).ToInteger()
+	var intEnd int64
 	if end := call.Argument(1); end != _undefined {
-		intEnd = int(end.ToInteger())
+		intEnd = end.ToInteger()
 	} else {
 		intEnd = l
 	}
@@ -659,7 +646,7 @@ func (r *Runtime) stringproto_substr(call FunctionCall) Value {
 		return stringEmpty
 	}
 
-	return s.substring(int(start), int(start+length))
+	return s.substring(start, start+length)
 }
 
 func (r *Runtime) initString() {
