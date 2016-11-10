@@ -806,7 +806,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	} else {
 		l := 1 + len(e.c.scope.names)
 		if e.c.scope.argsNeeded {
-			l += 3
+			l += 2
 		}
 		if !e.c.scope.strict && e.c.scope.thisNeeded {
 			l++
@@ -835,9 +835,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 			if !exists {
 				panic("No arguments")
 			}
-			code[pos] = setLocal(idx)
-			pos++
-			code[pos] = pop
+			code[pos] = setLocalP(idx)
 			pos++
 		}
 

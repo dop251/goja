@@ -339,6 +339,24 @@ func (c *compiler) addDecls() []instruction {
 	return code
 }
 
+func (c *compiler) convertInstrToStashless(instr uint32, args int) (newIdx int, convert bool) {
+	level := instr >> 24
+	idx := instr & 0x00FFFFFF
+	if level > 0 {
+		level--
+		newIdx = int((level << 24) | idx)
+	} else {
+		iidx := int(idx)
+		if iidx < args {
+			newIdx = -iidx - 1
+		} else {
+			newIdx = iidx - args + 1
+		}
+		convert = true
+	}
+	return
+}
+
 func (c *compiler) convertFunctionToStashless(code []instruction, args int) {
 	code[0] = enterFuncStashless{stackSize: uint32(len(c.scope.names) - args), args: uint32(args)}
 	for pc := 1; pc < len(code); pc++ {
@@ -348,43 +366,22 @@ func (c *compiler) convertFunctionToStashless(code []instruction, args int) {
 		}
 		switch instr := instr.(type) {
 		case getLocal:
-			level := int(uint32(instr) >> 24)
-			idx := int(uint32(instr) & 0x00FFFFFF)
-			if level > 0 {
-				level--
-				code[pc] = getLocal((level << 24) | idx)
+			if newIdx, convert := c.convertInstrToStashless(uint32(instr), args); convert {
+				code[pc] = loadStack(newIdx)
 			} else {
-				if idx < args {
-					code[pc] = loadStack(-idx - 1)
-				} else {
-					code[pc] = loadStack(idx - args + 1)
-				}
+				code[pc] = getLocal(newIdx)
 			}
 		case setLocal:
-			level := int(uint32(instr) >> 24)
-			idx := int(instr & 0x00FFFFFF)
-			if level > 0 {
-				level--
-				code[pc] = setLocal((level << 24) | idx)
+			if newIdx, convert := c.convertInstrToStashless(uint32(instr), args); convert {
+				code[pc] = storeStack(newIdx)
 			} else {
-				if idx < args {
-					code[pc] = storeStack(-idx - 1)
-				} else {
-					code[pc] = storeStack(idx - args + 1)
-				}
+				code[pc] = setLocal(newIdx)
 			}
 		case setLocalP:
-			level := int(uint32(instr) >> 24)
-			idx := int(instr & 0x00FFFFFF)
-			if level > 0 {
-				level--
-				code[pc] = setLocal((level << 24) | idx)
+			if newIdx, convert := c.convertInstrToStashless(uint32(instr), args); convert {
+				code[pc] = storeStackP(newIdx)
 			} else {
-				if idx < args {
-					code[pc] = storeStackP(-idx - 1)
-				} else {
-					code[pc] = storeStackP(idx - args + 1)
-				}
+				code[pc] = setLocalP(newIdx)
 			}
 		case getVar:
 			level := instr.idx >> 24

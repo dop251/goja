@@ -115,42 +115,32 @@ func (c *compiler) compileTryStatement(v *ast.TryStatement) {
 			dynamicCatch = false
 			code := c.p.code[start+1:]
 			m := make(map[uint32]uint32)
+			remap := func(instr uint32) uint32 {
+				level := instr >> 24
+				idx := instr & 0x00FFFFFF
+				if level > 0 {
+					level--
+					return (level << 24) | idx
+				} else {
+					// remap
+					newIdx, exists := m[idx]
+					if !exists {
+						exname := " __tmp" + strconv.Itoa(c.scope.lastFreeTmp)
+						c.scope.lastFreeTmp++
+						newIdx, _ = c.scope.bindName(exname)
+						m[idx] = newIdx
+					}
+					return newIdx
+				}
+			}
 			for pc, instr := range code {
 				switch instr := instr.(type) {
 				case getLocal:
-					level := uint32(instr) >> 24
-					idx := uint32(instr) & 0x00FFFFFF
-					if level > 0 {
-						level--
-						code[pc] = getLocal((level << 24) | idx)
-					} else {
-						// remap
-						newIdx, exists := m[idx]
-						if !exists {
-							exname := " __tmp" + strconv.Itoa(c.scope.lastFreeTmp)
-							c.scope.lastFreeTmp++
-							newIdx, _ = c.scope.bindName(exname)
-							m[idx] = newIdx
-						}
-						code[pc] = getLocal(newIdx)
-					}
+					code[pc] = getLocal(remap(uint32(instr)))
 				case setLocal:
-					level := uint32(instr) >> 24
-					idx := uint32(instr) & 0x00FFFFFF
-					if level > 0 {
-						level--
-						code[pc] = setLocal((level << 24) | idx)
-					} else {
-						// remap
-						newIdx, exists := m[idx]
-						if !exists {
-							exname := " __tmp" + strconv.Itoa(c.scope.lastFreeTmp)
-							c.scope.lastFreeTmp++
-							newIdx, _ = c.scope.bindName(exname)
-							m[idx] = newIdx
-						}
-						code[pc] = setLocal(newIdx)
-					}
+					code[pc] = setLocal(remap(uint32(instr)))
+				case setLocalP:
+					code[pc] = setLocalP(remap(uint32(instr)))
 				}
 			}
 			if catchVarIdx, exists := m[0]; exists {
