@@ -49,6 +49,7 @@ func (c *compiler) compileStatement(v ast.Statement, needResult bool) {
 		}
 	case *ast.WithStatement:
 		c.compileWithStatement(v, needResult)
+	case *ast.DebuggerStatement:
 	default:
 		panic(fmt.Errorf("Unknown statement type: %T", v))
 	}
