@@ -279,6 +279,12 @@ func (r *Runtime) NewObject() (v *Object) {
 	return r.newBaseObject(r.global.ObjectPrototype, classObject).val
 }
 
+func (r *Runtime) NewGoError(err error) *Object {
+	e := r.newError(r.global.GoError, err.Error()).(*Object)
+	e.Set("value", err)
+	return e
+}
+
 func (r *Runtime) newFunc(name string, len int, strict bool) (f *funcObject) {
 	v := &Object{runtime: r}
 
@@ -993,9 +999,7 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 				if _, ok := err.(*Exception); ok {
 					panic(err)
 				}
-				e := r.newError(r.global.GoError, last.Interface().(error).Error())
-				e.(*Object).Set("value", err)
-				panic(e)
+				panic(r.NewGoError(last.Interface().(error)))
 			}
 			out = out[:len(out)-1]
 		}
