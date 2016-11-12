@@ -1,6 +1,9 @@
 package goja
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestGoReflectGet(t *testing.T) {
 	const SCRIPT = `
@@ -396,4 +399,74 @@ func TestGoReflectRedefineMethod(t *testing.T) {
 	if !v.StrictEquals(valueTrue) {
 		t.Fatalf("Expected true, got %v", v)
 	}
+}
+
+type jsonTagNamer struct {
+}
+
+func (n *jsonTagNamer) JsName(v reflect.Value, name string) string {
+	if f, ok := v.Type().FieldByName(name); ok {
+		if jsontag := f.Tag.Get("json"); jsontag != "" {
+			return jsontag
+		}
+	}
+	return name
+}
+
+func (n *jsonTagNamer) GoName(v reflect.Value, name string) string {
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		f := v.Type().Field(i)
+		if jsontag := f.Tag.Get("json"); jsontag == name {
+			return f.Name
+		}
+	}
+	return name
+}
+
+func TestGoReflectCustomNaming(t *testing.T) {
+
+	type testStructWithJsonTags struct {
+		A string `json:"b"` // <-- script sees field "A" as property "b"
+	}
+
+	prevNaming := Naming
+	Naming = &jsonTagNamer{}
+	defer func() {
+		Naming = prevNaming
+	}()
+
+	o := &testStructWithJsonTags{"Hello world"}
+	r := New()
+	r.Set("fn", func() *testStructWithJsonTags { return o })
+
+	t.Run("get property", func(t *testing.T) {
+		v, err := r.RunString(`fn().b`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !v.StrictEquals(newStringValue(o.A)) {
+			t.Fatalf("Expected %q, got %v", o.A, v)
+		}
+	})
+
+	t.Run("set property", func(t *testing.T) {
+		_, err := r.RunString(`fn().b = "Hello universe"`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if o.A != "Hello universe" {
+			t.Fatalf("Expected \"Hello universe\", got %q", o.A)
+		}
+	})
+
+	t.Run("enumerate properties", func(t *testing.T) {
+		v, err := r.RunString(`Object.keys(fn())`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(v.Export(), []interface{}{"b"}) {
+			t.Fatalf("Expected [\"b\"], got %v", v.Export())
+		}
+	})
 }

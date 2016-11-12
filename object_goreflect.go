@@ -6,6 +6,31 @@ import (
 	"reflect"
 )
 
+// ReflectNamer translates between ECMA script and GO field/method names.
+type ReflectNamer interface {
+	JsName(v reflect.Value, goname string) string
+	GoName(v reflect.Value, jsname string) string
+}
+
+var (
+	// Naming provides an extension point that enables custom mapping between
+	// ECMA scripts and GO field/method names.
+	// By default GO and ECMA script use the same field/method names.
+	Naming ReflectNamer = &IdentityNamer{}
+)
+
+// IdentityNamer uses the identical field/method names in both ECMA script and GO.
+type IdentityNamer struct {
+}
+
+func (n *IdentityNamer) JsName(v reflect.Value, name string) string {
+	return name
+}
+
+func (n *IdentityNamer) GoName(v reflect.Value, name string) string {
+	return name
+}
+
 type objectGoReflect struct {
 	baseObject
 	origValue, value reflect.Value
@@ -48,13 +73,14 @@ func (o *objectGoReflect) get(n Value) Value {
 }
 
 func (o *objectGoReflect) _get(name string) Value {
+
 	if o.value.Kind() == reflect.Struct {
-		if v := o.value.FieldByName(name); v.IsValid() {
+		if v := o.value.FieldByName(Naming.GoName(o.value, name)); v.IsValid() {
 			return o.val.runtime.ToValue(v.Interface())
 		}
 	}
 
-	if v := o.origValue.MethodByName(name); v.IsValid() {
+	if v := o.origValue.MethodByName(Naming.GoName(o.origValue, name)); v.IsValid() {
 		return o.val.runtime.ToValue(v.Interface())
 	}
 	return nil
@@ -84,7 +110,7 @@ func (o *objectGoReflect) getPropStr(name string) Value {
 
 func (o *objectGoReflect) getOwnProp(name string) Value {
 	if o.value.Kind() == reflect.Struct {
-		if v := o.value.FieldByName(name); v.IsValid() {
+		if v := o.value.FieldByName(Naming.GoName(o.value, name)); v.IsValid() {
 			return &valueProperty{
 				value:      o.val.runtime.ToValue(v.Interface()),
 				writable:   true,
@@ -93,7 +119,7 @@ func (o *objectGoReflect) getOwnProp(name string) Value {
 		}
 	}
 
-	if v := o.origValue.MethodByName(name); v.IsValid() {
+	if v := o.origValue.MethodByName(Naming.GoName(o.origValue, name)); v.IsValid() {
 		return &valueProperty{
 			value:      o.val.runtime.ToValue(v.Interface()),
 			enumerable: true,
@@ -115,7 +141,7 @@ func (o *objectGoReflect) putStr(name string, val Value, throw bool) {
 
 func (o *objectGoReflect) _put(name string, val Value, throw bool) bool {
 	if o.value.Kind() == reflect.Struct {
-		if v := o.value.FieldByName(name); v.IsValid() {
+		if v := o.value.FieldByName(Naming.GoName(o.value, name)); v.IsValid() {
 			vv, err := o.val.runtime.toReflectValue(val, v.Type())
 			if err != nil {
 				o.val.runtime.typeErrorResult(throw, "Go struct conversion error: %v", err)
@@ -155,7 +181,7 @@ func (o *objectGoReflect) defineOwnProperty(n Value, descr objectImpl, throw boo
 	name := n.String()
 	if ast.IsExported(name) {
 		if o.value.Kind() == reflect.Struct {
-			if v := o.value.FieldByName(name); v.IsValid() {
+			if v := o.value.FieldByName(Naming.GoName(o.value, name)); v.IsValid() {
 				if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 					return false
 				}
@@ -182,11 +208,11 @@ func (o *objectGoReflect) _has(name string) bool {
 		return false
 	}
 	if o.value.Kind() == reflect.Struct {
-		if v := o.value.FieldByName(name); v.IsValid() {
+		if v := o.value.FieldByName(Naming.GoName(o.value, name)); v.IsValid() {
 			return true
 		}
 	}
-	if v := o.origValue.MethodByName(name); v.IsValid() {
+	if v := o.origValue.MethodByName(Naming.GoName(o.origValue, name)); v.IsValid() {
 		return true
 	}
 	return false
@@ -296,7 +322,7 @@ func (i *goreflectPropIter) nextField() (propIterItem, iterNextFunc) {
 		name := i.o.value.Type().Field(i.idx).Name
 		i.idx++
 		if ast.IsExported(name) {
-			return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.nextField
+			return propIterItem{name: Naming.JsName(i.o.value, name), enumerable: _ENUM_TRUE}, i.nextField
 		}
 	}
 
@@ -310,7 +336,7 @@ func (i *goreflectPropIter) nextMethod() (propIterItem, iterNextFunc) {
 		name := i.o.origValue.Type().Method(i.idx).Name
 		i.idx++
 		if ast.IsExported(name) {
-			return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.nextMethod
+			return propIterItem{name: Naming.JsName(i.o.origValue, name), enumerable: _ENUM_TRUE}, i.nextMethod
 		}
 	}
 
