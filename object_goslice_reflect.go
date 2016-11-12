@@ -11,7 +11,7 @@ type objectGoSliceReflect struct {
 }
 
 func (o *objectGoSliceReflect) init() {
-	o.baseObject.init()
+	o.objectGoReflect.init()
 	o.class = classArray
 	o.prototype = o.val.runtime.global.ArrayPrototype
 	o.lengthProp.writable = false
