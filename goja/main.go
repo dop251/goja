@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"github.com/dop251/goja"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -13,6 +12,10 @@ import (
 	"runtime/debug"
 	"runtime/pprof"
 	"time"
+
+	"github.com/dop251/goja"
+	"github.com/dop251/goja_nodejs/console"
+	"github.com/dop251/goja_nodejs/require"
 )
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
@@ -38,21 +41,6 @@ func load(vm *goja.Runtime, call goja.FunctionCall) goja.Value {
 	return v
 }
 
-func console_log(call goja.FunctionCall) goja.Value {
-	args := make([]interface{}, len(call.Arguments))
-	for i, a := range call.Arguments {
-		args[i] = a.String()
-	}
-	log.Print(args...)
-	return nil
-}
-
-func createConsole(vm *goja.Runtime) *goja.Object {
-	o := vm.NewObject()
-	o.Set("log", console_log)
-	return o
-}
-
 func newRandSource() goja.RandSource {
 	var seed int64
 	if err := binary.Read(crand.Reader, binary.LittleEndian, &seed); err != nil {
@@ -75,7 +63,9 @@ func run() error {
 	vm := goja.New()
 	vm.SetRandSource(newRandSource())
 
-	vm.Set("console", createConsole(vm))
+	new(require.Require).Enable(vm)
+	console.Enable(vm)
+
 	vm.Set("load", func(call goja.FunctionCall) goja.Value {
 		return load(vm, call)
 	})
