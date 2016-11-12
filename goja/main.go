@@ -63,7 +63,7 @@ func run() error {
 	vm := goja.New()
 	vm.SetRandSource(newRandSource())
 
-	new(require.Require).Enable(vm)
+	new(require.Registry).Enable(vm)
 	console.Enable(vm)
 
 	vm.Set("load", func(call goja.FunctionCall) goja.Value {
