@@ -201,12 +201,7 @@ func (r *Runtime) init() {
 
 func (r *Runtime) typeErrorResult(throw bool, args ...interface{}) {
 	if throw {
-		msg := ""
-		if len(args) > 0 {
-			f, _ := args[0].(string)
-			msg = fmt.Sprintf(f, args[1:]...)
-		}
-		panic(r.builtin_new(r.global.TypeError, []Value{newStringValue(msg)}))
+		panic(r.NewTypeError(args...))
 	}
 }
 
@@ -277,6 +272,15 @@ func (r *Runtime) newBaseObject(proto *Object, class string) (o *baseObject) {
 
 func (r *Runtime) NewObject() (v *Object) {
 	return r.newBaseObject(r.global.ObjectPrototype, classObject).val
+}
+
+func (r *Runtime) NewTypeError(args ...interface{}) *Object {
+	msg := ""
+	if len(args) > 0 {
+		f, _ := args[0].(string)
+		msg = fmt.Sprintf(f, args[1:]...)
+	}
+	return r.builtin_new(r.global.TypeError, []Value{newStringValue(msg)})
 }
 
 func (r *Runtime) NewGoError(err error) *Object {
