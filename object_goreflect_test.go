@@ -1,6 +1,9 @@
 package goja
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestGoReflectGet(t *testing.T) {
 	const SCRIPT = `
@@ -395,5 +398,166 @@ func TestGoReflectRedefineMethod(t *testing.T) {
 
 	if !v.StrictEquals(valueTrue) {
 		t.Fatalf("Expected true, got %v", v)
+	}
+}
+
+func TestGoReflectEmbeddedStruct(t *testing.T) {
+	const SCRIPT = `
+	if (o.ParentField2 !== "ParentField2") {
+		throw new Error("ParentField2 = " + o.ParentField2);
+	}
+
+	if (o.Parent.ParentField2 !== 2) {
+		throw new Error("o.Parent.ParentField2 = " + o.Parent.ParentField2);
+	}
+
+	if (o.ParentField1 !== 1) {
+		throw new Error("o.ParentField1 = " + o.ParentField1);
+
+	}
+
+	if (o.ChildField !== 3) {
+		throw new Error("o.ChildField = " + o.ChildField);
+	}
+
+	var keys = {};
+	for (var k in o) {
+		if (keys[k]) {
+			throw new Error("Duplicate key: " + k);
+		}
+		keys[k] = true;
+	}
+
+	var expectedKeys = ["ParentField2", "ParentField1", "Parent", "ChildField"];
+	for (var i in expectedKeys) {
+		if (!keys[expectedKeys[i]]) {
+			throw new Error("Missing key in enumeration: " + expectedKeys[i]);
+		}
+		delete keys[expectedKeys[i]];
+	}
+
+	var remainingKeys = Object.keys(keys);
+	if (remainingKeys.length > 0) {
+		throw new Error("Unexpected keys: " + remainingKeys);
+	}
+
+	o.ParentField2 = "ParentField22";
+	o.Parent.ParentField2 = 22;
+	o.ParentField1 = 11;
+	o.ChildField = 33;
+	`
+
+	type Parent struct {
+		ParentField1 int
+		ParentField2 int
+	}
+
+	type Child struct {
+		Parent
+		ParentField2 string
+		ChildField   int
+	}
+
+	vm := New()
+	o := Child{
+		Parent: Parent{
+			ParentField1: 1,
+			ParentField2: 2,
+		},
+		ParentField2: "ParentField2",
+		ChildField:   3,
+	}
+	vm.Set("o", &o)
+
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if o.ParentField2 != "ParentField22" {
+		t.Fatalf("ParentField2 = %q", o.ParentField2)
+	}
+
+	if o.Parent.ParentField2 != 22 {
+		t.Fatalf("Parent.ParentField2 = %d", o.Parent.ParentField2)
+	}
+
+	if o.ParentField1 != 11 {
+		t.Fatalf("ParentField1 = %d", o.ParentField1)
+	}
+
+	if o.ChildField != 33 {
+		t.Fatalf("ChildField = %d", o.ChildField)
+	}
+}
+
+type jsonTagNamer struct{}
+
+func (*jsonTagNamer) FieldName(t reflect.Type, field reflect.StructField) string {
+	if jsonTag := field.Tag.Get("json"); jsonTag != "" {
+		return jsonTag
+	}
+	return field.Name
+}
+
+func (*jsonTagNamer) MethodName(t reflect.Type, method reflect.Method) string {
+	return method.Name
+}
+
+func TestGoReflectCustomNaming(t *testing.T) {
+
+	type testStructWithJsonTags struct {
+		A string `json:"b"` // <-- script sees field "A" as property "b"
+	}
+
+	o := &testStructWithJsonTags{"Hello world"}
+	r := New()
+	r.SetFieldNameMapper(&jsonTagNamer{})
+	r.Set("fn", func() *testStructWithJsonTags { return o })
+
+	t.Run("get property", func(t *testing.T) {
+		v, err := r.RunString(`fn().b`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !v.StrictEquals(newStringValue(o.A)) {
+			t.Fatalf("Expected %q, got %v", o.A, v)
+		}
+	})
+
+	t.Run("set property", func(t *testing.T) {
+		_, err := r.RunString(`fn().b = "Hello universe"`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if o.A != "Hello universe" {
+			t.Fatalf("Expected \"Hello universe\", got %q", o.A)
+		}
+	})
+
+	t.Run("enumerate properties", func(t *testing.T) {
+		v, err := r.RunString(`Object.keys(fn())`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(v.Export(), []interface{}{"b"}) {
+			t.Fatalf("Expected [\"b\"], got %v", v.Export())
+		}
+	})
+}
+
+type testGoReflectMethod_Bench struct {
+	field                                   string
+	Test1, Test2, Test3, Test4, Test5, Test string
+}
+
+func BenchmarkGoReflectGet(b *testing.B) {
+	b.StopTimer()
+	vm := New()
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		v := vm.ToValue(testGoReflectMethod_O{Test: "Test"}).(*Object)
+		v.Get("Test")
 	}
 }

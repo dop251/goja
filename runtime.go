@@ -73,6 +73,9 @@ type Runtime struct {
 	stringSingleton *stringObject
 	rand            RandSource
 
+	typeInfoCache   map[reflect.Type]*reflectTypeInfo
+	fieldNameMapper FieldNameMapper
+
 	vm *vm
 }
 
