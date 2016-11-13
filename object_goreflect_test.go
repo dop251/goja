@@ -546,18 +546,22 @@ func TestGoReflectCustomNaming(t *testing.T) {
 	})
 }
 
-type testGoReflectMethod_Bench struct {
-	field                                   string
-	Test1, Test2, Test3, Test4, Test5, Test string
-}
-
 func BenchmarkGoReflectGet(b *testing.B) {
+	type parent struct {
+		field, Test1, Test2, Test3, Test4, Test5, Test string
+	}
+
+	type child struct {
+		parent
+		Test6 string
+	}
+
 	b.StopTimer()
 	vm := New()
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		v := vm.ToValue(testGoReflectMethod_O{Test: "Test"}).(*Object)
+		v := vm.ToValue(child{parent: parent{Test: "Test"}}).(*Object)
 		v.Get("Test")
 	}
 }

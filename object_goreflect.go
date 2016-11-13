@@ -416,9 +416,9 @@ func (r *Runtime) buildFieldInfo(t reflect.Type, index []int, info *reflectTypeI
 			}
 		}
 
-		idx := make([]int, 0, len(index)+1)
-		idx = append(idx, index...)
-		idx = append(idx, i)
+		idx := make([]int, len(index)+1)
+		copy(idx, index)
+		idx[len(idx)-1] = i
 		if _, exists := info.Fields[name]; !exists {
 			info.FieldNames = append(info.FieldNames, name)
 		}
@@ -427,9 +427,6 @@ func (r *Runtime) buildFieldInfo(t reflect.Type, index []int, info *reflectTypeI
 			Anonymous: field.Anonymous,
 		}
 		if field.Anonymous {
-			idx := make([]int, 0, len(index)+1)
-			idx = append(idx, index...)
-			idx = append(idx, i)
 			r.buildFieldInfo(field.Type, idx, info)
 		}
 	}
