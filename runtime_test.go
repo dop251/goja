@@ -486,6 +486,16 @@ func TestGoFuncError(t *testing.T) {
 	}
 }
 
+func TestToValueNil(t *testing.T) {
+	type T struct{}
+	var a *T
+	vm := New()
+
+	if v := vm.ToValue(a); !IsNull(v) {
+		t.Fatalf("Expected null, got: %v", v)
+	}
+}
+
 func TestJSONEscape(t *testing.T) {
 	const SCRIPT = `
 	var a = "\\+1";

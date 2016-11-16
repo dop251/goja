@@ -799,7 +799,7 @@ reflect based types.
 func (r *Runtime) ToValue(i interface{}) Value {
 	switch i := i.(type) {
 	case nil:
-		return _undefined
+		return _null
 	case Value:
 		// TODO: prevent importing Objects from a different runtime
 		return i
@@ -882,6 +882,10 @@ func (r *Runtime) ToValue(i interface{}) Value {
 	value := origValue
 	for value.Kind() == reflect.Ptr {
 		value = reflect.Indirect(value)
+	}
+
+	if !value.IsValid() {
+		return _null
 	}
 
 	switch value.Kind() {
