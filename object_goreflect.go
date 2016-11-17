@@ -6,6 +6,12 @@ import (
 	"reflect"
 )
 
+// JsonEncodable allows custom JSON encoding by JSON.stringify()
+// Note that if the returned value itself also implements JsonEncodable, it won't have any effect.
+type JsonEncodable interface {
+	JsonEncodable() interface{}
+}
+
 // FieldNameMapper provides custom mapping between Go and JavaScript property names.
 type FieldNameMapper interface {
 	// FieldName returns a JavaScript name for the given struct field in the given type.
@@ -33,6 +39,8 @@ type objectGoReflect struct {
 	origValue, value reflect.Value
 
 	valueTypeInfo, origValueTypeInfo *reflectTypeInfo
+
+	toJson func() interface{}
 }
 
 func (o *objectGoReflect) init() {
@@ -60,6 +68,10 @@ func (o *objectGoReflect) init() {
 
 	o.valueTypeInfo = o.val.runtime.typeInfo(o.value.Type())
 	o.origValueTypeInfo = o.val.runtime.typeInfo(o.origValue.Type())
+
+	if j, ok := o.origValue.Interface().(JsonEncodable); ok {
+		o.toJson = j.JsonEncodable
+	}
 }
 
 func (o *objectGoReflect) toStringFunc(call FunctionCall) Value {

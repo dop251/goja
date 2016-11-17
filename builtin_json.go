@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 	"math"
+	"strings"
 )
 
 var hex = "0123456789abcdef"
@@ -288,15 +288,7 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 					Arguments: []Value{key},
 				})
 			}
-		} /*else {
-			// If the object is a GoStruct or something that implements json.Marshaler
-			if object.objectClass.marshalJSON != nil {
-				marshaler := object.objectClass.marshalJSON(object)
-				if marshaler != nil {
-					return marshaler, true
-				}
-			}
-		}*/
+		}
 	}
 
 	if ctx.replacerFunction != nil {
@@ -313,16 +305,20 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 		case *stringObject:
 			value = o1.value
 		case *objectGoReflect:
-			switch o.self.className() {
-			case classNumber:
-				value = o1.toPrimitiveNumber()
-			case classString:
-				value = o1.toPrimitiveString()
-			case classBoolean:
-				if o.ToInteger() != 0 {
-					value = valueTrue
-				} else {
-					value = valueFalse
+			if o1.toJson != nil {
+				value = ctx.r.ToValue(o1.toJson())
+			} else {
+				switch o1.className() {
+				case classNumber:
+					value = o1.toPrimitiveNumber()
+				case classString:
+					value = o1.toPrimitiveString()
+				case classBoolean:
+					if o.ToInteger() != 0 {
+						value = valueTrue
+					} else {
+						value = valueFalse
+					}
 				}
 			}
 		}

@@ -555,6 +555,26 @@ func TestJSONNil(t *testing.T) {
 	}
 }
 
+type customJsonEncodable struct{}
+
+func (*customJsonEncodable) JsonEncodable() interface{} {
+	return "Test"
+}
+
+func TestJsonEncodable(t *testing.T) {
+	var s customJsonEncodable
+
+	vm := New()
+	vm.Set("s", &s)
+
+	ret, err := vm.RunString("JSON.stringify(s)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ret.StrictEquals(vm.ToValue("\"Test\"")) {
+		t.Fatalf("Expected \"Test\", got: %v", ret)
+	}
+}
 
 /*
 func TestArrayConcatSparse(t *testing.T) {
