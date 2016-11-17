@@ -514,6 +514,48 @@ func TestJSONObjectInArray(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestJSONQuirkyNumbers(t *testing.T) {
+	const SCRIPT = `
+	var s;
+	s = JSON.stringify(NaN);
+	if (s != "null") {
+		throw new Error("NaN: " + s);
+	}
+
+	s = JSON.stringify(Infinity);
+	if (s != "null") {
+		throw new Error("Infinity: " + s);
+	}
+
+	s = JSON.stringify(-Infinity);
+	if (s != "null") {
+		throw new Error("-Infinity: " + s);
+	}
+
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestJSONNil(t *testing.T) {
+	const SCRIPT = `
+	JSON.stringify(i);
+	`
+
+	vm := New()
+	var i interface{}
+	vm.Set("i", i)
+	ret, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ret.String() != "null" {
+		t.Fatalf("Expected 'null', got: %v", ret)
+	}
+}
+
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

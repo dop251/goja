@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"math"
 )
 
 var hex = "0123456789abcdef"
@@ -336,8 +337,14 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 		}
 	case valueString:
 		ctx.quote(value1)
-	case valueInt, valueFloat:
+	case valueInt:
 		ctx.buf.WriteString(value.String())
+	case valueFloat:
+		if !math.IsNaN(float64(value1)) && !math.IsInf(float64(value1), 0) {
+			ctx.buf.WriteString(value.String())
+		} else {
+			ctx.buf.WriteString("null")
+		}
 	case valueNull:
 		ctx.buf.WriteString("null")
 	case *Object:
