@@ -428,12 +428,18 @@ func (r *Runtime) buildFieldInfo(t reflect.Type, index []int, info *reflectTypeI
 			}
 		}
 
+		if inf, exists := info.Fields[name]; !exists {
+			info.FieldNames = append(info.FieldNames, name)
+		} else {
+			if len(inf.Index) <= len(index) {
+				continue
+			}
+		}
+
 		idx := make([]int, len(index)+1)
 		copy(idx, index)
 		idx[len(idx)-1] = i
-		if _, exists := info.Fields[name]; !exists {
-			info.FieldNames = append(info.FieldNames, name)
-		}
+
 		info.Fields[name] = reflectFieldInfo{
 			Index:     idx,
 			Anonymous: field.Anonymous,

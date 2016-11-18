@@ -453,9 +453,9 @@ func TestGoReflectEmbeddedStruct(t *testing.T) {
 	}
 
 	type Child struct {
-		Parent
 		ParentField2 string
-		ChildField   int
+		Parent
+		ChildField int
 	}
 
 	vm := New()
