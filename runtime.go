@@ -16,6 +16,10 @@ const (
 	sqrt1_2 float64 = math.Sqrt2 / 2
 )
 
+var (
+	typeCallable = reflect.TypeOf(Callable(nil))
+)
+
 type global struct {
 	Object   *Object
 	Array    *Object
@@ -1069,6 +1073,19 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 		return reflect.ValueOf(uint8(i)).Convert(typ), nil
 	}
 
+	t := reflect.TypeOf(v)
+	if t.AssignableTo(typ) {
+		return reflect.ValueOf(v), nil
+	} else if t.ConvertibleTo(typ) {
+		return reflect.ValueOf(v).Convert(typ), nil
+	}
+
+	if typ == typeCallable {
+		if fn, ok := AssertFunction(v); ok {
+			return reflect.ValueOf(fn), nil
+		}
+	}
+
 	et := v.ExportType()
 
 	if et.AssignableTo(typ) {
@@ -1148,9 +1165,46 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 			}
 			return s, nil
 		}
+	case reflect.Func:
+		if fn, ok := AssertFunction(v); ok {
+			return reflect.MakeFunc(typ, r.wrapJSFunc(fn, typ)), nil
+		}
 	}
 
 	return reflect.Value{}, fmt.Errorf("Could not convert %v to %v", v, typ)
+}
+
+func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.Value) (results []reflect.Value) {
+	return func(args []reflect.Value) (results []reflect.Value) {
+		jsArgs := make([]Value, len(args))
+		for i, arg := range args {
+			jsArgs[i] = r.ToValue(arg.Interface())
+		}
+
+		results = make([]reflect.Value, typ.NumOut())
+		res, err := fn(_undefined, jsArgs...)
+		if err == nil {
+			if typ.NumOut() > 0 {
+				results[0], err = r.toReflectValue(res, typ.Out(0))
+			}
+		}
+
+		if err != nil {
+			if typ.NumOut() == 2 && typ.Out(1).Name() == "error" {
+				results[1] = reflect.ValueOf(err).Convert(typ.Out(1))
+			} else {
+				panic(err)
+			}
+		}
+
+		for i, v := range results {
+			if !v.IsValid() {
+				results[i] = reflect.Zero(typ.Out(i))
+			}
+		}
+
+		return
+	}
 }
 
 // ExportTo converts a JavaScript value into the specified Go value. The second parameter must be a non-nil pointer.

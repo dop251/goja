@@ -460,6 +460,136 @@ func TestRuntime_ExportToStruct(t *testing.T) {
 
 }
 
+func TestRuntime_ExportToFunc(t *testing.T) {
+	const SCRIPT = `
+	function f(param) {
+		return +param + 2;
+	}
+	`
+
+	vm := New()
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var fn func(string) string
+	vm.ExportTo(vm.Get("f"), &fn)
+
+	if res := fn("40"); res != "42" {
+		t.Fatalf("Unexpected value: %q", res)
+	}
+}
+
+func TestRuntime_ExportToFuncThrow(t *testing.T) {
+	const SCRIPT = `
+	function f(param) {
+		throw new Error("testing");
+	}
+	`
+
+	vm := New()
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var fn func(string) (string, error)
+	err = vm.ExportTo(vm.Get("f"), &fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := fn("40"); err != nil {
+		if ex, ok := err.(*Exception); ok {
+			if msg := ex.Error(); msg != "Error: testing" {
+				t.Fatalf("Msg: %q", msg)
+			}
+		} else {
+			t.Fatalf("Error is not *Exception (%T): %v", err, err)
+		}
+	} else {
+		t.Fatal("Expected error")
+	}
+}
+
+func TestRuntime_ExportToFuncFail(t *testing.T) {
+	const SCRIPT = `
+	function f(param) {
+		return +param + 2;
+	}
+	`
+
+	type T struct {
+		Field1 int
+	}
+
+	var fn func(string) (T, error)
+
+	vm := New()
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = vm.ExportTo(vm.Get("f"), &fn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := fn("40"); err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
+func TestRuntime_ExportToCallable(t *testing.T) {
+	const SCRIPT = `
+	function f(param) {
+		return +param + 2;
+	}
+	`
+	vm := New()
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var c Callable
+	err = vm.ExportTo(vm.Get("f"), &c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := c(Undefined(), vm.ToValue("40"))
+	if err != nil {
+		t.Fatal(err)
+	} else if !res.StrictEquals(vm.ToValue(42)) {
+		t.Fatalf("Unexpected value: %v", res)
+	}
+}
+
+func TestRuntime_ExportToObject(t *testing.T) {
+	const SCRIPT = `
+	var o = {"test": 42};
+	o;
+	`
+	vm := New()
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var o *Object
+	err = vm.ExportTo(vm.Get("o"), &o)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if v := o.Get("test"); !v.StrictEquals(vm.ToValue(42)) {
+		t.Fatalf("Unexpected value: %v", v)
+	}
+}
+
 func TestGoFuncError(t *testing.T) {
 	const SCRIPT = `
 	try {
