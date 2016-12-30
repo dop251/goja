@@ -995,6 +995,9 @@ func (c *compiler) evalConst(expr compiledExpr) (Value, *Exception) {
 	if expr, ok := expr.(*compiledLiteral); ok {
 		return expr.val, nil
 	}
+	if c.evalVM == nil {
+		c.evalVM = New().vm
+	}
 	var savedPrg *Program
 	createdPrg := false
 	if c.evalVM.prg == nil {

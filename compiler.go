@@ -129,7 +129,6 @@ func newCompiler() *compiler {
 
 	c.newScope()
 	c.scope.dynamic = true
-	c.evalVM = New().vm
 	return c
 }
 
