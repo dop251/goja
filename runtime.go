@@ -315,11 +315,13 @@ func (r *Runtime) newFunc(name string, len int, strict bool) (f *funcObject) {
 
 func (r *Runtime) newNativeFuncObj(v *Object, call func(FunctionCall) Value, construct func(args []Value) *Object, name string, proto *Object, length int) *nativeFuncObject {
 	f := &nativeFuncObject{
-		baseObject: baseObject{
-			class:      classFunction,
-			val:        v,
-			extensible: true,
-			prototype:  r.global.FunctionPrototype,
+		baseFuncObject: baseFuncObject{
+			baseObject: baseObject{
+				class:      classFunction,
+				val:        v,
+				extensible: true,
+				prototype:  r.global.FunctionPrototype,
+			},
 		},
 		f:         call,
 		construct: construct,
@@ -336,11 +338,13 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(ar
 	v := &Object{runtime: r}
 
 	f := &nativeFuncObject{
-		baseObject: baseObject{
-			class:      classFunction,
-			val:        v,
-			extensible: true,
-			prototype:  r.global.FunctionPrototype,
+		baseFuncObject: baseFuncObject{
+			baseObject: baseObject{
+				class:      classFunction,
+				val:        v,
+				extensible: true,
+				prototype:  r.global.FunctionPrototype,
+			},
 		},
 		f:         call,
 		construct: construct,
@@ -354,13 +358,15 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(ar
 	return v
 }
 
-func (r *Runtime) newNativeFuncConstructObj(v *Object, construct func(args []Value, proto *Object) *Object, name string, proto *Object, length int) objectImpl {
+func (r *Runtime) newNativeFuncConstructObj(v *Object, construct func(args []Value, proto *Object) *Object, name string, proto *Object, length int) *nativeFuncObject {
 	f := &nativeFuncObject{
-		baseObject: baseObject{
-			class:      classFunction,
-			val:        v,
-			extensible: true,
-			prototype:  r.global.FunctionPrototype,
+		baseFuncObject: baseFuncObject{
+			baseObject: baseObject{
+				class:      classFunction,
+				val:        v,
+				extensible: true,
+				prototype:  r.global.FunctionPrototype,
+			},
 		},
 		f: r.constructWrap(construct, proto),
 		construct: func(args []Value) *Object {
