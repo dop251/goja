@@ -278,11 +278,11 @@ func (vm *vm) init() {
 
 func (vm *vm) run() {
 	vm.halt = false
-	for !vm.halt && !vm.interrupted() {
+	for !vm.halt && atomic.LoadUint32(&vm.interrupt) == 0 {
 		vm.prg.code[vm.pc].exec(vm)
 	}
 
-	if vm.interrupted() {
+	if atomic.LoadUint32(&vm.interrupt) != 0 {
 		vm.interruptLock.Lock()
 		v := &InterruptedError{
 			iface: vm.interruptVal,
@@ -292,10 +292,6 @@ func (vm *vm) run() {
 		vm.interruptLock.Unlock()
 		panic(v)
 	}
-}
-
-func (vm *vm) interrupted() bool {
-	return atomic.LoadUint32(&vm.interrupt) != 0
 }
 
 func (vm *vm) Interrupt(v interface{}) {
