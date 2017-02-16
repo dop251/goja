@@ -70,6 +70,14 @@ func run() error {
 		return load(vm, call)
 	})
 
+	vm.Set("readFile", func(name string) (string, error) {
+		b, err := ioutil.ReadFile(name)
+		if err != nil {
+			return "", err
+		}
+		return string(b), nil
+	})
+
 	if *timelimit > 0 {
 		time.AfterFunc(time.Duration(*timelimit)*time.Second, func() {
 			vm.Interrupt("timeout")
