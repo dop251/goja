@@ -706,6 +706,25 @@ func TestJsonEncodable(t *testing.T) {
 	}
 }
 
+func TestSortComparatorReturnValues(t *testing.T) {
+	const SCRIPT = `
+	var a = [];
+	for (var i = 0; i < 12; i++) {
+	    a[i] = i;
+	}
+
+	a.sort(function(x, y) { return y - x });
+
+	for (var i = 0; i < 12; i++) {
+	    if (a[i] !== 11-i) {
+		throw new Error("Value at index " + i + " is incorrect: " + a[i]);
+	    }
+	}
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

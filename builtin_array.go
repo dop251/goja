@@ -872,7 +872,7 @@ func (a *arraySortCtx) Len() int {
 }
 
 func (a *arraySortCtx) Less(j, k int) bool {
-	return a.sortCompare(a.obj.sortGet(int64(j)), a.obj.sortGet(int64(k))) == -1
+	return a.sortCompare(a.obj.sortGet(int64(j)), a.obj.sortGet(int64(k))) < 0
 }
 
 func (a *arraySortCtx) Swap(j, k int) {
