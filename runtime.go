@@ -597,7 +597,9 @@ func toUInt32(v Value) uint32 {
 	}
 
 	if f, ok := v.assertFloat(); ok {
-		return uint32(int64(f))
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			return uint32(int64(f))
+		}
 	}
 	return 0
 }
@@ -609,7 +611,9 @@ func toUInt16(v Value) uint16 {
 	}
 
 	if f, ok := v.assertFloat(); ok {
-		return uint16(int64(f))
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			return uint16(int64(f))
+		}
 	}
 	return 0
 }
