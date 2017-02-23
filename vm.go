@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 	"sync"
+	"sync/atomic"
 )
 
 const (
@@ -111,7 +112,7 @@ type vm struct {
 	stashAllocs int
 	halt        bool
 
-	interrupt     bool
+	interrupt     uint32
 	interruptVal  interface{}
 	interruptLock sync.Mutex
 }
@@ -277,17 +278,17 @@ func (vm *vm) init() {
 
 func (vm *vm) run() {
 	vm.halt = false
-	for !vm.halt && !vm.interrupt {
+	for !vm.halt && atomic.LoadUint32(&vm.interrupt) == 0 {
 		vm.prg.code[vm.pc].exec(vm)
 	}
 
-	if vm.interrupt {
+	if atomic.LoadUint32(&vm.interrupt) != 0 {
 		vm.interruptLock.Lock()
 		v := &InterruptedError{
 			iface: vm.interruptVal,
 		}
-		vm.interrupt = false
 		vm.interruptVal = nil
+		atomic.StoreUint32(&vm.interrupt, 0)
 		vm.interruptLock.Unlock()
 		panic(v)
 	}
@@ -296,7 +297,7 @@ func (vm *vm) run() {
 func (vm *vm) Interrupt(v interface{}) {
 	vm.interruptLock.Lock()
 	vm.interruptVal = v
-	vm.interrupt = true
+	atomic.StoreUint32(&vm.interrupt, 1)
 	vm.interruptLock.Unlock()
 }
 
