@@ -173,3 +173,27 @@ func TestRegexpDotMatchSlashRInGroup(t *testing.T) {
 
 	testScript1(SCRIPT, valueFalse, t)
 }
+
+func TestRegexpSplitWithBackRef(t *testing.T) {
+	const SCRIPT = `
+	"a++b+-c".split(/([+-])\1/).join(" $$ ")
+	`
+
+	testScript1(SCRIPT, asciiString("a $$ + $$ b+-c"), t)
+}
+
+func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
+	const SCRIPT = `
+	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)
+	`
+	b.StopTimer()
+	prg, err := Compile("test.js", SCRIPT, false)
+	if err != nil {
+		b.Fatal(err)
+	}
+	vm := New()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		vm.RunProgram(prg)
+	}
+}

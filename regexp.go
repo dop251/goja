@@ -192,7 +192,7 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUTF16(s unicodeString, n int) [][]i
 func (r *regexp2Wrapper) FindAllSubmatchIndex(s valueString, n int) [][]int {
 	switch s := s.(type) {
 	case asciiString:
-		return r.FindAllSubmatchIndexUTF8(string(s), n)
+		return r.FindAllSubmatchIndexASCII(string(s), n)
 	case unicodeString:
 		return r.findAllSubmatchIndexUTF16(s, n)
 	default:
