@@ -183,3 +183,37 @@ func TestDateValueOf(t *testing.T) {
 
 	testScript1(SCRIPT, intToValue(1.23e15), t)
 }
+
+func TestDateSetters(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue((new Date(0)).setMilliseconds(2345), 2345, "setMilliseconds()");
+	assert.sameValue((new Date(0)).setUTCMilliseconds(2345), 2345, "setUTCMilliseconds()");
+	assert.sameValue((new Date(0)).setSeconds(12), 12000, "setSeconds()");
+	assert.sameValue((new Date(0)).setUTCSeconds(12), 12000, "setUTCSeconds()");
+	assert.sameValue((new Date(0)).setMinutes(12), 12 * 60 * 1000, "setMinutes()");
+	assert.sameValue((new Date(0)).setUTCMinutes(12), 12 * 60 * 1000, "setUTCMinutes()");
+	assert.sameValue((new Date("2016-06-01")).setHours(1), 1464739200000, "setHours()");
+	assert.sameValue((new Date("2016-06-01")).setUTCHours(1), 1464742800000, "setUTCHours()");
+	assert.sameValue((new Date(0)).setDate(2), 86400000, "setDate()");
+	assert.sameValue((new Date(0)).setUTCDate(2), 86400000, "setUTCDate()");
+	assert.sameValue((new Date(0)).setMonth(2), 5097600000, "setMonth()");
+	assert.sameValue((new Date(0)).setUTCMonth(2), 5097600000, "setUTCMonth()");
+	assert.sameValue((new Date(0)).setFullYear(1971), 31536000000, "setFullYear()");
+	assert.sameValue((new Date(0)).setFullYear(1971, 2, 3), 36806400000, "setFullYear(Y,M,D)");
+	assert.sameValue((new Date(0)).setUTCFullYear(1971), 31536000000, "setUTCFullYear()");
+	assert.sameValue((new Date(0)).setUTCFullYear(1971, 2, 3), 36806400000, "setUTCFullYear(Y,M,D)");
+
+	`
+
+	l := time.Local
+	defer func() {
+		time.Local = l
+	}()
+	var err error
+	time.Local, err = time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}

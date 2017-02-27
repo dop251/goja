@@ -518,7 +518,7 @@ func (r *Runtime) dateproto_setMilliseconds(call FunctionCall) Value {
 		if d.isSet {
 			msec := int(call.Argument(0).ToInteger())
 			d.time = time.Date(d.time.Year(), d.time.Month(), d.time.Day(), d.time.Hour(), d.time.Minute(), d.time.Second(), msec*1e6, time.Local)
-			return intToValue(d.time.Unix() / 1e6)
+			return intToValue(d.time.UnixNano() / 1e6)
 		} else {
 			return _NaN
 		}
@@ -534,7 +534,7 @@ func (r *Runtime) dateproto_setUTCMilliseconds(call FunctionCall) Value {
 			msec := int(call.Argument(0).ToInteger())
 			t := d.time.In(time.UTC)
 			d.time = time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), msec*1e6, time.UTC).In(time.Local)
-			return intToValue(d.time.Unix() / 1e6)
+			return intToValue(d.time.UnixNano() / 1e6)
 		} else {
 			return _NaN
 		}
@@ -555,7 +555,7 @@ func (r *Runtime) dateproto_setSeconds(call FunctionCall) Value {
 				nsec = d.time.Nanosecond()
 			}
 			d.time = time.Date(d.time.Year(), d.time.Month(), d.time.Day(), d.time.Hour(), d.time.Minute(), sec, nsec, time.Local)
-			return intToValue(d.time.Unix() / 1e6)
+			return intToValue(d.time.UnixNano() / 1e6)
 		} else {
 			return _NaN
 		}
@@ -577,7 +577,7 @@ func (r *Runtime) dateproto_setUTCSeconds(call FunctionCall) Value {
 				nsec = t.Nanosecond()
 			}
 			d.time = time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), sec, nsec, time.UTC).In(time.Local)
-			return intToValue(d.time.Unix() / 1e6)
+			return intToValue(d.time.UnixNano() / 1e6)
 		} else {
 			return _NaN
 		}
@@ -603,7 +603,7 @@ func (r *Runtime) dateproto_setMinutes(call FunctionCall) Value {
 				nsec = d.time.Nanosecond()
 			}
 			d.time = time.Date(d.time.Year(), d.time.Month(), d.time.Day(), d.time.Hour(), min, sec, nsec, time.Local)
-			return intToValue(d.time.Unix() / 1e6)
+			return intToValue(d.time.UnixNano() / 1e6)
 		} else {
 			return _NaN
 		}
@@ -630,7 +630,7 @@ func (r *Runtime) dateproto_setUTCMinutes(call FunctionCall) Value {
 				nsec = t.Nanosecond()
 			}
 			d.time = time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), min, sec, nsec, time.UTC).In(time.Local)
-			return intToValue(d.time.Unix() / 1e6)
+			return intToValue(d.time.UnixNano() / 1e6)
 		} else {
 			return _NaN
 		}
@@ -661,7 +661,7 @@ func (r *Runtime) dateproto_setHours(call FunctionCall) Value {
 				nsec = d.time.Nanosecond()
 			}
 			d.time = time.Date(d.time.Year(), d.time.Month(), d.time.Day(), hour, min, sec, nsec, time.Local)
-			return intToValue(d.time.Unix() / 1e6)
+			return intToValue(d.time.UnixNano() / 1e6)
 		} else {
 			return _NaN
 		}
@@ -693,7 +693,7 @@ func (r *Runtime) dateproto_setUTCHours(call FunctionCall) Value {
 				nsec = t.Nanosecond()
 			}
 			d.time = time.Date(d.time.Year(), d.time.Month(), d.time.Day(), hour, min, sec, nsec, time.UTC).In(time.Local)
-			return intToValue(d.time.Unix() / 1e6)
+			return intToValue(d.time.UnixNano() / 1e6)
 		} else {
 			return _NaN
 		}
@@ -707,7 +707,7 @@ func (r *Runtime) dateproto_setDate(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		if d.isSet {
 			d.time = time.Date(d.time.Year(), d.time.Month(), int(call.Argument(0).ToInteger()), d.time.Hour(), d.time.Minute(), d.time.Second(), d.time.Nanosecond(), time.Local)
-			return intToValue(d.time.Unix() / 1e6)
+			return intToValue(d.time.UnixNano() / 1e6)
 		} else {
 			return _NaN
 		}
@@ -721,8 +721,8 @@ func (r *Runtime) dateproto_setUTCDate(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		if d.isSet {
 			t := d.time.In(time.UTC)
-			d.time = time.Date(t.Year(), t.Month(), int(call.Argument(0).ToInteger()), d.time.Hour(), d.time.Minute(), d.time.Second(), d.time.Nanosecond(), time.UTC).In(time.Local)
-			return intToValue(d.time.Unix() / 1e6)
+			d.time = time.Date(t.Year(), t.Month(), int(call.Argument(0).ToInteger()), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC).In(time.Local)
+			return intToValue(d.time.UnixNano() / 1e6)
 		} else {
 			return _NaN
 		}
@@ -743,7 +743,7 @@ func (r *Runtime) dateproto_setMonth(call FunctionCall) Value {
 				day = d.time.Day()
 			}
 			d.time = time.Date(d.time.Year(), month, day, d.time.Hour(), d.time.Minute(), d.time.Second(), d.time.Nanosecond(), time.Local)
-			return intToValue(d.time.Unix() / 1e6)
+			return intToValue(d.time.UnixNano() / 1e6)
 		} else {
 			return _NaN
 		}
@@ -765,7 +765,7 @@ func (r *Runtime) dateproto_setUTCMonth(call FunctionCall) Value {
 				day = t.Day()
 			}
 			d.time = time.Date(t.Year(), month, day, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC).In(time.Local)
-			return intToValue(d.time.Unix() / 1e6)
+			return intToValue(d.time.UnixNano() / 1e6)
 		} else {
 			return _NaN
 		}
@@ -794,7 +794,7 @@ func (r *Runtime) dateproto_setFullYear(call FunctionCall) Value {
 			day = d.time.Day()
 		}
 		d.time = time.Date(year, month, day, d.time.Hour(), d.time.Minute(), d.time.Second(), d.time.Nanosecond(), time.Local)
-		return intToValue(d.time.Unix() / 1e6)
+		return intToValue(d.time.UnixNano() / 1e6)
 	}
 	r.typeErrorResult(true, "Method Date.prototype.setFullYear is called on incompatible receiver")
 	panic("Unreachable")
@@ -820,8 +820,8 @@ func (r *Runtime) dateproto_setUTCFullYear(call FunctionCall) Value {
 		} else {
 			day = t.Day()
 		}
-		d.time = time.Date(year, month, day, d.time.Hour(), d.time.Minute(), d.time.Second(), d.time.Nanosecond(), time.UTC).In(time.Local)
-		return intToValue(d.time.Unix() / 1e6)
+		d.time = time.Date(year, month, day, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC).In(time.Local)
+		return intToValue(d.time.UnixNano() / 1e6)
 	}
 	r.typeErrorResult(true, "Method Date.prototype.setUTCFullYear is called on incompatible receiver")
 	panic("Unreachable")
