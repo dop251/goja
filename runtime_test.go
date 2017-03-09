@@ -725,6 +725,16 @@ func TestSortComparatorReturnValues(t *testing.T) {
 	testScript1(SCRIPT, _undefined, t)
 }
 
+func TestNilApplyArg(t *testing.T) {
+	const SCRIPT = `
+	(function x(a, b) {
+		return a === undefined && b === 1;
+        }).apply(this, [,1])
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
