@@ -105,7 +105,11 @@ func (f *funcObject) Call(call FunctionCall) Value {
 	vm.push(f.val)
 	vm.push(call.This)
 	for _, arg := range call.Arguments {
-		vm.push(arg)
+		if arg == nil {
+			vm.push(_undefined)
+		} else {
+			vm.push(arg)
+		}
 	}
 	vm.pc = -1
 	vm.pushCtx()
