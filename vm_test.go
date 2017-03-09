@@ -357,3 +357,28 @@ func BenchmarkVMAdd(b *testing.B) {
 		vm.sp++
 	}
 }
+
+func BenchmarkFuncCall(b *testing.B) {
+	const SCRIPT = `
+	function f(a, b, c, d) {
+	}
+	`
+
+	b.StopTimer()
+
+	vm := New()
+	prg, err := Compile("test.js", SCRIPT, false)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	vm.RunProgram(prg)
+	if f, ok := AssertFunction(vm.Get("f")); ok {
+		b.StartTimer()
+		for i := 0; i < b.N; i++ {
+			f(nil, nil, intToValue(1), intToValue(2), intToValue(3), intToValue(4), intToValue(5), intToValue(6))
+		}
+	} else {
+		b.Fatal("f is not a function")
+	}
+}

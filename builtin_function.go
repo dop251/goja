@@ -45,11 +45,7 @@ func (r *Runtime) toValueArray(a Value) []Value {
 	l := toUInt32(obj.self.getStr("length"))
 	ret := make([]Value, l)
 	for i := uint32(0); i < l; i++ {
-		o := obj.self.get(valueInt(i))
-		if o == nil {
-			o = _undefined
-		}
-		ret[i] = o
+		ret[i] = obj.self.get(valueInt(i))
 	}
 	return ret
 }

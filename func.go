@@ -102,11 +102,25 @@ func (f *funcObject) construct(args []Value) *Object {
 func (f *funcObject) Call(call FunctionCall) Value {
 	vm := f.val.runtime.vm
 	pc := vm.pc
-	vm.push(f.val)
-	vm.push(call.This)
-	for _, arg := range call.Arguments {
-		vm.push(arg)
+
+	vm.stack.expand(vm.sp + len(call.Arguments) + 1)
+	vm.stack[vm.sp] = f.val
+	vm.sp++
+	if call.This != nil {
+		vm.stack[vm.sp] = call.This
+	} else {
+		vm.stack[vm.sp] = _undefined
 	}
+	vm.sp++
+	for _, arg := range call.Arguments {
+		if arg != nil {
+			vm.stack[vm.sp] = arg
+		} else {
+			vm.stack[vm.sp] = _undefined
+		}
+		vm.sp++
+	}
+
 	vm.pc = -1
 	vm.pushCtx()
 	vm.args = len(call.Arguments)

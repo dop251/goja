@@ -735,6 +735,30 @@ func TestNilApplyArg(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestNilCallArg(t *testing.T) {
+	const SCRIPT = `
+	"use strict";
+	function f(a) {
+		return this === undefined && a === undefined;
+	}
+	`
+	vm := New()
+	prg, err := Compile("test.js", SCRIPT, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vm.RunProgram(prg)
+	if f, ok := AssertFunction(vm.Get("f")); ok {
+		v, err := f(nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !v.StrictEquals(valueTrue) {
+			t.Fatalf("Unexpected result: %v", v)
+		}
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
