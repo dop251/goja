@@ -2,6 +2,7 @@ package goja
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -755,6 +756,31 @@ func TestNilCallArg(t *testing.T) {
 		}
 		if !v.StrictEquals(valueTrue) {
 			t.Fatalf("Unexpected result: %v", v)
+		}
+	}
+}
+
+func TestObjectKeys(t *testing.T) {
+	const SCRIPT = `
+	var o = { a: 1, b: 2, c: 3, d: 4 };
+	o;
+	`
+
+	vm := New()
+	prg, err := Compile("test.js", SCRIPT, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := vm.RunProgram(prg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if o, ok := res.(*Object); ok {
+		keys := o.Keys()
+		if !reflect.DeepEqual(keys, []string{"a", "b", "c", "d"}) {
+			t.Fatalf("Unexpected keys: %v", keys)
 		}
 	}
 }
