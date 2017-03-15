@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -315,7 +316,7 @@ func (self *_RegExp_parser) scanEscape(inClass bool) {
 	default:
 		// $ is an identifier character, so we have to have
 		// a special case for it here
-		if self.chr == '$' || !isIdentifierPart(self.chr) {
+		if self.chr == '$' || self.chr < utf8.RuneSelf && !isIdentifierPart(self.chr) {
 			// A non-identifier character needs escaping
 			err := self.goRegexp.WriteByte('\\')
 			if err != nil {

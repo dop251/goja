@@ -182,6 +182,14 @@ func TestRegexpSplitWithBackRef(t *testing.T) {
 	testScript1(SCRIPT, asciiString("a $$ + $$ b+-c"), t)
 }
 
+func TestEscapeNonASCII(t *testing.T) {
+	const SCRIPT = `
+	/\⩓/.test("⩓")
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)
