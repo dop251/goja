@@ -760,6 +760,29 @@ func TestNilCallArg(t *testing.T) {
 	}
 }
 
+func TestNullCallArg(t *testing.T) {
+	const SCRIPT = `
+	f(null);
+	`
+	vm := New()
+	prg, err := Compile("test.js", SCRIPT, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vm.Set("f", func(x *int) bool {
+		return x == nil
+	})
+
+	v, err := vm.RunProgram(prg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !v.StrictEquals(valueTrue) {
+		t.Fatalf("Unexpected result: %v", v)
+	}
+}
+
 func TestObjectKeys(t *testing.T) {
 	const SCRIPT = `
 	var o = { a: 1, b: 2, c: 3, d: 4 };

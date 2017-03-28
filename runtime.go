@@ -1097,7 +1097,9 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 	}
 
 	et := v.ExportType()
-
+	if et == nil {
+		return reflect.Zero(typ), nil
+	}
 	if et.AssignableTo(typ) {
 		return reflect.ValueOf(v.Export()), nil
 	} else if et.ConvertibleTo(typ) {
