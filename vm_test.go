@@ -42,6 +42,18 @@ func TestVM1(t *testing.T) {
 
 }
 
+func TestEvalVar(t *testing.T) {
+	const SCRIPT = `
+	function test() {
+		var a;
+		return eval("var a = 'yes'; var z = 'no'; a;") === "yes" && a === "yes";
+	}
+	test();
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 var jumptable = []func(*vm, *instr){
 	f_jump,
 	f_halt,

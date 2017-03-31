@@ -250,8 +250,10 @@ func (s *stash) createBinding(name string) {
 	if s.names == nil {
 		s.names = make(map[string]uint32)
 	}
-	s.names[name] = uint32(len(s.names))
-	s.values = append(s.values, _undefined)
+	if _, exists := s.names[name]; !exists {
+		s.names[name] = uint32(len(s.names))
+		s.values = append(s.values, _undefined)
+	}
 }
 
 func (s *stash) deleteBinding(name string) bool {
