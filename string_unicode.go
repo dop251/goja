@@ -264,6 +264,9 @@ func (s unicodeString) lastIndex(substr valueString, start int64) int64 {
 		panic(fmt.Errorf("Unknown string type: %T", substr))
 	}
 
+	if maxStart := int64(len(s) - len(ss)); start > maxStart {
+		start = maxStart
+	}
 	// TODO: optimise
 	for start >= 0 {
 		for i := int64(0); i < int64(len(ss)); i++ {

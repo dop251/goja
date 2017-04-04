@@ -204,7 +204,14 @@ func TestLastIndexOf(t *testing.T) {
 func TestUnicodeLastIndexOf(t *testing.T) {
 	const SCRIPT = `
 	"абвабаб".lastIndexOf("аб", 3)
+	`
 
+	testScript1(SCRIPT, intToValue(3), t)
+}
+
+func TestUnicodeLastIndexOf1(t *testing.T) {
+	const SCRIPT = `
+	"abꞐcde".lastIndexOf("cd");
 	`
 
 	testScript1(SCRIPT, intToValue(3), t)
