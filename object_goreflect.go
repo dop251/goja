@@ -415,13 +415,11 @@ func (r *Runtime) buildFieldInfo(t reflect.Type, index []int, info *reflectTypeI
 	n := t.NumField()
 	for i := 0; i < n; i++ {
 		field := t.Field(i)
-		var name string
-		if r.fieldNameMapper == nil {
-			name = field.Name
-			if !ast.IsExported(name) {
-				continue
-			}
-		} else {
+		name := field.Name
+		if !ast.IsExported(name) {
+			continue
+		}
+		if r.fieldNameMapper != nil {
 			name = r.fieldNameMapper.FieldName(t, field)
 			if name == "" {
 				continue
@@ -445,7 +443,13 @@ func (r *Runtime) buildFieldInfo(t reflect.Type, index []int, info *reflectTypeI
 			Anonymous: field.Anonymous,
 		}
 		if field.Anonymous {
-			r.buildFieldInfo(field.Type, idx, info)
+			typ := field.Type
+			for typ.Kind() == reflect.Ptr {
+				typ = typ.Elem()
+			}
+			if typ.Kind() == reflect.Struct {
+				r.buildFieldInfo(typ, idx, info)
+			}
 		}
 	}
 }
@@ -464,13 +468,11 @@ func (r *Runtime) buildTypeInfo(t reflect.Type) (info *reflectTypeInfo) {
 	info.MethodNames = make([]string, 0, n)
 	for i := 0; i < n; i++ {
 		method := t.Method(i)
-		var name string
-		if r.fieldNameMapper == nil {
-			name = method.Name
-			if !ast.IsExported(name) {
-				continue
-			}
-		} else {
+		name := method.Name
+		if !ast.IsExported(name) {
+			continue
+		}
+		if r.fieldNameMapper != nil {
 			name = r.fieldNameMapper.MethodName(t, method)
 			if name == "" {
 				continue

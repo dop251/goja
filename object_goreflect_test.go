@@ -2,6 +2,7 @@ package goja
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -544,6 +545,44 @@ func TestGoReflectCustomNaming(t *testing.T) {
 			t.Fatalf("Expected [\"b\"], got %v", v.Export())
 		}
 	})
+}
+
+type fieldNameMapper1 struct{}
+
+func (fieldNameMapper1) FieldName(t reflect.Type, f reflect.StructField) string {
+	return strings.ToLower(f.Name)
+}
+
+func (fieldNameMapper1) MethodName(t reflect.Type, m reflect.Method) string {
+	return m.Name
+}
+
+func TestNonStructAnonFields(t *testing.T) {
+	type Test1 struct {
+		M bool
+	}
+	type test3 []int
+	type Test4 []int
+	type Test2 struct {
+		test3
+		Test4
+		*Test1
+	}
+
+	const SCRIPT = `
+	JSON.stringify(a);
+	a.m && a.test3 === undefined && a.test4.length === 2
+	`
+	vm := New()
+	vm.SetFieldNameMapper(fieldNameMapper1{})
+	vm.Set("a", &Test2{Test1: &Test1{M: true}, Test4: []int{1, 2}})
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.StrictEquals(valueTrue) {
+		t.Fatalf("Unexepected result: %v", v)
+	}
 }
 
 func BenchmarkGoReflectGet(b *testing.B) {
