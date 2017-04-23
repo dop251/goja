@@ -1234,6 +1234,11 @@ func (r *Runtime) ExportTo(v Value, target interface{}) error {
 	return nil
 }
 
+// GlobalObject returns the global object.
+func (r *Runtime) GlobalObject() *Object {
+	return r.globalObject
+}
+
 // Set the specified value as a property of the global object.
 // The value is first converted using ToValue()
 func (r *Runtime) Set(name string, value interface{}) {
