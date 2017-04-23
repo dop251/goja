@@ -14,6 +14,7 @@ func (o *objectGoMapSimple) init() {
 	o.baseObject.init()
 	o.prototype = o.val.runtime.global.ObjectPrototype
 	o.class = classObject
+	o.extensible = true
 }
 
 func (o *objectGoMapSimple) _get(n Value) Value {
@@ -73,8 +74,9 @@ func (o *objectGoMapSimple) _has(n Value) bool {
 func (o *objectGoMapSimple) putStr(name string, val Value, throw bool) {
 	if o.extensible || o._hasStr(name) {
 		o.data[name] = val.Export()
+	} else {
+		o.val.runtime.typeErrorResult(throw, "Host object is not extensible")
 	}
-	o.val.runtime.typeErrorResult(throw, "Host object is not extensible")
 }
 
 func (o *objectGoMapSimple) hasProperty(n Value) bool {

@@ -148,5 +148,37 @@ func TestGomapProto(t *testing.T) {
 	if !v.StrictEquals(valueTrue) {
 		t.Fatalf("Expected true, got %v", v)
 	}
+}
+
+func TestGoMapExtensibility(t *testing.T) {
+	const SCRIPT = `
+	"use strict";
+	o.test = 42;
+	Object.preventExtensions(o);
+	o.test = 43;
+	try {
+		o.test1 = 42;
+	} catch (e) {
+		if (!(e instanceof TypeError)) {
+			throw e;
+		}
+	}
+	o.test === 43 && o.test1 === undefined;
+	`
+
+	r := New()
+	r.Set("o", map[string]interface{}{})
+	v, err := r.RunString(SCRIPT)
+	if err != nil {
+		if ex, ok := err.(*Exception); ok {
+			t.Fatal(ex.String())
+		} else {
+			t.Fatal(err)
+		}
+	}
+
+	if !v.StrictEquals(valueTrue) {
+		t.Fatalf("Expected true, got %v", v)
+	}
 
 }
