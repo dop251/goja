@@ -15,7 +15,7 @@ Features
 --------
 
  * Full ECMAScript 5.1 support (yes, including regex and strict mode).
- * Passes nearly all [tc39 tests](https://github.com/tc39/test262) tagged with es5id. The goal is to pass all of them.
+ * Passes nearly all [tc39 tests](https://github.com/tc39/test262) tagged with es5id. The goal is to pass all of them. Note, the last working commit is https://github.com/tc39/test262/commit/1ba3a7c4a93fc93b3d0d7e4146f59934a896837d. The next commit made use of template strings which goja does not support.
  * On average 6-7 times faster than otto. Also uses considerably less memory.
 
 Current Status

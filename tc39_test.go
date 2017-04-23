@@ -260,7 +260,7 @@ func TestTC39(t *testing.T) {
 	}
 
 	if _, err := os.Stat(tc39BASE); err != nil {
-		t.Skipf("If you want to run tc39 tests, download them from https://github.com/tc39/test262 and put into %s. (%v)", tc39BASE, err)
+		t.Skipf("If you want to run tc39 tests, download them from https://github.com/tc39/test262 and put into %s. The last working commit is 1ba3a7c4a93fc93b3d0d7e4146f59934a896837d. (%v)", tc39BASE, err)
 	}
 
 	ctx := &tc39TestCtx{
