@@ -266,12 +266,16 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 		}
 	}
 
-	holder := r.NewObject()
-	holder.self.putStr("", call.Argument(0), false)
-	if ctx.str(stringEmpty, holder) {
+	if ctx.do(call.Argument(0)) {
 		return newStringValue(ctx.buf.String())
 	}
 	return _undefined
+}
+
+func (ctx *_builtinJSON_stringifyContext) do(v Value) bool {
+	holder := ctx.r.NewObject()
+	holder.self.putStr("", v, false)
+	return ctx.str(stringEmpty, holder)
 }
 
 func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {

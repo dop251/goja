@@ -731,6 +731,23 @@ func (o *Object) Set(name string, value interface{}) (err error) {
 	return
 }
 
+// MarshalJSON returns JSON representation of the Object. It is equivalent to JSON.stringify(o).
+// Note, this implements json.Marshaler so that json.Marshal() can be used without the need to Export().
+func (o *Object) MarshalJSON() ([]byte, error) {
+	ctx := _builtinJSON_stringifyContext{
+		r: o.runtime,
+	}
+	ex := o.runtime.vm.try(func() {
+		if !ctx.do(o) {
+			ctx.buf.WriteString("null")
+		}
+	})
+	if ex != nil {
+		return nil, ex
+	}
+	return ctx.buf.Bytes(), nil
+}
+
 func (o valueUnresolved) throw() {
 	o.r.throwReferenceError(o.ref)
 }
