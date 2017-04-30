@@ -681,6 +681,17 @@ func Compile(name, src string, strict bool) (p *Program, err error) {
 	return compile(name, src, strict, false)
 }
 
+// MustCompile is like Compile but panics if the code cannot be compiled.
+// It simplifies safe initialization of global variables holding compiled JavaScript code.
+func MustCompile(name, src string, strict bool) *Program {
+	prg, err := Compile(name, src, strict)
+	if err != nil {
+		panic(err)
+	}
+
+	return prg
+}
+
 func compile(name, src string, strict, eval bool) (p *Program, err error) {
 	prg, err1 := parser.ParseFile(nil, name, src, 0)
 	if err1 != nil {

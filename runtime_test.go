@@ -751,10 +751,7 @@ func TestNilCallArg(t *testing.T) {
 	}
 	`
 	vm := New()
-	prg, err := Compile("test.js", SCRIPT, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	prg := MustCompile("test.js", SCRIPT, false)
 	vm.RunProgram(prg)
 	if f, ok := AssertFunction(vm.Get("f")); ok {
 		v, err := f(nil, nil)
@@ -772,10 +769,7 @@ func TestNullCallArg(t *testing.T) {
 	f(null);
 	`
 	vm := New()
-	prg, err := Compile("test.js", SCRIPT, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	prg := MustCompile("test.js", SCRIPT, false)
 	vm.Set("f", func(x *int) bool {
 		return x == nil
 	})
@@ -797,10 +791,7 @@ func TestObjectKeys(t *testing.T) {
 	`
 
 	vm := New()
-	prg, err := Compile("test.js", SCRIPT, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	prg := MustCompile("test.js", SCRIPT, false)
 
 	res, err := vm.RunProgram(prg)
 	if err != nil {

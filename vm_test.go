@@ -343,10 +343,7 @@ func BenchmarkEmptyLoop(b *testing.B) {
 	`
 	b.StopTimer()
 	vm := New()
-	prg, err := Compile("test.js", SCRIPT, false)
-	if err != nil {
-		b.Fatal(err)
-	}
+	prg := MustCompile("test.js", SCRIPT, false)
 	// prg.dumpCode(log.Printf)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
@@ -379,10 +376,7 @@ func BenchmarkFuncCall(b *testing.B) {
 	b.StopTimer()
 
 	vm := New()
-	prg, err := Compile("test.js", SCRIPT, false)
-	if err != nil {
-		b.Fatal(err)
-	}
+	prg := MustCompile("test.js", SCRIPT, false)
 
 	vm.RunProgram(prg)
 	if f, ok := AssertFunction(vm.Get("f")); ok {
