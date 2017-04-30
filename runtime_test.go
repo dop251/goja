@@ -510,7 +510,7 @@ func TestRuntime_ExportToFuncThrow(t *testing.T) {
 
 	if _, err := fn("40"); err != nil {
 		if ex, ok := err.(*Exception); ok {
-			if msg := ex.Error(); msg != "Error: testing" {
+			if msg := ex.Error(); msg != "Error: testing at f (<eval>:3:9(4))" {
 				t.Fatalf("Msg: %q", msg)
 			}
 		} else {
