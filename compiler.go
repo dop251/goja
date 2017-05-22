@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
+	"sort"
 	"strconv"
 )
 
@@ -158,16 +159,14 @@ func (p *Program) _dumpCode(indent string, logger func(format string, args ...in
 }
 
 func (p *Program) sourceOffset(pc int) int {
-	// TODO use sort.Search()
-	for i, item := range p.srcMap {
-		if item.pc > pc {
-			if i > 0 {
-				return p.srcMap[i-1].srcPos
-			}
-			return 0
-		}
+	i := sort.Search(len(p.srcMap), func(idx int) bool {
+		return p.srcMap[idx].pc > pc
+	}) - 1
+	if i >= 0 {
+		return p.srcMap[i].srcPos
 	}
-	return p.srcMap[len(p.srcMap)-1].srcPos
+
+	return 0
 }
 
 func (s *scope) isFunction() bool {

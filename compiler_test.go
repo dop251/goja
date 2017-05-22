@@ -1797,6 +1797,16 @@ func TestObjectLiteral__Proto__(t *testing.T) {
 	testScript1(SCRIPT, _null, t)
 }
 
+func TestEmptyCodeError(t *testing.T) {
+	if _, err := New().RunString(`i`); err == nil {
+		t.Fatal("Expected an error")
+	} else {
+		if e := err.Error(); e != "ReferenceError: i is not defined at <eval>:1:1(0)" {
+			t.Fatalf("Unexpected error: '%s'", e)
+		}
+	}
+}
+
 // FIXME
 /*
 func TestDummyCompile(t *testing.T) {
