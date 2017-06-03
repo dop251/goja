@@ -984,17 +984,24 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 	return func(call FunctionCall) Value {
 		typ := value.Type()
 		nargs := typ.NumIn()
-		if len(call.Arguments) != nargs {
-			if typ.IsVariadic() {
-				if len(call.Arguments) < nargs-1 {
-					panic(r.newError(r.global.TypeError, "expected at least %d arguments; got %d", nargs-1, len(call.Arguments)))
-				}
-			} else {
-				panic(r.newError(r.global.TypeError, "expected %d argument(s); got %d", nargs, len(call.Arguments)))
-			}
-		}
+		var in []reflect.Value
 
-		in := make([]reflect.Value, len(call.Arguments))
+		if l := len(call.Arguments); l < nargs {
+			// fill missing arguments with zero values
+			n := nargs
+			if typ.IsVariadic() {
+				n--
+			}
+			in = make([]reflect.Value, n)
+			for i := l; i < n; i++ {
+				in[i] = reflect.Zero(typ.In(i))
+			}
+		} else {
+			if l > nargs && !typ.IsVariadic() {
+				l = nargs
+			}
+			in = make([]reflect.Value, l)
+		}
 
 		callSlice := false
 		for i, a := range call.Arguments {
@@ -1007,6 +1014,8 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 				}
 
 				t = typ.In(n).Elem()
+			} else if n > nargs-1 { // ignore extra arguments
+				break
 			} else {
 				t = typ.In(n)
 			}
@@ -1106,13 +1115,6 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 		return reflect.ValueOf(uint8(i)).Convert(typ), nil
 	}
 
-	t := reflect.TypeOf(v)
-	if t.AssignableTo(typ) {
-		return reflect.ValueOf(v), nil
-	} else if t.ConvertibleTo(typ) {
-		return reflect.ValueOf(v).Convert(typ), nil
-	}
-
 	if typ == typeCallable {
 		if fn, ok := AssertFunction(v); ok {
 			return reflect.ValueOf(fn), nil
@@ -1127,6 +1129,13 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 		return reflect.ValueOf(v.Export()), nil
 	} else if et.ConvertibleTo(typ) {
 		return reflect.ValueOf(v.Export()).Convert(typ), nil
+	}
+
+	t := reflect.TypeOf(v)
+	if t.AssignableTo(typ) {
+		return reflect.ValueOf(v), nil
+	} else if t.ConvertibleTo(typ) {
+		return reflect.ValueOf(v).Convert(typ), nil
 	}
 
 	switch typ.Kind() {
