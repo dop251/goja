@@ -18,6 +18,7 @@ const (
 
 var (
 	typeCallable = reflect.TypeOf(Callable(nil))
+	typeValue    = reflect.TypeOf((*Value)(nil)).Elem()
 )
 
 type global struct {
@@ -1121,6 +1122,10 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 		}
 	}
 
+	if typ.Implements(typeValue) {
+		return reflect.ValueOf(v), nil
+	}
+
 	et := v.ExportType()
 	if et == nil {
 		return reflect.Zero(typ), nil
@@ -1129,13 +1134,6 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 		return reflect.ValueOf(v.Export()), nil
 	} else if et.ConvertibleTo(typ) {
 		return reflect.ValueOf(v.Export()).Convert(typ), nil
-	}
-
-	t := reflect.TypeOf(v)
-	if t.AssignableTo(typ) {
-		return reflect.ValueOf(v), nil
-	} else if t.ConvertibleTo(typ) {
-		return reflect.ValueOf(v).Convert(typ), nil
 	}
 
 	switch typ.Kind() {

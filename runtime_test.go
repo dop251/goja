@@ -893,6 +893,19 @@ func TestReflectCallVariadic(t *testing.T) {
 	}
 }
 
+func TestReflectNullValueArgument(t *testing.T) {
+	rt := New()
+	rt.Set("fn", func(v Value) {
+		if v == nil {
+			t.Error("null becomes nil")
+		}
+		if !IsNull(v) {
+			t.Error("null is not null")
+		}
+	})
+	rt.RunString(`fn(null);`)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
@@ -915,3 +928,31 @@ function foo(a,b,c)
 	testScript1(SCRIPT, valueTrue, t)
 }
 */
+
+func BenchmarkCallReflect(b *testing.B) {
+	vm := New()
+	vm.Set("f", func(v Value) {
+
+	})
+
+	prg := MustCompile("test.js", "f(null)", true)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.RunProgram(prg)
+	}
+}
+
+func BenchmarkCallNative(b *testing.B) {
+	vm := New()
+	vm.Set("f", func(call FunctionCall) (ret Value) {
+		return
+	})
+
+	prg := MustCompile("test.js", "f(null)", true)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.RunProgram(prg)
+	}
+}
