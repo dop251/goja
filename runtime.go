@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/dop251/goja/parser"
 	"go/ast"
 	"math"
 	"math/rand"
 	"reflect"
 	"strconv"
+
+	js_ast "github.com/dop251/goja/ast"
+	"github.com/dop251/goja/parser"
 )
 
 const (
@@ -678,8 +680,15 @@ func New() *Runtime {
 // Compile creates an internal representation of the JavaScript code that can be later run using the Runtime.RunProgram()
 // method. This representation is not linked to a runtime in any way and can be run in multiple runtimes (possibly
 // at the same time).
-func Compile(name, src string, strict bool) (p *Program, err error) {
+func Compile(name, src string, strict bool) (*Program, error) {
 	return compile(name, src, strict, false)
+}
+
+// CompileAST creates an internal representation of the JavaScript code that can be later run using the Runtime.RunProgram()
+// method. This representation is not linked to a runtime in any way and can be run in multiple runtimes (possibly
+// at the same time).
+func CompileAST(prg *js_ast.Program, strict bool) (*Program, error) {
+	return compileAST(prg, strict, false)
 }
 
 // MustCompile is like Compile but panics if the code cannot be compiled.
@@ -716,6 +725,12 @@ func compile(name, src string, strict, eval bool) (p *Program, err error) {
 		return
 	}
 
+	p, err = compileAST(prg, strict, eval)
+
+	return
+}
+
+func compileAST(prg *js_ast.Program, strict, eval bool) (p *Program, err error) {
 	c := newCompiler()
 	c.scope.strict = strict
 	c.scope.eval = eval
