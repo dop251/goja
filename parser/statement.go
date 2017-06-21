@@ -2,6 +2,7 @@ package parser
 
 import (
 	"github.com/dop251/goja/ast"
+	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
 )
 
@@ -356,7 +357,7 @@ func (self *_parser) parseIterationStatement() ast.Statement {
 	return self.parseStatement()
 }
 
-func (self *_parser) parseForIn(into ast.Expression) *ast.ForInStatement {
+func (self *_parser) parseForIn(idx file.Idx, into ast.Expression) *ast.ForInStatement {
 
 	// Already have consumed "<into> in"
 
@@ -364,13 +365,14 @@ func (self *_parser) parseForIn(into ast.Expression) *ast.ForInStatement {
 	self.expect(token.RIGHT_PARENTHESIS)
 
 	return &ast.ForInStatement{
+		For:    idx,
 		Into:   into,
 		Source: source,
 		Body:   self.parseIterationStatement(),
 	}
 }
 
-func (self *_parser) parseFor(initializer ast.Expression) *ast.ForStatement {
+func (self *_parser) parseFor(idx file.Idx, initializer ast.Expression) *ast.ForStatement {
 
 	// Already have consumed "<initializer> ;"
 
@@ -387,6 +389,7 @@ func (self *_parser) parseFor(initializer ast.Expression) *ast.ForStatement {
 	self.expect(token.RIGHT_PARENTHESIS)
 
 	return &ast.ForStatement{
+		For:         idx,
 		Initializer: initializer,
 		Test:        test,
 		Update:      update,
@@ -435,11 +438,11 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 			self.nextStatement()
 			return &ast.BadStatement{From: idx, To: self.idx}
 		}
-		return self.parseForIn(left[0])
+		return self.parseForIn(idx, left[0])
 	}
 
 	self.expect(token.SEMICOLON)
-	return self.parseFor(&ast.SequenceExpression{Sequence: left})
+	return self.parseFor(idx, &ast.SequenceExpression{Sequence: left})
 }
 
 func (self *_parser) parseVariableStatement() *ast.VariableStatement {
