@@ -311,6 +311,13 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 		case *objectGoReflect:
 			if o1.toJson != nil {
 				value = ctx.r.ToValue(o1.toJson())
+			} else if v, ok := o1.origValue.Interface().(json.Marshaler); ok {
+				b, err := v.MarshalJSON()
+				if err != nil {
+					panic(err)
+				}
+				ctx.buf.Write(b)
+				return true
 			} else {
 				switch o1.className() {
 				case classNumber:

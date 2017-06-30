@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestJSONMarshalObject(t *testing.T) {
@@ -16,6 +17,19 @@ func TestJSONMarshalObject(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(b) != `{"test":42}` {
+		t.Fatalf("Unexpected value: %s", b)
+	}
+}
+
+func TestJSONMarshalGoDate(t *testing.T) {
+	vm := New()
+	o := vm.NewObject()
+	o.Set("test", time.Unix(86400, 0).UTC())
+	b, err := json.Marshal(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != `{"test":"1970-01-02T00:00:00Z"}` {
 		t.Fatalf("Unexpected value: %s", b)
 	}
 }
