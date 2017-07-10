@@ -812,6 +812,7 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	if recursive {
 		r.vm.popCtx()
 		r.vm.halt = false
+		r.vm.clearStack()
 	} else {
 		r.vm.stack = nil
 	}
@@ -1317,6 +1318,7 @@ func AssertFunction(v Value) (Callable, bool) {
 				if ex != nil {
 					err = ex
 				}
+				obj.runtime.vm.clearStack()
 				return
 			}, true
 		}

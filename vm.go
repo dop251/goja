@@ -1837,6 +1837,14 @@ func (vm *vm) _nativeCall(f *nativeFuncObject, n int) {
 	vm.pc++
 }
 
+func (vm *vm) clearStack() {
+	stackTail := vm.stack[vm.sp:]
+	for i := range stackTail {
+		stackTail[i] = nil
+	}
+	vm.stack = vm.stack[:vm.sp]
+}
+
 type enterFunc uint32
 
 func (e enterFunc) exec(vm *vm) {
