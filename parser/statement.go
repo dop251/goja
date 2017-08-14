@@ -4,6 +4,9 @@ import (
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
+	"github.com/go-sourcemap/sourcemap"
+	"bytes"
+	"encoding/base64"
 )
 
 func (self *_parser) parseBlockStatement() *ast.BlockStatement {
@@ -544,7 +547,24 @@ func (self *_parser) parseProgram() *ast.Program {
 		Body:            self.parseSourceElements(),
 		DeclarationList: self.scope.declarationList,
 		File:            self.file,
+		SourceMap:       self.parseSourceMap(),
 	}
+}
+
+func (self *_parser) parseSourceMap() *sourcemap.Consumer {
+	lines := bytes.Split([]byte(self.str), []byte("\n"))
+	lastLine := lines[len(lines)-1]
+	if bytes.HasPrefix(lastLine, []byte("//# sourceMappingURL=data:application/json")) {
+		bits := bytes.SplitN(lastLine, []byte(","), 2)
+		if len(bits) == 2 {
+			if d, err := base64.StdEncoding.DecodeString(string(bits[1])); err == nil {
+				if sm, err := sourcemap.Parse(self.file.Name(), d); err == nil {
+					return sm
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (self *_parser) parseBreakStatement() ast.Statement {
