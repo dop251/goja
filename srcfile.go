@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"github.com/go-sourcemap/sourcemap"
 )
 
 type Position struct {
@@ -16,12 +17,14 @@ type SrcFile struct {
 
 	lineOffsets       []int
 	lastScannedOffset int
+	sourceMap         *sourcemap.Consumer
 }
 
-func NewSrcFile(name, src string) *SrcFile {
+func NewSrcFile(name, src string, sourceMap *sourcemap.Consumer) *SrcFile {
 	return &SrcFile{
-		name: name,
-		src:  src,
+		name:      name,
+		src:       src,
+		sourceMap: sourceMap,
 	}
 }
 
@@ -37,6 +40,19 @@ func (f *SrcFile) Position(offset int) Position {
 	if line >= 0 {
 		lineStart = f.lineOffsets[line]
 	}
+
+	row := line + 2
+	col := offset - lineStart + 1
+
+	if f.sourceMap != nil {
+		if _, _, row, col, ok := f.sourceMap.Source(row, col); ok {
+			return Position{
+				Line: row,
+				Col:  col,
+			}
+		}
+	}
+
 	return Position{
 		Line: line + 2,
 		Col:  offset - lineStart + 1,

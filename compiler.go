@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	blockLoop = iota
+	blockLoop   = iota
 	blockTry
 	blockBranch
 	blockSwitch
@@ -247,7 +247,7 @@ func (c *compiler) markBlockStart() {
 }
 
 func (c *compiler) compile(in *ast.Program) {
-	c.p.src = NewSrcFile(in.File.Name(), in.File.Source())
+	c.p.src = NewSrcFile(in.File.Name(), in.File.Source(), in.SourceMap)
 
 	if len(in.Body) > 0 {
 		if !c.scope.strict {
