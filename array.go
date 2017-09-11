@@ -332,8 +332,9 @@ func (a *arrayObject) expand(idx int64) bool {
 			if idx > 4096 && (a.objCount == 0 || idx/a.objCount > 10) {
 				//log.Println("Switching standard->sparse")
 				sa := &sparseArrayObject{
-					baseObject: a.baseObject,
-					length:     a.length,
+					baseObject:     a.baseObject,
+					length:         a.length,
+					propValueCount: a.propValueCount,
 				}
 				sa.setValues(a.values)
 				sa.val.self = sa
@@ -496,4 +497,5 @@ func (a *arrayObject) setValuesFromSparse(items []sparseArrayItem) {
 	for _, item := range items {
 		a.values[item.idx] = item.value
 	}
+	a.objCount = int64(len(items))
 }
