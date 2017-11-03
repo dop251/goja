@@ -87,7 +87,19 @@ type FunctionCall struct {
 	Arguments []Value
 }
 
+type ConstructorCall struct {
+	This      *Object
+	Arguments []Value
+}
+
 func (f FunctionCall) Argument(idx int) Value {
+	if idx < len(f.Arguments) {
+		return f.Arguments[idx]
+	}
+	return _undefined
+}
+
+func (f ConstructorCall) Argument(idx int) Value {
 	if idx < len(f.Arguments) {
 		return f.Arguments[idx]
 	}

@@ -47,6 +47,8 @@ are converted to the corresponding JavaScript primitives.
 
 *func(FunctionCall) Value* is treated as a native JavaScript function.
 
+*func(ConstructorCall) Value* is treated as a JavaScript constructor (see Native Constructors).
+
 *map[string]interface{}* is converted into a host object that largely behaves like a JavaScript Object.
 
 *[]interface{}* is converted into a host object that behaves largely like a JavaScript Array, however it's not extensible
@@ -71,6 +73,38 @@ Exporting Values from JS
 A JS value can be exported into its default Go representation using Value.Export() method.
 
 Alternatively it can be exported into a specific Go variable using Runtime.ExportTo() method.
+
+Native Constructors
+-------------------
+
+In order to implement a constructor function in Go:
+```go
+func MyObject(call goja.ConstructorCall) Value {
+    // call.This contains the newly created object as per http://www.ecma-international.org/ecma-262/5.1/index.html#sec-13.2.2
+    // call.Arguments contain arguments passed to the function
+
+    call.This.Set("method", method)
+
+    //...
+
+    // If return value is a non-nil *Object, it will be used instead of call.This
+    // This way it is possible to return a Go struct or a map converted
+    // into goja.Value using runtime.ToValue(), however in this case
+    // instanceof will not work as expected.
+    return nil
+}
+
+runtime.Set("MyObject", MyObject)
+
+```
+
+Then it can be used in JS as follows:
+
+```js
+var o = new MyObject(arg);
+var o1 = MyObject(arg); // same thing
+o instanceof MyObject && o1 instanceof MyObject; // true
+```
 
 Regular Expressions
 -------------------

@@ -906,6 +906,66 @@ func TestReflectNullValueArgument(t *testing.T) {
 	rt.RunString(`fn(null);`)
 }
 
+type testNativeConstructHelper struct {
+	rt   *Runtime
+	base int64
+	// any other state
+}
+
+func (t *testNativeConstructHelper) calc(call FunctionCall) Value {
+	return t.rt.ToValue(t.base + call.Argument(0).ToInteger())
+}
+
+func TestNativeConstruct(t *testing.T) {
+	const SCRIPT = `
+	var f = new F(40);
+	f instanceof F && f.method() === 42 && f.calc(2) === 42;
+	`
+
+	rt := New()
+
+	method := func(call FunctionCall) Value {
+		return rt.ToValue(42)
+	}
+
+	rt.Set("F", func(call ConstructorCall) *Object { // constructor signature (as opposed to 'func(FunctionCall) Value')
+		h := &testNativeConstructHelper{
+			rt:   rt,
+			base: call.Argument(0).ToInteger(),
+		}
+		call.This.Set("method", method)
+		call.This.Set("calc", h.calc)
+		return nil // or any other *Object which will be used instead of call.This
+	})
+
+	prg := MustCompile("test.js", SCRIPT, false)
+
+	res, err := rt.RunProgram(prg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !res.StrictEquals(valueTrue) {
+		t.Fatalf("Unexpected result: %v", res)
+	}
+
+	if fn, ok := AssertFunction(rt.Get("F")); ok {
+		v, err := fn(nil, rt.ToValue(42))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if o, ok := v.(*Object); ok {
+			if o.Get("method") == nil {
+				t.Fatal("No method")
+			}
+		} else {
+			t.Fatal("Not an object")
+		}
+	} else {
+		t.Fatal("Not a function")
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

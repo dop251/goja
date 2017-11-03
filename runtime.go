@@ -349,6 +349,38 @@ func (r *Runtime) newNativeFuncObj(v *Object, call func(FunctionCall) Value, con
 	return f
 }
 
+func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name string, length int) *Object {
+	v := &Object{runtime: r}
+
+	f := &nativeFuncObject{
+		baseFuncObject: baseFuncObject{
+			baseObject: baseObject{
+				class:      classFunction,
+				val:        v,
+				extensible: true,
+				prototype:  r.global.FunctionPrototype,
+			},
+		},
+	}
+
+	f.f = func(c FunctionCall) Value {
+		return f.defaultConstruct(call, c.Arguments)
+	}
+
+	f.construct = func(args []Value) *Object {
+		return f.defaultConstruct(call, args)
+	}
+
+	v.self = f
+	f.init(name, length)
+
+	proto := r.NewObject()
+	proto.self._putProp("constructor", v, true, false, true)
+	f._putProp("prototype", proto, true, false, false)
+
+	return v
+}
+
 func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(args []Value) *Object, name string, proto *Object, length int) *Object {
 	v := &Object{runtime: r}
 
@@ -867,6 +899,8 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		}
 	case func(FunctionCall) Value:
 		return r.newNativeFunc(i, nil, "", nil, 0)
+	case func(ConstructorCall) *Object:
+		return r.newNativeConstructor(i, "", 0)
 	case int:
 		return intToValue(int64(i))
 	case int8:
