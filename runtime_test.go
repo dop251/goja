@@ -964,6 +964,12 @@ func TestNativeConstruct(t *testing.T) {
 	} else {
 		t.Fatal("Not a function")
 	}
+
+	resp := &testNativeConstructHelper{}
+	value := rt.ToValue(resp)
+	if value.Export() != resp {
+		t.Fatal("no")
+	}
 }
 
 /*

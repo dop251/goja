@@ -192,10 +192,12 @@ func (r *Runtime) arrayproto_toLocaleString(call FunctionCall) Value {
 }
 
 func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
-	descr := r.NewObject().self
-	descr.putStr("writable", valueTrue, false)
-	descr.putStr("enumerable", valueTrue, false)
-	descr.putStr("configurable", valueTrue, false)
+	descr := propertyDescr{
+		Writable:     FLAG_TRUE,
+		Enumerable:   FLAG_TRUE,
+		Configurable: FLAG_TRUE,
+	}
+
 	aLength := toLength(a.self.getStr("length"))
 	if obj, ok := item.(*Object); ok {
 		if isArray(obj) {
@@ -203,7 +205,7 @@ func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 			for i := int64(0); i < length; i++ {
 				v := obj.self.get(intToValue(i))
 				if v != nil {
-					descr.putStr("value", v, false)
+					descr.Value = v
 					a.self.defineOwnProperty(intToValue(aLength), descr, false)
 					aLength++
 				} else {
@@ -214,7 +216,7 @@ func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 			return
 		}
 	}
-	descr.putStr("value", item, false)
+	descr.Value = item
 	a.self.defineOwnProperty(intToValue(aLength), descr, false)
 }
 
@@ -269,14 +271,15 @@ func (r *Runtime) arrayproto_slice(call FunctionCall) Value {
 	a := r.newArrayLength(count)
 
 	n := int64(0)
-	descr := r.NewObject().self
-	descr.putStr("writable", valueTrue, false)
-	descr.putStr("enumerable", valueTrue, false)
-	descr.putStr("configurable", valueTrue, false)
+	descr := propertyDescr{
+		Writable:     FLAG_TRUE,
+		Enumerable:   FLAG_TRUE,
+		Configurable: FLAG_TRUE,
+	}
 	for start < end {
 		p := o.self.get(intToValue(start))
 		if p != nil && p != _undefined {
-			descr.putStr("value", p, false)
+			descr.Value = p
 			a.self.defineOwnProperty(intToValue(n), descr, false)
 		}
 		start++

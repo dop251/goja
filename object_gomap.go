@@ -106,12 +106,12 @@ func (o *objectGoMapSimple) _putProp(name string, value Value, writable, enumera
 	return value
 }
 
-func (o *objectGoMapSimple) defineOwnProperty(name Value, descr objectImpl, throw bool) bool {
-	if descr.hasPropertyStr("get") || descr.hasPropertyStr("set") {
+func (o *objectGoMapSimple) defineOwnProperty(name Value, descr propertyDescr, throw bool) bool {
+	if descr.Getter != nil || descr.Setter != nil {
 		o.val.runtime.typeErrorResult(throw, "Host objects do not support accessor properties")
 		return false
 	}
-	o.put(name, descr.getStr("value"), throw)
+	o.put(name, descr.Value, throw)
 	return true
 }
 

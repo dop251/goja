@@ -11,6 +11,62 @@ func TestArray1(t *testing.T) {
 	}
 }
 
+func TestDefineProperty(t *testing.T) {
+	r := New()
+	o := r.NewObject()
+
+	err := o.DefineDataProperty("data", r.ToValue(42), FLAG_TRUE, FLAG_TRUE, FLAG_TRUE)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = o.DefineAccessorProperty("accessor_ro", r.ToValue(func() int {
+		return 1
+	}), nil, FLAG_TRUE, FLAG_TRUE)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = o.DefineAccessorProperty("accessor_rw",
+		r.ToValue(func(call FunctionCall) Value {
+			return o.Get("__hidden")
+		}),
+		r.ToValue(func(call FunctionCall) (ret Value) {
+			o.Set("__hidden", call.Argument(0))
+			return
+		}),
+		FLAG_TRUE, FLAG_TRUE)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if v := o.Get("accessor_ro"); v.ToInteger() != 1 {
+		t.Fatalf("Unexpected accessor value: %v", v)
+	}
+
+	err = o.Set("accessor_ro", r.ToValue(2))
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+	if ex, ok := err.(*Exception); ok {
+		if msg := ex.Error(); msg != "TypeError: Cannot assign to read only property 'accessor_ro'" {
+			t.Fatalf("Unexpected error: '%s'", msg)
+		}
+	} else {
+		t.Fatalf("Unexected error type: %T", err)
+	}
+
+	err = o.Set("accessor_rw", 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if v := o.Get("accessor_rw"); v.ToInteger() != 42 {
+		t.Fatalf("Unexpected value: %v", v)
+	}
+}
+
 func BenchmarkPut(b *testing.B) {
 	v := &Object{}
 

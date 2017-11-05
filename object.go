@@ -21,6 +21,14 @@ type Object struct {
 
 type iterNextFunc func() (propIterItem, iterNextFunc)
 
+type propertyDescr struct {
+	Value Value
+
+	Writable, Configurable, Enumerable Flag
+
+	Getter, Setter Value
+}
+
 type objectImpl interface {
 	sortable
 	className() string
@@ -36,12 +44,11 @@ type objectImpl interface {
 	hasOwnProperty(Value) bool
 	hasOwnPropertyStr(string) bool
 	_putProp(name string, value Value, writable, enumerable, configurable bool) Value
-	defineOwnProperty(name Value, descr objectImpl, throw bool) bool
+	defineOwnProperty(name Value, descr propertyDescr, throw bool) bool
 	toPrimitiveNumber() Value
 	toPrimitiveString() Value
 	toPrimitive() Value
 	assertCallable() (call func(FunctionCall) Value, ok bool)
-	// defineOwnProperty(Value, property, bool) bool
 	deleteStr(name string, throw bool) bool
 	delete(name Value, throw bool) bool
 	proto() *Object
@@ -53,10 +60,6 @@ type objectImpl interface {
 	export() interface{}
 	exportType() reflect.Type
 	equal(objectImpl) bool
-
-	// clone(*_object, *_object, *_clone) *_object
-	// marshalJSON() json.Marshaler
-
 }
 
 type baseObject struct {
@@ -283,35 +286,10 @@ func (o *baseObject) hasOwnPropertyStr(name string) bool {
 	return v != nil
 }
 
-func (o *baseObject) _defineOwnProperty(name Value, existingValue Value, descr objectImpl, throw bool) (val Value, ok bool) {
-	var hasWritable, hasEnumerable, hasConfigurable bool
-	var writable, enumerable, configurable bool
+func (o *baseObject) _defineOwnProperty(name, existingValue Value, descr propertyDescr, throw bool) (val Value, ok bool) {
 
-	value := descr.getStr("value")
-
-	if p := descr.getStr("writable"); p != nil {
-		hasWritable = true
-		writable = p.ToBoolean()
-	}
-	if p := descr.getStr("enumerable"); p != nil {
-		hasEnumerable = true
-		enumerable = p.ToBoolean()
-	}
-	if p := descr.getStr("configurable"); p != nil {
-		hasConfigurable = true
-		configurable = p.ToBoolean()
-	}
-
-	getter := descr.getStr("get")
-	setter := descr.getStr("set")
-
-	if (getter != nil || setter != nil) && (value != nil || hasWritable) {
-		o.val.runtime.typeErrorResult(throw, "Invalid property descriptor. Cannot both specify accessors and a value or writable attribute")
-		return nil, false
-	}
-
-	getterObj, _ := getter.(*Object)
-	setterObj, _ := setter.(*Object)
+	getterObj, _ := descr.Getter.(*Object)
+	setterObj, _ := descr.Setter.(*Object)
 
 	var existing *valueProperty
 
@@ -332,69 +310,69 @@ func (o *baseObject) _defineOwnProperty(name Value, existingValue Value, descr o
 		}
 
 		if !existing.configurable {
-			if configurable {
+			if descr.Configurable == FLAG_TRUE {
 				goto Reject
 			}
-			if hasEnumerable && enumerable != existing.enumerable {
+			if descr.Enumerable != FLAG_NOT_SET && descr.Enumerable.Bool() != existing.enumerable {
 				goto Reject
 			}
 		}
-		if existing.accessor && value != nil || !existing.accessor && (getterObj != nil || setterObj != nil) {
+		if existing.accessor && descr.Value != nil || !existing.accessor && (getterObj != nil || setterObj != nil) {
 			if !existing.configurable {
 				goto Reject
 			}
 		} else if !existing.accessor {
 			if !existing.configurable {
 				if !existing.writable {
-					if writable {
+					if descr.Writable == FLAG_TRUE {
 						goto Reject
 					}
-					if value != nil && !value.SameAs(existing.value) {
+					if descr.Value != nil && !descr.Value.SameAs(existing.value) {
 						goto Reject
 					}
 				}
 			}
 		} else {
 			if !existing.configurable {
-				if getter != nil && existing.getterFunc != getterObj || setter != nil && existing.setterFunc != setterObj {
+				if descr.Getter != nil && existing.getterFunc != getterObj || descr.Setter != nil && existing.setterFunc != setterObj {
 					goto Reject
 				}
 			}
 		}
 	}
 
-	if writable && enumerable && configurable && value != nil {
-		return value, true
+	if descr.Writable == FLAG_TRUE && descr.Enumerable == FLAG_TRUE && descr.Configurable == FLAG_TRUE && descr.Value != nil {
+		return descr.Value, true
 	}
 
-	if hasWritable {
-		existing.writable = writable
+	if descr.Writable != FLAG_NOT_SET {
+		existing.writable = descr.Writable.Bool()
 	}
-	if hasEnumerable {
-		existing.enumerable = enumerable
+	if descr.Enumerable != FLAG_NOT_SET {
+		existing.enumerable = descr.Enumerable.Bool()
 	}
-	if hasConfigurable {
-		existing.configurable = configurable
+	if descr.Configurable != FLAG_NOT_SET {
+		existing.configurable = descr.Configurable.Bool()
 	}
 
-	if value != nil {
-		existing.value = value
+	if descr.Value != nil {
+		existing.value = descr.Value
 		existing.getterFunc = nil
 		existing.setterFunc = nil
 	}
 
-	if value != nil || hasWritable {
+	if descr.Value != nil || descr.Writable != FLAG_NOT_SET {
 		existing.accessor = false
 	}
 
-	if getter != nil {
-		existing.getterFunc = propGetter(o.val, getter, o.val.runtime)
+	if descr.Getter != nil {
+		existing.getterFunc = propGetter(o.val, descr.Getter, o.val.runtime)
 		existing.value = nil
 		existing.accessor = true
 	}
 
-	if setter != nil {
-		existing.setterFunc = propSetter(o.val, setter, o.val.runtime)
+	if descr.Setter != nil {
+		existing.setterFunc = propSetter(o.val, descr.Setter, o.val.runtime)
 		existing.value = nil
 		existing.accessor = true
 	}
@@ -408,14 +386,15 @@ func (o *baseObject) _defineOwnProperty(name Value, existingValue Value, descr o
 Reject:
 	o.val.runtime.typeErrorResult(throw, "Cannot redefine property: %s", name.ToString())
 	return nil, false
+
 }
 
-func (o *baseObject) defineOwnProperty(n Value, descr objectImpl, throw bool) bool {
+func (o *baseObject) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
 	name := n.String()
-	val := o.values[name]
-	if v, ok := o._defineOwnProperty(n, val, descr, throw); ok {
+	existingVal := o.values[name]
+	if v, ok := o._defineOwnProperty(n, existingVal, descr, throw); ok {
 		o.values[name] = v
-		if val == nil {
+		if existingVal == nil {
 			o.propNames = append(o.propNames, name)
 		}
 		return true

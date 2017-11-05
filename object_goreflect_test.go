@@ -285,7 +285,7 @@ func TestGoReflectProp(t *testing.T) {
 
 func TestGoReflectRedefineFieldSuccess(t *testing.T) {
 	const SCRIPT = `
-	!!Object.defineProperty(o, "Test", {value: "AAA"});
+	Object.defineProperty(o, "Test", {value: "AAA"}) === o;
 	`
 
 	o := testGoReflectMethod_O{}

@@ -83,51 +83,59 @@ func (r *Runtime) object_getOwnPropertyNames(call FunctionCall) Value {
 	return r.newArrayValues(values)
 }
 
-func (r *Runtime) toPropertyDescriptor(v Value) objectImpl {
+func (r *Runtime) toPropertyDescr(v Value) (ret propertyDescr) {
 	if o, ok := v.(*Object); ok {
-		desc := o.self
-		hasValue := desc.getStr("value") != nil
-		hasWritable := desc.getStr("writable") != nil
-		hasGet := false
-		hasSet := false
-		if get := desc.getStr("get"); get != nil {
-			if get != _undefined {
-				if _, ok := r.toObject(get).self.assertCallable(); !ok {
-					r.typeErrorResult(true, "getter must be callable")
-				}
-			}
-			hasGet = true
+		descr := o.self
+
+		ret.Value = descr.getStr("value")
+
+		if p := descr.getStr("writable"); p != nil {
+			ret.Writable = ToFlag(p.ToBoolean())
 		}
-		if set := desc.getStr("set"); set != nil {
-			if set != _undefined {
-				if _, ok := r.toObject(set).self.assertCallable(); !ok {
-					r.typeErrorResult(true, "setter must be callable")
-				}
-			}
-			hasSet = true
+		if p := descr.getStr("enumerable"); p != nil {
+			ret.Enumerable = ToFlag(p.ToBoolean())
+		}
+		if p := descr.getStr("configurable"); p != nil {
+			ret.Configurable = ToFlag(p.ToBoolean())
 		}
 
-		if (hasGet || hasSet) && (hasValue || hasWritable) {
-			r.typeErrorResult(true, "Invalid property.  A property cannot both have accessors and be writable or have a value")
+		ret.Getter = descr.getStr("get")
+		ret.Setter = descr.getStr("set")
+
+		if ret.Getter != nil && ret.Getter != _undefined {
+			if _, ok := r.toObject(ret.Getter).self.assertCallable(); !ok {
+				r.typeErrorResult(true, "getter must be a function")
+			}
 		}
 
-		return desc
+		if ret.Setter != nil && ret.Setter != _undefined {
+			if _, ok := r.toObject(ret.Setter).self.assertCallable(); !ok {
+				r.typeErrorResult(true, "setter must be a function")
+			}
+		}
+
+		if (ret.Getter != nil || ret.Setter != nil) && (ret.Value != nil || ret.Writable != FLAG_NOT_SET) {
+			r.typeErrorResult(true, "Invalid property descriptor. Cannot both specify accessors and a value or writable attribute")
+			return
+		}
+	} else {
+		r.typeErrorResult(true, "Property description must be an object: %s", v.String())
 	}
-	r.typeErrorResult(true, "Property description must be an object: %s", v.String())
-	return nil
+
+	return
 }
 
 func (r *Runtime) _defineProperties(o *Object, p Value) {
 	type propItem struct {
 		name string
-		prop objectImpl
+		prop propertyDescr
 	}
 	props := p.ToObject(r)
 	var list []propItem
 	for item, f := props.self.enumerate(false, false)(); f != nil; item, f = f() {
 		list = append(list, propItem{
 			name: item.name,
-			prop: r.toPropertyDescriptor(props.self.getStr(item.name)),
+			prop: r.toPropertyDescr(props.self.getStr(item.name)),
 		})
 	}
 	for _, prop := range list {
@@ -155,12 +163,9 @@ func (r *Runtime) object_create(call FunctionCall) Value {
 
 func (r *Runtime) object_defineProperty(call FunctionCall) (ret Value) {
 	if obj, ok := call.Argument(0).(*Object); ok {
-		if descr, ok := call.Argument(2).(*Object); ok {
-			obj.self.defineOwnProperty(call.Argument(1), descr.self, true)
-			ret = call.Argument(0)
-		} else {
-			r.typeErrorResult(true, "Property description must be an object: %v", call.Argument(2))
-		}
+		descr := r.toPropertyDescr(call.Argument(2))
+		obj.self.defineOwnProperty(call.Argument(1), descr, true)
+		ret = call.Argument(0)
 	} else {
 		r.typeErrorResult(true, "Object.defineProperty called on non-object")
 	}
@@ -177,7 +182,11 @@ func (r *Runtime) object_seal(call FunctionCall) Value {
 	// ES6
 	arg := call.Argument(0)
 	if obj, ok := arg.(*Object); ok {
-		var descr objectImpl
+		descr := propertyDescr{
+			Writable:     FLAG_TRUE,
+			Enumerable:   FLAG_TRUE,
+			Configurable: FLAG_FALSE,
+		}
 		for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
 			v := obj.self.getOwnProp(item.name)
 			if prop, ok := v.(*valueProperty); ok {
@@ -186,13 +195,7 @@ func (r *Runtime) object_seal(call FunctionCall) Value {
 				}
 				prop.configurable = false
 			} else {
-				if descr == nil {
-					descr = r.NewObject().self
-					descr.putStr("writable", valueTrue, false)
-					descr.putStr("enumerable", valueTrue, false)
-					descr.putStr("configurable", valueFalse, false)
-				}
-				descr.putStr("value", v, false)
+				descr.Value = v
 				obj.self.defineOwnProperty(newStringValue(item.name), descr, true)
 				//obj.self._putProp(item.name, v, true, true, false)
 			}
@@ -206,7 +209,11 @@ func (r *Runtime) object_seal(call FunctionCall) Value {
 func (r *Runtime) object_freeze(call FunctionCall) Value {
 	arg := call.Argument(0)
 	if obj, ok := arg.(*Object); ok {
-		var descr objectImpl
+		descr := propertyDescr{
+			Writable:     FLAG_FALSE,
+			Enumerable:   FLAG_TRUE,
+			Configurable: FLAG_FALSE,
+		}
 		for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
 			v := obj.self.getOwnProp(item.name)
 			if prop, ok := v.(*valueProperty); ok {
@@ -215,13 +222,7 @@ func (r *Runtime) object_freeze(call FunctionCall) Value {
 					prop.writable = false
 				}
 			} else {
-				if descr == nil {
-					descr = r.NewObject().self
-					descr.putStr("writable", valueFalse, false)
-					descr.putStr("enumerable", valueTrue, false)
-					descr.putStr("configurable", valueFalse, false)
-				}
-				descr.putStr("value", v, false)
+				descr.Value = v
 				obj.self.defineOwnProperty(newStringValue(item.name), descr, true)
 			}
 		}

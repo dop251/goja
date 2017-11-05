@@ -85,7 +85,7 @@ func (o *lazyObject) _putProp(name string, value Value, writable, enumerable, co
 	return obj._putProp(name, value, writable, enumerable, configurable)
 }
 
-func (o *lazyObject) defineOwnProperty(name Value, descr objectImpl, throw bool) bool {
+func (o *lazyObject) defineOwnProperty(name Value, descr propertyDescr, throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.defineOwnProperty(name, descr, throw)

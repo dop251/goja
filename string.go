@@ -150,7 +150,7 @@ func (s *stringObject) putStr(name string, val Value, throw bool) {
 	s.baseObject.putStr(name, val, throw)
 }
 
-func (s *stringObject) defineOwnProperty(n Value, descr objectImpl, throw bool) bool {
+func (s *stringObject) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
 	if i := toIdx(n); i >= 0 && i < s.length {
 		s.val.runtime.typeErrorResult(throw, "Cannot redefine property: %d", i)
 		return false

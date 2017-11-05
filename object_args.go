@@ -93,7 +93,7 @@ func (a *argumentsObject) enumerate(all, recursive bool) iterNextFunc {
 	}).next
 }
 
-func (a *argumentsObject) defineOwnProperty(n Value, descr objectImpl, throw bool) bool {
+func (a *argumentsObject) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
 	name := n.String()
 	if mapped, ok := a.values[name].(*mappedProperty); ok {
 		existing := &valueProperty{

@@ -336,7 +336,7 @@ func (a *sparseArrayObject) expand() bool {
 	return true
 }
 
-func (a *sparseArrayObject) defineOwnProperty(n Value, descr objectImpl, throw bool) bool {
+func (a *sparseArrayObject) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
 	if idx := toIdx(n); idx >= 0 {
 		var existing Value
 		i := a.findIdx(idx)

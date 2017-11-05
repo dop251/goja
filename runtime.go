@@ -72,6 +72,25 @@ type global struct {
 	throwerProperty Value
 }
 
+type Flag int
+
+const (
+	FLAG_NOT_SET Flag = iota
+	FLAG_FALSE
+	FLAG_TRUE
+)
+
+func (f Flag) Bool() bool {
+	return f == FLAG_TRUE
+}
+
+func ToFlag(b bool) Flag {
+	if b {
+		return FLAG_TRUE
+	}
+	return FLAG_FALSE
+}
+
 type RandSource func() float64
 
 type Runtime struct {
@@ -1379,4 +1398,25 @@ func Undefined() Value {
 // Null returns JS null value.
 func Null() Value {
 	return _undefined
+}
+
+func tryFunc(f func()) (err error) {
+	defer func() {
+		if x := recover(); x != nil {
+			switch x := x.(type) {
+			case *Exception:
+				err = x
+			case Value:
+				err = &Exception{
+					val: x,
+				}
+			default:
+				panic(x)
+			}
+		}
+	}()
+
+	f()
+
+	return nil
 }

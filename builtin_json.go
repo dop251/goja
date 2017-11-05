@@ -86,11 +86,12 @@ func (r *Runtime) builtinJSON_decodeObject(d *json.Decoder) (*Object, error) {
 		}
 
 		if key == "__proto__" {
-			descr := r.NewObject().self
-			descr.putStr("value", value, false)
-			descr.putStr("writable", valueTrue, false)
-			descr.putStr("enumerable", valueTrue, false)
-			descr.putStr("configurable", valueTrue, false)
+			descr := propertyDescr{
+				Value:        value,
+				Writable:     FLAG_TRUE,
+				Enumerable:   FLAG_TRUE,
+				Configurable: FLAG_TRUE,
+			}
 			object.self.defineOwnProperty(string__proto__, descr, false)
 		} else {
 			object.self.putStr(key, value, false)
