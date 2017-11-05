@@ -972,6 +972,35 @@ func TestNativeConstruct(t *testing.T) {
 	}
 }
 
+func TestCreateObject(t *testing.T) {
+	const SCRIPT = `
+	inst instanceof C;
+	`
+
+	r := New()
+	c := r.ToValue(func(call ConstructorCall) *Object {
+		return nil
+	})
+
+	proto := c.(*Object).Get("prototype").(*Object)
+
+	inst := r.CreateObject(proto)
+
+	r.Set("C", c)
+	r.Set("inst", inst)
+
+	prg := MustCompile("test.js", SCRIPT, false)
+
+	res, err := r.RunProgram(prg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !res.StrictEquals(valueTrue) {
+		t.Fatalf("Unexpected result: %v", res)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

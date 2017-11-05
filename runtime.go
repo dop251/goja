@@ -315,6 +315,11 @@ func (r *Runtime) NewObject() (v *Object) {
 	return r.newBaseObject(r.global.ObjectPrototype, classObject).val
 }
 
+// CreateObject creates an object with given prototype. Equivalent of Object.create(proto).
+func (r *Runtime) CreateObject(proto *Object) *Object {
+	return r.newBaseObject(proto, classObject).val
+}
+
 func (r *Runtime) NewTypeError(args ...interface{}) *Object {
 	msg := ""
 	if len(args) > 0 {
