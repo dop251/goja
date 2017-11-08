@@ -635,6 +635,20 @@ func TestToValueNil(t *testing.T) {
 	}
 }
 
+func TestToValueFloat(t *testing.T) {
+	vm := New()
+	vm.Set("f64", float64(123))
+	vm.Set("f32", float32(321))
+
+	v, err := vm.RunString("f64 === 123 && f32 === 321")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Export().(bool) != true {
+		t.Fatalf("StrictEquals for golang float failed")
+	}
+}
+
 func TestJSONEscape(t *testing.T) {
 	const SCRIPT = `
 	var a = "\\+1";
