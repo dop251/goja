@@ -941,18 +941,21 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		} else {
 			return floatToValue(float64(i))
 		}
-	case uint64:
-		if i <= math.MaxInt64 {
-			return intToValue(int64(i))
-		} else {
-			return floatToValue(float64(i))
-		}
 	case uint8:
 		return intToValue(int64(i))
 	case uint16:
 		return intToValue(int64(i))
 	case uint32:
 		return intToValue(int64(i))
+	case uint64:
+		if i <= math.MaxInt64 {
+			return intToValue(int64(i))
+		}
+		return floatToValue(float64(i))
+	case float32:
+		return floatToValue(float64(i))
+	case float64:
+		return floatToValue(i)
 	case map[string]interface{}:
 		obj := &Object{runtime: r}
 		m := &objectGoMapSimple{
