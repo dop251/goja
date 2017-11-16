@@ -119,3 +119,48 @@ func TestGoMapReflectProto(t *testing.T) {
 		t.Fatalf("Expected true, got %v", v)
 	}
 }
+
+type gomapReflect_noMethods map[string]interface{}
+type gomapReflect_withMethods map[string]interface{}
+
+func (m gomapReflect_withMethods) Method() bool {
+	return true
+}
+
+func TestGoMapReflectNoMethods(t *testing.T) {
+	const SCRIPT = `
+	typeof m === "object" && m.hasOwnProperty("t") && m.t === 42;
+	`
+
+	vm := New()
+	m := make(gomapReflect_noMethods)
+	m["t"] = 42
+	vm.Set("m", m)
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.StrictEquals(valueTrue) {
+		t.Fatalf("Expected true, got %v", v)
+	}
+
+}
+
+func TestGoMapReflectWithMethods(t *testing.T) {
+	const SCRIPT = `
+	typeof m === "object" && !m.hasOwnProperty("t") && m.hasOwnProperty("Method") && m.Method();
+	`
+
+	vm := New()
+	m := make(gomapReflect_withMethods)
+	m["t"] = 42
+	vm.Set("m", m)
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.StrictEquals(valueTrue) {
+		t.Fatalf("Expected true, got %v", v)
+	}
+
+}

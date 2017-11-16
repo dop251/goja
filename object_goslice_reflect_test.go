@@ -87,3 +87,28 @@ func TestGoSliceReflectProto(t *testing.T) {
 		t.Fatalf("Unexpected result: '%s'", s)
 	}
 }
+
+type gosliceReflect_withMethods []interface{}
+
+func (s gosliceReflect_withMethods) Method() bool {
+	return true
+}
+
+func TestGoSliceReflectMethod(t *testing.T) {
+	const SCRIPT = `
+	typeof a === "object" && a[0] === 42 && a.Method() === true;
+	`
+
+	vm := New()
+	a := make(gosliceReflect_withMethods, 1)
+	a[0] = 42
+	vm.Set("a", a)
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.StrictEquals(valueTrue) {
+		t.Fatalf("Expected true, got %v", v)
+	}
+
+}
