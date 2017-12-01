@@ -160,6 +160,17 @@ func (e *InterruptedError) Value() interface{} {
 	return e.iface
 }
 
+func (e *InterruptedError) String() string {
+	if e == nil {
+		return "<nil>"
+	}
+	return fmt.Sprint(e.iface)
+}
+
+func (e *InterruptedError) Error() string {
+	return e.String()
+}
+
 func (e *Exception) String() string {
 	if e == nil {
 		return "<nil>"
