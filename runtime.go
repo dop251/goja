@@ -1370,6 +1370,15 @@ func AssertFunction(v Value) (Callable, bool) {
 	if obj, ok := v.(*Object); ok {
 		if f, ok := obj.self.assertCallable(); ok {
 			return func(this Value, args ...Value) (ret Value, err error) {
+				defer func() {
+					if x := recover(); x != nil {
+						if ex, ok := x.(*InterruptedError); ok {
+							err = ex
+						} else {
+							panic(x)
+						}
+					}
+				}()
 				ex := obj.runtime.vm.try(func() {
 					ret = f(FunctionCall{
 						This:      this,
@@ -1413,6 +1422,8 @@ func tryFunc(f func()) (err error) {
 		if x := recover(); x != nil {
 			switch x := x.(type) {
 			case *Exception:
+				err = x
+			case *InterruptedError:
 				err = x
 			case Value:
 				err = &Exception{

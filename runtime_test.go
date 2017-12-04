@@ -1015,6 +1015,35 @@ func TestCreateObject(t *testing.T) {
 	}
 }
 
+func TestInterruptInWrappedFunction(t *testing.T) {
+	rt := New()
+	v, err := rt.RunString(`
+		var fn = function() {
+			while (true) {}
+		};
+		fn;
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fn, ok := AssertFunction(v)
+	if !ok {
+		t.Fatal("Not a function")
+	}
+	go func() {
+		<-time.After(10 * time.Millisecond)
+		rt.Interrupt(errors.New("hi"))
+	}()
+
+	v, err = fn(nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if _, ok := err.(*InterruptedError); !ok {
+		t.Fatalf("Wrong error type: %T", err)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
