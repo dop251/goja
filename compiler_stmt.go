@@ -73,6 +73,8 @@ func (c *compiler) compileLabeledStatement(v *ast.LabelledStatement, needResult 
 		c.compileLabeledWhileStatement(s, needResult, label)
 	case *ast.DoWhileStatement:
 		c.compileLabeledDoWhileStatement(s, needResult, label)
+	case *ast.IfStatement:
+		c.compileLabeledIfStatement(s, needResult, label)
 	default:
 		c.compileStatement(v.Statement, needResult)
 	}
@@ -477,6 +479,16 @@ func (c *compiler) compileContinue(label *ast.Identifier, idx file.Idx) {
 	} else {
 		c.throwSyntaxError(int(idx)-1, "Undefined label '%s'", label.Name)
 	}
+}
+
+func (c *compiler) compileLabeledIfStatement(v *ast.IfStatement, needResult bool, label string) {
+	c.block = &block{
+		typ:   blockBranch,
+		label: label,
+		outer: c.block,
+	}
+	c.compileIfStatement(v, needResult)
+	c.leaveBlock()
 }
 
 func (c *compiler) compileIfStatement(v *ast.IfStatement, needResult bool) {

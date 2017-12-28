@@ -488,6 +488,18 @@ func TestIfElseRetVal(t *testing.T) {
 	testScript1(SCRIPT, asciiString("passed"), t)
 }
 
+func TestIfElseLabel(t *testing.T) {
+	const SCRIPT = `
+	var x = 0;
+	abc: if (true) {
+		x = 1;
+		break abc;
+	}
+	`
+
+	testScript1(SCRIPT, intToValue(1), t)
+}
+
 func TestBreakOutOfTry(t *testing.T) {
 	const SCRIPT = `
 	function A() {
