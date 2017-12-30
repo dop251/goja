@@ -2,10 +2,11 @@ package goja
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
-	"strconv"
 )
 
 func (c *compiler) compileStatement(v ast.Statement, needResult bool) {
@@ -75,6 +76,8 @@ func (c *compiler) compileLabeledStatement(v *ast.LabelledStatement, needResult 
 		c.compileLabeledDoWhileStatement(s, needResult, label)
 	case *ast.IfStatement:
 		c.compileLabeledIfStatement(s, needResult, label)
+	case *ast.SwitchStatement:
+		c.compileLabeledSwitchStatement(s, needResult, label)
 	default:
 		c.compileStatement(v.Statement, needResult)
 	}
@@ -626,6 +629,16 @@ func (c *compiler) compileWithStatement(v *ast.WithStatement, needResult bool) {
 	c.emit(leaveWith)
 	c.leaveBlock()
 	c.popScope()
+}
+
+func (c *compiler) compileLabeledSwitchStatement(v *ast.SwitchStatement, needResult bool, label string) {
+	c.block = &block{
+		typ:   blockBranch,
+		label: label,
+		outer: c.block,
+	}
+	c.compileSwitchStatement(v, needResult)
+	c.leaveBlock()
 }
 
 func (c *compiler) compileSwitchStatement(v *ast.SwitchStatement, needResult bool) {

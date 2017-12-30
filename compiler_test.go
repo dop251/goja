@@ -1,10 +1,11 @@
 package goja
 
 import (
-	"github.com/dop251/goja/parser"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/dop251/goja/parser"
 )
 
 func testScript(script string, expectedResult Value, t *testing.T) {
@@ -488,16 +489,15 @@ func TestIfElseRetVal(t *testing.T) {
 	testScript1(SCRIPT, asciiString("passed"), t)
 }
 
-func TestIfElseLabel(t *testing.T) {
+func TestIfLabel(t *testing.T) {
 	const SCRIPT = `
 	var x = 0;
 	abc: if (true) {
-		x = 1;
 		break abc;
 	}
 	`
 
-	testScript1(SCRIPT, intToValue(1), t)
+	testScript1(SCRIPT, intToValue(0), t)
 }
 
 func TestBreakOutOfTry(t *testing.T) {
@@ -1505,6 +1505,18 @@ func TestSwitchNoMatch(t *testing.T) {
 
 	result;
 
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestSwitchLabel(t *testing.T) {
+	const SCRIPT = `
+	var x = 0;
+	abc: switch (x) {
+	case 0:
+		break abc;
+	}
 	`
 
 	testScript1(SCRIPT, _undefined, t)
