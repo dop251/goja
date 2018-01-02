@@ -185,12 +185,10 @@ func TestIndexOf(t *testing.T) {
 
 func TestUnicodeIndexOf(t *testing.T) {
 	const SCRIPT = `
-
-	"абвгд".indexOf("вг", 1)
-
+	"абвгд".indexOf("вг", 1) === 2 && '中国'.indexOf('国') === 1
 	`
 
-	testScript1(SCRIPT, intToValue(2), t)
+	testScript1(SCRIPT, valueTrue, t)
 }
 
 func TestLastIndexOf(t *testing.T) {
