@@ -32,6 +32,7 @@ type global struct {
 	Boolean  *Object
 	RegExp   *Object
 	Date     *Object
+	Proxy    *Object
 
 	ArrayBuffer *Object
 
@@ -53,6 +54,7 @@ type global struct {
 	FunctionPrototype *Object
 	RegExpPrototype   *Object
 	DatePrototype     *Object
+	ProxyPrototype    *Object
 
 	ArrayBufferPrototype *Object
 
@@ -248,6 +250,7 @@ func (r *Runtime) init() {
 	r.initRegExp()
 	r.initDate()
 	r.initBoolean()
+	r.initProxy()
 
 	r.initErrors()
 
@@ -954,6 +957,12 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		return r.newNativeFunc(i, nil, "", nil, 0)
 	case func(ConstructorCall) *Object:
 		return r.newNativeConstructor(i, "", 0)
+	case *Proxy:
+		proxy := i.proxy
+		if proxy.runtime != r {
+			r.typeErrorResult(true, "Illegal runtime transition for proxy")
+		}
+		return proxy
 	case int:
 		return intToValue(int64(i))
 	case int8:

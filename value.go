@@ -709,8 +709,17 @@ func (o *Object) Get(name string) Value {
 }
 
 func (o *Object) Keys() (keys []string) {
-	for item, f := o.self.enumerate(false, false)(); f != nil; item, f = f() {
-		keys = append(keys, item.name)
+	if o.runtime.isProxy(o) {
+		proxy := o.runtime.getProxy(o)
+		v := proxy.ownKeys(true, false)
+		values := v.(*Object).self.(*arrayObject).values
+		for _, val := range values {
+			keys = append(keys, val.String())
+		}
+	} else {
+		for item, f := o.self.enumerate(false, false)(); f != nil; item, f = f() {
+			keys = append(keys, item.name)
+		}
 	}
 
 	return

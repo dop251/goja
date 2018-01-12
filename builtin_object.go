@@ -26,55 +26,18 @@ func (r *Runtime) object_getPrototypeOf(call FunctionCall) Value {
 func (r *Runtime) object_getOwnPropertyDescriptor(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
 	propName := call.Argument(1).String()
-	desc := obj.self.getOwnProp(propName)
-	if desc == nil {
-		return _undefined
-	}
-	var writable, configurable, enumerable, accessor bool
-	var get, set *Object
-	var value Value
-	if v, ok := desc.(*valueProperty); ok {
-		writable = v.writable
-		configurable = v.configurable
-		enumerable = v.enumerable
-		accessor = v.accessor
-		value = v.value
-		get = v.getterFunc
-		set = v.setterFunc
-	} else {
-		writable = true
-		configurable = true
-		enumerable = true
-		value = desc
-	}
-
-	ret := r.NewObject()
-	o := ret.self
-	if !accessor {
-		o.putStr("value", value, false)
-		o.putStr("writable", r.toBoolean(writable), false)
-	} else {
-		if get != nil {
-			o.putStr("get", get, false)
-		} else {
-			o.putStr("get", _undefined, false)
-		}
-		if set != nil {
-			o.putStr("set", set, false)
-		} else {
-			o.putStr("set", _undefined, false)
-		}
-	}
-	o.putStr("enumerable", r.toBoolean(enumerable), false)
-	o.putStr("configurable", r.toBoolean(configurable), false)
-
-	return ret
+	return obj.self.getOwnPropertyDescriptor(propName)
 }
 
 func (r *Runtime) object_getOwnPropertyNames(call FunctionCall) Value {
 	// ES6
 	obj := call.Argument(0).ToObject(r)
 	// obj := r.toObject(call.Argument(0))
+
+	if r.isProxy(obj) {
+		proxy := r.getProxy(obj)
+		return proxy.ownKeys(true, false)
+	}
 
 	var values []Value
 	for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
@@ -309,6 +272,12 @@ func (r *Runtime) object_keys(call FunctionCall) Value {
 	// ES6
 	obj := call.Argument(0).ToObject(r)
 	//if obj, ok := call.Argument(0).(*valueObject); ok {
+
+	if r.isProxy(obj) {
+		proxy := r.getProxy(obj)
+		return proxy.ownKeys(true, false)
+	}
+
 	var keys []Value
 	for item, f := obj.self.enumerate(false, false)(); f != nil; item, f = f() {
 		keys = append(keys, newStringValue(item.name))

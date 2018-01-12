@@ -151,10 +151,10 @@ func (o *lazyObject) preventExtensions() {
 	obj.preventExtensions()
 }
 
-func (o *lazyObject) enumerate(all, recusrive bool) iterNextFunc {
+func (o *lazyObject) enumerate(all, recursive bool) iterNextFunc {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.enumerate(all, recusrive)
+	return obj.enumerate(all, recursive)
 }
 
 func (o *lazyObject) _enumerate(recursive bool) iterNextFunc {
@@ -197,4 +197,10 @@ func (o *lazyObject) swap(i, j int64) {
 	obj := o.create(o.val)
 	o.val.self = obj
 	obj.swap(i, j)
+}
+
+func (o *lazyObject) getOwnPropertyDescriptor(name string) Value {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.getOwnPropertyDescriptor(name)
 }

@@ -178,11 +178,11 @@ func (i *gomapReflectPropIter) next() (propIterItem, iterNextFunc) {
 	return propIterItem{}, nil
 }
 
-func (o *objectGoMapReflect) _enumerate(recusrive bool) iterNextFunc {
+func (o *objectGoMapReflect) _enumerate(recursive bool) iterNextFunc {
 	r := &gomapReflectPropIter{
 		o:         o,
 		keys:      o.value.MapKeys(),
-		recursive: recusrive,
+		recursive: recursive,
 	}
 	return r.next
 }

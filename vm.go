@@ -1810,6 +1810,20 @@ repeat:
 		vm._nativeCall(f, n)
 	case *boundFuncObject:
 		vm._nativeCall(&f.nativeFuncObject, n)
+	case *proxyObject:
+		vm.pushCtx()
+		vm.prg = nil
+		vm.funcName = "proxy"
+		arguments := vm.stack[vm.sp-n : vm.sp]
+		this := vm.stack[vm.sp-n-2]
+		ret := f.apply(this, arguments)
+		if ret == nil {
+			ret = _undefined
+		}
+		vm.stack[vm.sp-n-2] = ret
+		vm.popCtx()
+		vm.sp -= n + 1
+		vm.pc++
 	case *lazyObject:
 		obj.self = f.create(obj)
 		goto repeat
@@ -2322,6 +2336,11 @@ repeat:
 	case *lazyObject:
 		obj.self = f.create(obj)
 		goto repeat
+	case *proxyObject:
+		args := make([]Value, n)
+		copy(args, vm.stack[vm.sp-int(n):])
+		vm.sp -= int(n)
+		vm.stack[vm.sp-1] = f.construct(args)
 	default:
 		vm.r.typeErrorResult(true, "Not a constructor")
 	}
