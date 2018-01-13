@@ -942,6 +942,18 @@ func (r *Runtime) ToValue(i interface{}) Value {
 	case Value:
 		// TODO: prevent importing Objects from a different runtime
 		return i
+	case ObjectLike:
+		obj := &Object{runtime: r}
+		m := &objectObjectLikeSimple{
+			baseObject: baseObject{
+				val:        obj,
+				extensible: true,
+			},
+			data: i,
+		}
+		obj.self = m
+		m.init()
+		return obj
 	case string:
 		return newStringValue(i)
 	case bool:
