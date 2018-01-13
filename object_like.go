@@ -196,7 +196,7 @@ func (o *objectObjectLikeSimple) export() interface{} {
 }
 
 func (o *objectObjectLikeSimple) exportType() reflect.Type {
-	return reflectTypeMap
+	return reflect.TypeOf(o.data)
 }
 
 func (o *objectObjectLikeSimple) equal(other objectImpl) bool {

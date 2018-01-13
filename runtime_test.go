@@ -1044,9 +1044,11 @@ func TestInterruptInWrappedFunction(t *testing.T) {
 
 func TestObjectLike(t *testing.T) {
 	rt := New()
-	rt.Set("obj", mockObjectLikeStruct(map[string]interface{}{
+
+	mockObj := mockObjectLikeStruct(map[string]interface{}{
 		"foo": "bar",
-	}))
+	})
+	rt.Set("obj", mockObj)
 
 	v, err := rt.RunString("obj.foo")
 	if err != nil {
@@ -1085,6 +1087,16 @@ func TestObjectLike(t *testing.T) {
 
 	if v.String() != "self,foo" {
 		t.Error("Wrong object keys returned", v.String())
+	}
+
+	// Test exporting self
+	v, err = rt.RunString("obj.self")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if v.Export().(mockObjectLikeStruct)["foo"] != "biz" {
+		t.Error("Wrong value exported")
 	}
 
 }
