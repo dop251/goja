@@ -488,6 +488,38 @@ func TestIfElseRetVal(t *testing.T) {
 	testScript1(SCRIPT, asciiString("passed"), t)
 }
 
+func TestWhileReturnValue(t *testing.T) {
+	const SCRIPT = `
+	var x = 0;
+	while(true) {
+		x = 1;
+		break;
+	}
+	`
+	testScript1(SCRIPT, intToValue(1), t)
+}
+
+func TestIfElseLabel(t *testing.T) {
+	const SCRIPT = `
+	var x = 0;
+	abc: if (true) {
+		x = 1;
+		break abc;
+	}
+	`
+	testScript1(SCRIPT, intToValue(1), t)
+}
+
+func TestIfMultipleLabels(t *testing.T) {
+	const SCRIPT = `
+	var x = 0;
+	xyz:abc: if (true) {
+		break xyz;
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
 func TestBreakOutOfTry(t *testing.T) {
 	const SCRIPT = `
 	function A() {
@@ -902,9 +934,79 @@ func TestEvalFunctionExpr(t *testing.T) {
 	testScript1(SCRIPT, intToValue(42), t)
 }
 
-func TestLoopRet(t *testing.T) {
+func TestForLoopRet(t *testing.T) {
 	const SCRIPT = `
-	for (var i = 0; i < 20; i++) { if (i > 1) {break;} else { i }}
+	for (var i = 0; i < 20; i++) { if (i > 2) {break;} else { i }}
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestForLoopRet1(t *testing.T) {
+	const SCRIPT = `
+	for (var i = 0; i < 20; i++) { if (i > 2) {42;; {L:{break;}}} else { i }}
+	`
+
+	testScript1(SCRIPT, intToValue(42), t)
+}
+
+func TestForInLoopRet(t *testing.T) {
+	const SCRIPT = `
+	var o = [1, 2, 3, 4];
+	for (var i in o) { if (i > 2) {break;} else { i }}
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestForInLoopRet1(t *testing.T) {
+	const SCRIPT = `
+	var o = {};
+	o.x = 1;
+	o.y = 2;
+	for (var i in o) {
+		true;
+	}
+
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestDoWhileLoopRet(t *testing.T) {
+	const SCRIPT = `
+	var i = 0;
+	do {
+		if (i > 2) {
+			break;
+		} else {
+			i;
+		}
+	} while (i++ < 20);
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestDoWhileContinueRet(t *testing.T) {
+	const SCRIPT = `
+	var i = 0;
+	do {
+		if (i > 2) {
+			true;
+			continue;
+		} else {
+			i;
+		}
+	} while (i++ < 20);
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestWhileLoopRet(t *testing.T) {
+	const SCRIPT = `
+	var i; while (i < 20) { if (i > 2) {break;} else { i++ }}
 	`
 
 	testScript1(SCRIPT, _undefined, t)
@@ -1381,24 +1483,26 @@ func TestForInLoop(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
-func TestForInLoopRet(t *testing.T) {
-	const SCRIPT = `
-	var o = {};
-	o.x = 1;
-	o.y = 2;
-	for (var i in o) {
-		true;
-	}
-
-	`
-
-	testScript1(SCRIPT, valueTrue, t)
-}
-
 func TestWhileLoopResult(t *testing.T) {
 	const SCRIPT = `
 	while(false);
 
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestEmptySwitch(t *testing.T) {
+	const SCRIPT = `
+	switch(1){}
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestEmptyDoWhile(t *testing.T) {
+	const SCRIPT = `
+	do {} while(false)
 	`
 
 	testScript1(SCRIPT, _undefined, t)
@@ -1475,16 +1579,32 @@ func TestSwitchResult(t *testing.T) {
 	default:
 		"default";
 	}
-
 	`
 
 	testScript1(SCRIPT, asciiString("two"), t)
 }
 
+func TestSwitchResult1(t *testing.T) {
+	const SCRIPT = `
+	var x = 0;
+	switch (x) { case 0: "two"; case 1: break}
+	`
+
+	testScript1(SCRIPT, asciiString("two"), t)
+}
+
+func TestIfBreakResult(t *testing.T) {
+	const SCRIPT = `
+	L: {if (true) {42;} break L;}
+	`
+
+	testScript1(SCRIPT, intToValue(42), t)
+}
+
 func TestSwitchNoMatch(t *testing.T) {
 	const SCRIPT = `
-	var x = 5;
 	var result;
+	var x;
 	switch (x) {
 	case 0:
 		result = "2";
