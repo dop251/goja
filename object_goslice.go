@@ -187,7 +187,7 @@ func (o *objectGoSlice) _putProp(name string, value Value, writable, enumerable,
 	return value
 }
 
-func (o *objectGoSlice) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
+func (o *objectGoSlice) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
 	if idx := toIdx(n); idx >= 0 {
 		if !o.val.runtime.checkHostObjectPropertyDescr(n.String(), descr, throw) {
 			return false

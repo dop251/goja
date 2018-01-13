@@ -22,12 +22,36 @@ type Object struct {
 
 type iterNextFunc func() (propIterItem, iterNextFunc)
 
-type propertyDescr struct {
+type PropertyDescriptor struct {
+	jsDescriptor *Object
+
 	Value Value
 
 	Writable, Configurable, Enumerable Flag
 
 	Getter, Setter Value
+}
+
+func(p PropertyDescriptor) toValue(r *Runtime) Value {
+	if p.jsDescriptor != nil {
+		return p.jsDescriptor
+	}
+
+	o := r.NewObject()
+	s := o.self
+
+	s._putProp("value", p.Value, false, false, false)
+
+	s._putProp("writable", valueBool(p.Writable.Bool()), false, false, false)
+	s._putProp("enumerable", valueBool(p.Enumerable.Bool()), false, false, false)
+	s._putProp("configurable", valueBool(p.Configurable.Bool()), false, false, false)
+
+	s._putProp("get", p.Getter, false, false, false)
+	s._putProp("set", p.Setter, false, false, false)
+
+	s.preventExtensions()
+
+	return o
 }
 
 type objectImpl interface {
@@ -45,7 +69,7 @@ type objectImpl interface {
 	hasOwnProperty(Value) bool
 	hasOwnPropertyStr(string) bool
 	_putProp(name string, value Value, writable, enumerable, configurable bool) Value
-	defineOwnProperty(name Value, descr propertyDescr, throw bool) bool
+	defineOwnProperty(name Value, descr PropertyDescriptor, throw bool) bool
 	toPrimitiveNumber() Value
 	toPrimitiveString() Value
 	toPrimitive() Value
@@ -335,7 +359,7 @@ func (o *baseObject) getOwnPropertyDescriptor(name string) Value {
 	return ret
 }
 
-func (o *baseObject) _defineOwnProperty(name, existingValue Value, descr propertyDescr, throw bool) (val Value, ok bool) {
+func (o *baseObject) _defineOwnProperty(name, existingValue Value, descr PropertyDescriptor, throw bool) (val Value, ok bool) {
 
 	getterObj, _ := descr.Getter.(*Object)
 	setterObj, _ := descr.Setter.(*Object)
@@ -438,7 +462,7 @@ Reject:
 
 }
 
-func (o *baseObject) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
+func (o *baseObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
 	name := n.String()
 	existingVal := o.values[name]
 	if v, ok := o._defineOwnProperty(n, existingVal, descr, throw); ok {

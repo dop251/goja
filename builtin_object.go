@@ -46,9 +46,12 @@ func (r *Runtime) object_getOwnPropertyNames(call FunctionCall) Value {
 	return r.newArrayValues(values)
 }
 
-func (r *Runtime) toPropertyDescr(v Value) (ret propertyDescr) {
+func (r *Runtime) toPropertyDescriptor(v Value) (ret PropertyDescriptor) {
 	if o, ok := v.(*Object); ok {
 		descr := o.self
+
+		// Save the original descriptor for reference
+		ret.jsDescriptor = o
 
 		ret.Value = descr.getStr("value")
 
@@ -91,14 +94,14 @@ func (r *Runtime) toPropertyDescr(v Value) (ret propertyDescr) {
 func (r *Runtime) _defineProperties(o *Object, p Value) {
 	type propItem struct {
 		name string
-		prop propertyDescr
+		prop PropertyDescriptor
 	}
 	props := p.ToObject(r)
 	var list []propItem
 	for item, f := props.self.enumerate(false, false)(); f != nil; item, f = f() {
 		list = append(list, propItem{
 			name: item.name,
-			prop: r.toPropertyDescr(props.self.getStr(item.name)),
+			prop: r.toPropertyDescriptor(props.self.getStr(item.name)),
 		})
 	}
 	for _, prop := range list {
@@ -126,7 +129,7 @@ func (r *Runtime) object_create(call FunctionCall) Value {
 
 func (r *Runtime) object_defineProperty(call FunctionCall) (ret Value) {
 	if obj, ok := call.Argument(0).(*Object); ok {
-		descr := r.toPropertyDescr(call.Argument(2))
+		descr := r.toPropertyDescriptor(call.Argument(2))
 		obj.self.defineOwnProperty(call.Argument(1), descr, true)
 		ret = call.Argument(0)
 	} else {
@@ -145,7 +148,7 @@ func (r *Runtime) object_seal(call FunctionCall) Value {
 	// ES6
 	arg := call.Argument(0)
 	if obj, ok := arg.(*Object); ok {
-		descr := propertyDescr{
+		descr := PropertyDescriptor{
 			Writable:     FLAG_TRUE,
 			Enumerable:   FLAG_TRUE,
 			Configurable: FLAG_FALSE,
@@ -172,7 +175,7 @@ func (r *Runtime) object_seal(call FunctionCall) Value {
 func (r *Runtime) object_freeze(call FunctionCall) Value {
 	arg := call.Argument(0)
 	if obj, ok := arg.(*Object); ok {
-		descr := propertyDescr{
+		descr := PropertyDescriptor{
 			Writable:     FLAG_FALSE,
 			Enumerable:   FLAG_TRUE,
 			Configurable: FLAG_FALSE,

@@ -99,13 +99,13 @@ func (r *Runtime) proxyproto_nativehandler_preventExtensions(native func(*Object
 	}
 }
 
-func (r *Runtime) proxyproto_nativehandler_getOwnPropertyDescriptor(native func(*Object, string) propertyDescr, handler *Object) {
+func (r *Runtime) proxyproto_nativehandler_getOwnPropertyDescriptor(native func(*Object, string) PropertyDescriptor, handler *Object) {
 	if native != nil {
 		handler.Set("getOwnPropertyDescriptor", func(call FunctionCall) Value {
 			if len(call.Arguments) >= 2 {
 				if t, ok := call.Argument(0).(*Object); ok {
 					if p, ok := call.Argument(1).assertString(); ok {
-						return r.ToValue(native(t, p.String()))
+						return native(t, p.String()).toValue(r)
 					}
 				}
 			}
@@ -115,13 +115,13 @@ func (r *Runtime) proxyproto_nativehandler_getOwnPropertyDescriptor(native func(
 	}
 }
 
-func (r *Runtime) proxyproto_nativehandler_defineProperty(native func(*Object, string, propertyDescr) bool, handler *Object) {
+func (r *Runtime) proxyproto_nativehandler_defineProperty(native func(*Object, string, PropertyDescriptor) bool, handler *Object) {
 	if native != nil {
 		handler.Set("defineProperty", func(call FunctionCall) Value {
 			if len(call.Arguments) >= 3 {
 				if t, ok := call.Argument(0).(*Object); ok {
 					if k, ok := call.Argument(1).assertString(); ok {
-						propertyDescriptor := r.toPropertyDescr(call.Argument(2))
+						propertyDescriptor := r.toPropertyDescriptor(call.Argument(2))
 						s := native(t, k.String(), propertyDescriptor)
 						return r.ToValue(s)
 					}
@@ -274,10 +274,10 @@ type ProxyTrapConfig struct {
 	PreventExtensions func(target *Object) (success bool)
 
 	// A trap for Object.getOwnPropertyDescriptor, Reflect.getOwnPropertyDescriptor
-	GetOwnPropertyDescriptor func(target *Object, prop string) (propertyDescriptor propertyDescr)
+	GetOwnPropertyDescriptor func(target *Object, prop string) (propertyDescriptor PropertyDescriptor)
 
 	// A trap for Object.defineProperty, Reflect.defineProperty
-	DefineProperty func(target *Object, key string, propertyDescriptor propertyDescr) (success bool)
+	DefineProperty func(target *Object, key string, propertyDescriptor PropertyDescriptor) (success bool)
 
 	// A trap for the in operator, with operator, Reflect.has
 	Has func(target *Object, property string) (available bool)
@@ -394,11 +394,11 @@ func (p *proxyObject) preventExtensions() {
 	}
 }
 
-func (p *proxyObject) defineOwnProperty(name Value, descr propertyDescr, throw bool) (ret bool) {
+func (p *proxyObject) defineOwnProperty(name Value, descr PropertyDescriptor, throw bool) (ret bool) {
 	ex := p.handleProxyRequest(proxy_trap_defineProperty, func(proxyFunction func(FunctionCall) Value, this Value) {
 		proxyFunction(FunctionCall{
 			This:      this,
-			Arguments: []Value{p.target, name, descr.Value},
+			Arguments: []Value{p.target, name, descr.toValue(p.val.runtime)},
 		})
 	}, func(target *Object) {
 		ret = p.target.self.defineOwnProperty(name, descr, throw)

@@ -195,7 +195,7 @@ func (o *objectGoReflect) _putProp(name string, value Value, writable, enumerabl
 	return o.baseObject._putProp(name, value, writable, enumerable, configurable)
 }
 
-func (r *Runtime) checkHostObjectPropertyDescr(name string, descr propertyDescr, throw bool) bool {
+func (r *Runtime) checkHostObjectPropertyDescr(name string, descr PropertyDescriptor, throw bool) bool {
 	if descr.Getter != nil || descr.Setter != nil {
 		r.typeErrorResult(throw, "Host objects do not support accessor properties")
 		return false
@@ -211,7 +211,7 @@ func (r *Runtime) checkHostObjectPropertyDescr(name string, descr propertyDescr,
 	return true
 }
 
-func (o *objectGoReflect) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
+func (o *objectGoReflect) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
 	name := n.String()
 	if ast.IsExported(name) {
 		if o.value.Kind() == reflect.Struct {

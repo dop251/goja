@@ -174,6 +174,35 @@ func TestProxy_proxy_preventExtensions(t *testing.T) {
 	testScript1(SCRIPT, valueFalse, t)
 }
 
+func TestProxy_native_proxy_preventExtensions(t *testing.T) {
+	const SCRIPT = `
+	(function() {
+		Object.preventExtensions(proxy);
+		return proxy.canEvolve;
+	})();
+	`
+
+	runtime := New()
+
+	target := runtime.NewObject()
+	target.Set("canEvolve", true)
+	runtime.Set("target", target)
+
+	proxy := runtime.NewProxy(target, &ProxyTrapConfig{
+		PreventExtensions: func(target *Object) (success bool) {
+			target.Set("canEvolve", false)
+			return true
+		},
+	}, false)
+	runtime.Set("proxy", proxy)
+
+	val, err := runtime.RunString(SCRIPT)
+	if err != nil {
+		panic(err)
+	}
+	assert.Equal(t, false, val.ToBoolean())
+}
+
 func TestProxy_Object_target_getOwnPropertyDescriptor(t *testing.T) {
 	const SCRIPT = `
 	var desc = {
@@ -226,6 +255,63 @@ func TestProxy_proxy_getOwnPropertyDescriptor(t *testing.T) {
 	testScript1(SCRIPT, valueInt(24), t)
 }
 
+func TestProxy_native_proxy_getOwnPropertyDescriptor(t *testing.T) {
+	const SCRIPT = `
+	(function() {
+		var desc = {
+			configurable: false,
+			enumerable: false,
+			value: 42,
+			writable: false 
+		};
+		var proxy_desc = {
+			configurable: false,
+			enumerable: false,
+			value: 24,
+			writable: false 
+		};
+		
+		var obj = {};
+		Object.defineProperty(obj, "foo", desc);
+
+		return function(constructor) {
+			var proxy = constructor(obj, proxy_desc);
+
+			var desc2 = Object.getOwnPropertyDescriptor(proxy, "foo");
+			return desc2.value
+		}
+	})();
+	`
+
+	runtime := New()
+
+	constructor := func(call FunctionCall) Value {
+		target := call.Argument(0).(*Object)
+		proxyDesc := call.Argument(1).(*Object)
+
+		return runtime.NewProxy(target, &ProxyTrapConfig{
+			GetOwnPropertyDescriptor: func(target *Object, prop string) PropertyDescriptor {
+				return runtime.toPropertyDescriptor(proxyDesc)
+			},
+		}, false).proxy
+	}
+
+	val, err := runtime.RunString(SCRIPT)
+	if err != nil {
+		panic(err)
+	}
+
+	if c, ok := val.(*Object).self.assertCallable(); ok {
+		val := c(FunctionCall{
+			This:      val,
+			Arguments: []Value{runtime.ToValue(constructor)},
+		})
+		assert.Equal(t, int64(24), val.ToInteger())
+	} else {
+		assert.Fail(t, "not a function")
+	}
+}
+
 func TestProxy_Object_target_defineProperty(t *testing.T) {
 	const SCRIPT = `
 	var obj = {};
@@ -255,6 +341,33 @@ func TestProxy_proxy_defineProperty(t *testing.T) {
 	`
 
 	testScript1(SCRIPT, asciiString("321tset"), t)
+}
+
+func TestProxy_native_proxy_defineProperty(t *testing.T) {
+	const SCRIPT = `
+	Object.defineProperty(proxy, "foo", {
+		value: "test123"
+	});
+	proxy.foo;
+	`
+
+	runtime := New()
+
+	target := runtime.NewObject()
+
+	proxy := runtime.NewProxy(target, &ProxyTrapConfig{
+		DefineProperty: func(target *Object, key string, propertyDescriptor PropertyDescriptor) (success bool) {
+			target.Set("foo", "321tset")
+			return true
+		},
+	}, false)
+	runtime.Set("proxy", proxy)
+
+	val, err := runtime.RunString(SCRIPT)
+	if err != nil {
+		panic(err)
+	}
+	assert.Equal(t, "321tset", val.String())
 }
 
 func TestProxy_target_has_in(t *testing.T) {

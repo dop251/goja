@@ -150,7 +150,7 @@ func (o *objectGoSliceReflect) _putProp(name string, value Value, writable, enum
 	return value
 }
 
-func (o *objectGoSliceReflect) defineOwnProperty(name Value, descr propertyDescr, throw bool) bool {
+func (o *objectGoSliceReflect) defineOwnProperty(name Value, descr PropertyDescriptor, throw bool) bool {
 	if !o.val.runtime.checkHostObjectPropertyDescr(name.String(), descr, throw) {
 		return false
 	}

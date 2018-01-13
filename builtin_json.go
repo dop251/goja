@@ -86,7 +86,7 @@ func (r *Runtime) builtinJSON_decodeObject(d *json.Decoder) (*Object, error) {
 		}
 
 		if key == "__proto__" {
-			descr := propertyDescr{
+			descr := PropertyDescriptor{
 				Value:        value,
 				Writable:     FLAG_TRUE,
 				Enumerable:   FLAG_TRUE,

@@ -112,7 +112,7 @@ func (o *objectGoMapReflect) _putProp(name string, value Value, writable, enumer
 	return value
 }
 
-func (o *objectGoMapReflect) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
+func (o *objectGoMapReflect) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
 	name := n.String()
 	if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 		return false

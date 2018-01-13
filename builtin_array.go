@@ -192,7 +192,7 @@ func (r *Runtime) arrayproto_toLocaleString(call FunctionCall) Value {
 }
 
 func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
-	descr := propertyDescr{
+	descr := PropertyDescriptor{
 		Writable:     FLAG_TRUE,
 		Enumerable:   FLAG_TRUE,
 		Configurable: FLAG_TRUE,
@@ -271,7 +271,7 @@ func (r *Runtime) arrayproto_slice(call FunctionCall) Value {
 	a := r.newArrayLength(count)
 
 	n := int64(0)
-	descr := propertyDescr{
+	descr := PropertyDescriptor{
 		Writable:     FLAG_TRUE,
 		Enumerable:   FLAG_TRUE,
 		Configurable: FLAG_TRUE,

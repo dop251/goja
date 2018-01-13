@@ -365,7 +365,7 @@ func (a *arrayObject) expand(idx int64) bool {
 	return true
 }
 
-func (r *Runtime) defineArrayLength(prop *valueProperty, descr propertyDescr, setter func(Value, bool) bool, throw bool) bool {
+func (r *Runtime) defineArrayLength(prop *valueProperty, descr PropertyDescriptor, setter func(Value, bool) bool, throw bool) bool {
 	ret := true
 
 	if descr.Configurable == FLAG_TRUE || descr.Enumerable == FLAG_TRUE || descr.Getter != nil || descr.Setter != nil {
@@ -399,7 +399,7 @@ Reject:
 	return ret
 }
 
-func (a *arrayObject) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
+func (a *arrayObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
 	if idx := toIdx(n); idx >= 0 {
 		var existing Value
 		if idx < int64(len(a.values)) {
