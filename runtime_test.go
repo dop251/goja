@@ -1042,6 +1042,65 @@ func TestInterruptInWrappedFunction(t *testing.T) {
 	}
 }
 
+func TestObjectLike(t *testing.T) {
+	rt := New()
+
+	mockObj := mockObjectLikeStruct(map[string]interface{}{
+		"foo": "bar",
+	})
+	rt.Set("obj", mockObj)
+
+	v, err := rt.RunString("obj.foo")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if v.String() != "bar" {
+		t.Error("unexpected value returned", v)
+	}
+
+	// Test "magic" property
+	v, err = rt.RunString("obj.self.foo")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if v.String() != "bar" {
+		t.Error("unexpected value returned", v)
+	}
+
+	// Test setter
+	v, err = rt.RunString("obj.foo = 'biz'; obj.foo")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if v.String() != "biz" {
+		t.Error("unexpected value returned", v)
+	}
+
+	// Test object keys
+	v, err = rt.RunString("Object.keys(obj).join(',')")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if v.String() != "self,foo" {
+		t.Error("Wrong object keys returned", v.String())
+	}
+
+	// Test exporting self
+	v, err = rt.RunString("obj.self")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if v.Export().(mockObjectLikeStruct)["foo"] != "biz" {
+		t.Error("Wrong value exported")
+	}
+
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
