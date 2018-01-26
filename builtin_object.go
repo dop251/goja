@@ -82,7 +82,6 @@ func (r *Runtime) toPropertyDescriptor(v Value) (ret PropertyDescriptor) {
 
 		if (ret.Getter != nil || ret.Setter != nil) && (ret.Value != nil || ret.Writable != FLAG_NOT_SET) {
 			r.typeErrorResult(true, "Invalid property descriptor. Cannot both specify accessors and a value or writable attribute")
-			return
 		}
 	} else {
 		r.typeErrorResult(true, "Property description must be an object: %s", v.String())

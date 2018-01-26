@@ -9,9 +9,9 @@ type Proxy struct {
 	proxy *Object
 }
 
-func (r *Runtime) NewProxy(target *Object, nativeHandler *ProxyTrapConfig, revocable bool) *Proxy {
+func (r *Runtime) NewProxy(target *Object, nativeHandler *ProxyTrapConfig, revocable, strict bool) *Proxy {
 	handler := r.newNativeProxyHandler(nativeHandler)
-	proxy := r.newProxyObject(target, handler, revocable)
+	proxy := r.newProxyObject(target, handler, revocable, strict)
 	return &Proxy{proxy}
 }
 
@@ -358,6 +358,7 @@ type proxyObject struct {
 	nativeHandler *ProxyTrapConfig
 	revocable     bool
 	revoked       bool
+	strict        bool
 }
 
 func (p *proxyObject) isExtensible() (ret bool) {
@@ -412,12 +413,59 @@ func (p *proxyObject) defineOwnProperty(name Value, descr PropertyDescriptor, th
 	return
 }
 
+func (p *proxyObject) __getOwnPropertyDescriptor(name string, proxyFunction func(FunctionCall) Value, this Value, target *Object, runtime *Runtime) Value {
+	desc := proxyFunction(FunctionCall{
+		This:      this,
+		Arguments: []Value{p.target, newStringValue(name)},
+	})
+
+	if !p.strict {
+		return desc
+	}
+
+	targetDesc := target.self.getOwnPropertyDescriptor(name)
+	extensible := target.self.isExtensible()
+
+	if desc == nil {
+		if p.__isSealed(p.target, name) {
+			return runtime.NewTypeError("cannot report non-configurable property as non-existing")
+		}
+
+		if !extensible && targetDesc != nil {
+			return runtime.NewTypeError("cannot report existing property on non-extensible object as non-existing")
+		}
+		return _undefined
+	}
+
+	if !extensible && targetDesc == nil {
+		return runtime.NewTypeError("cannot report a new property on a non-extensible object")
+	}
+
+	if !p.__isCompatibleDescriptor(extensible, desc, targetDesc) {
+		return runtime.NewTypeError("cannot report incompatible property descriptor")
+	}
+
+	current := runtime.toPropertyDescriptor(desc)
+	if current.Configurable == FLAG_FALSE {
+		if targetDesc == nil || targetDesc == _undefined {
+			return runtime.NewTypeError("cannot report non-configurable descriptor for non-existing property")
+		}
+
+		target := runtime.toPropertyDescriptor(targetDesc)
+		if target.Configurable == FLAG_TRUE {
+			return runtime.NewTypeError("cannot report non-configurable descriptor for configurable property")
+		}
+
+		if current.Writable == FLAG_FALSE && target.Writable == FLAG_TRUE {
+			return runtime.NewTypeError("cannot report non-configurable, writable property as non-configurable, non-writable")
+		}
+	}
+	return desc
+}
+
 func (p *proxyObject) getOwnPropertyDescriptor(name string) (ret Value) {
 	ex := p.handleProxyRequest(proxy_trap_getOwnPropertyDescriptor, func(proxyFunction func(FunctionCall) Value, this Value) {
-		ret = proxyFunction(FunctionCall{
-			This:      this,
-			Arguments: []Value{p.target, newStringValue(name)},
-		})
+		ret = p.__getOwnPropertyDescriptor(name, proxyFunction, this, p.target, p.val.runtime)
 	}, func(target *Object) {
 		ret = target.self.getOwnPropertyDescriptor(name)
 	})
@@ -791,6 +839,117 @@ func (p *proxyObject) handleProxyRequest(trap proxyTrap, proxyCallback func(prox
 	})
 }
 
+func (p *proxyObject) __isSealed(target *Object, name string) bool {
+	prop := target.self.getOwnProp(name)
+	if prop == nil {
+		return false
+	}
+	if pp, ok := prop.(*valueProperty); ok {
+		return !pp.configurable
+	}
+	return false
+}
+
+func (p *proxyObject) __isCompatibleDescriptor(extensible bool, desc, targetDesc Value) bool {
+	if desc == nil {
+		return extensible
+	}
+
+	current := p.val.runtime.toPropertyDescriptor(desc)
+	target := p.val.runtime.toPropertyDescriptor(targetDesc)
+
+	if p.__isEmptyDescriptor(target) {
+		return true
+	}
+
+	if p.__isEquivalentDescriptor(current, target) {
+		return true
+	}
+
+	if current.Configurable == FLAG_FALSE {
+		if target.Configurable == FLAG_TRUE {
+			return false
+		}
+
+		if current.Enumerable != FLAG_NOT_SET && current.Enumerable != target.Enumerable {
+			return false
+		}
+
+		if p.__isGenericDescriptor(current) {
+			return true
+		}
+
+		if p.__isDataDescriptor(current) != p.__isDataDescriptor(target) {
+			return current.Configurable != FLAG_FALSE
+		}
+
+		if p.__isDataDescriptor(current) && p.__isDataDescriptor(target) {
+			if current.Configurable == FLAG_FALSE {
+				if current.Writable == FLAG_FALSE && target.Writable == FLAG_TRUE {
+					return false
+				}
+				if current.Writable == FLAG_FALSE {
+					if current.Value != nil && !p.__sameValue(current.Value, target.Value) {
+						return false
+					}
+				}
+			}
+			return true
+		}
+		if p.__isAccessorDescriptor(current) && p.__isAccessorDescriptor(target) {
+			if current.Configurable == FLAG_FALSE {
+				if current.Setter != nil && p.__sameValue(current.Setter, target.Setter) {
+					return false
+				}
+				if current.Getter != nil && p.__sameValue(current.Getter, target.Getter) {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+func (p *proxyObject) __isAccessorDescriptor(desc PropertyDescriptor) bool {
+	return desc.Setter != nil || desc.Getter != nil
+}
+
+func (p *proxyObject) __isDataDescriptor(desc PropertyDescriptor) bool {
+	return desc.Value != nil || desc.Writable != FLAG_NOT_SET
+}
+
+func (p *proxyObject) __isGenericDescriptor(desc PropertyDescriptor) bool {
+	return !p.__isAccessorDescriptor(desc) && !p.__isDataDescriptor(desc)
+}
+
+func (p *proxyObject) __isEmptyDescriptor(desc PropertyDescriptor) bool {
+	return desc.Configurable == FLAG_NOT_SET &&
+		desc.Enumerable == FLAG_NOT_SET &&
+		desc.Writable == FLAG_NOT_SET &&
+		desc.Getter == nil &&
+		desc.Setter == nil &&
+		desc.Value == nil
+}
+
+func (p *proxyObject) __isEquivalentDescriptor(desc, targetDesc PropertyDescriptor) bool {
+	return desc.Configurable == targetDesc.Configurable &&
+		desc.Enumerable == targetDesc.Enumerable &&
+		desc.Writable == targetDesc.Writable &&
+		p.__sameValue(desc.Value, targetDesc.Value) &&
+		p.__sameValue(desc.Setter, targetDesc.Setter) &&
+		p.__sameValue(desc.Getter, targetDesc.Getter)
+}
+
+func (p *proxyObject) __sameValue(val1, val2 Value) bool {
+	if val1 == nil && val2 == nil {
+		return true
+	}
+	if val1 != nil {
+		return val1.SameAs(val2)
+	}
+	return false
+}
+
 func (r *Runtime) isProxy(value Value) bool {
 	if o, ok := value.(*Object); ok {
 		_, ok := o.self.(*proxyObject)
@@ -811,7 +970,7 @@ func (r *Runtime) newProxy(args []Value) *Object {
 	if len(args) >= 2 {
 		if target, ok := args[0].(*Object); ok {
 			if proxyHandler, ok := args[1].(*Object); ok {
-				return r.newProxyObject(target, proxyHandler, false)
+				return r.newProxyObject(target, proxyHandler, false, true)
 			}
 		}
 	}
@@ -819,9 +978,9 @@ func (r *Runtime) newProxy(args []Value) *Object {
 	panic("Unreachable")
 }
 
-func (r *Runtime) newProxyObject(target *Object, handler *Object, revocable bool) *Object {
+func (r *Runtime) newProxyObject(target *Object, handler *Object, revocable, strict bool) *Object {
 	v := &Object{runtime: r}
-	p := &proxyObject{}
+	p := &proxyObject{strict: strict}
 	v.self = p
 	p.val = v
 	p.class = classProxy
@@ -838,7 +997,7 @@ func (r *Runtime) proxy_revocable(call FunctionCall) Value {
 	if len(call.Arguments) >= 2 {
 		if target, ok := call.Argument(0).(*Object); ok {
 			if proxyHandler, ok := call.Argument(1).(*Object); ok {
-				return r.newProxyObject(target, proxyHandler, true)
+				return r.newProxyObject(target, proxyHandler, true, true)
 			}
 		}
 	}
