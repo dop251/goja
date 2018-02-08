@@ -7,24 +7,24 @@ func TestPosition(t *testing.T) {
 line2
 line3`
 	f := NewSrcFile("", SRC)
-	if p := f.Position(12); p.Line != 3 || p.Col != 1 {
-		t.Fatalf("0. Line: %d, col: %d", p.Line, p.Col)
+
+	tests := []struct {
+		offset int
+		line   int
+		col    int
+	}{
+		{12, 3, 1},
+		{2, 1, 3},
+		{2, 1, 3},
+		{7, 2, 2},
+		{12, 3, 1},
+		{13, 3, 2},
+		{13, 3, 2},
 	}
 
-	if p := f.Position(2); p.Line != 1 || p.Col != 3 {
-		t.Fatalf("1. Line: %d, col: %d", p.Line, p.Col)
+	for i, test := range tests {
+		if p := f.Position(test.offset); p.Line != test.line || p.Col != test.col {
+			t.Fatalf("%d. Line: %d, col: %d", i, p.Line, p.Col)
+		}
 	}
-
-	if p := f.Position(2); p.Line != 1 || p.Col != 3 {
-		t.Fatalf("2. Line: %d, col: %d", p.Line, p.Col)
-	}
-
-	if p := f.Position(7); p.Line != 2 || p.Col != 2 {
-		t.Fatalf("3. Line: %d, col: %d", p.Line, p.Col)
-	}
-
-	if p := f.Position(12); p.Line != 3 || p.Col != 1 {
-		t.Fatalf("4. Line: %d, col: %d", p.Line, p.Col)
-	}
-
 }
