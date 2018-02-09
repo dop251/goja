@@ -33,6 +33,9 @@ func (f *SrcFile) Position(offset int) Position {
 	} else {
 		if len(f.lineOffsets) > 0 {
 			line = sort.SearchInts(f.lineOffsets, offset)
+			if line == len(f.lineOffsets) {
+				line = line - 1
+			}
 		} else {
 			line = -1
 		}
