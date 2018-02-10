@@ -222,7 +222,7 @@ func (r *Runtime) proxyproto_nativehandler_ownKeys(native func(*Object) *Object,
 func (r *Runtime) proxyproto_nativehandler_apply(native func(*Object, *Object, []Value) Value, handler *Object) {
 	if native != nil {
 		handler.Set("apply", func(call FunctionCall) Value {
-			if len(call.Arguments) >= 2 {
+			if len(call.Arguments) >= 3 {
 				if t, ok := call.Argument(0).(*Object); ok {
 					if this, ok := call.Argument(1).(*Object); ok {
 						if v, ok := call.Argument(2).(*Object); ok {
@@ -768,7 +768,7 @@ func (p *proxyObject) apply(this Value, arguments []Value) (ret Value) {
 	ex := p.handleProxyRequest(proxy_trap_apply, func(proxyFunction func(FunctionCall) Value, this Value) {
 		ret = proxyFunction(FunctionCall{
 			This:      this,
-			Arguments: arguments,
+			Arguments: []Value{p.target, this, p.val.runtime.newArrayValues(arguments)},
 		})
 	}, func(target *Object) {
 		f := p.val.runtime.toCallable(p.target)
@@ -787,7 +787,7 @@ func (p *proxyObject) construct(args []Value) (ret Value) {
 	ex := p.handleProxyRequest(proxy_trap_construct, func(proxyFunction func(FunctionCall) Value, this Value) {
 		ret = proxyFunction(FunctionCall{
 			This:      this,
-			Arguments: []Value{p.target, p.val.runtime.ToValue(args), p.val},
+			Arguments: []Value{p.target, p.val.runtime.newArrayValues(args), p.val},
 		})
 	}, func(target *Object) {
 		nativeConstruct := func(f *nativeFuncObject, args []Value) Value {
