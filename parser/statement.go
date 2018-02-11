@@ -5,8 +5,10 @@ import (
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
 	"github.com/go-sourcemap/sourcemap"
-	"bytes"
 	"encoding/base64"
+	"strings"
+	"os"
+	"io/ioutil"
 )
 
 func (self *_parser) parseBlockStatement() *ast.BlockStatement {
@@ -552,16 +554,38 @@ func (self *_parser) parseProgram() *ast.Program {
 }
 
 func (self *_parser) parseSourceMap() *sourcemap.Consumer {
-	lines := bytes.Split([]byte(self.str), []byte("\n"))
+	lines := strings.Split(self.str, "\n")
 	lastLine := lines[len(lines)-1]
-	if bytes.HasPrefix(lastLine, []byte("//# sourceMappingURL=data:application/json")) {
-		bits := bytes.SplitN(lastLine, []byte(","), 2)
-		if len(bits) == 2 {
-			if d, err := base64.StdEncoding.DecodeString(string(bits[1])); err == nil {
-				if sm, err := sourcemap.Parse(self.file.Name(), d); err == nil {
-					return sm
-				}
+	if strings.HasPrefix(lastLine, "//# sourceMappingURL") {
+		urlIndex := strings.Index(lastLine, "=")
+		url := lastLine[urlIndex+1:]
+
+		var data []byte
+		if strings.HasPrefix(url, "data:application/json;base64") {
+			b64Index := strings.Index(url, ",")
+			b64 := url[b64Index+1:]
+			if d, err := base64.StdEncoding.DecodeString(b64); err == nil {
+				data = d
 			}
+		}
+
+		if strings.HasPrefix(strings.ToLower(url), "http") {
+			// Not implemented - compile error?
+			return nil
+		}
+
+		if f, err := os.Open(url); err == nil {
+			if d, err := ioutil.ReadAll(f); err == nil {
+				data = d
+			}
+		}
+
+		if data == nil {
+			return nil
+		}
+
+		if sm, err := sourcemap.Parse(self.file.Name(), data); err == nil {
+			return sm
 		}
 	}
 	return nil
