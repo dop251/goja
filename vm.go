@@ -307,12 +307,12 @@ func (vm *vm) Interrupt(v interface{}) {
 	vm.interruptLock.Unlock()
 }
 
-func (vm *vm) captureStack(stack []stackFrame, ctxOffset int) []stackFrame {
+func (vm *vm) captureStack(stack []StackFrame, ctxOffset int) []StackFrame {
 	// Unroll the context stack
-	stack = append(stack, stackFrame{prg: vm.prg, pc: vm.pc, funcName: vm.funcName})
+	stack = append(stack, StackFrame{prg: vm.prg, pc: vm.pc, funcName: vm.funcName})
 	for i := len(vm.callStack) - 1; i > ctxOffset-1; i-- {
 		if vm.callStack[i].pc != -1 {
-			stack = append(stack, stackFrame{prg: vm.callStack[i].prg, pc: vm.callStack[i].pc - 1, funcName: vm.callStack[i].funcName})
+			stack = append(stack, StackFrame{prg: vm.callStack[i].prg, pc: vm.callStack[i].pc - 1, funcName: vm.callStack[i].funcName})
 		}
 	}
 	return stack

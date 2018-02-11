@@ -107,17 +107,34 @@ type Runtime struct {
 	vm *vm
 }
 
-type stackFrame struct {
+type StackFrame struct {
 	prg      *Program
 	funcName string
 	pc       int
 }
 
-func (f *stackFrame) position() Position {
+func (f *StackFrame) SrcName() string {
+	if f.prg == nil {
+		return "<native>"
+	}
+	return f.prg.src.name
+}
+
+func (f *StackFrame) FuncName() string {
+	if f.funcName == "" && f.prg == nil {
+		return "<native>"
+	}
+	if f.funcName == "" {
+		return "<eval>"
+	}
+	return f.funcName
+}
+
+func (f *StackFrame) Position() Position {
 	return f.prg.src.Position(f.prg.sourceOffset(f.pc))
 }
 
-func (f *stackFrame) write(b *bytes.Buffer) {
+func (f *StackFrame) Write(b *bytes.Buffer) {
 	if f.prg != nil {
 		if n := f.prg.funcName; n != "" {
 			b.WriteString(n)
@@ -129,7 +146,7 @@ func (f *stackFrame) write(b *bytes.Buffer) {
 			b.WriteString("<eval>")
 		}
 		b.WriteByte(':')
-		b.WriteString(f.position().String())
+		b.WriteString(f.Position().String())
 		b.WriteByte('(')
 		b.WriteString(strconv.Itoa(f.pc))
 		b.WriteByte(')')
@@ -150,7 +167,7 @@ func (f *stackFrame) write(b *bytes.Buffer) {
 
 type Exception struct {
 	val   Value
-	stack []stackFrame
+	stack []StackFrame
 }
 
 type InterruptedError struct {
@@ -188,7 +205,7 @@ func (e *InterruptedError) Error() string {
 func (e *Exception) writeFullStack(b *bytes.Buffer) {
 	for _, frame := range e.stack {
 		b.WriteString("\tat ")
-		frame.write(b)
+		frame.Write(b)
 		b.WriteByte('\n')
 	}
 }
@@ -196,7 +213,7 @@ func (e *Exception) writeFullStack(b *bytes.Buffer) {
 func (e *Exception) writeShortStack(b *bytes.Buffer) {
 	if len(e.stack) > 0 && (e.stack[0].prg != nil || e.stack[0].funcName != "") {
 		b.WriteString(" at ")
-		e.stack[0].write(b)
+		e.stack[0].Write(b)
 	}
 }
 
@@ -905,6 +922,16 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 		r.vm.stack = nil
 	}
 	return
+}
+
+func (r *Runtime) CaptureCallStack(n int) []StackFrame {
+	m := len(r.vm.callStack)
+	if n > 0 {
+		m -= m - n
+	}
+	stackFrames := make([]StackFrame, 0)
+	stackFrames = r.vm.captureStack(stackFrames, m)
+	return stackFrames
 }
 
 // Interrupt a running JavaScript. The corresponding Go call will return an *InterruptedError containing v.
