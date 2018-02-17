@@ -54,8 +54,8 @@ func (f *SrcFile) Position(offset int) Position {
 	}
 
 	return Position{
-		Line: line + 2,
-		Col:  offset - lineStart + 1,
+		Line: row,
+		Col:  col,
 	}
 }
 

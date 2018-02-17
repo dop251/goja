@@ -554,8 +554,7 @@ func (self *_parser) parseProgram() *ast.Program {
 }
 
 func (self *_parser) parseSourceMap() *sourcemap.Consumer {
-	lines := strings.Split(self.str, "\n")
-	lastLine := lines[len(lines)-1]
+	lastLine := self.str[strings.LastIndexByte(self.str, '\n') + 1:]
 	if strings.HasPrefix(lastLine, "//# sourceMappingURL") {
 		urlIndex := strings.Index(lastLine, "=")
 		url := lastLine[urlIndex+1:]
