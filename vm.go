@@ -392,7 +392,11 @@ func (vm *vm) peek() Value {
 
 func (vm *vm) saveCtx(ctx *context) {
 	ctx.prg = vm.prg
-	ctx.funcName = vm.funcName
+	if vm.funcName != "" {
+		ctx.funcName = vm.funcName
+	} else if ctx.prg.funcName != "" {
+		ctx.funcName = ctx.prg.funcName
+	}
 	ctx.stash = vm.stash
 	ctx.pc = vm.pc
 	ctx.sb = vm.sb

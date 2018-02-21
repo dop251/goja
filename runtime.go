@@ -12,6 +12,7 @@ import (
 
 	js_ast "github.com/dop251/goja/ast"
 	"github.com/dop251/goja/parser"
+	"runtime"
 )
 
 const (
@@ -125,12 +126,18 @@ func (f *StackFrame) FuncName() string {
 		return "<native>"
 	}
 	if f.funcName == "" {
-		return "<eval>"
+		return "<anonymous>"
 	}
 	return f.funcName
 }
 
 func (f *StackFrame) Position() Position {
+	if f.prg == nil || f.prg.src == nil {
+		return Position{
+			0,
+			0,
+		}
+	}
 	return f.prg.src.Position(f.prg.sourceOffset(f.pc))
 }
 
@@ -928,6 +935,8 @@ func (r *Runtime) CaptureCallStack(n int) []StackFrame {
 	m := len(r.vm.callStack)
 	if n > 0 {
 		m -= m - n
+	} else {
+		m = 0
 	}
 	stackFrames := make([]StackFrame, 0)
 	stackFrames = r.vm.captureStack(stackFrames, m)
@@ -981,9 +990,11 @@ func (r *Runtime) ToValue(i interface{}) Value {
 			return valueFalse
 		}
 	case func(FunctionCall) Value:
-		return r.newNativeFunc(i, nil, "", nil, 0)
+		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+		return r.newNativeFunc(i, nil, name, nil, 0)
 	case func(ConstructorCall) *Object:
-		return r.newNativeConstructor(i, "", 0)
+		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+		return r.newNativeConstructor(i, name, 0)
 	case *Proxy:
 		proxy := i.proxy
 		if proxy.runtime != r {
@@ -1107,7 +1118,8 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		obj.self = a
 		return obj
 	case reflect.Func:
-		return r.newNativeFunc(r.wrapReflectFunc(value), nil, "", nil, value.Type().NumIn())
+		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+		return r.newNativeFunc(r.wrapReflectFunc(value), nil, name, nil, value.Type().NumIn())
 	}
 
 	obj := &Object{runtime: r}
