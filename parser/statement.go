@@ -9,6 +9,7 @@ import (
 	"strings"
 	"os"
 	"io/ioutil"
+	"net/url"
 )
 
 func (self *_parser) parseBlockStatement() *ast.BlockStatement {
@@ -557,25 +558,27 @@ func (self *_parser) parseSourceMap() *sourcemap.Consumer {
 	lastLine := self.str[strings.LastIndexByte(self.str, '\n') + 1:]
 	if strings.HasPrefix(lastLine, "//# sourceMappingURL") {
 		urlIndex := strings.Index(lastLine, "=")
-		url := lastLine[urlIndex+1:]
+		urlStr := lastLine[urlIndex+1:]
 
 		var data []byte
-		if strings.HasPrefix(url, "data:application/json;base64") {
-			b64Index := strings.Index(url, ",")
-			b64 := url[b64Index+1:]
+		if strings.HasPrefix(urlStr, "data:application/json") {
+			b64Index := strings.Index(urlStr, ",")
+			b64 := urlStr[b64Index+1:]
 			if d, err := base64.StdEncoding.DecodeString(b64); err == nil {
 				data = d
 			}
-		}
-
-		if strings.HasPrefix(strings.ToLower(url), "http") {
-			// Not implemented - compile error?
-			return nil
-		}
-
-		if f, err := os.Open(url); err == nil {
-			if d, err := ioutil.ReadAll(f); err == nil {
-				data = d
+		} else {
+			if smUrl, err := url.Parse(urlStr); err == nil {
+				if smUrl.Scheme == "" || smUrl.Scheme == "file" {
+					if f, err := os.Open(smUrl.Path); err == nil {
+						if d, err := ioutil.ReadAll(f); err == nil {
+							data = d
+						}
+					}
+				} else {
+					// Not implemented - compile error?
+					return nil
+				}
 			}
 		}
 
