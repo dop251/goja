@@ -6,7 +6,7 @@ func TestPosition(t *testing.T) {
 	const SRC = `line1
 line2
 line3`
-	f := NewSrcFile("", SRC)
+	f := NewSrcFile("", SRC, nil)
 
 	tests := []struct {
 		offset int
