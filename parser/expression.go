@@ -1,7 +1,6 @@
 package parser
 
 import (
-
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
@@ -399,6 +398,8 @@ func (self *_parser) parseLeftHandSideExpression() ast.Expression {
 	for {
 		if self.token == token.PERIOD {
 			left = self.parseDotMember(left)
+		} else if self.token == token.LEFT_BRACKET {
+			left = self.parseBracketMember(left)
 		} else if self.token == token.LEFT_BRACE {
 			left = self.parseBracketMember(left)
 		} else {

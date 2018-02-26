@@ -649,6 +649,12 @@ func TestParser(t *testing.T) {
 		test(`new abc()`, nil)
 		test(`new {}`, nil)
 
+		program = test("new module.a()", nil)
+		is(program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.NewExpression).New, 1)
+
+		program = test("new module[\"a\"]()", nil)
+		is(program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.NewExpression).New, 1)
+
 		test(`
             limit = 4
             result = 0
