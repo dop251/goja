@@ -29,7 +29,7 @@ func TestJSONMarshalGoDate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(b) != `{"test":"1970-01-02T00:00:00Z"}` {
+	if string(b) != `{"test":"1970-01-02T00:00:00.000Z"}` {
 		t.Fatalf("Unexpected value: %s", b)
 	}
 }
