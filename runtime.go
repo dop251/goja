@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"reflect"
 	"strconv"
+	"time"
 
 	js_ast "github.com/dop251/goja/ast"
 	"github.com/dop251/goja/parser"
@@ -1020,6 +1021,8 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		obj.self = a
 		a.init()
 		return obj
+	case time.Time:
+		return r.newDateObject(i,true)
 	}
 
 	origValue := reflect.ValueOf(i)
