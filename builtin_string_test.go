@@ -82,7 +82,7 @@ assert.sameValue(
   'abc'.substr(3, undefined), '', 'start: 3, length: undefined'
 );
 
-
+assert.sameValue('A—', String.fromCharCode(65, 0x2014));
 
 	`
 

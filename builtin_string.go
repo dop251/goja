@@ -94,7 +94,7 @@ func (r *Runtime) string_fromcharcode(call FunctionCall) Value {
 		chr := toUInt16(arg)
 		if chr >= utf8.RuneSelf {
 			bb := make([]uint16, len(call.Arguments))
-			for j := 0; i < i; j++ {
+			for j := 0; j < i; j++ {
 				bb[j] = uint16(b[j])
 			}
 			bb[i] = chr
