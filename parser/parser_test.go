@@ -356,6 +356,10 @@ func TestParserErr(t *testing.T) {
 
 		test("abc: while (true) { abc: while (true) {} }", "(anonymous): Line 1:21 Label 'abc' already exists")
 
+		test(`if(0) { do { } while(0) } else { do { } while(0) }`, nil)
+
+		test(`if(0) do { } while(0); else do { } while(0)`, nil)
+
 		if false {
 			// TODO When strict mode is implemented
 			test("(function () { 'use strict'; delete abc; }())", "")
