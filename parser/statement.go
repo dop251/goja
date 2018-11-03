@@ -483,6 +483,9 @@ func (self *_parser) parseDoWhileStatement() ast.Statement {
 	self.expect(token.LEFT_PARENTHESIS)
 	node.Test = self.parseExpression()
 	self.expect(token.RIGHT_PARENTHESIS)
+	if self.token == token.SEMICOLON {
+		self.next()
+	}
 
 	return node
 }
