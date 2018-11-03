@@ -585,6 +585,51 @@ func TestNonStructAnonFields(t *testing.T) {
 	}
 }
 
+func TestStructNonAddressable(t *testing.T) {
+	type S struct {
+		Field int
+	}
+
+	const SCRIPT = `
+	"use strict";
+	
+	if (Object.getOwnPropertyDescriptor(s, "Field").writable) {
+		throw new Error("Field is writable");
+	}
+
+	if (!Object.getOwnPropertyDescriptor(s1, "Field").writable) {
+		throw new Error("Field is non-writable");
+	}
+
+	s1.Field = 42;
+
+	var result;
+	try {
+		s.Field = 42;
+		result = false;
+	} catch (e) {
+		result = e instanceof TypeError;
+	}
+	
+	result;
+`
+
+	var s S
+	vm := New()
+	vm.Set("s", s)
+	vm.Set("s1", &s)
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.StrictEquals(valueTrue) {
+		t.Fatalf("Unexpected result: %v", v)
+	}
+	if s.Field != 42 {
+		t.Fatalf("Unexpected s.Field value: %d", s.Field)
+	}
+}
+
 func BenchmarkGoReflectGet(b *testing.B) {
 	type parent struct {
 		field, Test1, Test2, Test3, Test4, Test5, Test string

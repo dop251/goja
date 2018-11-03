@@ -147,7 +147,7 @@ func (o *objectGoReflect) getOwnProp(name string) Value {
 		if v := o._getField(name); v.IsValid() {
 			return &valueProperty{
 				value:      o.val.runtime.ToValue(v.Interface()),
-				writable:   true,
+				writable:   v.CanSet(),
 				enumerable: true,
 			}
 		}
@@ -176,6 +176,10 @@ func (o *objectGoReflect) putStr(name string, val Value, throw bool) {
 func (o *objectGoReflect) _put(name string, val Value, throw bool) bool {
 	if o.value.Kind() == reflect.Struct {
 		if v := o._getField(name); v.IsValid() {
+			if !v.CanSet() {
+				o.val.runtime.typeErrorResult(throw, "Cannot assign to a non-addressable or read-only property %s of a host object", name)
+				return false
+			}
 			vv, err := o.val.runtime.toReflectValue(val, v.Type())
 			if err != nil {
 				o.val.runtime.typeErrorResult(throw, "Go struct conversion error: %v", err)
