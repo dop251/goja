@@ -217,3 +217,102 @@ func TestDateSetters(t *testing.T) {
 
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
+
+func TestDateParse(t *testing.T) {
+	const SCRIPT = `
+var zero = new Date(0);
+
+assert.sameValue(zero.valueOf(), Date.parse(zero.toString()),
+                 "Date.parse(zeroDate.toString())");
+assert.sameValue(zero.valueOf(), Date.parse(zero.toUTCString()),
+                 "Date.parse(zeroDate.toUTCString())");
+assert.sameValue(zero.valueOf(), Date.parse(zero.toISOString()),
+                 "Date.parse(zeroDate.toISOString())");
+
+assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 MST"), 1136239445000,
+				 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 MST\")");
+
+assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 GMT-07:00 (MST)"), 1136239445000,
+				 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 GMT-07:00 (MST)\")");
+
+assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 -07:00 (MST)"), 1136239445000,
+				 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 -07:00 (MST)\")");
+
+assert.sameValue(Date.parse("Monday, 02 Jan 2006 15:04:05 -0700 (MST)"), 1136239445000,
+				 "Date.parse(\"Monday, 02 Jan 2006 15:04:05 -0700 (MST)\")");
+
+assert.sameValue(Date.parse("Mon Jan 02 2006 15:04:05 GMT-0700 (GMT Standard Time)"), 1136239445000,
+				 "Date.parse(\"Mon Jan 02 2006 15:04:05 GMT-0700 (GMT Standard Time)\")");
+
+assert.sameValue(Date.parse("2006-01-02T15:04:05.000Z"), 1136214245000,
+				 "Date.parse(\"2006-01-02T15:04:05.000Z\")");
+
+assert.sameValue(Date.parse("2006-06-02T15:04:05.000"), 1149260645000,
+				 "Date.parse(\"2006-01-02T15:04:05.000\")");
+
+assert.sameValue(Date.parse("2006-01-02T15:04:05"), 1136214245000,
+				 "Date.parse(\"2006-01-02T15:04:05\")");
+
+assert.sameValue(Date.parse("2006-01-02"), 1136160000000,
+				 "Date.parse(\"2006-01-02\")");
+
+assert.sameValue(Date.parse("2006T15:04-0700"), 1136153040000,
+				 "Date.parse(\"2006T15:04-0700\")");
+
+assert.sameValue(Date.parse("2006T15:04Z"), 1136127840000,
+				 "Date.parse(\"2006T15:04Z\")");
+
+assert.sameValue(Date.parse("Mon Jan 2 15:04:05 MST 2006"), 1136239445000,
+				 "Date.parse(\"Mon Jan 2 15:04:05 MST 2006\")");
+
+assert.sameValue(Date.parse("Mon Jan 02 15:04:05 MST 2006"), 1136239445000,
+				 "Date.parse(\"Mon Jan 02 15:04:05 MST 2006\")");
+
+assert.sameValue(Date.parse("Mon Jan 02 15:04:05 -0700 2006"), 1136239445000,
+				 "Date.parse(\"Mon Jan 02 15:04:05 -0700 2006\")");
+
+var d = new Date("Mon, 02 Jan 2006 15:04:05 MST");
+
+assert.sameValue(d.getUTCHours(), 22,
+				"new Date(\"Mon, 02 Jan 2006 15:04:05 MST\").getUTCHours()");
+
+assert.sameValue(d.getHours(), 17,
+				"new Date(\"Mon, 02 Jan 2006 15:04:05 MST\").getHours()");
+
+assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 zzz"), NaN,
+				 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 zzz\")");
+
+assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 ZZZ"), NaN,
+				 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 ZZZ\")");
+
+var minDateStr = "-271821-04-20T00:00:00.000Z";
+var minDate = new Date(-8640000000000000);
+
+assert.sameValue(minDate.toISOString(), minDateStr, "minDateStr");
+assert.sameValue(Date.parse(minDateStr), minDate.valueOf(), "parse minDateStr");
+
+var maxDateStr = "+275760-09-13T00:00:00.000Z";
+var maxDate = new Date(8640000000000000);
+
+assert.sameValue(maxDate.toISOString(), maxDateStr, "maxDateStr");
+assert.sameValue(Date.parse(maxDateStr), maxDate.valueOf(), "parse maxDateStr");
+
+var belowRange = "-271821-04-19T23:59:59.999Z";
+var aboveRange = "+275760-09-13T00:00:00.001Z";
+
+assert.sameValue(Date.parse(belowRange), NaN, "parse below minimum time value");
+assert.sameValue(Date.parse(aboveRange), NaN, "parse above maximum time value");
+	`
+
+	l := time.Local
+	defer func() {
+		time.Local = l
+	}()
+	var err error
+	time.Local, err = time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
