@@ -186,7 +186,8 @@ func TestDateValueOf(t *testing.T) {
 
 func TestDateSetters(t *testing.T) {
 	const SCRIPT = `
-	assert.sameValue((new Date(0)).setMilliseconds(2345), 2345, "setMilliseconds()");
+	assert.sameValue((new Date(0)).setMilliseconds(2345), 2345, "setMilliseconds(2345)");
+	assert.sameValue(new Date(1000).setMilliseconds(23450000000000), 23450000001000, "setMilliseconds(23450000000000)");
 	assert.sameValue((new Date(0)).setUTCMilliseconds(2345), 2345, "setUTCMilliseconds()");
 	assert.sameValue((new Date(0)).setSeconds(12), 12000, "setSeconds()");
 	assert.sameValue((new Date(0)).setUTCSeconds(12), 12000, "setUTCSeconds()");
@@ -203,6 +204,9 @@ func TestDateSetters(t *testing.T) {
 	assert.sameValue((new Date(0)).setUTCFullYear(1971), 31536000000, "setUTCFullYear()");
 	assert.sameValue((new Date(0)).setUTCFullYear(1971, 2, 3), 36806400000, "setUTCFullYear(Y,M,D)");
 
+	var d = new Date();
+	d.setTime(1151877845000);
+	assert.sameValue(d.getHours(), 23, "d.getHours()");
 	`
 
 	l := time.Local

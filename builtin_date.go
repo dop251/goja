@@ -531,9 +531,10 @@ func (r *Runtime) dateproto_setMilliseconds(call FunctionCall) Value {
 	obj := r.toObject(call.This)
 	if d, ok := obj.self.(*dateObject); ok {
 		if d.isSet {
-			msec := int(call.Argument(0).ToInteger())
-			d.time = time.Date(d.time.Year(), d.time.Month(), d.time.Day(), d.time.Hour(), d.time.Minute(), d.time.Second(), msec*1e6, time.Local)
-			return intToValue(timeToMsec(d.time))
+			msec := call.Argument(0).ToInteger()
+			m := timeToMsec(d.time) - int64(d.time.Nanosecond())/1e6 + msec
+			d.time = timeFromMsec(m)
+			return intToValue(m)
 		} else {
 			return _NaN
 		}
@@ -546,10 +547,10 @@ func (r *Runtime) dateproto_setUTCMilliseconds(call FunctionCall) Value {
 	obj := r.toObject(call.This)
 	if d, ok := obj.self.(*dateObject); ok {
 		if d.isSet {
-			msec := int(call.Argument(0).ToInteger())
-			t := d.time.In(time.UTC)
-			d.time = time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), msec*1e6, time.UTC).In(time.Local)
-			return intToValue(timeToMsec(d.time))
+			msec := call.Argument(0).ToInteger()
+			m := timeToMsec(d.time) - int64(d.time.Nanosecond())/1e6 + msec
+			d.time = timeFromMsec(m)
+			return intToValue(m)
 		} else {
 			return _NaN
 		}
