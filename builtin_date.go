@@ -507,7 +507,7 @@ func (r *Runtime) dateproto_getTimezoneOffset(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		if d.isSet {
 			_, offset := d.time.Zone()
-			return intToValue(int64(-offset / 60))
+			return floatToValue(float64(-offset) / 60)
 		} else {
 			return _NaN
 		}

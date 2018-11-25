@@ -20,13 +20,11 @@ var (
 
 var (
 	skipList = map[string]bool{
-		"test/language/literals/regexp/S7.8.5_A1.1_T2.js":             true, // UTF-16
-		"test/language/literals/regexp/S7.8.5_A1.4_T2.js":             true, // UTF-16
-		"test/language/literals/regexp/S7.8.5_A2.1_T2.js":             true, // UTF-16
-		"test/language/literals/regexp/S7.8.5_A2.4_T2.js":             true, // UTF-16
-		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
-		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
-		"test/built-ins/Object/getOwnPropertyNames/15.2.3.4-4-44.js":  true, // property order
+		"test/language/literals/regexp/S7.8.5_A1.1_T2.js":            true, // UTF-16
+		"test/language/literals/regexp/S7.8.5_A1.4_T2.js":            true, // UTF-16
+		"test/language/literals/regexp/S7.8.5_A2.1_T2.js":            true, // UTF-16
+		"test/language/literals/regexp/S7.8.5_A2.4_T2.js":            true, // UTF-16
+		"test/built-ins/Object/getOwnPropertyNames/15.2.3.4-4-44.js": true, // property order
 	}
 )
 
@@ -95,7 +93,7 @@ func parseTC39File(name string) (*tc39Meta, string, error) {
 
 func runTC39Test(base, name, src string, meta *tc39Meta, t testing.TB, ctx *tc39TestCtx) {
 	vm := New()
-	err, early := runTC39Script(base, name, src, meta.Includes, t, ctx, vm)
+	err, early := runTC39Script(base, name, src, meta.Includes, ctx, vm)
 
 	if err != nil {
 		if meta.Negative.Type == "" {
@@ -201,7 +199,7 @@ func (ctx *tc39TestCtx) runFile(base, name string, vm *Runtime) error {
 	return err
 }
 
-func runTC39Script(base, name, src string, includes []string, t testing.TB, ctx *tc39TestCtx, vm *Runtime) (err error, early bool) {
+func runTC39Script(base, name, src string, includes []string, ctx *tc39TestCtx, vm *Runtime) (err error, early bool) {
 	early = true
 	err = ctx.runFile(base, path.Join("harness", "assert.js"), vm)
 	if err != nil {
