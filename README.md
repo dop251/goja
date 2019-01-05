@@ -5,9 +5,8 @@ ECMAScript 5.1(+) implementation in Go.
 
 [![GoDoc](https://godoc.org/github.com/dop251/goja?status.svg)](https://godoc.org/github.com/dop251/goja)
 
-It is not a replacement for V8 or SpiderMonkey or any other general-purpose JavaScript engine as it is much slower.
-It can be used as an embedded scripting language where the cost of making a lot of cgo calls may
-outweight the benefits of a faster JavaScript engine or as a way to avoid having non-Go dependencies.
+Goja is an implementation of ECMAScript 5.1 in pure Go with emphasis on standard compliance and
+performance.
 
 This project was largely inspired by [otto](https://github.com/robertkrimen/otto).
 
@@ -16,7 +15,62 @@ Features
 
  * Full ECMAScript 5.1 support (yes, including regex and strict mode).
  * Passes nearly all [tc39 tests](https://github.com/tc39/test262) tagged with es5id. The goal is to pass all of them. Note, the last working commit is https://github.com/tc39/test262/commit/1ba3a7c4a93fc93b3d0d7e4146f59934a896837d. The next commit made use of template strings which goja does not support.
- * On average 6-7 times faster than otto. Also uses considerably less memory.
+ * Capable of running Babel, Typescript compiler and pretty much anything written in ES5.
+ * Sourcemaps.
+ 
+FAQ
+---
+
+### How fast is it?
+
+Although it's faster than many scripting language implementations in Go I have seen 
+(for example it's 6-7 times faster than otto on average) it is not a
+replacement for V8 or SpiderMonkey or any other general-purpose JavaScript engine.
+You can find some benchmarks [here](https://github.com/dop251/goja/issues/2).
+
+### Why would I want to use it over a V8 wrapper?
+
+It greatly depends on your usage scenario. If most of the work is done in javascript
+(for example crypto or any other heavy calculations) you are definitely better off with V8.
+
+If you need a scripting language that drives an engine written in Go so
+you need to make frequent calls between Go and javascript passing complex data structures
+then the cgo overhead may outweigh the benefits of having a faster javascript engine.
+
+Because it's written in pure Go there are no external dependencies, it's very easy to build and it
+should run on any platform supported by Go.
+
+It gives you a much better control over execution environment so can be useful for research.
+
+### Is it goroutine-safe?
+
+No. An instance of goja.Runtime can only be used by a single goroutine
+at a time. You can create as many instances of Runtime as you like but 
+it's not possible to pass object values between runtimes.
+
+### Where is setTimeout()?
+
+setTimeout() assumes concurrent execution of code which requires an execution
+environment, for example an event loop similar to nodejs or a browser.
+There is a [separate project](https://github.com/dop251/goja_nodejs) aimed at providing some of the NodeJS functionality
+and it includes an event loop.
+
+### Can you implement (feature X from ES6 or higher)?
+
+It's very unlikely that I will be adding new functionality any time soon. It don't have enough time 
+for adding full ES6 support and I don't want to end up with something that is stuck in between ES5 and ES6.
+Most of the new features are available through shims and transpilers. Goja can run Babel and any
+other transpiler as long as it's written in ES5. You can even add a wrapper that will do the translation
+on the fly. Sourcemaps are supported.
+
+### How do I contribute?
+
+Before submitting a pull request please make sure that:
+
+- You followed ECMA standard as close as possible. If adding a new feature make sure you've read the specification,
+do not just base it on a couple of examples that work fine.
+- Your change does not have a significant negative impact on performance (unless it's a bugfix and it's unavoidable)
+- It passes all relevant tc39 tests.
 
 Current Status
 --------------
