@@ -360,11 +360,6 @@ func TestParserErr(t *testing.T) {
 
 		test(`if(0) do { } while(0); else do { } while(0)`, nil)
 
-		if false {
-			// TODO When strict mode is implemented
-			test("(function () { 'use strict'; delete abc; }())", "")
-		}
-
 		test("_: _: while (true) {]", "(anonymous): Line 1:4 Label '_' already exists")
 
 		test("_:\n_:\nwhile (true) {]", "(anonymous): Line 2:1 Label '_' already exists")
@@ -438,6 +433,16 @@ func TestParserErr(t *testing.T) {
 			test("super", "(anonymous): Line 1:1 Unexpected reserved word")
 			test("abc.super = 1", nil)
 			test("var super;", "(anonymous): Line 1:5 Unexpected reserved word")
+			test(`
+			obj = {
+			  aaa: 1
+			  bbb: "string"
+			};`, "(anonymous): Line 4:6 Unexpected identifier")
+			test("{}", nil)
+			test("{a: 1}", nil)
+			test("{a: 1,}", nil)
+			test("{a: 1, b: 2}", nil)
+			test("{a: 1, b: 2,}", nil)
 		}
 
 		{ // Reserved words (strict)

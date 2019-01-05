@@ -272,9 +272,10 @@ func (self *_parser) parseObjectLiteral() ast.Expression {
 	for self.token != token.RIGHT_BRACE && self.token != token.EOF {
 		property := self.parseObjectProperty()
 		value = append(value, property)
-		if self.token == token.COMMA {
-			self.next()
-			continue
+		if self.token != token.RIGHT_BRACE {
+			self.expect(token.COMMA)
+		} else {
+			break
 		}
 	}
 	idx1 := self.expect(token.RIGHT_BRACE)
