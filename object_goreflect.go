@@ -425,34 +425,37 @@ func (r *Runtime) buildFieldInfo(t reflect.Type, index []int, info *reflectTypeI
 		}
 		if r.fieldNameMapper != nil {
 			name = r.fieldNameMapper.FieldName(t, field)
-			if name == "" {
-				continue
+		}
+
+		if name != "" {
+			if inf, exists := info.Fields[name]; !exists {
+				info.FieldNames = append(info.FieldNames, name)
+			} else {
+				if len(inf.Index) <= len(index) {
+					continue
+				}
 			}
 		}
 
-		if inf, exists := info.Fields[name]; !exists {
-			info.FieldNames = append(info.FieldNames, name)
-		} else {
-			if len(inf.Index) <= len(index) {
-				continue
-			}
-		}
+		if name != "" || field.Anonymous {
+			idx := make([]int, len(index)+1)
+			copy(idx, index)
+			idx[len(idx)-1] = i
 
-		idx := make([]int, len(index)+1)
-		copy(idx, index)
-		idx[len(idx)-1] = i
-
-		info.Fields[name] = reflectFieldInfo{
-			Index:     idx,
-			Anonymous: field.Anonymous,
-		}
-		if field.Anonymous {
-			typ := field.Type
-			for typ.Kind() == reflect.Ptr {
-				typ = typ.Elem()
+			if name != "" {
+				info.Fields[name] = reflectFieldInfo{
+					Index:     idx,
+					Anonymous: field.Anonymous,
+				}
 			}
-			if typ.Kind() == reflect.Struct {
-				r.buildFieldInfo(typ, idx, info)
+			if field.Anonymous {
+				typ := field.Type
+				for typ.Kind() == reflect.Ptr {
+					typ = typ.Elem()
+				}
+				if typ.Kind() == reflect.Struct {
+					r.buildFieldInfo(typ, idx, info)
+				}
 			}
 		}
 	}

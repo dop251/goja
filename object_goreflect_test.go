@@ -59,13 +59,6 @@ func TestGoReflectSet(t *testing.T) {
 	}
 }
 
-type TestGoReflectMethod_Struct struct {
-}
-
-func (s *TestGoReflectMethod_Struct) M() int {
-	return 42
-}
-
 func TestGoReflectEnumerate(t *testing.T) {
 	const SCRIPT = `
 	var hasX = false;
@@ -627,6 +620,112 @@ func TestStructNonAddressable(t *testing.T) {
 	}
 	if s.Field != 42 {
 		t.Fatalf("Unexpected s.Field value: %d", s.Field)
+	}
+}
+
+type testFieldMapper struct {
+}
+
+func (testFieldMapper) FieldName(t reflect.Type, f reflect.StructField) string {
+	if tag := f.Tag.Get("js"); tag != "" {
+		if tag == "-" {
+			return ""
+		}
+		return tag
+	}
+
+	return f.Name
+}
+
+func (testFieldMapper) MethodName(t reflect.Type, m reflect.Method) string {
+	return m.Name
+}
+
+func TestHidingAnonField(t *testing.T) {
+	type InnerType struct {
+		AnotherField string
+	}
+
+	type OuterType struct {
+		InnerType `js:"-"`
+		SomeField string
+	}
+
+	const SCRIPT = `
+	var a = Object.getOwnPropertyNames(o);
+	if (a.length !== 2) {
+		throw new Error("unexpected length: " + a.length);
+	}
+
+	if (a.indexOf("SomeField") === -1) {
+		throw new Error("no SomeField");
+	}
+
+	if (a.indexOf("AnotherField") === -1) {
+		throw new Error("no SomeField");
+	}
+	`
+
+	var o OuterType
+
+	vm := New()
+	vm.SetFieldNameMapper(testFieldMapper{})
+	vm.Set("o", &o)
+
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFieldOverriding(t *testing.T) {
+	type InnerType struct {
+		AnotherField  string
+		AnotherField1 string
+	}
+
+	type OuterType struct {
+		InnerType     `js:"-"`
+		SomeField     string
+		AnotherField  string `js:"-"`
+		AnotherField1 string
+	}
+
+	const SCRIPT = `
+	if (o.SomeField !== "SomeField") {
+		throw new Error("SomeField");
+	}
+
+	if (o.AnotherField !== "AnotherField inner") {
+		throw new Error("AnotherField");
+	}
+
+	if (o.AnotherField1 !== "AnotherField1 outer") {
+		throw new Error("AnotherField1");
+	}
+
+	if (o.InnerType) {
+		throw new Error("InnerType is present");
+	}
+	`
+
+	o := OuterType{
+		InnerType: InnerType{
+			AnotherField:  "AnotherField inner",
+			AnotherField1: "AnotherField1 inner",
+		},
+		SomeField:     "SomeField",
+		AnotherField:  "AnotherField outer",
+		AnotherField1: "AnotherField1 outer",
+	}
+
+	vm := New()
+	vm.SetFieldNameMapper(testFieldMapper{})
+	vm.Set("o", &o)
+
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
