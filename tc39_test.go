@@ -20,11 +20,14 @@ var (
 
 var (
 	skipList = map[string]bool{
-		"test/language/literals/regexp/S7.8.5_A1.1_T2.js":            true, // UTF-16
-		"test/language/literals/regexp/S7.8.5_A1.4_T2.js":            true, // UTF-16
-		"test/language/literals/regexp/S7.8.5_A2.1_T2.js":            true, // UTF-16
-		"test/language/literals/regexp/S7.8.5_A2.4_T2.js":            true, // UTF-16
-		"test/built-ins/Object/getOwnPropertyNames/15.2.3.4-4-44.js": true, // property order
+		"test/language/literals/regexp/S7.8.5_A1.1_T2.js":             true, // UTF-16
+		"test/language/literals/regexp/S7.8.5_A1.4_T2.js":             true, // UTF-16
+		"test/language/literals/regexp/S7.8.5_A2.1_T2.js":             true, // UTF-16
+		"test/language/literals/regexp/S7.8.5_A2.4_T2.js":             true, // UTF-16
+		"test/built-ins/Object/getOwnPropertyNames/15.2.3.4-4-44.js":  true, // property order
+		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
+		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
+		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
 	}
 )
 
