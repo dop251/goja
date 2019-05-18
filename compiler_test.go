@@ -1618,6 +1618,47 @@ func TestSwitchNoMatch(t *testing.T) {
 	testScript1(SCRIPT, _undefined, t)
 }
 
+func TestSwitchNoMatchNoDefault(t *testing.T) {
+	const SCRIPT = `
+		switch (1) {
+		case 0:
+		}
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestSwitchNoMatchNoDefaultNoResult(t *testing.T) {
+	const SCRIPT = `
+		switch (1) {
+		case 0:
+		}
+		42;
+	`
+
+	testScript1(SCRIPT, intToValue(42), t)
+}
+
+func TestSwitchNoMatchNoDefaultNoResultMatch(t *testing.T) {
+	const SCRIPT = `
+		switch (1) {
+		case 1:
+		}
+		42;
+	`
+
+	testScript1(SCRIPT, intToValue(42), t)
+}
+
+func TestEmptySwitchNoResult(t *testing.T) {
+	const SCRIPT = `
+		switch (1) {}
+		42;
+	`
+
+	testScript1(SCRIPT, intToValue(42), t)
+}
+
 func TestGetOwnPropertyNames(t *testing.T) {
 	const SCRIPT = `
 	var o = {
