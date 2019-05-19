@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -31,8 +32,17 @@ var (
 	}
 )
 
+type tc39Test struct {
+	name string
+	f    func(t *testing.T)
+}
+
 type tc39TestCtx struct {
-	prgCache map[string]*Program
+	base         string
+	t            *testing.T
+	prgCache     map[string]*Program
+	prgCacheLock sync.Mutex
+	testQueue    []tc39Test
 }
 
 type TC39MetaNegative struct {
@@ -94,9 +104,9 @@ func parseTC39File(name string) (*tc39Meta, string, error) {
 	return &meta, str, nil
 }
 
-func runTC39Test(base, name, src string, meta *tc39Meta, t testing.TB, ctx *tc39TestCtx) {
+func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.TB) {
 	vm := New()
-	err, early := runTC39Script(base, name, src, meta.Includes, ctx, vm)
+	err, early := ctx.runTC39Script(name, src, meta.Includes, vm)
 
 	if err != nil {
 		if meta.Negative.Type == "" {
@@ -143,12 +153,11 @@ func runTC39Test(base, name, src string, meta *tc39Meta, t testing.TB, ctx *tc39
 	}
 }
 
-func runTC39File(base, name string, t testing.TB, ctx *tc39TestCtx) {
+func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 	if skipList[name] {
-		t.Logf("Skipped %s", name)
-		return
+		t.Skip("Excluded")
 	}
-	p := path.Join(base, name)
+	p := path.Join(ctx.base, name)
 	meta, src, err := parseTC39File(p)
 	if err != nil {
 		//t.Fatalf("Could not parse %s: %v", name, err)
@@ -157,7 +166,7 @@ func runTC39File(base, name string, t testing.TB, ctx *tc39TestCtx) {
 	}
 	if meta.Es5id == "" {
 		//t.Logf("%s: Not ES5, skipped", name)
-		return
+		t.Skip("Not ES5")
 	}
 
 	hasRaw := meta.hasFlag("raw")
@@ -165,57 +174,73 @@ func runTC39File(base, name string, t testing.TB, ctx *tc39TestCtx) {
 	if hasRaw || !meta.hasFlag("onlyStrict") {
 		//log.Printf("Running normal test: %s", name)
 		//t.Logf("Running normal test: %s", name)
-		runTC39Test(base, name, src, meta, t, ctx)
+		ctx.runTC39Test(name, src, meta, t)
 	}
 
 	if !hasRaw && !meta.hasFlag("noStrict") {
 		//log.Printf("Running strict test: %s", name)
 		//t.Logf("Running strict test: %s", name)
-		runTC39Test(base, name, "'use strict';\n"+src, meta, t, ctx)
+		ctx.runTC39Test(name, "'use strict';\n"+src, meta, t)
 	}
 
 }
 
-func (ctx *tc39TestCtx) runFile(base, name string, vm *Runtime) error {
+func (ctx *tc39TestCtx) init() {
+	ctx.prgCache = make(map[string]*Program)
+}
+
+func (ctx *tc39TestCtx) compile(base, name string) (*Program, error) {
+	ctx.prgCacheLock.Lock()
+	defer ctx.prgCacheLock.Unlock()
+
 	prg := ctx.prgCache[name]
 	if prg == nil {
 		fname := path.Join(base, name)
 		f, err := os.Open(fname)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		defer f.Close()
 
 		b, err := ioutil.ReadAll(f)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		str := string(b)
 		prg, err = Compile(name, str, false)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		ctx.prgCache[name] = prg
 	}
-	_, err := vm.RunProgram(prg)
+
+	return prg, nil
+}
+
+func (ctx *tc39TestCtx) runFile(base, name string, vm *Runtime) error {
+	prg, err := ctx.compile(base, name)
+	if err != nil {
+		return err
+	}
+	_, err = vm.RunProgram(prg)
 	return err
 }
 
-func runTC39Script(base, name, src string, includes []string, ctx *tc39TestCtx, vm *Runtime) (err error, early bool) {
+func (ctx *tc39TestCtx) runTC39Script(name, src string, includes []string, vm *Runtime) (err error, early bool) {
 	early = true
-	err = ctx.runFile(base, path.Join("harness", "assert.js"), vm)
+	err = ctx.runFile(ctx.base, path.Join("harness", "assert.js"), vm)
 	if err != nil {
 		return
 	}
 
-	err = ctx.runFile(base, path.Join("harness", "sta.js"), vm)
+	err = ctx.runFile(ctx.base, path.Join("harness", "sta.js"), vm)
 	if err != nil {
 		return
 	}
 
 	for _, include := range includes {
-		err = ctx.runFile(base, path.Join("harness", include), vm)
+		err = ctx.runFile(ctx.base, path.Join("harness", include), vm)
 		if err != nil {
 			return
 		}
@@ -234,10 +259,10 @@ func runTC39Script(base, name, src string, includes []string, ctx *tc39TestCtx, 
 	return
 }
 
-func runTC39Tests(base, name string, t *testing.T, ctx *tc39TestCtx) {
-	files, err := ioutil.ReadDir(path.Join(base, name))
+func (ctx *tc39TestCtx) runTC39Tests(name string) {
+	files, err := ioutil.ReadDir(path.Join(ctx.base, name))
 	if err != nil {
-		t.Fatal(err)
+		ctx.t.Fatal(err)
 	}
 
 	for _, file := range files {
@@ -245,10 +270,13 @@ func runTC39Tests(base, name string, t *testing.T, ctx *tc39TestCtx) {
 			continue
 		}
 		if file.IsDir() {
-			runTC39Tests(base, path.Join(name, file.Name()), t, ctx)
+			ctx.runTC39Tests(path.Join(name, file.Name()))
 		} else {
 			if strings.HasSuffix(file.Name(), ".js") {
-				runTC39File(base, path.Join(name, file.Name()), t, ctx)
+				name := path.Join(name, file.Name())
+				ctx.runTest(name, func(t *testing.T) {
+					ctx.runTC39File(name, t)
+				})
 			}
 		}
 	}
@@ -265,28 +293,31 @@ func TestTC39(t *testing.T) {
 	}
 
 	ctx := &tc39TestCtx{
-		prgCache: make(map[string]*Program),
+		base: tc39BASE,
+		t:    t,
 	}
+	ctx.init()
 
-	//_ = "breakpoint"
-	//runTC39File(tc39BASE, "test/language/types/number/8.5.1.js", t, ctx)
-	//runTC39Tests(tc39BASE, "test/language", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/expressions", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/arguments-object", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/asi", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/directive-prologue", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/function-code", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/eval-code", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/global-code", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/identifier-resolution", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/identifiers", t, ctx)
-	//runTC39Tests(tc39BASE, "test/language/literals", t, ctx) // octal sequences in strict mode
-	runTC39Tests(tc39BASE, "test/language/punctuators", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/reserved-words", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/source-text", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/statements", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/types", t, ctx)
-	runTC39Tests(tc39BASE, "test/language/white-space", t, ctx)
-	runTC39Tests(tc39BASE, "test/built-ins", t, ctx)
-	runTC39Tests(tc39BASE, "test/annexB/built-ins/String/prototype/substr", t, ctx)
+	//ctx.runTC39File("test/language/types/number/8.5.1.js", t)
+	//ctx.runTC39Tests("test/language")
+	ctx.runTC39Tests("test/language/expressions")
+	ctx.runTC39Tests("test/language/arguments-object")
+	ctx.runTC39Tests("test/language/asi")
+	ctx.runTC39Tests("test/language/directive-prologue")
+	ctx.runTC39Tests("test/language/function-code")
+	ctx.runTC39Tests("test/language/eval-code")
+	ctx.runTC39Tests("test/language/global-code")
+	ctx.runTC39Tests("test/language/identifier-resolution")
+	ctx.runTC39Tests("test/language/identifiers")
+	//ctx.runTC39Tests("test/language/literals") // octal sequences in strict mode
+	ctx.runTC39Tests("test/language/punctuators")
+	ctx.runTC39Tests("test/language/reserved-words")
+	ctx.runTC39Tests("test/language/source-text")
+	ctx.runTC39Tests("test/language/statements")
+	ctx.runTC39Tests("test/language/types")
+	ctx.runTC39Tests("test/language/white-space")
+	ctx.runTC39Tests("test/built-ins")
+	ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
+
+	ctx.flush()
 }
