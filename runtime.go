@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"strconv"
 
+	"golang.org/x/text/collate"
+
 	js_ast "github.com/dop251/goja/ast"
 	"github.com/dop251/goja/parser"
 )
@@ -98,6 +100,7 @@ type Runtime struct {
 	globalObject    *Object
 	stringSingleton *stringObject
 	rand            RandSource
+	_collator       *collate.Collator
 
 	typeInfoCache   map[reflect.Type]*reflectTypeInfo
 	fieldNameMapper FieldNameMapper

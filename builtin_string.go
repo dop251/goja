@@ -11,9 +11,14 @@ import (
 	"unicode/utf8"
 )
 
-var (
-	collator = collate.New(language.Und)
-)
+func (r *Runtime) collator() *collate.Collator {
+	collator := r._collator
+	if collator == nil {
+		collator = collate.New(language.Und)
+		r._collator = collator
+	}
+	return collator
+}
 
 func (r *Runtime) builtin_String(call FunctionCall) Value {
 	if len(call.Arguments) > 0 {
@@ -216,7 +221,7 @@ func (r *Runtime) stringproto_localeCompare(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	this := norm.NFD.String(call.This.String())
 	that := norm.NFD.String(call.Argument(0).String())
-	return intToValue(int64(collator.CompareString(this, that)))
+	return intToValue(int64(r.collator().CompareString(this, that)))
 }
 
 func (r *Runtime) stringproto_match(call FunctionCall) Value {
