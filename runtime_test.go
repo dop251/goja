@@ -467,6 +467,128 @@ func TestRuntime_ExportToStruct(t *testing.T) {
 
 }
 
+func TestRuntime_ExportToStructPtr(t *testing.T) {
+	const SCRIPT = `
+	var m = {
+		Test: 1,
+	}
+	m;
+	`
+	vm := New()
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var o *testGoReflectMethod_O
+	err = vm.ExportTo(v, &o)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if o.Test != "1" {
+		t.Fatalf("Unexpected value: '%s'", o.Test)
+	}
+
+}
+
+func TestRuntime_ExportToStructAnonymous(t *testing.T) {
+	type BaseTestStruct struct {
+		A int64
+		B int64
+	}
+
+	type TestStruct struct {
+		BaseTestStruct
+		C string
+	}
+
+	const SCRIPT = `
+	var m = {
+		A: 1,
+		B: 2,
+		C: "testC"
+	}
+	m;
+	`
+	vm := New()
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test := &TestStruct{}
+	err = vm.ExportTo(v, test)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if test.A != 1 {
+		t.Fatalf("Unexpected value: '%d'", test.A)
+	}
+	if test.B != 2 {
+		t.Fatalf("Unexpected value: '%d'", test.B)
+	}
+	if test.C != "testC" {
+		t.Fatalf("Unexpected value: '%s'", test.C)
+	}
+
+}
+
+func TestRuntime_ExportToStructWithPtrValues(t *testing.T) {
+	type BaseTestStruct struct {
+		A int64
+		B *int64
+	}
+
+	type TestStruct2 struct {
+		E string
+	}
+
+	type TestStruct struct {
+		BaseTestStruct
+		C *string
+		D *TestStruct2
+	}
+
+	const SCRIPT = `
+	var m = {
+		A: 1,
+		B: 2,
+		C: "testC",
+		D: {
+			E: "testE",
+		}
+	}
+	m;
+	`
+	vm := New()
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test := &TestStruct{}
+	err = vm.ExportTo(v, test)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if test.A != 1 {
+		t.Fatalf("Unexpected value: '%d'", test.A)
+	}
+	if test.B == nil || *test.B != 2 {
+		t.Fatalf("Unexpected value: '%v'", test.B)
+	}
+	if test.C == nil || *test.C != "testC" {
+		t.Fatalf("Unexpected value: '%v'", test.C)
+	}
+	if test.D == nil || test.D.E != "testE" {
+		t.Fatalf("Unexpected value: '%s'", test.D.E)
+	}
+
+}
+
 func TestRuntime_ExportToFunc(t *testing.T) {
 	const SCRIPT = `
 	function f(param) {

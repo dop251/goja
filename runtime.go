@@ -1256,7 +1256,7 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 					item := o.self.get(intToValue(int64(i)))
 					itemval, err := r.toReflectValue(item, elemTyp)
 					if err != nil {
-						return reflect.Value{}, fmt.Errorf("Could not convert array element %v to %v at %d", v, typ, i)
+						return reflect.Value{}, fmt.Errorf("Could not convert array element %v to %v at %d: %s", v, typ, i, err)
 					}
 					s.Index(i).Set(itemval)
 				}
@@ -1303,11 +1303,17 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 			for i := 0; i < typ.NumField(); i++ {
 				field := typ.Field(i)
 				if ast.IsExported(field.Name) {
-					v := o.self.getStr(field.Name)
+					var v Value
+					if field.Anonymous {
+						v = o
+					} else {
+						v = o.self.getStr(field.Name)
+					}
+
 					if v != nil {
 						vv, err := r.toReflectValue(v, field.Type)
 						if err != nil {
-							return reflect.Value{}, fmt.Errorf("Could not convert struct value %v to %v for field %s", v, field.Type, field.Name)
+							return reflect.Value{}, fmt.Errorf("Could not convert struct value %v to %v for field %s: %s", v, field.Type, field.Name, err)
 
 						}
 						s.Field(i).Set(vv)
@@ -1320,6 +1326,17 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 		if fn, ok := AssertFunction(v); ok {
 			return reflect.MakeFunc(typ, r.wrapJSFunc(fn, typ)), nil
 		}
+	case reflect.Ptr:
+		elemTyp := typ.Elem()
+		v, err := r.toReflectValue(v, elemTyp)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+
+		ptrVal := reflect.New(v.Type())
+		ptrVal.Elem().Set(v)
+
+		return ptrVal, nil
 	}
 
 	return reflect.Value{}, fmt.Errorf("Could not convert %v to %v", v, typ)
