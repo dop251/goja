@@ -589,6 +589,42 @@ func TestRuntime_ExportToStructWithPtrValues(t *testing.T) {
 
 }
 
+func TestRuntime_ExportToTime(t *testing.T) {
+	const SCRIPT = `
+	var dateStr = "2018-08-13T15:02:13+02:00";
+	var str = "test123";
+	`
+
+	vm := New()
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var ti time.Time
+	err = vm.ExportTo(vm.Get("dateStr"), &ti)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ti.Format(time.RFC3339) != "2018-08-13T15:02:13+02:00" {
+		t.Fatalf("Unexpected value: '%s'", ti.Format(time.RFC3339))
+	}
+
+	err = vm.ExportTo(vm.Get("str"), &ti)
+	if err == nil {
+		t.Fatal("Expected err to not be nil")
+	}
+
+	var str string
+	err = vm.ExportTo(vm.Get("dateStr"), &str)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if str != "2018-08-13T15:02:13+02:00" {
+		t.Fatalf("Unexpected value: '%s'", str)
+	}
+}
+
 func TestRuntime_ExportToFunc(t *testing.T) {
 	const SCRIPT = `
 	function f(param) {
