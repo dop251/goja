@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"reflect"
 	"strconv"
+	"time"
 
 	"golang.org/x/text/collate"
 
@@ -23,6 +24,7 @@ const (
 var (
 	typeCallable = reflect.TypeOf(Callable(nil))
 	typeValue    = reflect.TypeOf((*Value)(nil)).Elem()
+	typeTime     = reflect.TypeOf(time.Time{})
 )
 
 type global struct {
@@ -1243,6 +1245,14 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 		return reflect.ValueOf(v.Export()), nil
 	} else if et.ConvertibleTo(typ) {
 		return reflect.ValueOf(v.Export()).Convert(typ), nil
+	}
+
+	if typ == typeTime && et.Kind() == reflect.String {
+		time, ok := dateParse(v.String())
+		if !ok {
+			return reflect.Value{}, fmt.Errorf("Could not convert string %v to %v", v, typ)
+		}
+		return reflect.ValueOf(time), nil
 	}
 
 	switch typ.Kind() {
