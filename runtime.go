@@ -119,6 +119,9 @@ type stackFrame struct {
 func (f *stackFrame) position() Position {
 	return f.prg.src.Position(f.prg.sourceOffset(f.pc))
 }
+func (f *stackFrame) prevPosition() Position {
+	return f.prg.src.Position(f.prg.sourceOffset(f.pc-1))
+}
 
 func (f *stackFrame) write(b *bytes.Buffer) {
 	if f.prg != nil {
@@ -132,7 +135,23 @@ func (f *stackFrame) write(b *bytes.Buffer) {
 			b.WriteString("<eval>")
 		}
 		b.WriteByte(':')
-		b.WriteString(f.position().String())
+
+		if 0 < f.pc {
+			prevInstruction := f.prg.code[f.pc-1]
+			switch prevInstruction.(type) {
+			case getVar1Callee:
+				b.WriteString(f.prevPosition().String())
+			case getPropCallee:
+				b.WriteString(f.prevPosition().String())
+			case _getElemCallee:
+				b.WriteString(f.position().String())
+			default:
+				b.WriteString(f.position().String())
+			}
+		} else {
+			b.WriteString(f.position().String())
+		}
+		
 		b.WriteByte('(')
 		b.WriteString(strconv.Itoa(f.pc))
 		b.WriteByte(')')

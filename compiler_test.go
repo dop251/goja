@@ -1967,6 +1967,81 @@ func TestEmptyCodeError(t *testing.T) {
 		}
 	}
 }
+func TestErrorStackTraceCallingUndefinedVariable(t *testing.T) {
+	// Calling an undefined variable as a function should report position A instead of B:
+	//   undef()
+	//   ^    ^
+	//   A    B
+	const SCRIPT = `
+	var fn = function() { undef() };
+	fn();
+	`
+	_, err := New().RunString(SCRIPT)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+
+	exp := "ReferenceError: undef is not defined\n"+
+		"\tat <eval>:2:24(3)\n"+
+		"\tat <eval>:3:2(7)\n"+
+		""
+	act := err.(*Exception).String()
+	if act != exp {
+		t.Fatalf("Unexpected error:\nexp: [%s]\nact: [%s]", exp, act)
+	}
+}
+func TestErrorStackTraceCallingUndefinedProperty(t *testing.T) {
+	// Calling an undefined property can either report position A or C, not B:
+	//   o.undef()
+	//   ^ ^    ^
+	//   A B    C
+	// That's because position B is not currently referenced in the compiled program code.
+	// Position A makes more sense.
+	const SCRIPT = `
+	var o = {};
+	o.undef();
+	`
+	_, err := New().RunString(SCRIPT)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+
+	exp := "TypeError: Object has no member 'undef'\n"+
+		"\tat <eval>:3:2(8)\n"+
+		""
+	act := err.(*Exception).String()
+	if act != exp {
+		t.Fatalf("Unexpected error:\nexp: [%s]\nact: [%s]", exp, act)
+	}
+}
+func TestErrorStackTraceCallingUndefinedArrayElement(t *testing.T) {
+	// Calling an undefined array element should report posititon B:
+	//   arr[0]()
+	//         ^
+	//         B
+	const SCRIPT = `
+	var arr = [
+		function() {
+			var arr2 = [];
+			arr2[0]();
+		}
+	];
+	arr[0]();
+	`
+	_, err := New().RunString(SCRIPT)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+
+	exp := "TypeError: Object has no member '0'\n"+
+		"\tat <eval>:5:11(8)\n"+
+		"\tat <eval>:8:8(10)\n"+
+		""
+	act := err.(*Exception).String()
+	if act != exp {
+		t.Fatalf("Unexpected error:\nexp: [%s]\nact: [%s]", exp, act)
+	}
+}
 
 // FIXME
 /*
