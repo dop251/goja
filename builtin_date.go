@@ -20,7 +20,7 @@ func timeToMsec(t time.Time) int64 {
 	return t.Unix()*1000 + int64(t.Nanosecond())/1e6
 }
 
-func makeDate(args []Value, loc *time.Location) (t time.Time, valid bool) {
+func (r *Runtime) makeDate(args []Value, loc *time.Location) (t time.Time, valid bool) {
 	pick := func(index int, default_ int64) (int64, bool) {
 		if index >= len(args) {
 			return default_, true
@@ -67,7 +67,7 @@ func makeDate(args []Value, loc *time.Location) (t time.Time, valid bool) {
 
 		t = time.Date(int(year), time.Month(int(month)+1), int(day), int(hour), int(minute), int(second), int(millisecond)*1e6, loc)
 	case len(args) == 0:
-		t = time.Now()
+		t = r.now()
 		valid = true
 	default: // one argument
 		pv := toPrimitiveNumber(args[0])
@@ -103,7 +103,7 @@ func makeDate(args []Value, loc *time.Location) (t time.Time, valid bool) {
 }
 
 func (r *Runtime) newDateTime(args []Value, loc *time.Location) *Object {
-	t, isSet := makeDate(args, loc)
+	t, isSet := r.makeDate(args, loc)
 	return r.newDateObject(t, isSet)
 }
 
@@ -112,7 +112,7 @@ func (r *Runtime) builtin_newDate(args []Value) *Object {
 }
 
 func (r *Runtime) builtin_date(call FunctionCall) Value {
-	return asciiString(dateFormat(time.Now()))
+	return asciiString(dateFormat(r.now()))
 }
 
 func (r *Runtime) date_parse(call FunctionCall) Value {
@@ -124,7 +124,7 @@ func (r *Runtime) date_parse(call FunctionCall) Value {
 }
 
 func (r *Runtime) date_UTC(call FunctionCall) Value {
-	t, valid := makeDate(call.Arguments, time.UTC)
+	t, valid := r.makeDate(call.Arguments, time.UTC)
 	if !valid {
 		return _NaN
 	}
@@ -132,7 +132,7 @@ func (r *Runtime) date_UTC(call FunctionCall) Value {
 }
 
 func (r *Runtime) date_now(call FunctionCall) Value {
-	return intToValue(timeToMsec(time.Now()))
+	return intToValue(timeToMsec(r.now()))
 }
 
 func (r *Runtime) dateproto_toString(call FunctionCall) Value {
