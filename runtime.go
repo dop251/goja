@@ -1425,9 +1425,9 @@ func (r *Runtime) SetRandSource(source RandSource) {
 	r.rand = source
 }
 
-// SetCurrentTimeGetter sets the current time getter function for this Runtime.
+// SetTimeSource sets the current time source for this Runtime.
 // If not called, the default time.Now() is used.
-func (r *Runtime) SetCurrentTimeGetter(now Now) {
+func (r *Runtime) SetTimeSource(now Now) {
 	r.now = now
 }
 
