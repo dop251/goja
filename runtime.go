@@ -97,11 +97,14 @@ func ToFlag(b bool) Flag {
 
 type RandSource func() float64
 
+type Now func() time.Time
+
 type Runtime struct {
 	global          global
 	globalObject    *Object
 	stringSingleton *stringObject
 	rand            RandSource
+	now             Now
 	_collator       *collate.Collator
 
 	typeInfoCache   map[reflect.Type]*reflectTypeInfo
@@ -236,6 +239,7 @@ func (r *Runtime) addToGlobal(name string, value Value) {
 
 func (r *Runtime) init() {
 	r.rand = rand.Float64
+	r.now = time.Now
 	r.global.ObjectPrototype = r.newBaseObject(nil, classObject).val
 	r.globalObject = r.NewObject()
 
@@ -1419,6 +1423,12 @@ func (r *Runtime) Get(name string) Value {
 // SetRandSource sets random source for this Runtime. If not called, the default math/rand is used.
 func (r *Runtime) SetRandSource(source RandSource) {
 	r.rand = source
+}
+
+// SetTimeSource sets the current time source for this Runtime.
+// If not called, the default time.Now() is used.
+func (r *Runtime) SetTimeSource(now Now) {
+	r.now = now
 }
 
 // Callable represents a JavaScript function that can be called from Go.
