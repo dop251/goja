@@ -12,7 +12,7 @@ import (
 func tt(t *testing.T, f func()) {
 	defer func() {
 		if x := recover(); x != nil {
-			_, file, line, _ := runtime.Caller(5)
+			_, file, line, _ := runtime.Caller(4)
 			t.Errorf("Error at %s:%d: %v", filepath.Base(file), line, x)
 		}
 	}()

@@ -440,9 +440,9 @@ func TestParserErr(t *testing.T) {
 			};`, "(anonymous): Line 4:6 Unexpected identifier")
 			test("{}", nil)
 			test("{a: 1}", nil)
-			test("{a: 1,}", nil)
-			test("{a: 1, b: 2}", nil)
-			test("{a: 1, b: 2,}", nil)
+			test("{a: 1,}", "(anonymous): Line 1:7 Unexpected token }")
+			test("{a: 1, b: 2}", "(anonymous): Line 1:9 Unexpected token :")
+			test("{a: 1, b: 2,}", "(anonymous): Line 1:9 Unexpected token :")
 		}
 
 		{ // Reserved words (strict)
