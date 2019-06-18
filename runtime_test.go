@@ -1250,3 +1250,22 @@ func BenchmarkCallNative(b *testing.B) {
 		vm.RunProgram(prg)
 	}
 }
+
+func BenchmarkMainLoop(b *testing.B) {
+	vm := New()
+
+	const SCRIPT = `
+		var s = '';
+		for (var i=0; i<100000; i++) {
+			s = (i + '');
+		}
+	`
+
+	prg := MustCompile("test.js", SCRIPT, true)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.RunProgram(prg)
+	}
+}
+

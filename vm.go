@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"runtime"
 )
 
 const (
@@ -281,11 +282,24 @@ func (vm *vm) init() {
 func (vm *vm) run() {
 	vm.halt = false
 	interrupted := false
-	for !vm.halt {
-		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
-			break
+	var i int
+	
+MAIN:
+	for {
+		for i=10000; 0<i; i-- {
+			if vm.halt {
+				break MAIN
+			}
+			vm.prg.code[vm.pc].exec(vm)
+
+			if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
+				break MAIN
+			}
 		}
-		vm.prg.code[vm.pc].exec(vm)
+
+		// Ensure interrupts can take effect. If we never yield the processor, 
+		// the callee may never get a chance to call vm.Interrupt().
+		runtime.Gosched()
 	}
 
 	if interrupted {
