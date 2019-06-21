@@ -113,7 +113,7 @@ func (o *baseObject) init() {
 	o.values = make(map[string]Value)
 }
 
-func (o *baseObject) className() string {
+func (o *baseObject) ClassName() string {
 	return o.class
 }
 

@@ -320,7 +320,7 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 				ctx.buf.Write(b)
 				return true
 			} else {
-				switch o1.className() {
+				switch o1.ClassName() {
 				case classNumber:
 					value = o1.toPrimitiveNumber()
 				case classString:
