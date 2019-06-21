@@ -1476,6 +1476,16 @@ func IsNull(v Value) bool {
 	return v == _null
 }
 
+// IsNaN returns true if the supplied value is NaN.
+func IsNaN(v Value) bool {
+	return v == _NaN
+}
+
+// IsInfinity returns true if the supplied is (+/-)Infinity
+func IsInfinity(v Value) bool {
+	return v == _positiveInf || v == _negativeInf
+}
+
 // Undefined returns JS undefined value. Note if global 'undefined' property is changed this still returns the original value.
 func Undefined() Value {
 	return _undefined
@@ -1484,6 +1494,21 @@ func Undefined() Value {
 // Null returns JS null value.
 func Null() Value {
 	return _null
+}
+
+// NaN returns a JS NaN value.
+func NaN() Value {
+	return _NaN
+}
+
+// PositiveInf returns a JS +Inf value.
+func PositiveInf() Value {
+	return _positiveInf
+}
+
+// NegativeInf returns a JS -Inf value.
+func NegativeInf() Value {
+	return _negativeInf
 }
 
 func tryFunc(f func()) (err error) {
