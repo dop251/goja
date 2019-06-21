@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -1200,6 +1201,33 @@ func TestInterruptInWrappedFunction(t *testing.T) {
 	}
 }
 
+func TestRunLoopPreempt(t *testing.T) {
+	vm := New()
+	v, err := vm.RunString("(function() {for (;;) {}})")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fn, ok := AssertFunction(v)
+	if !ok {
+		t.Fatal("Not a function")
+	}
+
+	go func() {
+		<-time.After(100 * time.Millisecond)
+		runtime.GC() // this hangs if the vm loop does not have any preemption points
+		vm.Interrupt(errors.New("hi"))
+	}()
+
+	v, err = fn(nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if _, ok := err.(*InterruptedError); !ok {
+		t.Fatalf("Wrong error type: %T", err)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
@@ -1244,6 +1272,22 @@ func BenchmarkCallNative(b *testing.B) {
 	})
 
 	prg := MustCompile("test.js", "f(null)", true)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.RunProgram(prg)
+	}
+}
+
+func BenchmarkMainLoop(b *testing.B) {
+	vm := New()
+
+	const SCRIPT = `
+		for (var i=0; i<100000; i++) {
+		}
+	`
+
+	prg := MustCompile("test.js", SCRIPT, true)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
