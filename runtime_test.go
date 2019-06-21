@@ -1228,6 +1228,36 @@ func TestRunLoopPreempt(t *testing.T) {
 	}
 }
 
+func TestNaN(t *testing.T) {
+	if !IsNaN(_NaN) {
+		t.Fatal("IsNaN() doesn't detect NaN")
+	}
+	if IsNaN(Undefined()) {
+		t.Fatal("IsNaN() says undefined is a NaN")
+	}
+	if !IsNaN(NaN()) {
+		t.Fatal("NaN() doesn't return NaN")
+	}
+}
+
+func TestInf(t *testing.T) {
+	if !IsInfinity(_positiveInf) {
+		t.Fatal("IsInfinity() doesn't detect +Inf")
+	}
+	if !IsInfinity(_negativeInf) {
+		t.Fatal("IsInfinity() doesn't detect -Inf")
+	}
+	if IsInfinity(Undefined()) {
+		t.Fatal("IsInfinity() says undefined is a Infinity")
+	}
+	if !IsInfinity(PositiveInf()) {
+		t.Fatal("PositiveInfinity() doesn't return Inf")
+	}
+	if !IsInfinity(NegativeInf()) {
+		t.Fatal("NegativeInfinity() doesn't return Inf")
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
