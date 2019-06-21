@@ -2,9 +2,9 @@ package parser
 
 import (
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"testing"
-	"path/filepath"
 )
 
 // Quick and dirty replacement for terst
@@ -20,7 +20,6 @@ func tt(t *testing.T, f func()) {
 	f()
 }
 
-
 func is(a, b interface{}) {
 	as := fmt.Sprintf("%v", a)
 	bs := fmt.Sprintf("%v", b)
@@ -28,5 +27,3 @@ func is(a, b interface{}) {
 		panic(fmt.Errorf("%+v(%T) != %+v(%T)", a, a, b, b))
 	}
 }
-
-

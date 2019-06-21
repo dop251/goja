@@ -90,7 +90,7 @@ func TestRegExp(t *testing.T) {
 
 			test("(%)", "(%)")
 
-			test("(?:[%\\s])", "(?:[%" + WhitespaceChars +"])")
+			test("(?:[%\\s])", "(?:[%"+WhitespaceChars+"])")
 
 			test("[[]", "[[]")
 
@@ -121,7 +121,7 @@ func TestTransformRegExp(t *testing.T) {
 	tt(t, func() {
 		pattern, err := TransformRegExp(`\s+abc\s+`)
 		is(err, nil)
-		is(pattern, `[` + WhitespaceChars + `]+abc[` + WhitespaceChars +`]+`)
+		is(pattern, `[`+WhitespaceChars+`]+abc[`+WhitespaceChars+`]+`)
 		is(regexp.MustCompile(pattern).MatchString("\t abc def"), true)
 	})
 }
