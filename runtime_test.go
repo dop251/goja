@@ -1201,13 +1201,13 @@ func TestInterruptInWrappedFunction(t *testing.T) {
 }
 
 func TestNaN(t *testing.T) {
-	if IsNaN(_NaN) {
+	if !IsNaN(_NaN) {
 		t.Fatal("IsNaN() doesn't detect NaN")
 	}
 	if IsNaN(Undefined()) {
 		t.Fatal("IsNaN() says undefined is a NaN")
 	}
-	if IsNaN(NaN()) {
+	if !IsNaN(NaN()) {
 		t.Fatal("NaN() doesn't return NaN")
 	}
 }

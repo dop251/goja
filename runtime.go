@@ -1478,7 +1478,8 @@ func IsNull(v Value) bool {
 
 // IsNaN returns true if the supplied value is NaN.
 func IsNaN(v Value) bool {
-	return v == _NaN
+	f, ok := v.assertFloat()
+	return ok && math.IsNaN(f)
 }
 
 // IsInfinity returns true if the supplied is (+/-)Infinity
