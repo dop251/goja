@@ -4,7 +4,6 @@ go:
 
 before_install:
   # use local source tree when testing forks
-  - ls -l $TRAVIS_BUILD_DIR
   - mkdir -p $GOPATH/src/github.com/dop251/
   - ln -s $TRAVIS_BUILD_DIR $GOPATH/src/github.com/dop251/ || true
 
