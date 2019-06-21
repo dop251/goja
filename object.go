@@ -1,6 +1,9 @@
 package goja
 
-import "reflect"
+import (
+	"reflect"
+	"regexp"
+)
 
 const (
 	classObject   = "Object"
@@ -48,6 +51,7 @@ type objectImpl interface {
 	toPrimitiveNumber() Value
 	toPrimitiveString() Value
 	toPrimitive() Value
+	toRegexp() *regexp.Regexp
 	assertCallable() (call func(FunctionCall) Value, ok bool)
 	deleteStr(name string, throw bool) bool
 	delete(name Value, throw bool) bool
@@ -468,6 +472,11 @@ func (o *baseObject) toPrimitiveString() Value {
 
 func (o *baseObject) toPrimitive() Value {
 	return o.toPrimitiveNumber()
+}
+
+func (o *baseObject) toRegexp() *regexp.Regexp {
+	o.val.runtime.typeErrorResult(true, "Could not convert %v to regexp", o)
+	return nil
 }
 
 func (o *baseObject) assertCallable() (func(FunctionCall) Value, bool) {

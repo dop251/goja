@@ -39,6 +39,7 @@ type Value interface {
 	ToFloat() float64
 	ToNumber() Value
 	ToBoolean() bool
+	ToRegexp() *regexp.Regexp
 	ToObject(*Runtime) *Object
 	SameAs(Value) bool
 	Equals(Value) bool
@@ -124,6 +125,10 @@ func (i valueInt) ToFloat() float64 {
 
 func (i valueInt) ToBoolean() bool {
 	return i != 0
+}
+
+func (i valueInt) ToRegexp() *regexp.Regexp {
+	return nil
 }
 
 func (i valueInt) ToObject(r *Runtime) *Object {
@@ -223,6 +228,10 @@ func (o valueBool) ToFloat() float64 {
 
 func (o valueBool) ToBoolean() bool {
 	return bool(o)
+}
+
+func (o valueBool) ToRegexp() *regexp.Regexp {
+	return nil
 }
 
 func (o valueBool) ToObject(r *Runtime) *Object {
@@ -333,6 +342,10 @@ func (n valueNull) ToBoolean() bool {
 	return false
 }
 
+func (n valueNull) ToRegexp() *regexp.Regexp {
+	return nil
+}
+
 func (n valueNull) ToObject(r *Runtime) *Object {
 	r.typeErrorResult(true, "Cannot convert undefined or null to object")
 	return nil
@@ -403,6 +416,10 @@ func (p *valueProperty) ToFloat() float64 {
 
 func (p *valueProperty) ToBoolean() bool {
 	return false
+}
+
+func (p *valueProperty) ToRegexp() *regexp.Regexp {
+	return nil
 }
 
 func (p *valueProperty) ToObject(r *Runtime) *Object {
@@ -527,6 +544,10 @@ func (f valueFloat) ToBoolean() bool {
 	return float64(f) != 0.0 && !math.IsNaN(float64(f))
 }
 
+func (f valueFloat) ToRegexp() *regexp.Regexp {
+	return nil
+}
+
 func (f valueFloat) ToObject(r *Runtime) *Object {
 	return r.newPrimitiveObject(f, r.global.NumberPrototype, "Number")
 }
@@ -633,6 +654,10 @@ func (o *Object) ToFloat() float64 {
 
 func (o *Object) ToBoolean() bool {
 	return true
+}
+
+func (o *Object) ToRegexp() *regexp.Regexp {
+	return o.self.toRegexp()
 }
 
 func (o *Object) ToObject(r *Runtime) *Object {
@@ -792,6 +817,11 @@ func (o valueUnresolved) ToFloat() float64 {
 func (o valueUnresolved) ToBoolean() bool {
 	o.throw()
 	return false
+}
+
+func (o valueUnresolved) ToRegexp() *regexp.Regexp {
+	o.throw()
+	return nil
 }
 
 func (o valueUnresolved) ToObject(r *Runtime) *Object {

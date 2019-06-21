@@ -1,6 +1,9 @@
 package goja
 
-import "reflect"
+import (
+	"reflect"
+	"regexp"
+)
 
 type lazyObject struct {
 	val    *Object
@@ -107,6 +110,12 @@ func (o *lazyObject) toPrimitive() Value {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.toPrimitive()
+}
+
+func (o *lazyObject) toRegexp() *regexp.Regexp {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.toRegexp()
 }
 
 func (o *lazyObject) assertCallable() (call func(FunctionCall) Value, ok bool) {

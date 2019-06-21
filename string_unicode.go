@@ -3,9 +3,6 @@ package goja
 import (
 	"errors"
 	"fmt"
-	"github.com/dop251/goja/parser"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"io"
 	"math"
 	"reflect"
@@ -13,6 +10,10 @@ import (
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/dop251/goja/parser"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type unicodeString []uint16
@@ -90,6 +91,10 @@ func (s unicodeString) ToFloat() float64 {
 
 func (s unicodeString) ToBoolean() bool {
 	return len(s) > 0
+}
+
+func (s unicodeString) ToRegexp() *regexp.Regexp {
+	return nil
 }
 
 func (s unicodeString) toTrimmedUTF8() string {

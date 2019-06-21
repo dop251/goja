@@ -2,10 +2,11 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dlclark/regexp2"
 	"regexp"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/dlclark/regexp2"
 )
 
 type regexpPattern interface {
@@ -330,6 +331,10 @@ func (r *regexpObject) execRegexp(target valueString) (match bool, result []int)
 		r.putStr("lastIndex", intToValue(int64(endIndex)), true)
 	}
 	return
+}
+
+func (r *regexpObject) toRegexp() *regexp.Regexp {
+	return regexp.MustCompile(r.source.String())
 }
 
 func (r *regexpObject) exec(target valueString) Value {

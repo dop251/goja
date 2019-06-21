@@ -5,6 +5,7 @@ import (
 	"io"
 	"math"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -135,6 +136,10 @@ func (s asciiString) ToFloat() float64 {
 
 func (s asciiString) ToBoolean() bool {
 	return s != ""
+}
+
+func (s asciiString) ToRegexp() *regexp.Regexp {
+	return nil
 }
 
 func (s asciiString) ToNumber() Value {
