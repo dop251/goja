@@ -2,6 +2,10 @@ language: go
 go:
   - 1.x
 
+env:
+  - GIMME_OS=linux GIMME_ARCH=amd64 RACE="-race"
+  - GIMME_OS=linux GIMME_ARCH=386
+
 before_install:
   # use local source tree when testing forks
   - mkdir -p $GOPATH/src/github.com/dop251/
@@ -10,4 +14,4 @@ before_install:
 script:
   - diff -u <(echo -n) <(gofmt -d .)
   - go vet .
-  - go test -short -race ./...
+  - go test -short $RACE ./...
