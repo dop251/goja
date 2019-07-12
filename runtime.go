@@ -995,6 +995,9 @@ func (r *Runtime) ToValue(i interface{}) Value {
 	case float64:
 		return floatToValue(i)
 	case map[string]interface{}:
+		if i == nil {
+			return _null
+		}
 		obj := &Object{runtime: r}
 		m := &objectGoMapSimple{
 			baseObject: baseObject{
@@ -1007,6 +1010,9 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		m.init()
 		return obj
 	case []interface{}:
+		if i == nil {
+			return _null
+		}
 		obj := &Object{runtime: r}
 		a := &objectGoSlice{
 			baseObject: baseObject{
@@ -1018,6 +1024,9 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		a.init()
 		return obj
 	case *[]interface{}:
+		if i == nil {
+			return _null
+		}
 		obj := &Object{runtime: r}
 		a := &objectGoSlice{
 			baseObject: baseObject{

@@ -787,8 +787,27 @@ func TestToValueNil(t *testing.T) {
 	var a *T
 	vm := New()
 
+	if v := vm.ToValue(nil); !IsNull(v) {
+		t.Fatalf("nil: %v", v)
+	}
+
 	if v := vm.ToValue(a); !IsNull(v) {
-		t.Fatalf("Expected null, got: %v", v)
+		t.Fatalf("struct ptr: %v", v)
+	}
+
+	var m map[string]interface{}
+	if v := vm.ToValue(m); !IsNull(v) {
+		t.Fatalf("map[string]interface{}: %v", v)
+	}
+
+	var ar []interface{}
+	if v := vm.ToValue(ar); !IsNull(v) {
+		t.Fatalf("[]interface{}: %v", v)
+	}
+
+	var arptr *[]interface{}
+	if v := vm.ToValue(arptr); !IsNull(v) {
+		t.Fatalf("*[]interface{}: %v", v)
 	}
 }
 
