@@ -275,6 +275,9 @@ assert.sameValue(Date.parse("Mon Jan 02 15:04:05 MST 2006"), 1136239445000,
 assert.sameValue(Date.parse("Mon Jan 02 15:04:05 -0700 2006"), 1136239445000,
 				 "Date.parse(\"Mon Jan 02 15:04:05 -0700 2006\")");
 
+assert.sameValue(Date.parse("2019-01-01T12:00:00.52Z"), 1546344000520,
+				"Date.parse(\"2019-01-01T12:00:00.52\")");
+
 var d = new Date("Mon, 02 Jan 2006 15:04:05 MST");
 
 assert.sameValue(d.getUTCHours(), 22,
