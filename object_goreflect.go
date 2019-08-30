@@ -13,19 +13,30 @@ type JsonEncodable interface {
 }
 
 // FieldNameMapper provides custom mapping between Go and JavaScript property names.
+//
+// A FieldNameMapper may optionally have a SkipValue method for advanced mapping that depend on the actual value:
+//
+// // SkipValue returns a function that allows custom values (typically zero values) to be skipped
+// SkipValue(t reflect.Type, f reflect.StructField) func(reflect.Value) bool
 type FieldNameMapper interface {
 	// FieldName returns a JavaScript name for the given struct field in the given type.
 	// If this method returns "" the field becomes hidden.
 	FieldName(t reflect.Type, f reflect.StructField) string
 
-	// FieldName returns a JavaScript name for the given method in the given type.
+	// MethodName returns a JavaScript name for the given method in the given type.
 	// If this method returns "" the method becomes hidden.
 	MethodName(t reflect.Type, m reflect.Method) string
+}
+
+type skipValuer interface {
+	// SkipValue returns a function that allows custom values (typically zero values) to be skipped
+	SkipValue(t reflect.Type, f reflect.StructField) func(reflect.Value) bool
 }
 
 type reflectFieldInfo struct {
 	Index     []int
 	Anonymous bool
+	SkipValue func(reflect.Value) bool
 }
 
 type reflectTypeInfo struct {
@@ -86,11 +97,14 @@ func (o *objectGoReflect) get(n Value) Value {
 	return o.getStr(n.String())
 }
 
-func (o *objectGoReflect) _getField(jsName string) reflect.Value {
+func (o *objectGoReflect) _getField(jsName string, read bool) reflect.Value {
 	if info, exists := o.valueTypeInfo.Fields[jsName]; exists {
 		v := o.value.FieldByIndex(info.Index)
 		if info.Anonymous {
 			v = v.Addr()
+		}
+		if read && info.SkipValue != nil && info.SkipValue(v) {
+			return reflect.Value{}
 		}
 		return v
 	}
@@ -108,7 +122,7 @@ func (o *objectGoReflect) _getMethod(jsName string) reflect.Value {
 
 func (o *objectGoReflect) _get(name string) Value {
 	if o.value.Kind() == reflect.Struct {
-		if v := o._getField(name); v.IsValid() {
+		if v := o._getField(name, true); v.IsValid() {
 			return o.val.runtime.ToValue(v.Interface())
 		}
 	}
@@ -144,7 +158,7 @@ func (o *objectGoReflect) getPropStr(name string) Value {
 
 func (o *objectGoReflect) getOwnProp(name string) Value {
 	if o.value.Kind() == reflect.Struct {
-		if v := o._getField(name); v.IsValid() {
+		if v := o._getField(name, true); v.IsValid() {
 			return &valueProperty{
 				value:      o.val.runtime.ToValue(v.Interface()),
 				writable:   v.CanSet(),
@@ -175,7 +189,7 @@ func (o *objectGoReflect) putStr(name string, val Value, throw bool) {
 
 func (o *objectGoReflect) _put(name string, val Value, throw bool) bool {
 	if o.value.Kind() == reflect.Struct {
-		if v := o._getField(name); v.IsValid() {
+		if v := o._getField(name, false); v.IsValid() {
 			if !v.CanSet() {
 				o.val.runtime.typeErrorResult(throw, "Cannot assign to a non-addressable or read-only property %s of a host object", name)
 				return false
@@ -217,24 +231,22 @@ func (r *Runtime) checkHostObjectPropertyDescr(name string, descr propertyDescr,
 
 func (o *objectGoReflect) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
 	name := n.String()
-	if ast.IsExported(name) {
-		if o.value.Kind() == reflect.Struct {
-			if v := o._getField(name); v.IsValid() {
-				if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
-					return false
-				}
-				val := descr.Value
-				if val == nil {
-					val = _undefined
-				}
-				vv, err := o.val.runtime.toReflectValue(val, v.Type())
-				if err != nil {
-					o.val.runtime.typeErrorResult(throw, "Go struct conversion error: %v", err)
-					return false
-				}
-				v.Set(vv)
-				return true
+	if o.value.Kind() == reflect.Struct {
+		if v := o._getField(name, false); v.IsValid() {
+			if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
+				return false
 			}
+			val := descr.Value
+			if val == nil {
+				val = _undefined
+			}
+			vv, err := o.val.runtime.toReflectValue(val, v.Type())
+			if err != nil {
+				o.val.runtime.typeErrorResult(throw, "Go struct conversion error: %v", err)
+				return false
+			}
+			v.Set(vv)
+			return true
 		}
 	}
 
@@ -242,13 +254,13 @@ func (o *objectGoReflect) defineOwnProperty(n Value, descr propertyDescr, throw 
 }
 
 func (o *objectGoReflect) _has(name string) bool {
-	if !ast.IsExported(name) {
-		return false
-	}
 	if o.value.Kind() == reflect.Struct {
-		if v := o._getField(name); v.IsValid() {
+		if v := o._getField(name, true); v.IsValid() {
 			return true
 		}
+	}
+	if !ast.IsExported(name) {
+		return false
 	}
 	if v := o._getMethod(name); v.IsValid() {
 		return true
@@ -356,10 +368,12 @@ type goreflectPropIter struct {
 
 func (i *goreflectPropIter) nextField() (propIterItem, iterNextFunc) {
 	names := i.o.valueTypeInfo.FieldNames
-	if i.idx < len(names) {
+	for i.idx < len(names) {
 		name := names[i.idx]
 		i.idx++
-		return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.nextField
+		if v := i.o._getField(name, true); v.IsValid() {
+			return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.nextField
+		}
 	}
 
 	i.idx = 0
@@ -417,14 +431,23 @@ func (o *objectGoReflect) equal(other objectImpl) bool {
 
 func (r *Runtime) buildFieldInfo(t reflect.Type, index []int, info *reflectTypeInfo) {
 	n := t.NumField()
+	var sv skipValuer
+	if v, ok := r.fieldNameMapper.(skipValuer); ok {
+		sv = v
+	}
+
 	for i := 0; i < n; i++ {
 		field := t.Field(i)
 		name := field.Name
+		var skipValueFn func(reflect.Value) bool
 		if !ast.IsExported(name) {
 			continue
 		}
 		if r.fieldNameMapper != nil {
 			name = r.fieldNameMapper.FieldName(t, field)
+			if sv != nil {
+				skipValueFn = sv.SkipValue(t, field)
+			}
 		}
 
 		if name != "" {
@@ -446,6 +469,7 @@ func (r *Runtime) buildFieldInfo(t reflect.Type, index []int, info *reflectTypeI
 				info.Fields[name] = reflectFieldInfo{
 					Index:     idx,
 					Anonymous: field.Anonymous,
+					SkipValue: skipValueFn,
 				}
 			}
 			if field.Anonymous {
@@ -508,7 +532,7 @@ func (r *Runtime) typeInfo(t reflect.Type) (info *reflectTypeInfo) {
 	return
 }
 
-// Sets a custom field name mapper for Go types. It can be called at any time, however
+// SetFieldNameMapper sets a custom field name mapper for Go types. It can be called at any time, however
 // the mapping for any given value is fixed at the point of creation.
 // Setting this to nil restores the default behaviour which is all exported fields and methods are mapped to their
 // original unchanged names.

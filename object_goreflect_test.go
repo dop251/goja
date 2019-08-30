@@ -485,26 +485,108 @@ func TestGoReflectEmbeddedStruct(t *testing.T) {
 	}
 }
 
+// tagOptions is the string following a comma in a struct field's "json"
+// tag, or the empty string. It does not include the leading comma.
+type tagOptions string
+
+// parseTag splits a struct field's json tag into its name and
+// comma-separated options.
+func parseTag(tag string) (string, tagOptions) {
+	if idx := strings.Index(tag, ","); idx != -1 {
+		return tag[:idx], tagOptions(tag[idx+1:])
+	}
+	return tag, tagOptions("")
+}
+
+// Contains reports whether a comma-separated list of options
+// contains a particular substr flag. substr must be surrounded by a
+// string boundary or commas.
+func (o tagOptions) Contains(optionName string) bool {
+	if len(o) == 0 {
+		return false
+	}
+	s := string(o)
+	for s != "" {
+		var next string
+		i := strings.Index(s, ",")
+		if i >= 0 {
+			s, next = s[:i], s[i+1:]
+		}
+		if s == optionName {
+			return true
+		}
+		s = next
+	}
+	return false
+}
+
+// jsonTagNamer allows to use json tags to name js objects
 type jsonTagNamer struct{}
 
-func (*jsonTagNamer) FieldName(t reflect.Type, field reflect.StructField) string {
+func (jsonTagNamer) FieldName(t reflect.Type, field reflect.StructField) string {
 	if jsonTag := field.Tag.Get("json"); jsonTag != "" {
-		return jsonTag
+		if jsonTag == "-" {
+			return ""
+		}
+		name, _ := parseTag(jsonTag)
+		return name
 	}
 	return field.Name
 }
 
-func (*jsonTagNamer) MethodName(t reflect.Type, method reflect.Method) string {
+func (jsonTagNamer) MethodName(t reflect.Type, method reflect.Method) string {
 	return method.Name
+}
+
+func (jsonTagNamer) SkipValue(t reflect.Type, field reflect.StructField) func(v reflect.Value) bool {
+	if jsonTag := field.Tag.Get("json"); jsonTag != "" {
+		if jsonTag == "-" {
+			return nil
+		}
+		_, options := parseTag(jsonTag)
+		if options.Contains("omitempty") {
+			return skipZero
+		}
+	}
+	return nil
+}
+
+func skipZero(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Ptr:
+		return v.IsNil()
+	case reflect.String, reflect.Map, reflect.Array, reflect.Slice:
+		return v.Len() == 0
+	case reflect.Bool:
+		return v.Bool() == false
+	case
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64:
+		return v.Int() == 0
+	case
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64:
+		return v.Uint() == 0
+	default:
+		return false
+	}
 }
 
 func TestGoReflectCustomNaming(t *testing.T) {
 
 	type testStructWithJsonTags struct {
-		A string `json:"b"` // <-- script sees field "A" as property "b"
+		A string `json:"b"`               // <-- script sees field "A" as property "b"
+		B int    `json:"-"`               // field "B" is not exported
+		C int    `json:"c_int,omitempty"` // <-- script sees field "C" as property "c_int", but is exported/defined only if not zero
 	}
 
-	o := &testStructWithJsonTags{"Hello world"}
+	o := &testStructWithJsonTags{A: "Hello world", B: 123}
 	r := New()
 	r.SetFieldNameMapper(&jsonTagNamer{})
 	r.Set("fn", func() *testStructWithJsonTags { return o })
@@ -538,6 +620,34 @@ func TestGoReflectCustomNaming(t *testing.T) {
 			t.Fatalf("Expected [\"b\"], got %v", v.Export())
 		}
 	})
+
+	t.Run("set property_notempty", func(t *testing.T) {
+		_, err := r.RunString(`fn().c_int = 6`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if o.C != 6 {
+			t.Fatalf("Expected 6, got %q", o.C)
+		}
+	})
+
+	t.Run("get property descriptor", func(t *testing.T) {
+		const SCRIPT = `
+			var o = fn();
+			var d1 = Object.getOwnPropertyDescriptor(fn(), "c_int");
+			var d2 = Object.getOwnPropertyDescriptor(fn(), "b");
+			o.hasOwnProperty("c_int") && o.hasOwnProperty("b") && d1.writable && !d1.configurable && d2.writable && !d2.configurable;
+		`
+		v, err := r.RunString(SCRIPT)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !v.StrictEquals(valueTrue) {
+			t.Fatalf("Expected true, got %v", v)
+		}
+
+	})
+
 }
 
 type fieldNameMapper1 struct{}
