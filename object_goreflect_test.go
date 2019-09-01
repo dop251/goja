@@ -621,6 +621,22 @@ func TestGoReflectCustomNaming(t *testing.T) {
 		}
 	})
 
+	t.Run("test json stringify, omitempty", func(t *testing.T) {
+		const SCRIPT = `
+			var o = fn();
+			JSON.stringify(o)
+		`
+		v, err := r.RunString(SCRIPT)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const expected = `{"b":"Hello universe"}`
+		if !v.StrictEquals(asciiString(expected)) {
+			t.Fatalf("Expected %q, got %v", expected, v)
+		}
+
+	})
+
 	t.Run("set property_notempty", func(t *testing.T) {
 		_, err := r.RunString(`fn().c_int = 6`)
 		if err != nil {
@@ -644,6 +660,22 @@ func TestGoReflectCustomNaming(t *testing.T) {
 		}
 		if !v.StrictEquals(valueTrue) {
 			t.Fatalf("Expected true, got %v", v)
+		}
+
+	})
+
+	t.Run("test json stringify, not empty", func(t *testing.T) {
+		const SCRIPT = `
+			var o = fn();
+			JSON.stringify(o)
+		`
+		v, err := r.RunString(SCRIPT)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const expected = `{"b":"Hello universe","c_int":6}`
+		if !v.StrictEquals(asciiString(expected)) {
+			t.Fatalf("Expected %q, got %v", expected, v)
 		}
 
 	})
