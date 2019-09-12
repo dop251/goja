@@ -487,14 +487,14 @@ func TestGoReflectEmbeddedStruct(t *testing.T) {
 
 type jsonTagNamer struct{}
 
-func (*jsonTagNamer) FieldName(t reflect.Type, field reflect.StructField) string {
+func (jsonTagNamer) FieldName(t reflect.Type, field reflect.StructField) string {
 	if jsonTag := field.Tag.Get("json"); jsonTag != "" {
 		return jsonTag
 	}
 	return field.Name
 }
 
-func (*jsonTagNamer) MethodName(t reflect.Type, method reflect.Method) string {
+func (jsonTagNamer) MethodName(t reflect.Type, method reflect.Method) string {
 	return method.Name
 }
 
@@ -724,6 +724,69 @@ func TestFieldOverriding(t *testing.T) {
 	vm.Set("o", &o)
 
 	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDefinePropertyUnexportedJsName(t *testing.T) {
+	type T struct {
+		Field      int
+		unexported int
+	}
+
+	vm := New()
+	vm.SetFieldNameMapper(fieldNameMapper1{})
+	vm.Set("f", &T{})
+
+	_, err := vm.RunString(`
+	"use strict";
+	Object.defineProperty(f, "field", {value: 42});
+	if (f.field !== 42) {
+		throw new Error("Unexpected value: " + f.field);
+	}
+	if (f.hasOwnProperty("unexported")) {
+		throw new Error("hasOwnProporty('unexported') is true");
+	}
+	var thrown;
+	try {
+		Object.defineProperty(f, "unexported", {value: 1});
+	} catch (e) {
+		thrown = e;
+	}
+	if (!(thrown instanceof TypeError)) {
+		throw new Error("Unexpected error: ", thrown);
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+type fieldNameMapperToLower struct{}
+
+func (fieldNameMapperToLower) FieldName(t reflect.Type, f reflect.StructField) string {
+	return strings.ToLower(f.Name)
+}
+
+func (fieldNameMapperToLower) MethodName(t reflect.Type, m reflect.Method) string {
+	return strings.ToLower(m.Name)
+}
+
+func TestHasOwnPropertyUnexportedJsName(t *testing.T) {
+	vm := New()
+	vm.SetFieldNameMapper(fieldNameMapperToLower{})
+	vm.Set("f", &testGoReflectMethod_O{})
+
+	_, err := vm.RunString(`
+	"use strict";
+	if (!f.hasOwnProperty("test")) {
+		throw new Error("hasOwnProperty('test') returned false");
+	}
+	if (!f.hasOwnProperty("method")) {
+		throw new Error("hasOwnProperty('method') returned false");
+	}
+	`)
 	if err != nil {
 		t.Fatal(err)
 	}
