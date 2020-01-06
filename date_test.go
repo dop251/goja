@@ -95,7 +95,7 @@ func TestNewDate0(t *testing.T) {
 	(new Date(0)).toUTCString();
 
 	`
-	testScript1(SCRIPT, asciiString("Thu Jan 01 1970 00:00:00 GMT+0000 (UTC)"), t)
+	testScript1(SCRIPT, asciiString("Thu, 01 Jan 1970 00:00:00 GMT"), t)
 }
 
 func TestSetHour(t *testing.T) {
