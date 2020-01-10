@@ -313,6 +313,10 @@ func (vm *vm) Interrupt(v interface{}) {
 	vm.interruptLock.Unlock()
 }
 
+func (vm *vm) ClearInterrupt() {
+	atomic.StoreUint32(&vm.interrupted, 0)
+}
+
 func (vm *vm) captureStack(stack []stackFrame, ctxOffset int) []stackFrame {
 	// Unroll the context stack
 	stack = append(stack, stackFrame{prg: vm.prg, pc: vm.pc, funcName: vm.funcName})

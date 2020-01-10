@@ -915,8 +915,20 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 
 // Interrupt a running JavaScript. The corresponding Go call will return an *InterruptedError containing v.
 // Note, it only works while in JavaScript code, it does not interrupt native Go functions (which includes all built-ins).
+// If the runtime is currently not running, it will be immediately interrupted on the next Run*() call.
+// To avoid that use ClearInterrupt()
 func (r *Runtime) Interrupt(v interface{}) {
 	r.vm.Interrupt(v)
+}
+
+// ClearInterrupt resets the interrupt flag. Typically this needs to be called before the runtime
+// is made available for re-use if there is a chance it could have been interrupted with Interrupt().
+// Otherwise if Interrupt() was called when runtime was not running (e.g. if it had already finished)
+// so that Interrupt() didn't actually trigger, an attempt to use the runtime will immediately cause
+// an interruption. It is up to the user to ensure proper synchronisation so that ClearInterrupt() is
+// only called when the runtime has finished and there is no chance of a concurrent Interrupt() call.
+func (r *Runtime) ClearInterrupt() {
+	r.vm.ClearInterrupt()
 }
 
 /*
