@@ -1277,6 +1277,21 @@ func TestInf(t *testing.T) {
 	}
 }
 
+func TestRuntimeNew(t *testing.T) {
+	vm := New()
+	v, err := vm.New(vm.Get("Number"), vm.ToValue("12345"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, ok := v.Export().(int64); ok {
+		if n != 12345 {
+			t.Fatalf("n: %v", n)
+		}
+	} else {
+		t.Fatalf("v: %T", v)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
