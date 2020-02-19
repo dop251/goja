@@ -30,6 +30,32 @@ var (
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
 	}
+
+	es6WhiteList = map[string]bool{
+		"test/annexB/built-ins/escape/empty-string.js":      true,
+		"test/annexB/built-ins/escape/escape-above.js":      true,
+		"test/annexB/built-ins/escape/escape-below.js":      true,
+		"test/annexB/built-ins/escape/length.js":            true,
+		"test/annexB/built-ins/escape/name.js":              true,
+		"test/annexB/built-ins/escape/to-string-err.js":     true,
+		"test/annexB/built-ins/escape/to-string-observe.js": true,
+		"test/annexB/built-ins/escape/unmodified.js":        true,
+
+		"test/annexB/built-ins/unescape/empty-string.js":        true,
+		"test/annexB/built-ins/unescape/four.js":                true,
+		"test/annexB/built-ins/unescape/four-ignore-bad-u.js":   true,
+		"test/annexB/built-ins/unescape/four-ignore-end-str.js": true,
+		"test/annexB/built-ins/unescape/four-ignore-non-hex.js": true,
+		"test/annexB/built-ins/unescape/length.js":              true,
+		"test/annexB/built-ins/unescape/name.js":                true,
+		"test/annexB/built-ins/unescape/to-string-err.js":       true,
+		"test/annexB/built-ins/unescape/to-string-observe.js":   true,
+		"test/annexB/built-ins/unescape/two.js":                 true,
+		"test/annexB/built-ins/unescape/two-ignore-end-str.js":  true,
+		"test/annexB/built-ins/unescape/two-ignore-non-hex.js":  true,
+	}
+
+	es6IdWhiteList = []string{}
 )
 
 type tc39Test struct {
@@ -165,8 +191,23 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		return
 	}
 	if meta.Es5id == "" {
+		skip := true
 		//t.Logf("%s: Not ES5, skipped", name)
-		t.Skip("Not ES5")
+		if es6WhiteList[name] {
+			skip = false
+		} else {
+			if meta.Es6id != "" {
+				for _, prefix := range es6IdWhiteList {
+					if strings.HasPrefix(meta.Es6id, prefix) {
+						skip = false
+						break
+					}
+				}
+			}
+		}
+		if skip {
+			t.Skip("Not ES5")
+		}
 	}
 
 	hasRaw := meta.hasFlag("raw")
@@ -318,6 +359,8 @@ func TestTC39(t *testing.T) {
 	ctx.runTC39Tests("test/language/white-space")
 	ctx.runTC39Tests("test/built-ins")
 	ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
+	ctx.runTC39Tests("test/annexB/built-ins/escape")
+	ctx.runTC39Tests("test/annexB/built-ins/unescape")
 
 	ctx.flush()
 }
