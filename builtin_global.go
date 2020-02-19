@@ -1,11 +1,13 @@
 package goja
 
 import (
+	hex2 "encoding/hex"
 	"errors"
 	"io"
 	"math"
 	"regexp"
 	"strconv"
+	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
 )
@@ -233,6 +235,90 @@ func (r *Runtime) builtin_encodeURIComponent(call FunctionCall) Value {
 	return r._encode(uriString, &uriUnescaped)
 }
 
+func (r *Runtime) builtin_escape(call FunctionCall) Value {
+	arg := call.Argument(0).ToString()
+	return builtin_escape(arg.String())
+}
+
+func (r *Runtime) builtin_unescape(call FunctionCall) Value {
+	arg := call.Argument(0).ToString()
+	return builtin_unescape(arg.String())
+}
+
+// builtin_shouldEscape is copied from https://github.com/robertkrimen/otto/blob/master/builtin.go
+func builtin_shouldEscape(chr byte) bool {
+	if 'A' <= chr && chr <= 'Z' || 'a' <= chr && chr <= 'z' || '0' <= chr && chr <= '9' {
+		return false
+	}
+	return !strings.ContainsRune("@*_+-./", rune(chr))
+}
+
+const escapeBase16 = "0123456789ABCDEF"
+
+// builtin_escape is copied from https://github.com/robertkrimen/otto/blob/master/builtin.go
+func builtin_escape(input string) valueString {
+	output := make([]byte, 0, len(input))
+	length := len(input)
+	for index := 0; index < length; {
+		if builtin_shouldEscape(input[index]) {
+			chr, width := utf8.DecodeRuneInString(input[index:])
+			chr16 := utf16.Encode([]rune{chr})[0]
+			if 256 > chr16 {
+				output = append(output, '%',
+					escapeBase16[chr16>>4],
+					escapeBase16[chr16&15],
+				)
+			} else {
+				output = append(output, '%', 'u',
+					escapeBase16[chr16>>12],
+					escapeBase16[(chr16>>8)&15],
+					escapeBase16[(chr16>>4)&15],
+					escapeBase16[chr16&15],
+				)
+			}
+			index += width
+
+		} else {
+			output = append(output, input[index])
+			index += 1
+		}
+	}
+	return asciiString(output)
+}
+
+// builtin_escape is copied from https://github.com/robertkrimen/otto/blob/master/builtin.go
+func builtin_unescape(input string) valueString {
+	output := make([]rune, 0, len(input))
+	length := len(input)
+	for index := 0; index < length; {
+		if input[index] == '%' {
+			if index <= length-6 && input[index+1] == 'u' {
+				byte16, err := hex2.DecodeString(input[index+2 : index+6])
+				if err == nil {
+					value := uint16(byte16[0])<<8 + uint16(byte16[1])
+					chr := utf16.Decode([]uint16{value})[0]
+					output = append(output, chr)
+					index += 6
+					continue
+				}
+			}
+			if index <= length-3 {
+				byte8, err := hex2.DecodeString(input[index+1 : index+3])
+				if err == nil {
+					value := uint16(byte8[0])
+					chr := utf16.Decode([]uint16{value})[0]
+					output = append(output, chr)
+					index += 3
+					continue
+				}
+			}
+		}
+		output = append(output, rune(input[index]))
+		index += 1
+	}
+	return asciiString(output)
+}
+
 func (r *Runtime) initGlobalObject() {
 	o := r.globalObject.self
 	o._putProp("NaN", _NaN, false, false, false)
@@ -247,6 +333,8 @@ func (r *Runtime) initGlobalObject() {
 	o._putProp("decodeURIComponent", r.newNativeFunc(r.builtin_decodeURIComponent, nil, "decodeURIComponent", nil, 1), true, false, true)
 	o._putProp("encodeURI", r.newNativeFunc(r.builtin_encodeURI, nil, "encodeURI", nil, 1), true, false, true)
 	o._putProp("encodeURIComponent", r.newNativeFunc(r.builtin_encodeURIComponent, nil, "encodeURIComponent", nil, 1), true, false, true)
+	o._putProp("escape", r.newNativeFunc(r.builtin_escape, nil, "escape", nil, 1), true, false, true)
+	o._putProp("unescape", r.newNativeFunc(r.builtin_unescape, nil, "unescape", nil, 1), true, false, true)
 
 	o._putProp("toString", r.newNativeFunc(func(FunctionCall) Value {
 		return stringGlobalObject
