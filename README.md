@@ -15,7 +15,7 @@ Features
 
  * Full ECMAScript 5.1 support (yes, including regex and strict mode).
  * Passes nearly all [tc39 tests](https://github.com/tc39/test262) tagged with es5id. The goal is to pass all of them. Note, the last working commit is https://github.com/tc39/test262/commit/1ba3a7c4a93fc93b3d0d7e4146f59934a896837d. The next commit made use of template strings which goja does not support.
- * Capable of running Babel, Typescript compiler and pretty much anything written in ES5.
+ * Capable of running Babel (up to v7), Typescript compiler and pretty much anything written in ES5.
  * Sourcemaps.
  
 FAQ
@@ -59,7 +59,7 @@ and it includes an event loop.
 
 It's very unlikely that I will be adding new functionality any time soon. It don't have enough time 
 for adding full ES6 support and I don't want to end up with something that is stuck in between ES5 and ES6.
-Most of the new features are available through shims and transpilers. Goja can run Babel and any
+Most of the new features are available through shims and transpilers. Goja can run Babel (up to v7) and any
 other transpiler as long as it's written in ES5. You can even add a wrapper that will do the translation
 on the fly. Sourcemaps are supported.
 
