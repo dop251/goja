@@ -1292,6 +1292,34 @@ func TestRuntimeNew(t *testing.T) {
 	}
 }
 
+func TestAutoBoxing(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		'use strict';
+		var a = 1;
+		var thrown1 = false;
+		var thrown2 = false;
+		try {
+			a.test = 42;
+		} catch (e) {
+			thrown1 = e instanceof TypeError;
+		}
+		try {
+			a["test1"] = 42;
+		} catch (e) {
+			thrown2 = e instanceof TypeError;
+		}
+		return thrown1 && thrown2;
+	}
+	var a = 1;
+	a.test = 42; // should not throw
+	a["test1"] = 42; // should not throw
+	a.test === undefined && a.test1 === undefined && f();
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
