@@ -16,6 +16,7 @@ var (
 	stringFunction     valueString = asciiString("function")
 	stringBoolean      valueString = asciiString("boolean")
 	stringString       valueString = asciiString("string")
+	stringSymbol       valueString = asciiString("symbol")
 	stringNumber       valueString = asciiString("number")
 	stringNaN          valueString = asciiString("NaN")
 	stringInfinity                 = asciiString("Infinity")
@@ -116,7 +117,7 @@ func (s *stringObject) getProp(n Value) Value {
 	return s.baseObject.getProp(n)
 }
 
-func (s *stringObject) getOwnProp(name string) Value {
+func (s *stringObject) getOwnPropStr(name string) Value {
 	if i := strToIdx(name); i >= 0 && i < s.length {
 		val := s.getIdx(i)
 		return &valueProperty{
@@ -125,7 +126,7 @@ func (s *stringObject) getOwnProp(name string) Value {
 		}
 	}
 
-	return s.baseObject.getOwnProp(name)
+	return s.baseObject.getOwnPropStr(name)
 }
 
 func (s *stringObject) getIdx(idx int64) Value {

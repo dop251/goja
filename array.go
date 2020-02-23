@@ -129,6 +129,9 @@ func toIdx(v Value) (idx int64) {
 	if idxVal, ok1 := v.(valueInt); ok1 {
 		idx = int64(idxVal)
 	} else {
+		if _, ok := v.(*valueSymbol); ok {
+			return -1
+		}
 		if i, err := strconv.ParseInt(v.String(), 10, 64); err == nil {
 			idx = i
 		}
@@ -155,9 +158,10 @@ func (a *arrayObject) getProp(n Value) Value {
 	if idx := toIdx(n); idx >= 0 {
 		return a.getIdx(idx, "", n)
 	}
-
-	if n.String() == "length" {
-		return a.getLengthProp()
+	if _, ok := n.(*valueSymbol); !ok {
+		if n.String() == "length" {
+			return a.getLengthProp()
+		}
 	}
 	return a.baseObject.getProp(n)
 }
@@ -177,7 +181,7 @@ func (a *arrayObject) getPropStr(name string) Value {
 	return a.baseObject.getPropStr(name)
 }
 
-func (a *arrayObject) getOwnProp(name string) Value {
+func (a *arrayObject) getOwnPropStr(name string) Value {
 	if i := strToIdx(name); i >= 0 {
 		if i >= 0 && i < int64(len(a.values)) {
 			return a.values[i]
@@ -186,7 +190,7 @@ func (a *arrayObject) getOwnProp(name string) Value {
 	if name == "length" {
 		return a.getLengthProp()
 	}
-	return a.baseObject.getOwnProp(name)
+	return a.baseObject.getOwnPropStr(name)
 }
 
 func (a *arrayObject) putIdx(idx int64, val Value, throw bool, origNameStr string, origName Value) {

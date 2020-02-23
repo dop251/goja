@@ -366,6 +366,10 @@ func (vm *vm) try(f func()) (ex *Exception) {
 				panic(x1)
 			case *Exception:
 				ex = x1
+			case typeError:
+				ex = &Exception{
+					val: vm.r.NewTypeError(string(x1)),
+				}
 			default:
 				/*
 					if vm.prg != nil {
@@ -2299,6 +2303,8 @@ func (_typeof) exec(vm *vm) {
 		r = stringString
 	case valueInt, valueFloat:
 		r = stringNumber
+	case *valueSymbol:
+		r = stringSymbol
 	default:
 		panic(fmt.Errorf("Unknown type: %T", v))
 	}

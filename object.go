@@ -1,6 +1,9 @@
 package goja
 
-import "reflect"
+import (
+	"fmt"
+	"reflect"
+)
 
 const (
 	classObject   = "Object"
@@ -36,7 +39,8 @@ type objectImpl interface {
 	getProp(Value) Value
 	getPropStr(string) Value
 	getStr(string) Value
-	getOwnProp(string) Value
+	getOwnProp(Value) Value
+	getOwnPropStr(string) Value
 	put(Value, Value, bool)
 	putStr(string, Value, bool)
 	hasProperty(Value) bool
@@ -70,6 +74,8 @@ type baseObject struct {
 
 	values    map[string]Value
 	propNames []string
+
+	symValues map[*valueSymbol]Value
 }
 
 type primitiveValueObject struct {
@@ -118,7 +124,7 @@ func (o *baseObject) className() string {
 }
 
 func (o *baseObject) getPropStr(name string) Value {
-	if val := o.getOwnProp(name); val != nil {
+	if val := o.getOwnPropStr(name); val != nil {
 		return val
 	}
 	if o.prototype != nil {
@@ -127,7 +133,20 @@ func (o *baseObject) getPropStr(name string) Value {
 	return nil
 }
 
+func (o *baseObject) getPropSym(s *valueSymbol) Value {
+	if val := o.symValues[s]; val != nil {
+		return val
+	}
+	if o.prototype != nil {
+		return o.prototype.self.getProp(s)
+	}
+	return nil
+}
+
 func (o *baseObject) getProp(n Value) Value {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.getPropSym(s)
+	}
 	return o.val.self.getPropStr(n.String())
 }
 
@@ -140,7 +159,7 @@ func (o *baseObject) hasPropertyStr(name string) bool {
 }
 
 func (o *baseObject) _getStr(name string) Value {
-	p := o.getOwnProp(name)
+	p := o.getOwnPropStr(name)
 
 	if p == nil && o.prototype != nil {
 		p = o.prototype.self.getPropStr(name)
@@ -162,7 +181,19 @@ func (o *baseObject) getStr(name string) Value {
 	return p
 }
 
+func (o *baseObject) getSym(s *valueSymbol) Value {
+	p := o.getPropSym(s)
+	if p, ok := p.(*valueProperty); ok {
+		return p.get(o.val)
+	}
+
+	return p
+}
+
 func (o *baseObject) get(n Value) Value {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.getSym(s)
+	}
 	return o.getStr(n.String())
 }
 
@@ -198,25 +229,48 @@ func (o *baseObject) deleteStr(name string, throw bool) bool {
 			return false
 		}
 		o._delete(name)
-		return true
+	}
+	return true
+}
+
+func (o *baseObject) deleteSym(s *valueSymbol, throw bool) bool {
+	if val, exists := o.symValues[s]; exists {
+		if !o.checkDelete(s.String(), val, throw) {
+			return false
+		}
+		delete(o.symValues, s)
 	}
 	return true
 }
 
 func (o *baseObject) delete(n Value, throw bool) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.deleteSym(s, throw)
+	}
 	return o.deleteStr(n.String(), throw)
 }
 
 func (o *baseObject) put(n Value, val Value, throw bool) {
+	if s, ok := n.(*valueSymbol); ok {
+		o.putSym(s, val, throw)
+	}
 	o.putStr(n.String(), val, throw)
 }
 
-func (o *baseObject) getOwnProp(name string) Value {
+func (o *baseObject) getOwnPropStr(name string) Value {
 	v := o.values[name]
 	if v == nil && name == "__proto" {
 		return o.prototype
 	}
 	return v
+}
+
+func (o *baseObject) getOwnProp(name Value) Value {
+	if s, ok := name.(*valueSymbol); ok {
+		return o.symValues[s]
+	}
+
+	return o.val.self.getOwnPropStr(name.String())
 }
 
 func (o *baseObject) putStr(name string, val Value, throw bool) {
@@ -276,7 +330,54 @@ func (o *baseObject) putStr(name string, val Value, throw bool) {
 	o.propNames = append(o.propNames, name)
 }
 
+func (o *baseObject) putSym(s *valueSymbol, val Value, throw bool) {
+	if v, exists := o.symValues[s]; exists {
+		if prop, ok := v.(*valueProperty); ok {
+			if !prop.isWritable() {
+				o.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", s.String())
+				return
+			}
+			prop.set(o.val, val)
+			return
+		}
+		o.symValues[s] = val
+		return
+	}
+
+	var pprop Value
+	if proto := o.prototype; proto != nil {
+		pprop = proto.self.getProp(s)
+	}
+
+	if pprop != nil {
+		if prop, ok := pprop.(*valueProperty); ok {
+			if !prop.isWritable() {
+				o.val.runtime.typeErrorResult(throw)
+				return
+			}
+			if prop.accessor {
+				prop.set(o.val, val)
+				return
+			}
+		}
+	} else {
+		if !o.extensible {
+			o.val.runtime.typeErrorResult(throw)
+			return
+		}
+	}
+
+	if o.symValues == nil {
+		o.symValues = make(map[*valueSymbol]Value, 1)
+	}
+	o.symValues[s] = val
+}
+
 func (o *baseObject) hasOwnProperty(n Value) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		_, exists := o.symValues[s]
+		return exists
+	}
 	v := o.values[n.String()]
 	return v != nil
 }
@@ -390,6 +491,17 @@ Reject:
 }
 
 func (o *baseObject) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		existingVal := o.symValues[s]
+		if v, ok := o._defineOwnProperty(n, existingVal, descr, throw); ok {
+			if o.symValues == nil {
+				o.symValues = make(map[*valueSymbol]Value, 1)
+			}
+			o.symValues[s] = v
+			return true
+		}
+		return false
+	}
 	name := n.String()
 	existingVal := o.values[name]
 	if v, ok := o._defineOwnProperty(n, existingVal, descr, throw); ok {
@@ -410,20 +522,45 @@ func (o *baseObject) _put(name string, v Value) {
 	o.values[name] = v
 }
 
-func (o *baseObject) _putProp(name string, value Value, writable, enumerable, configurable bool) Value {
+func valueProp(value Value, writable, enumerable, configurable bool) Value {
 	if writable && enumerable && configurable {
-		o._put(name, value)
 		return value
-	} else {
-		p := &valueProperty{
-			value:        value,
-			writable:     writable,
-			enumerable:   enumerable,
-			configurable: configurable,
-		}
-		o._put(name, p)
-		return p
 	}
+	return &valueProperty{
+		value:        value,
+		writable:     writable,
+		enumerable:   enumerable,
+		configurable: configurable,
+	}
+}
+
+func (o *baseObject) _putProp(name string, value Value, writable, enumerable, configurable bool) Value {
+	prop := valueProp(value, writable, enumerable, configurable)
+	o._put(name, prop)
+	return prop
+}
+
+func toMethod(v Value) func(FunctionCall) Value {
+	if v == nil || IsUndefined(v) || IsNull(v) {
+		return nil
+	}
+	if obj, ok := v.(*Object); ok {
+		if call, ok := obj.self.assertCallable(); ok {
+			return call
+		}
+	}
+	panic(typeError(fmt.Sprintf("%s is not a method", v.String())))
+}
+
+func (o *baseObject) tryExoticToPrimitive(hint string) Value {
+	exoticToPrimitive := toMethod(o.getSym(symToPrimitive))
+	if exoticToPrimitive != nil {
+		return exoticToPrimitive(FunctionCall{
+			This:      o.val,
+			Arguments: []Value{newStringValue(hint)},
+		})
+	}
+	return nil
 }
 
 func (o *baseObject) tryPrimitive(methodName string) Value {
@@ -441,6 +578,10 @@ func (o *baseObject) tryPrimitive(methodName string) Value {
 }
 
 func (o *baseObject) toPrimitiveNumber() Value {
+	if v := o.tryExoticToPrimitive("number"); v != nil {
+		return v
+	}
+
 	if v := o.tryPrimitive("valueOf"); v != nil {
 		return v
 	}
@@ -454,6 +595,10 @@ func (o *baseObject) toPrimitiveNumber() Value {
 }
 
 func (o *baseObject) toPrimitiveString() Value {
+	if v := o.tryExoticToPrimitive("string"); v != nil {
+		return v
+	}
+
 	if v := o.tryPrimitive("toString"); v != nil {
 		return v
 	}

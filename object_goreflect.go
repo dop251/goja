@@ -127,22 +127,14 @@ func (o *objectGoReflect) getStr(name string) Value {
 	return o.baseObject._getStr(name)
 }
 
-func (o *objectGoReflect) getProp(n Value) Value {
-	name := n.String()
-	if p := o.getOwnProp(name); p != nil {
-		return p
-	}
-	return o.baseObject.getOwnProp(name)
-}
-
 func (o *objectGoReflect) getPropStr(name string) Value {
-	if v := o.getOwnProp(name); v != nil {
+	if v := o.getOwnPropStr(name); v != nil {
 		return v
 	}
 	return o.baseObject.getPropStr(name)
 }
 
-func (o *objectGoReflect) getOwnProp(name string) Value {
+func (o *objectGoReflect) getOwnPropStr(name string) Value {
 	if o.value.Kind() == reflect.Struct {
 		if v := o._getField(name); v.IsValid() {
 			return &valueProperty{
@@ -164,6 +156,10 @@ func (o *objectGoReflect) getOwnProp(name string) Value {
 }
 
 func (o *objectGoReflect) put(n Value, val Value, throw bool) {
+	if _, ok := n.(*valueSymbol); ok {
+		o.val.runtime.typeErrorResult(throw, "Cannot assign to Symbol property %s of a host object", n.String())
+		return
+	}
 	o.putStr(n.String(), val, throw)
 }
 
@@ -199,40 +195,46 @@ func (o *objectGoReflect) _putProp(name string, value Value, writable, enumerabl
 	return o.baseObject._putProp(name, value, writable, enumerable, configurable)
 }
 
-func (r *Runtime) checkHostObjectPropertyDescr(name string, descr propertyDescr, throw bool) bool {
+func (r *Runtime) checkHostObjectPropertyDescr(n Value, descr propertyDescr, throw bool) bool {
+	if _, ok := n.(*valueSymbol); ok {
+		r.typeErrorResult(throw, "Host objects do not support symbol properties")
+		return false
+	}
 	if descr.Getter != nil || descr.Setter != nil {
 		r.typeErrorResult(throw, "Host objects do not support accessor properties")
 		return false
 	}
 	if descr.Writable == FLAG_FALSE {
-		r.typeErrorResult(throw, "Host object field %s cannot be made read-only", name)
+		r.typeErrorResult(throw, "Host object field %s cannot be made read-only", n.String())
 		return false
 	}
 	if descr.Configurable == FLAG_TRUE {
-		r.typeErrorResult(throw, "Host object field %s cannot be made configurable", name)
+		r.typeErrorResult(throw, "Host object field %s cannot be made configurable", n.String())
 		return false
 	}
 	return true
 }
 
 func (o *objectGoReflect) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
-	if o.value.Kind() == reflect.Struct {
-		name := n.String()
-		if v := o._getField(name); v.IsValid() {
-			if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
-				return false
+	if _, ok := n.(*valueSymbol); !ok {
+		if o.value.Kind() == reflect.Struct {
+			name := n.String()
+			if v := o._getField(name); v.IsValid() {
+				if !o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) {
+					return false
+				}
+				val := descr.Value
+				if val == nil {
+					val = _undefined
+				}
+				vv, err := o.val.runtime.toReflectValue(val, v.Type())
+				if err != nil {
+					o.val.runtime.typeErrorResult(throw, "Go struct conversion error: %v", err)
+					return false
+				}
+				v.Set(vv)
+				return true
 			}
-			val := descr.Value
-			if val == nil {
-				val = _undefined
-			}
-			vv, err := o.val.runtime.toReflectValue(val, v.Type())
-			if err != nil {
-				o.val.runtime.typeErrorResult(throw, "Go struct conversion error: %v", err)
-				return false
-			}
-			v.Set(vv)
-			return true
 		}
 	}
 

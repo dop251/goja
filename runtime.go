@@ -36,6 +36,7 @@ type global struct {
 	Boolean  *Object
 	RegExp   *Object
 	Date     *Object
+	Symbol   *Object
 
 	ArrayBuffer *Object
 
@@ -57,6 +58,7 @@ type global struct {
 	FunctionPrototype *Object
 	RegExpPrototype   *Object
 	DatePrototype     *Object
+	SymbolPrototype   *Object
 
 	ArrayBufferPrototype *Object
 
@@ -106,6 +108,8 @@ type Runtime struct {
 	rand            RandSource
 	now             Now
 	_collator       *collate.Collator
+
+	symbolRegistry map[string]*valueSymbol
 
 	typeInfoCache   map[reflect.Type]*reflectTypeInfo
 	fieldNameMapper FieldNameMapper
@@ -269,6 +273,7 @@ func (r *Runtime) init() {
 	r.initJSON()
 
 	//r.initTypedArrays()
+	r.initSymbol()
 
 	r.global.thrower = r.newNativeFunc(r.builtin_thrower, nil, "thrower", nil, 0)
 	r.global.throwerProperty = &valueProperty{

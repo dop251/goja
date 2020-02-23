@@ -74,7 +74,7 @@ func (o *objectGoSlice) getPropStr(name string) Value {
 	return o.baseObject.getPropStr(name)
 }
 
-func (o *objectGoSlice) getOwnProp(name string) Value {
+func (o *objectGoSlice) getOwnPropStr(name string) Value {
 	if v := o._getStr(name); v != nil {
 		return &valueProperty{
 			value:      v,
@@ -82,7 +82,7 @@ func (o *objectGoSlice) getOwnProp(name string) Value {
 			enumerable: true,
 		}
 	}
-	return o.baseObject.getOwnProp(name)
+	return o.baseObject.getOwnPropStr(name)
 }
 
 func (o *objectGoSlice) grow(size int64) {
@@ -189,7 +189,7 @@ func (o *objectGoSlice) _putProp(name string, value Value, writable, enumerable,
 
 func (o *objectGoSlice) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
 	if idx := toIdx(n); idx >= 0 {
-		if !o.val.runtime.checkHostObjectPropertyDescr(n.String(), descr, throw) {
+		if !o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) {
 			return false
 		}
 		val := descr.Value

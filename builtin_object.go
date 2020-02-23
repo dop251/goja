@@ -25,7 +25,7 @@ func (r *Runtime) object_getPrototypeOf(call FunctionCall) Value {
 
 func (r *Runtime) object_getOwnPropertyDescriptor(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
-	propName := call.Argument(1).String()
+	propName := call.Argument(1)
 	desc := obj.self.getOwnProp(propName)
 	if desc == nil {
 		return _undefined
@@ -188,7 +188,7 @@ func (r *Runtime) object_seal(call FunctionCall) Value {
 			Configurable: FLAG_FALSE,
 		}
 		for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
-			v := obj.self.getOwnProp(item.name)
+			v := obj.self.getOwnPropStr(item.name)
 			if prop, ok := v.(*valueProperty); ok {
 				if !prop.configurable {
 					continue
@@ -215,7 +215,7 @@ func (r *Runtime) object_freeze(call FunctionCall) Value {
 			Configurable: FLAG_FALSE,
 		}
 		for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
-			v := obj.self.getOwnProp(item.name)
+			v := obj.self.getOwnPropStr(item.name)
 			if prop, ok := v.(*valueProperty); ok {
 				prop.configurable = false
 				if prop.value != nil {
@@ -252,7 +252,7 @@ func (r *Runtime) object_isSealed(call FunctionCall) Value {
 			return valueFalse
 		}
 		for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
-			prop := obj.self.getOwnProp(item.name)
+			prop := obj.self.getOwnPropStr(item.name)
 			if prop, ok := prop.(*valueProperty); ok {
 				if prop.configurable {
 					return valueFalse
@@ -275,7 +275,7 @@ func (r *Runtime) object_isFrozen(call FunctionCall) Value {
 			return valueFalse
 		}
 		for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
-			prop := obj.self.getOwnProp(item.name)
+			prop := obj.self.getOwnPropStr(item.name)
 			if prop, ok := prop.(*valueProperty); ok {
 				if prop.configurable || prop.value != nil && prop.writable {
 					return valueFalse
@@ -321,9 +321,9 @@ func (r *Runtime) object_keys(call FunctionCall) Value {
 }
 
 func (r *Runtime) objectproto_hasOwnProperty(call FunctionCall) Value {
-	p := call.Argument(0).String()
+	p := call.Argument(0)
 	o := call.This.ToObject(r)
-	if o.self.hasOwnPropertyStr(p) {
+	if o.self.hasOwnProperty(p) {
 		return valueTrue
 	} else {
 		return valueFalse
@@ -347,9 +347,9 @@ func (r *Runtime) objectproto_isPrototypeOf(call FunctionCall) Value {
 }
 
 func (r *Runtime) objectproto_propertyIsEnumerable(call FunctionCall) Value {
-	p := call.Argument(0).ToString()
+	p := call.Argument(0)
 	o := call.This.ToObject(r)
-	pv := o.self.getOwnProp(p.String())
+	pv := o.self.getOwnProp(p)
 	if pv == nil {
 		return valueFalse
 	}

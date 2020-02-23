@@ -27,6 +27,10 @@ func (a *argumentsObject) init() {
 }
 
 func (a *argumentsObject) put(n Value, val Value, throw bool) {
+	if s, ok := n.(*valueSymbol); ok {
+		a.putSym(s, val, throw)
+		return
+	}
 	a.putStr(n.String(), val, throw)
 }
 
@@ -55,13 +59,10 @@ func (a *argumentsObject) deleteStr(name string, throw bool) bool {
 }
 
 func (a *argumentsObject) delete(n Value, throw bool) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return a.deleteSym(s, throw)
+	}
 	return a.deleteStr(n.String(), throw)
-}
-
-type argumentsPropIter1 struct {
-	a         *argumentsObject
-	idx       int
-	recursive bool
 }
 
 type argumentsPropIter struct {
@@ -94,6 +95,9 @@ func (a *argumentsObject) enumerate(all, recursive bool) iterNextFunc {
 }
 
 func (a *argumentsObject) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
+	if _, ok := n.(*valueSymbol); ok {
+		return a.baseObject.defineOwnProperty(n, descr, throw)
+	}
 	name := n.String()
 	if mapped, ok := a.values[name].(*mappedProperty); ok {
 		existing := &valueProperty{
@@ -130,17 +134,17 @@ func (a *argumentsObject) defineOwnProperty(n Value, descr propertyDescr, throw 
 	return a.baseObject.defineOwnProperty(n, descr, throw)
 }
 
-func (a *argumentsObject) getOwnProp(name string) Value {
+func (a *argumentsObject) getOwnPropStr(name string) Value {
 	if mapped, ok := a.values[name].(*mappedProperty); ok {
 		return *mapped.v
 	}
 
-	return a.baseObject.getOwnProp(name)
+	return a.baseObject.getOwnPropStr(name)
 }
 
 func (a *argumentsObject) export() interface{} {
 	arr := make([]interface{}, a.length)
-	for i, _ := range arr {
+	for i := range arr {
 		v := a.get(intToValue(int64(i)))
 		if v != nil {
 			arr[i] = v.Export()

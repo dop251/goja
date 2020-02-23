@@ -32,6 +32,9 @@ var (
 	}
 
 	es6WhiteList = map[string]bool{
+		"test/built-ins/Symbol/auto-boxing-non-strict.js": true,
+		"test/built-ins/Symbol/auto-boxing-strict.js":     true,
+
 		"test/annexB/built-ins/escape/empty-string.js":      true,
 		"test/annexB/built-ins/escape/escape-above.js":      true,
 		"test/annexB/built-ins/escape/escape-below.js":      true,
@@ -340,6 +343,7 @@ func TestTC39(t *testing.T) {
 	ctx.init()
 
 	//ctx.runTC39File("test/language/types/number/8.5.1.js", t)
+	//ctx.runTC39Tests("test/built-ins/Symbol")
 	//ctx.runTC39Tests("test/language")
 	ctx.runTC39Tests("test/language/expressions")
 	ctx.runTC39Tests("test/language/arguments-object")

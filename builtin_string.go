@@ -20,15 +20,21 @@ func (r *Runtime) collator() *collate.Collator {
 	return collator
 }
 
+func toString(arg Value) valueString {
+	if s, ok := arg.assertString(); ok {
+		return s
+	}
+	if s, ok := arg.(*valueSymbol); ok {
+		return newStringValue(s.descString())
+	}
+	return arg.ToString()
+}
+
 func (r *Runtime) builtin_String(call FunctionCall) Value {
 	if len(call.Arguments) > 0 {
-		arg := call.Arguments[0]
-		if _, ok := arg.assertString(); ok {
-			return arg
-		}
-		return arg.ToString()
+		return toString(call.Arguments[0])
 	} else {
-		return newStringValue("")
+		return stringEmpty
 	}
 }
 
@@ -51,7 +57,7 @@ func (r *Runtime) _newString(s valueString) *Object {
 func (r *Runtime) builtin_newString(args []Value) *Object {
 	var s valueString
 	if len(args) > 0 {
-		s = args[0].ToString()
+		s = toString(args[0])
 	} else {
 		s = stringEmpty
 	}

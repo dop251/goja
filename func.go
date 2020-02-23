@@ -52,10 +52,6 @@ func (f *funcObject) addPrototype() Value {
 	return f._putProp("prototype", proto, true, false, false)
 }
 
-func (f *funcObject) getProp(n Value) Value {
-	return f.getPropStr(n.String())
-}
-
 func (f *funcObject) hasOwnProperty(n Value) bool {
 	if r := f.baseObject.hasOwnProperty(n); r {
 		return true
@@ -205,10 +201,6 @@ func (f *nativeFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
 	return nil, false
 }
 
-func (f *boundFuncObject) getProp(n Value) Value {
-	return f.getPropStr(n.String())
-}
-
 func (f *boundFuncObject) getPropStr(name string) Value {
 	if name == "caller" || name == "arguments" {
 		//f.runtime.typeErrorResult(true, "'caller' and 'arguments' are restricted function properties and cannot be accessed in this context.")
@@ -218,6 +210,9 @@ func (f *boundFuncObject) getPropStr(name string) Value {
 }
 
 func (f *boundFuncObject) delete(n Value, throw bool) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return f.deleteSym(s, throw)
+	}
 	return f.deleteStr(n.String(), throw)
 }
 
@@ -236,5 +231,9 @@ func (f *boundFuncObject) putStr(name string, val Value, throw bool) {
 }
 
 func (f *boundFuncObject) put(n Value, val Value, throw bool) {
+	if s, ok := n.(*valueSymbol); ok {
+		f.putSym(s, val, throw)
+		return
+	}
 	f.putStr(n.String(), val, throw)
 }
