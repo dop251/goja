@@ -2242,37 +2242,15 @@ func (_throw) exec(vm *vm) {
 type _new uint32
 
 func (n _new) exec(vm *vm) {
-	obj := vm.r.toObject(vm.stack[vm.sp-1-int(n)])
-repeat:
-	switch f := obj.self.(type) {
-	case *funcObject:
-		args := make([]Value, n)
-		copy(args, vm.stack[vm.sp-int(n):])
-		vm.sp -= int(n)
-		vm.stack[vm.sp-1] = f.construct(args)
-	case *nativeFuncObject:
-		vm._nativeNew(f, int(n))
-	case *boundFuncObject:
-		vm._nativeNew(&f.nativeFuncObject, int(n))
-	case *lazyObject:
-		obj.self = f.create(obj)
-		goto repeat
-	default:
-		vm.r.typeErrorResult(true, "Not a constructor")
-	}
-
-	vm.pc++
-}
-
-func (vm *vm) _nativeNew(f *nativeFuncObject, n int) {
-	if f.construct != nil {
-		args := make([]Value, n)
-		copy(args, vm.stack[vm.sp-n:])
-		vm.sp -= n
-		vm.stack[vm.sp-1] = f.construct(args)
+	sp := vm.sp - int(n)
+	obj := vm.r.toObject(vm.stack[sp-1])
+	if ctor := getConstructor(obj); ctor != nil {
+		vm.stack[sp-1] = ctor(vm.stack[sp:vm.sp])
+		vm.sp = sp
 	} else {
-		vm.r.typeErrorResult(true, "Not a constructor")
+		panic(vm.r.NewTypeError("Not a constructor"))
 	}
+	vm.pc++
 }
 
 type _typeof struct{}
