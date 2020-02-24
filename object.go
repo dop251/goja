@@ -64,6 +64,7 @@ type objectImpl interface {
 	export() interface{}
 	exportType() reflect.Type
 	equal(objectImpl) bool
+	getOwnSymbols() []Value
 }
 
 type baseObject struct {
@@ -764,7 +765,25 @@ func (o *baseObject) equal(other objectImpl) bool {
 	return false
 }
 
-func (o *baseObject) hasInstance(v Value) bool {
-	o.val.runtime.typeErrorResult(true, "Expecting a function in instanceof check, but got %s", o.val.ToString())
-	panic("Unreachable")
+func (o *baseObject) getOwnSymbols() (res []Value) {
+	for s := range o.symValues {
+		res = append(res, s)
+	}
+
+	return
+}
+
+func (o *baseObject) hasInstance(Value) bool {
+	panic(o.val.runtime.NewTypeError("Expecting a function in instanceof check, but got %s", o.val.ToString()))
+}
+
+func instanceOfOperator(o Value, c *Object) bool {
+	if instOfHandler := toMethod(c.self.get(symHasInstance)); instOfHandler != nil {
+		return instOfHandler(FunctionCall{
+			This:      c,
+			Arguments: []Value{o},
+		}).ToBoolean()
+	}
+
+	return c.self.hasInstance(o)
 }

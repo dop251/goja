@@ -2140,7 +2140,7 @@ func (_op_instanceof) exec(vm *vm) {
 	left := vm.stack[vm.sp-2]
 	right := vm.r.toObject(vm.stack[vm.sp-1])
 
-	if right.self.hasInstance(left) {
+	if instanceOfOperator(left, right) {
 		vm.stack[vm.sp-2] = valueTrue
 	} else {
 		vm.stack[vm.sp-2] = valueFalse

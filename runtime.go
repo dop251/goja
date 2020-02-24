@@ -608,30 +608,37 @@ func (r *Runtime) builtin_Error(args []Value, proto *Object) *Object {
 	return obj.val
 }
 
-func (r *Runtime) builtin_new(construct *Object, args []Value) *Object {
+func getConstructor(construct *Object) func(args []Value) *Object {
 repeat:
 	switch f := construct.self.(type) {
 	case *nativeFuncObject:
 		if f.construct != nil {
-			return f.construct(args)
+			return f.construct
 		} else {
-			panic("Not a constructor")
+			panic(construct.runtime.NewTypeError("Not a constructor"))
 		}
 	case *boundFuncObject:
 		if f.construct != nil {
-			return f.construct(args)
+			return f.construct
 		} else {
-			panic("Not a constructor")
+			panic(construct.runtime.NewTypeError("Not a constructor"))
 		}
 	case *funcObject:
-		// TODO: implement
-		panic("Not implemented")
+		return f.construct
 	case *lazyObject:
 		construct.self = f.create(construct)
 		goto repeat
-	default:
+	}
+
+	return nil
+}
+
+func (r *Runtime) builtin_new(construct *Object, args []Value) *Object {
+	f := getConstructor(construct)
+	if f == nil {
 		panic("Not a constructor")
 	}
+	return f(args)
 }
 
 func (r *Runtime) throw(e Value) {

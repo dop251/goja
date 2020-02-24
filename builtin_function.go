@@ -143,6 +143,7 @@ repeat:
 	ff := r.newNativeFuncObj(v, r.boundCallable(fcall, call.Arguments), r.boundConstruct(construct, call.Arguments), "", nil, l)
 	v.self = &boundFuncObject{
 		nativeFuncObject: *ff,
+		wrapped:          obj,
 	}
 
 	//ret := r.newNativeFunc(r.boundCallable(f, call.Arguments), nil, "", nil, l)

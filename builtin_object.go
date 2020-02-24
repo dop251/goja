@@ -83,6 +83,11 @@ func (r *Runtime) object_getOwnPropertyNames(call FunctionCall) Value {
 	return r.newArrayValues(values)
 }
 
+func (r *Runtime) object_getOwnPropertySymbols(call FunctionCall) Value {
+	obj := call.Argument(0).ToObject(r)
+	return r.newArrayValues(obj.self.getOwnSymbols())
+}
+
 func (r *Runtime) toPropertyDescr(v Value) (ret propertyDescr) {
 	if o, ok := v.(*Object); ok {
 		descr := o.self
@@ -200,6 +205,18 @@ func (r *Runtime) object_seal(call FunctionCall) Value {
 				//obj.self._putProp(item.name, v, true, true, false)
 			}
 		}
+		for _, sym := range obj.self.getOwnSymbols() {
+			v := obj.self.getOwnProp(sym)
+			if prop, ok := v.(*valueProperty); ok {
+				if !prop.configurable {
+					continue
+				}
+				prop.configurable = false
+			} else {
+				descr.Value = v
+				obj.self.defineOwnProperty(sym, descr, true)
+			}
+		}
 		obj.self.preventExtensions()
 		return obj
 	}
@@ -224,6 +241,18 @@ func (r *Runtime) object_freeze(call FunctionCall) Value {
 			} else {
 				descr.Value = v
 				obj.self.defineOwnProperty(newStringValue(item.name), descr, true)
+			}
+		}
+		for _, sym := range obj.self.getOwnSymbols() {
+			v := obj.self.getOwnProp(sym)
+			if prop, ok := v.(*valueProperty); ok {
+				prop.configurable = false
+				if prop.value != nil {
+					prop.writable = false
+				}
+			} else {
+				descr.Value = v
+				obj.self.defineOwnProperty(sym, descr, true)
 			}
 		}
 		obj.self.preventExtensions()
@@ -261,6 +290,16 @@ func (r *Runtime) object_isSealed(call FunctionCall) Value {
 				return valueFalse
 			}
 		}
+		for _, sym := range obj.self.getOwnSymbols() {
+			prop := obj.self.getOwnProp(sym)
+			if prop, ok := prop.(*valueProperty); ok {
+				if prop.configurable {
+					return valueFalse
+				}
+			} else {
+				return valueFalse
+			}
+		}
 	} else {
 		// ES6
 		//r.typeErrorResult(true, "Object.isSealed called on non-object")
@@ -276,6 +315,16 @@ func (r *Runtime) object_isFrozen(call FunctionCall) Value {
 		}
 		for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
 			prop := obj.self.getOwnPropStr(item.name)
+			if prop, ok := prop.(*valueProperty); ok {
+				if prop.configurable || prop.value != nil && prop.writable {
+					return valueFalse
+				}
+			} else {
+				return valueFalse
+			}
+		}
+		for _, sym := range obj.self.getOwnSymbols() {
+			prop := obj.self.getOwnProp(sym)
 			if prop, ok := prop.(*valueProperty); ok {
 				if prop.configurable || prop.value != nil && prop.writable {
 					return valueFalse
@@ -399,6 +448,7 @@ func (r *Runtime) initObject() {
 	o._putProp("getOwnPropertyDescriptor", r.newNativeFunc(r.object_getOwnPropertyDescriptor, nil, "getOwnPropertyDescriptor", nil, 2), true, false, true)
 	o._putProp("getPrototypeOf", r.newNativeFunc(r.object_getPrototypeOf, nil, "getPrototypeOf", nil, 1), true, false, true)
 	o._putProp("getOwnPropertyNames", r.newNativeFunc(r.object_getOwnPropertyNames, nil, "getOwnPropertyNames", nil, 1), true, false, true)
+	o._putProp("getOwnPropertySymbols", r.newNativeFunc(r.object_getOwnPropertySymbols, nil, "getOwnPropertySymbols", nil, 1), true, false, true)
 	o._putProp("create", r.newNativeFunc(r.object_create, nil, "create", nil, 2), true, false, true)
 	o._putProp("seal", r.newNativeFunc(r.object_seal, nil, "seal", nil, 1), true, false, true)
 	o._putProp("freeze", r.newNativeFunc(r.object_freeze, nil, "freeze", nil, 1), true, false, true)

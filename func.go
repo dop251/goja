@@ -25,6 +25,7 @@ type nativeFuncObject struct {
 
 type boundFuncObject struct {
 	nativeFuncObject
+	wrapped *Object
 }
 
 func (f *nativeFuncObject) export() interface{} {
@@ -236,4 +237,8 @@ func (f *boundFuncObject) put(n Value, val Value, throw bool) {
 		return
 	}
 	f.putStr(n.String(), val, throw)
+}
+
+func (f *boundFuncObject) hasInstance(v Value) bool {
+	return instanceOfOperator(v, f.wrapped)
 }

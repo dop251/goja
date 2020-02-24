@@ -191,6 +191,14 @@ func (r *Runtime) arrayproto_toLocaleString(call FunctionCall) Value {
 
 }
 
+func isConcatSpreadable(obj *Object) bool {
+	spreadable := obj.self.get(symIsConcatSpreadable)
+	if spreadable != nil && spreadable != _undefined {
+		return spreadable.ToBoolean()
+	}
+	return isArray(obj)
+}
+
 func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 	descr := propertyDescr{
 		Writable:     FLAG_TRUE,
@@ -200,7 +208,7 @@ func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 
 	aLength := toLength(a.self.getStr("length"))
 	if obj, ok := item.(*Object); ok {
-		if isArray(obj) {
+		if isConcatSpreadable(obj) {
 			length := toLength(obj.self.getStr("length"))
 			for i := int64(0); i < length; i++ {
 				v := obj.self.get(intToValue(i))
@@ -220,8 +228,29 @@ func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 	a.self.defineOwnProperty(intToValue(aLength), descr, false)
 }
 
+func arraySpeciesCreate(obj *Object, size int) *Object {
+	if isArray(obj) {
+		v := obj.self.getStr("constructor")
+		if constructObj, ok := v.(*Object); ok {
+			species := constructObj.self.get(symSpecies)
+			if species != nil && !IsUndefined(species) && !IsNull(species) {
+				constructObj, _ = species.(*Object)
+				if constructObj != nil {
+					constructor := getConstructor(constructObj)
+					if constructor != nil {
+						return constructor([]Value{intToValue(int64(size))})
+					}
+				}
+				panic(obj.runtime.NewTypeError())
+			}
+		}
+	}
+	return obj.runtime.newArrayValues(nil)
+}
+
 func (r *Runtime) arrayproto_concat(call FunctionCall) Value {
-	a := r.newArrayValues(nil)
+	obj := call.This.ToObject(r)
+	a := arraySpeciesCreate(obj, 0)
 	r.arrayproto_concat_append(a, call.This.ToObject(r))
 	for _, item := range call.Arguments {
 		r.arrayproto_concat_append(a, item)

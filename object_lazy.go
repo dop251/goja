@@ -187,6 +187,12 @@ func (o *lazyObject) equal(other objectImpl) bool {
 	return obj.equal(other)
 }
 
+func (o *lazyObject) getOwnSymbols() []Value {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.getOwnSymbols()
+}
+
 func (o *lazyObject) sortLen() int64 {
 	obj := o.create(o.val)
 	o.val.self = obj
