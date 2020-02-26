@@ -232,10 +232,20 @@ func (r *Runtime) stringproto_localeCompare(call FunctionCall) Value {
 
 func (r *Runtime) stringproto_match(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
-	s := call.This.ToString()
 	regexp := call.Argument(0)
 	var rx *regexpObject
 	if regexp, ok := regexp.(*Object); ok {
+		if matcher := regexp.self.get(symMatch); matcher != nil && matcher != _undefined {
+			if matcherObj, ok := matcher.(*Object); ok {
+				if matcherFunc, ok := matcherObj.self.assertCallable(); ok {
+					return matcherFunc(FunctionCall{
+						This:      regexp,
+						Arguments: []Value{call.This},
+					})
+				}
+			}
+			panic(r.NewTypeError("%s is not a function", matcher))
+		}
 		rx, _ = regexp.self.(*regexpObject)
 	}
 
@@ -243,31 +253,14 @@ func (r *Runtime) stringproto_match(call FunctionCall) Value {
 		rx = r.builtin_newRegExp([]Value{regexp}).self.(*regexpObject)
 	}
 
-	if rx.global {
-		rx.putStr("lastIndex", intToValue(0), false)
-		var a []Value
-		var previousLastIndex int64
-		for {
-			match, result := rx.execRegexp(s)
-			if !match {
-				break
-			}
-			thisIndex := rx.getStr("lastIndex").ToInteger()
-			if thisIndex == previousLastIndex {
-				previousLastIndex++
-				rx.putStr("lastIndex", intToValue(previousLastIndex), false)
-			} else {
-				previousLastIndex = thisIndex
-			}
-			a = append(a, s.substring(int64(result[0]), int64(result[1])))
-		}
-		if len(a) == 0 {
-			return _null
-		}
-		return r.newArrayValues(a)
-	} else {
-		return rx.exec(s)
+	if matcher, ok := r.toObject(rx.getSym(symMatch)).self.assertCallable(); ok {
+		return matcher(FunctionCall{
+			This:      rx.val,
+			Arguments: []Value{call.This.ToString()},
+		})
 	}
+
+	panic(r.NewTypeError("RegExp matcher is not a function"))
 }
 
 func (r *Runtime) stringproto_replace(call FunctionCall) Value {

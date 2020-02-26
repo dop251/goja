@@ -76,6 +76,8 @@ type global struct {
 
 	thrower         *Object
 	throwerProperty Value
+
+	regexpProtoExec Value
 }
 
 type Flag int

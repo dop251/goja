@@ -49,11 +49,29 @@ var (
 		"test/built-ins/Map/symbol-as-entry-key.js":                                                       true,
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
 		"test/language/statements/class/subclass/builtin-objects/Symbol/new-symbol-with-super-throws.js":  true,
+
+		// Proxy
+		"test/built-ins/Object/prototype/toString/proxy-revoked.js":  true,
+		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
+		"test/built-ins/Object/prototype/toString/proxy-array.js":    true,
+		"test/built-ins/JSON/stringify/value-proxy.js":               true,
 	}
 
 	es6WhiteList = map[string]bool{}
 
-	es6IdWhiteList = []string{"12.9.3", "12.9.4", "19.1.2.8", "19.1.2.5", "19.4" /*"22.1.3.1",*/, "B.2.1", "B.2.2"}
+	es6IdWhiteList = []string{
+		"12.9.3",
+		"12.9.4",
+		"19.1.2.8",
+		"19.1.2.5",
+		"19.1.3.6",
+		"19.4",
+		"22.1.2.5",
+		//"21.2.5.6",
+		//"22.1.3.1",
+		"B.2.1",
+		"B.2.2",
+	}
 )
 
 type tc39Test struct {

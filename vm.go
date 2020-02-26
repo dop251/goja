@@ -460,7 +460,13 @@ func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
 	if len(args) > 0 {
 		panic(r.NewTypeError(args...))
 	} else {
-		panic(r.NewTypeError("Value is not an object: %s", v.String()))
+		var s string
+		if v == nil {
+			s = "undefined"
+		} else {
+			s = v.String()
+		}
+		panic(r.NewTypeError("Value is not an object: %s", s))
 	}
 }
 

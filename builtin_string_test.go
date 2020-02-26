@@ -88,3 +88,22 @@ assert.sameValue('A—', String.fromCharCode(65, 0x2014));
 
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
+
+func TestStringMatchSym(t *testing.T) {
+	const SCRIPT = `
+var r = { global: true };
+Object.defineProperty(r, 'exec', {
+  get: function() {
+    throw new Test262Error();
+  }
+});
+
+assert.throws(Test262Error, function() {
+  RegExp.prototype[Symbol.match].call(r, '');
+});
+
+assert.sameValue(r.lastIndex, 0, "Error thrown after setting 'lastIndex'");
+`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}

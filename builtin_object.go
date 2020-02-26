@@ -416,11 +416,18 @@ func (r *Runtime) objectproto_toString(call FunctionCall) Value {
 		return stringObjectNull
 	case valueUndefined:
 		return stringObjectUndefined
-	case *Object:
-		return newStringValue(fmt.Sprintf("[object %s]", o.self.className()))
 	default:
-		obj := call.This.ToObject(r)
-		return newStringValue(fmt.Sprintf("[object %s]", obj.self.className()))
+		obj := o.ToObject(r)
+		var clsName string
+		if tag := obj.self.get(symToStringTag); tag != nil {
+			if str, ok := tag.assertString(); ok {
+				clsName = str.String()
+			}
+		}
+		if clsName == "" {
+			clsName = obj.self.className()
+		}
+		return newStringValue(fmt.Sprintf("[object %s]", clsName))
 	}
 }
 

@@ -836,6 +836,14 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 func (r *Runtime) createArray(val *Object) objectImpl {
 	o := r.newNativeFuncConstructObj(val, r.builtin_newArray, "Array", r.global.ArrayPrototype, 1)
 	o._putProp("isArray", r.newNativeFunc(r.array_isArray, nil, "isArray", nil, 1), true, false, true)
+	o.putSym(symSpecies, &valueProperty{
+		getterFunc: r.newNativeFunc(func(call FunctionCall) Value {
+			return call.This
+		}, nil, "get [Symbol.species]", nil, 0),
+		accessor:     true,
+		configurable: true,
+	}, true)
+
 	return o
 }
 
