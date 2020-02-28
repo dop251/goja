@@ -27,6 +27,14 @@ var (
 	typeTime     = reflect.TypeOf(time.Time{})
 )
 
+type iterationKind int
+
+const (
+	iterationKindKey iterationKind = iota
+	iterationKindValue
+	iterationKindKeyValue
+)
+
 type global struct {
 	Object   *Object
 	Array    *Object
@@ -59,8 +67,12 @@ type global struct {
 	RegExpPrototype   *Object
 	DatePrototype     *Object
 	SymbolPrototype   *Object
+	ArrayIterator     *Object
 
 	ArrayBufferPrototype *Object
+
+	IteratorPrototype      *Object
+	ArrayIteratorPrototype *Object
 
 	ErrorPrototype          *Object
 	TypeErrorPrototype      *Object
@@ -243,6 +255,13 @@ func (r *Runtime) addToGlobal(name string, value Value) {
 	r.globalObject.self._putProp(name, value, true, false, true)
 }
 
+func (r *Runtime) createIterProto(val *Object) objectImpl {
+	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
+
+	o.put(symIterator, valueProp(r.newNativeFunc(r.returnThis, nil, "[Symbol.iterator]", nil, 0), true, false, true), true)
+	return o
+}
+
 func (r *Runtime) init() {
 	r.rand = rand.Float64
 	r.now = time.Now
@@ -255,6 +274,8 @@ func (r *Runtime) init() {
 	r.vm.init()
 
 	r.global.FunctionPrototype = r.newNativeFunc(nil, nil, "Empty", nil, 0)
+	r.global.IteratorPrototype = r.newLazyObject(r.createIterProto)
+
 	r.initObject()
 	r.initFunction()
 	r.initArray()
@@ -304,17 +325,20 @@ func (r *Runtime) newSyntaxError(msg string, offset int) Value {
 	return r.builtin_new((r.global.SyntaxError), []Value{newStringValue(msg)})
 }
 
-func (r *Runtime) newBaseObject(proto *Object, class string) (o *baseObject) {
-	v := &Object{runtime: r}
-
-	o = &baseObject{}
+func newBaseObjectObj(obj, proto *Object, class string) *baseObject {
+	o := &baseObject{}
 	o.class = class
-	o.val = v
+	o.val = obj
 	o.extensible = true
-	v.self = o
+	obj.self = o
 	o.prototype = proto
 	o.init()
-	return
+	return o
+}
+
+func (r *Runtime) newBaseObject(proto *Object, class string) (o *baseObject) {
+	v := &Object{runtime: r}
+	return newBaseObjectObj(v, proto, class)
 }
 
 func (r *Runtime) NewObject() (v *Object) {
@@ -1578,6 +1602,13 @@ func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []
 
 func (r *Runtime) returnThis(call FunctionCall) Value {
 	return call.This
+}
+
+func (r *Runtime) createIterResultObject(value Value, done bool) Value {
+	o := r.NewObject()
+	o.self.putStr("value", value, false)
+	o.self.putStr("done", r.toBoolean(done), false)
+	return o
 }
 
 func nilSafe(v Value) Value {

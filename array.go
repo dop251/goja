@@ -6,6 +6,55 @@ import (
 	"strconv"
 )
 
+type arrayIterObject struct {
+	baseObject
+	obj     *Object
+	nextIdx int64
+	kind    iterationKind
+}
+
+func (ai *arrayIterObject) next() Value {
+	if ai.obj == nil {
+		return ai.val.runtime.createIterResultObject(_undefined, true)
+	}
+	l := toLength(ai.obj.self.getStr("length"))
+	index := ai.nextIdx
+	if index >= l {
+		ai.obj = nil
+		return ai.val.runtime.createIterResultObject(_undefined, true)
+	}
+	ai.nextIdx++
+	if ai.kind == iterationKindKey {
+		return ai.val.runtime.createIterResultObject(intToValue(index), false)
+	}
+	elementKey := asciiString(strconv.FormatInt(index, 10))
+	elementValue := ai.obj.self.get(intToValue(index))
+	var result Value
+	if ai.kind == iterationKindValue {
+		result = elementValue
+	} else {
+		result = ai.val.runtime.newArrayValues([]Value{elementKey, elementValue})
+	}
+	return ai.val.runtime.createIterResultObject(result, false)
+}
+
+func (r *Runtime) createArrayIterator(iterObj *Object, kind iterationKind) Value {
+	o := &Object{runtime: r}
+
+	ai := &arrayIterObject{
+		obj:  iterObj,
+		kind: kind,
+	}
+	ai.class = classArrayIterator
+	ai.val = o
+	ai.extensible = true
+	o.self = ai
+	ai.prototype = r.global.ArrayIteratorPrototype
+	ai.init()
+
+	return o
+}
+
 type arrayObject struct {
 	baseObject
 	values         []Value

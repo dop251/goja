@@ -15,6 +15,8 @@ const (
 	classError    = "Error"
 	classRegExp   = "RegExp"
 	classDate     = "Date"
+
+	classArrayIterator = "Array Iterator"
 )
 
 type Object struct {
@@ -254,8 +256,9 @@ func (o *baseObject) delete(n Value, throw bool) bool {
 func (o *baseObject) put(n Value, val Value, throw bool) {
 	if s, ok := n.(*valueSymbol); ok {
 		o.putSym(s, val, throw)
+	} else {
+		o.putStr(n.String(), val, throw)
 	}
-	o.putStr(n.String(), val, throw)
 }
 
 func (o *baseObject) getOwnPropStr(name string) Value {

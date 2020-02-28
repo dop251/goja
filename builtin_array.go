@@ -824,6 +824,10 @@ func (r *Runtime) arrayproto_shift(call FunctionCall) Value {
 	return first
 }
 
+func (r *Runtime) arrayproto_values(call FunctionCall) Value {
+	return r.createArrayIterator(call.This.ToObject(r), iterationKindValue)
+}
+
 func (r *Runtime) array_isArray(call FunctionCall) Value {
 	if o, ok := call.Argument(0).(*Object); ok {
 		if isArray(o) {
@@ -831,6 +835,14 @@ func (r *Runtime) array_isArray(call FunctionCall) Value {
 		}
 	}
 	return valueFalse
+}
+
+func (r *Runtime) arrayIterProto_next(call FunctionCall) Value {
+	thisObj := r.toObject(call.This)
+	if iter, ok := thisObj.self.(*arrayIterObject); ok {
+		return iter.next()
+	}
+	panic(r.NewTypeError("Method Array Iterator.prototype.next called on incompatible receiver %s", thisObj.String()))
 }
 
 func (r *Runtime) createArrayProto(val *Object) objectImpl {
@@ -866,6 +878,9 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 	o._putProp("filter", r.newNativeFunc(r.arrayproto_filter, nil, "filter", nil, 1), true, false, true)
 	o._putProp("reduce", r.newNativeFunc(r.arrayproto_reduce, nil, "reduce", nil, 1), true, false, true)
 	o._putProp("reduceRight", r.newNativeFunc(r.arrayproto_reduceRight, nil, "reduceRight", nil, 1), true, false, true)
+	valuesFunc := r.newNativeFunc(r.arrayproto_values, nil, "values", nil, 0)
+	o._putProp("values", valuesFunc, true, false, true)
+	o.put(symIterator, valueProp(valuesFunc, false, false, true), true)
 
 	return o
 }
@@ -882,7 +897,17 @@ func (r *Runtime) createArray(val *Object) objectImpl {
 	return o
 }
 
+func (r *Runtime) createArrayIterProto(val *Object) objectImpl {
+	o := newBaseObjectObj(val, r.global.IteratorPrototype, classObject)
+
+	o._putProp("next", r.newNativeFunc(r.arrayIterProto_next, nil, "next", nil, 0), true, false, true)
+	o.put(symToStringTag, valueProp(asciiString(classArrayIterator), false, false, true), true)
+
+	return o
+}
+
 func (r *Runtime) initArray() {
+	r.global.ArrayIteratorPrototype = r.newLazyObject(r.createArrayIterProto)
 	//r.global.ArrayPrototype = r.newArray(r.global.ObjectPrototype).val
 	//o := r.global.ArrayPrototype.self
 	r.global.ArrayPrototype = r.newLazyObject(r.createArrayProto)
