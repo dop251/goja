@@ -304,45 +304,6 @@ func (r *Runtime) newSyntaxError(msg string, offset int) Value {
 	return r.builtin_new((r.global.SyntaxError), []Value{newStringValue(msg)})
 }
 
-func (r *Runtime) newArray(prototype *Object) (a *arrayObject) {
-	v := &Object{runtime: r}
-
-	a = &arrayObject{}
-	a.class = classArray
-	a.val = v
-	a.extensible = true
-	v.self = a
-	a.prototype = prototype
-	a.init()
-	return
-}
-
-func (r *Runtime) newArrayObject() *arrayObject {
-	return r.newArray(r.global.ArrayPrototype)
-}
-
-func (r *Runtime) newArrayValues(values []Value) *Object {
-	v := &Object{runtime: r}
-
-	a := &arrayObject{}
-	a.class = classArray
-	a.val = v
-	a.extensible = true
-	v.self = a
-	a.prototype = r.global.ArrayPrototype
-	a.init()
-	a.values = values
-	a.length = int64(len(values))
-	a.objCount = a.length
-	return v
-}
-
-func (r *Runtime) newArrayLength(l int64) *Object {
-	a := r.newArrayValues(nil)
-	a.self.putStr("length", intToValue(l), true)
-	return a
-}
-
 func (r *Runtime) newBaseObject(proto *Object, class string) (o *baseObject) {
 	v := &Object{runtime: r}
 
@@ -647,7 +608,7 @@ func (r *Runtime) throw(e Value) {
 	panic(e)
 }
 
-func (r *Runtime) builtin_thrower(call FunctionCall) Value {
+func (r *Runtime) builtin_thrower(FunctionCall) Value {
 	r.typeErrorResult(true, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them")
 	return nil
 }
@@ -1585,4 +1546,43 @@ func tryFunc(f func()) (err error) {
 	f()
 
 	return nil
+}
+
+func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
+	if obj, ok := v.(*Object); ok {
+		return obj
+	}
+	if len(args) > 0 {
+		panic(r.NewTypeError(args...))
+	} else {
+		var s string
+		if v == nil {
+			s = "undefined"
+		} else {
+			s = v.String()
+		}
+		panic(r.NewTypeError("Value is not an object: %s", s))
+	}
+}
+
+func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value) *Object {
+	c := o.self.getStr("constructor")
+	if c != nil && c != _undefined {
+		c = r.toObject(c).self.get(symSpecies)
+	}
+	if c == nil || c == _undefined {
+		c = defaultConstructor
+	}
+	return getConstructor(r.toObject(c))
+}
+
+func (r *Runtime) returnThis(call FunctionCall) Value {
+	return call.This
+}
+
+func nilSafe(v Value) Value {
+	if v != nil {
+		return v
+	}
+	return _undefined
 }

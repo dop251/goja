@@ -541,18 +541,6 @@ func (o *baseObject) _putProp(name string, value Value, writable, enumerable, co
 	return prop
 }
 
-func toMethod(v Value) func(FunctionCall) Value {
-	if v == nil || IsUndefined(v) || IsNull(v) {
-		return nil
-	}
-	if obj, ok := v.(*Object); ok {
-		if call, ok := obj.self.assertCallable(); ok {
-			return call
-		}
-	}
-	panic(typeError(fmt.Sprintf("%s is not a method", v.String())))
-}
-
 func (o *baseObject) tryExoticToPrimitive(hint string) Value {
 	exoticToPrimitive := toMethod(o.getSym(symToPrimitive))
 	if exoticToPrimitive != nil {
@@ -760,7 +748,7 @@ func (o *baseObject) enumerate(all, recursive bool) iterNextFunc {
 	}).next
 }
 
-func (o *baseObject) equal(other objectImpl) bool {
+func (o *baseObject) equal(objectImpl) bool {
 	// Rely on parent reference comparison
 	return false
 }
@@ -775,6 +763,18 @@ func (o *baseObject) getOwnSymbols() (res []Value) {
 
 func (o *baseObject) hasInstance(Value) bool {
 	panic(o.val.runtime.NewTypeError("Expecting a function in instanceof check, but got %s", o.val.ToString()))
+}
+
+func toMethod(v Value) func(FunctionCall) Value {
+	if v == nil || IsUndefined(v) || IsNull(v) {
+		return nil
+	}
+	if obj, ok := v.(*Object); ok {
+		if call, ok := obj.self.assertCallable(); ok {
+			return call
+		}
+	}
+	panic(typeError(fmt.Sprintf("%s is not a method", v.String())))
 }
 
 func instanceOfOperator(o Value, c *Object) bool {

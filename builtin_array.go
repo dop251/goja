@@ -6,11 +6,48 @@ import (
 	"strings"
 )
 
+func (r *Runtime) newArray(prototype *Object) (a *arrayObject) {
+	v := &Object{runtime: r}
+
+	a = &arrayObject{}
+	a.class = classArray
+	a.val = v
+	a.extensible = true
+	v.self = a
+	a.prototype = prototype
+	a.init()
+	return
+}
+
+func (r *Runtime) newArrayObject() *arrayObject {
+	return r.newArray(r.global.ArrayPrototype)
+}
+
+func setArrayValues(a *arrayObject, values []Value) *arrayObject {
+	a.values = values
+	a.length = int64(len(values))
+	a.objCount = a.length
+	return a
+}
+
+func setArrayLength(a *arrayObject, l int64) *arrayObject {
+	a.putStr("length", intToValue(l), true)
+	return a
+}
+
+func (r *Runtime) newArrayValues(values []Value) *Object {
+	return setArrayValues(r.newArrayObject(), values).val
+}
+
+func (r *Runtime) newArrayLength(l int64) *Object {
+	return setArrayLength(r.newArrayObject(), l).val
+}
+
 func (r *Runtime) builtin_newArray(args []Value, proto *Object) *Object {
 	l := len(args)
 	if l == 1 {
 		if al, ok := args[0].assertInt(); ok {
-			return r.newArrayLength(al)
+			return setArrayLength(r.newArray(proto), al).val
 		} else if f, ok := args[0].assertFloat(); ok {
 			al := int64(f)
 			if float64(al) == f {
@@ -19,11 +56,11 @@ func (r *Runtime) builtin_newArray(args []Value, proto *Object) *Object {
 				panic(r.newError(r.global.RangeError, "Invalid array length"))
 			}
 		}
-		return r.newArrayValues([]Value{args[0]})
+		return setArrayValues(r.newArray(proto), []Value{args[0]}).val
 	} else {
 		argsCopy := make([]Value, l)
 		copy(argsCopy, args)
-		return r.newArrayValues(argsCopy)
+		return setArrayValues(r.newArray(proto), argsCopy).val
 	}
 }
 
@@ -47,7 +84,7 @@ func (r *Runtime) arrayproto_push(call FunctionCall) Value {
 	return r.generic_push(obj, call)
 }
 
-func (r *Runtime) arrayproto_pop_generic(obj *Object, call FunctionCall) Value {
+func (r *Runtime) arrayproto_pop_generic(obj *Object) Value {
 	l := toLength(obj.self.getStr("length"))
 	if l == 0 {
 		obj.self.putStr("length", intToValue(0), true)
@@ -72,11 +109,11 @@ func (r *Runtime) arrayproto_pop(call FunctionCall) Value {
 			}
 			if val == nil {
 				// optimisation bail-out
-				return r.arrayproto_pop_generic(obj, call)
+				return r.arrayproto_pop_generic(obj)
 			}
 			if _, ok := val.(*valueProperty); ok {
 				// optimisation bail-out
-				return r.arrayproto_pop_generic(obj, call)
+				return r.arrayproto_pop_generic(obj)
 			}
 			//a._setLengthInt(l, false)
 			a.values[l] = nil
@@ -86,7 +123,7 @@ func (r *Runtime) arrayproto_pop(call FunctionCall) Value {
 		}
 		return _undefined
 	} else {
-		return r.arrayproto_pop_generic(obj, call)
+		return r.arrayproto_pop_generic(obj)
 	}
 }
 
@@ -837,9 +874,7 @@ func (r *Runtime) createArray(val *Object) objectImpl {
 	o := r.newNativeFuncConstructObj(val, r.builtin_newArray, "Array", r.global.ArrayPrototype, 1)
 	o._putProp("isArray", r.newNativeFunc(r.array_isArray, nil, "isArray", nil, 1), true, false, true)
 	o.putSym(symSpecies, &valueProperty{
-		getterFunc: r.newNativeFunc(func(call FunctionCall) Value {
-			return call.This
-		}, nil, "get [Symbol.species]", nil, 0),
+		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
 		accessor:     true,
 		configurable: true,
 	}, true)

@@ -452,25 +452,7 @@ func (vm *vm) popCtx() {
 	vm.callStack = vm.callStack[:l]
 }
 
-func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
-	//r.checkResolveable(v)
-	if obj, ok := v.(*Object); ok {
-		return obj
-	}
-	if len(args) > 0 {
-		panic(r.NewTypeError(args...))
-	} else {
-		var s string
-		if v == nil {
-			s = "undefined"
-		} else {
-			s = v.String()
-		}
-		panic(r.NewTypeError("Value is not an object: %s", s))
-	}
-}
-
-func (r *Runtime) toCallee(v Value) *Object {
+func (vm *vm) toCallee(v Value) *Object {
 	if obj, ok := v.(*Object); ok {
 		return obj
 	}
@@ -479,11 +461,9 @@ func (r *Runtime) toCallee(v Value) *Object {
 		unresolved.throw()
 		panic("Unreachable")
 	case memberUnresolved:
-		r.typeErrorResult(true, "Object has no member '%s'", unresolved.ref)
-		panic("Unreachable")
+		panic(vm.r.NewTypeError("Object has no member '%s'", unresolved.ref))
 	}
-	r.typeErrorResult(true, "Value is not an object: %s", v.ToString())
-	panic("Unreachable")
+	panic(vm.r.NewTypeError("Value is not an object: %s", v.ToString()))
 }
 
 type _newStash struct{}
@@ -1735,7 +1715,7 @@ func (numargs call) exec(vm *vm) {
 	// arg<numargs-1>
 	n := int(numargs)
 	v := vm.stack[vm.sp-n-1] // callee
-	obj := vm.r.toCallee(v)
+	obj := vm.toCallee(v)
 repeat:
 	switch f := obj.self.(type) {
 	case *funcObject:

@@ -11,7 +11,7 @@ func (r *Runtime) builtin_Object(args []Value, proto *Object) *Object {
 			return arg.ToObject(r)
 		}
 	}
-	return r.NewObject()
+	return r.newBaseObject(proto, classObject).val
 }
 
 func (r *Runtime) object_getPrototypeOf(call FunctionCall) Value {

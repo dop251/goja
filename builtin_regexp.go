@@ -317,13 +317,6 @@ func (r *Runtime) regExpExec(execFn func(FunctionCall) Value, rxObj *Object, arg
 	return res
 }
 
-func nilSafe(v Value) Value {
-	if v != nil {
-		return v
-	}
-	return _undefined
-}
-
 func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, arg Value) Value {
 	rx := rxObj.self
 	global := rx.getStr("global")
@@ -444,17 +437,6 @@ func (r *Runtime) regexpproto_stdSearch(call FunctionCall) Value {
 		return intToValue(-1)
 	}
 	return intToValue(int64(result[0]))
-}
-
-func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value) *Object {
-	c := o.self.getStr("constructor")
-	if c != nil && c != _undefined {
-		c = r.toObject(c).self.get(symSpecies)
-	}
-	if c == nil || c == _undefined {
-		c = defaultConstructor
-	}
-	return getConstructor(r.toObject(c))
 }
 
 func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s valueString, limit Value) Value {
@@ -639,5 +621,11 @@ func (r *Runtime) initRegExp() {
 	o.put(symSplit, valueProp(r.newNativeFunc(r.regexpproto_stdSplitter, nil, "[Symbol.split]", nil, 2), true, false, true), true)
 
 	r.global.RegExp = r.newNativeFunc(r.builtin_RegExp, r.builtin_newRegExp, "RegExp", r.global.RegExpPrototype, 2)
+	o = r.global.RegExp.self
+	o.put(symSpecies, &valueProperty{
+		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
+		accessor:     true,
+		configurable: true,
+	}, true)
 	r.addToGlobal("RegExp", r.global.RegExp)
 }
