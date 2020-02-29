@@ -24,7 +24,7 @@ type regexpObject struct {
 	pattern regexpPattern
 	source  valueString
 
-	global, multiline, ignoreCase bool
+	global, multiline, ignoreCase, sticky bool
 }
 
 func (r *regexp2Wrapper) FindSubmatchIndex(s valueString, start int) (result []int) {
@@ -308,26 +308,24 @@ func (r *regexpObject) execRegexp(target valueString) (match bool, result []int)
 		}
 	}
 	index := lastIndex
-	if !r.global {
+	if !r.global && !r.sticky {
 		index = 0
 	}
 	if index >= 0 && index <= target.length() {
 		result = r.pattern.FindSubmatchIndex(target, int(index))
 	}
-	if result == nil {
+	if result == nil || r.sticky && result[0] != 0 {
 		r.putStr("lastIndex", intToValue(0), true)
 		return
 	}
 	match = true
-	startIndex := index
-	endIndex := int(lastIndex) + result[1]
 	// We do this shift here because the .FindStringSubmatchIndex above
 	// was done on a local subordinate slice of the string, not the whole string
-	for index, _ := range result {
-		result[index] += int(startIndex)
+	for i := range result {
+		result[i] += int(index)
 	}
-	if r.global {
-		r.putStr("lastIndex", intToValue(int64(endIndex)), true)
+	if r.global || r.sticky {
+		r.putStr("lastIndex", intToValue(int64(result[1])), true)
 	}
 	return
 }
@@ -352,6 +350,7 @@ func (r *regexpObject) clone() *Object {
 	r1.global = r.global
 	r1.ignoreCase = r.ignoreCase
 	r1.multiline = r.multiline
+	r1.sticky = r.sticky
 	return r1.val
 }
 

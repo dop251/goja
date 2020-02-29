@@ -79,11 +79,11 @@ func (o *objectGoSliceReflect) getPropStr(name string) Value {
 	return o.objectGoReflect.getPropStr(name)
 }
 
-func (o *objectGoSliceReflect) getOwnProp(name string) Value {
+func (o *objectGoSliceReflect) getOwnPropStr(name string) Value {
 	if v := o._getStr(name); v != nil {
 		return v
 	}
-	return o.objectGoReflect.getOwnProp(name)
+	return o.objectGoReflect.getOwnPropStr(name)
 }
 
 func (o *objectGoSliceReflect) putIdx(idx int64, v Value, throw bool) {
@@ -151,7 +151,7 @@ func (o *objectGoSliceReflect) _putProp(name string, value Value, writable, enum
 }
 
 func (o *objectGoSliceReflect) defineOwnProperty(name Value, descr propertyDescr, throw bool) bool {
-	if !o.val.runtime.checkHostObjectPropertyDescr(name.String(), descr, throw) {
+	if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 		return false
 	}
 	o.put(name, descr.Value, throw)

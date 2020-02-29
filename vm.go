@@ -366,6 +366,10 @@ func (vm *vm) try(f func()) (ex *Exception) {
 				panic(x1)
 			case *Exception:
 				ex = x1
+			case typeError:
+				ex = &Exception{
+					val: vm.r.NewTypeError(string(x1)),
+				}
 			default:
 				/*
 					if vm.prg != nil {
@@ -448,19 +452,7 @@ func (vm *vm) popCtx() {
 	vm.callStack = vm.callStack[:l]
 }
 
-func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
-	//r.checkResolveable(v)
-	if obj, ok := v.(*Object); ok {
-		return obj
-	}
-	if len(args) > 0 {
-		panic(r.NewTypeError(args...))
-	} else {
-		panic(r.NewTypeError("Value is not an object: %s", v.String()))
-	}
-}
-
-func (r *Runtime) toCallee(v Value) *Object {
+func (vm *vm) toCallee(v Value) *Object {
 	if obj, ok := v.(*Object); ok {
 		return obj
 	}
@@ -469,11 +461,9 @@ func (r *Runtime) toCallee(v Value) *Object {
 		unresolved.throw()
 		panic("Unreachable")
 	case memberUnresolved:
-		r.typeErrorResult(true, "Object has no member '%s'", unresolved.ref)
-		panic("Unreachable")
+		panic(vm.r.NewTypeError("Object has no member '%s'", unresolved.ref))
 	}
-	r.typeErrorResult(true, "Value is not an object: %s", v.ToString())
-	panic("Unreachable")
+	panic(vm.r.NewTypeError("Value is not an object: %s", v.ToString()))
 }
 
 type _newStash struct{}
@@ -1263,11 +1253,11 @@ type newRegexp struct {
 	pattern regexpPattern
 	src     valueString
 
-	global, ignoreCase, multiline bool
+	global, ignoreCase, multiline, sticky bool
 }
 
 func (n *newRegexp) exec(vm *vm) {
-	vm.push(vm.r.newRegExpp(n.pattern, n.src, n.global, n.ignoreCase, n.multiline, vm.r.global.RegExpPrototype))
+	vm.push(vm.r.newRegExpp(n.pattern, n.src, n.global, n.ignoreCase, n.multiline, n.sticky, vm.r.global.RegExpPrototype))
 	vm.pc++
 }
 
@@ -1725,7 +1715,7 @@ func (numargs call) exec(vm *vm) {
 	// arg<numargs-1>
 	n := int(numargs)
 	v := vm.stack[vm.sp-n-1] // callee
-	obj := vm.r.toCallee(v)
+	obj := vm.toCallee(v)
 repeat:
 	switch f := obj.self.(type) {
 	case *funcObject:
@@ -2136,7 +2126,7 @@ func (_op_instanceof) exec(vm *vm) {
 	left := vm.stack[vm.sp-2]
 	right := vm.r.toObject(vm.stack[vm.sp-1])
 
-	if right.self.hasInstance(left) {
+	if instanceOfOperator(left, right) {
 		vm.stack[vm.sp-2] = valueTrue
 	} else {
 		vm.stack[vm.sp-2] = valueFalse
@@ -2238,37 +2228,15 @@ func (_throw) exec(vm *vm) {
 type _new uint32
 
 func (n _new) exec(vm *vm) {
-	obj := vm.r.toObject(vm.stack[vm.sp-1-int(n)])
-repeat:
-	switch f := obj.self.(type) {
-	case *funcObject:
-		args := make([]Value, n)
-		copy(args, vm.stack[vm.sp-int(n):])
-		vm.sp -= int(n)
-		vm.stack[vm.sp-1] = f.construct(args)
-	case *nativeFuncObject:
-		vm._nativeNew(f, int(n))
-	case *boundFuncObject:
-		vm._nativeNew(&f.nativeFuncObject, int(n))
-	case *lazyObject:
-		obj.self = f.create(obj)
-		goto repeat
-	default:
-		vm.r.typeErrorResult(true, "Not a constructor")
-	}
-
-	vm.pc++
-}
-
-func (vm *vm) _nativeNew(f *nativeFuncObject, n int) {
-	if f.construct != nil {
-		args := make([]Value, n)
-		copy(args, vm.stack[vm.sp-n:])
-		vm.sp -= n
-		vm.stack[vm.sp-1] = f.construct(args)
+	sp := vm.sp - int(n)
+	obj := vm.r.toObject(vm.stack[sp-1])
+	if ctor := getConstructor(obj); ctor != nil {
+		vm.stack[sp-1] = ctor(vm.stack[sp:vm.sp])
+		vm.sp = sp
 	} else {
-		vm.r.typeErrorResult(true, "Not a constructor")
+		panic(vm.r.NewTypeError("Not a constructor"))
 	}
+	vm.pc++
 }
 
 type _typeof struct{}
@@ -2299,6 +2267,8 @@ func (_typeof) exec(vm *vm) {
 		r = stringString
 	case valueInt, valueFloat:
 		r = stringNumber
+	case *valueSymbol:
+		r = stringSymbol
 	default:
 		panic(fmt.Errorf("Unknown type: %T", v))
 	}

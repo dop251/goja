@@ -1327,6 +1327,27 @@ func TestProtoGetter(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestSymbol1(t *testing.T) {
+	const SCRIPT = `
+		Symbol.toPrimitive[Symbol.toPrimitive]() === Symbol.toPrimitive;
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestFreezeSymbol(t *testing.T) {
+	const SCRIPT = `
+		var s = Symbol(1);
+		var o = {};
+		o[s] = 42;
+		Object.freeze(o);
+		o[s] = 43;
+		o[s] === 42 && Object.isFrozen(o);
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

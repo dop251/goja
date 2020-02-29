@@ -2,6 +2,7 @@ package goja
 
 import (
 	"errors"
+	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -29,33 +30,53 @@ var (
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
+		"test/annexB/built-ins/escape/escape-above-astral.js":         true, // \u{xxxxx}
+
+		"test/built-ins/Symbol/unscopables/cross-realm.js":                                                true,
+		"test/built-ins/Symbol/toStringTag/cross-realm.js":                                                true,
+		"test/built-ins/Symbol/toPrimitive/cross-realm.js":                                                true,
+		"test/built-ins/Symbol/split/cross-realm.js":                                                      true,
+		"test/built-ins/Symbol/species/cross-realm.js":                                                    true,
+		"test/built-ins/Symbol/search/cross-realm.js":                                                     true,
+		"test/built-ins/Symbol/replace/cross-realm.js":                                                    true,
+		"test/built-ins/Symbol/match/cross-realm.js":                                                      true,
+		"test/built-ins/Symbol/keyFor/cross-realm.js":                                                     true,
+		"test/built-ins/Symbol/iterator/cross-realm.js":                                                   true,
+		"test/built-ins/Symbol/isConcatSpreadable/cross-realm.js":                                         true,
+		"test/built-ins/Symbol/hasInstance/cross-realm.js":                                                true,
+		"test/built-ins/Symbol/for/cross-realm.js":                                                        true,
+		"test/built-ins/Set/symbol-as-entry.js":                                                           true,
+		"test/built-ins/Map/symbol-as-entry-key.js":                                                       true,
+		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
+		"test/language/statements/class/subclass/builtin-objects/Symbol/new-symbol-with-super-throws.js":  true,
+
+		// Proxy
+		"test/built-ins/Object/prototype/toString/proxy-revoked.js":  true,
+		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
+		"test/built-ins/Object/prototype/toString/proxy-array.js":    true,
+		"test/built-ins/JSON/stringify/value-proxy.js":               true,
 	}
 
-	es6WhiteList = map[string]bool{
-		"test/annexB/built-ins/escape/empty-string.js":      true,
-		"test/annexB/built-ins/escape/escape-above.js":      true,
-		"test/annexB/built-ins/escape/escape-below.js":      true,
-		"test/annexB/built-ins/escape/length.js":            true,
-		"test/annexB/built-ins/escape/name.js":              true,
-		"test/annexB/built-ins/escape/to-string-err.js":     true,
-		"test/annexB/built-ins/escape/to-string-observe.js": true,
-		"test/annexB/built-ins/escape/unmodified.js":        true,
+	es6WhiteList = map[string]bool{}
 
-		"test/annexB/built-ins/unescape/empty-string.js":        true,
-		"test/annexB/built-ins/unescape/four.js":                true,
-		"test/annexB/built-ins/unescape/four-ignore-bad-u.js":   true,
-		"test/annexB/built-ins/unescape/four-ignore-end-str.js": true,
-		"test/annexB/built-ins/unescape/four-ignore-non-hex.js": true,
-		"test/annexB/built-ins/unescape/length.js":              true,
-		"test/annexB/built-ins/unescape/name.js":                true,
-		"test/annexB/built-ins/unescape/to-string-err.js":       true,
-		"test/annexB/built-ins/unescape/to-string-observe.js":   true,
-		"test/annexB/built-ins/unescape/two.js":                 true,
-		"test/annexB/built-ins/unescape/two-ignore-end-str.js":  true,
-		"test/annexB/built-ins/unescape/two-ignore-non-hex.js":  true,
+	es6IdWhiteList = []string{
+		"12.9.3",
+		"12.9.4",
+		"19.1.2.8",
+		"19.1.2.5",
+		"19.1.3.6",
+		"19.4",
+		"21.1.3.14",
+		"21.1.3.15",
+		"21.1.3.17",
+		//"21.2.5.6",
+		"22.1.2.5",
+		//"22.1.3.1",
+		"22.1.3.29",
+		"25.1.2",
+		"B.2.1",
+		"B.2.2",
 	}
-
-	es6IdWhiteList = []string{}
 )
 
 type tc39Test struct {
@@ -131,6 +152,11 @@ func parseTC39File(name string) (*tc39Meta, string, error) {
 }
 
 func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.TB) {
+	defer func() {
+		if x := recover(); x != nil {
+			panic(fmt.Sprintf("panic while running %s: %v", name, x))
+		}
+	}()
 	vm := New()
 	err, early := ctx.runTC39Script(name, src, meta.Includes, vm)
 

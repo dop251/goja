@@ -51,14 +51,18 @@ func (o *objectGoMapSimple) getStr(name string) Value {
 	return o.baseObject._getStr(name)
 }
 
-func (o *objectGoMapSimple) getOwnProp(name string) Value {
+func (o *objectGoMapSimple) getOwnPropStr(name string) Value {
 	if v := o._getStr(name); v != nil {
 		return v
 	}
-	return o.baseObject.getOwnProp(name)
+	return o.baseObject.getOwnPropStr(name)
 }
 
 func (o *objectGoMapSimple) put(n Value, val Value, throw bool) {
+	if _, ok := n.(*valueSymbol); ok {
+		o.val.runtime.typeErrorResult(throw, "Cannot set Symbol properties on Go maps")
+		return
+	}
 	o.putStr(n.String(), val, throw)
 }
 
@@ -107,8 +111,7 @@ func (o *objectGoMapSimple) _putProp(name string, value Value, writable, enumera
 }
 
 func (o *objectGoMapSimple) defineOwnProperty(name Value, descr propertyDescr, throw bool) bool {
-	if descr.Getter != nil || descr.Setter != nil {
-		o.val.runtime.typeErrorResult(throw, "Host objects do not support accessor properties")
+	if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 		return false
 	}
 	o.put(name, descr.Value, throw)
@@ -139,6 +142,10 @@ func (o *objectGoMapSimple) deleteStr(name string, throw bool) bool {
 }
 
 func (o *objectGoMapSimple) delete(name Value, throw bool) bool {
+	if _, ok := name.(*valueSymbol); ok {
+		return true
+	}
+
 	return o.deleteStr(name.String(), throw)
 }
 
@@ -176,7 +183,7 @@ func (o *objectGoMapSimple) enumerate(all, recursive bool) iterNextFunc {
 func (o *objectGoMapSimple) _enumerate(recursive bool) iterNextFunc {
 	propNames := make([]string, len(o.data))
 	i := 0
-	for key, _ := range o.data {
+	for key := range o.data {
 		propNames[i] = key
 		i++
 	}

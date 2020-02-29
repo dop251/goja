@@ -14,24 +14,32 @@ func (o *objectGoMapReflect) init() {
 	o.valueType = o.value.Type().Elem()
 }
 
-func (o *objectGoMapReflect) toKey(n Value) reflect.Value {
+func (o *objectGoMapReflect) toKey(n Value, throw bool) reflect.Value {
+	if _, ok := n.(*valueSymbol); ok {
+		o.val.runtime.typeErrorResult(throw, "Cannot set Symbol properties on Go maps")
+		return reflect.Value{}
+	}
 	key, err := o.val.runtime.toReflectValue(n, o.keyType)
 	if err != nil {
-		o.val.runtime.typeErrorResult(true, "map key conversion error: %v", err)
-		panic("unreachable")
+		o.val.runtime.typeErrorResult(throw, "map key conversion error: %v", err)
+		return reflect.Value{}
 	}
 	return key
 }
 
-func (o *objectGoMapReflect) strToKey(name string) reflect.Value {
+func (o *objectGoMapReflect) strToKey(name string, throw bool) reflect.Value {
 	if o.keyType.Kind() == reflect.String {
 		return reflect.ValueOf(name).Convert(o.keyType)
 	}
-	return o.toKey(newStringValue(name))
+	return o.toKey(newStringValue(name), throw)
 }
 
 func (o *objectGoMapReflect) _get(n Value) Value {
-	if v := o.value.MapIndex(o.toKey(n)); v.IsValid() {
+	key := o.toKey(n, false)
+	if !key.IsValid() {
+		return nil
+	}
+	if v := o.value.MapIndex(key); v.IsValid() {
 		return o.val.runtime.ToValue(v.Interface())
 	}
 
@@ -39,7 +47,11 @@ func (o *objectGoMapReflect) _get(n Value) Value {
 }
 
 func (o *objectGoMapReflect) _getStr(name string) Value {
-	if v := o.value.MapIndex(o.strToKey(name)); v.IsValid() {
+	key := o.strToKey(name, false)
+	if !key.IsValid() {
+		return nil
+	}
+	if v := o.value.MapIndex(key); v.IsValid() {
 		return o.val.runtime.ToValue(v.Interface())
 	}
 
@@ -68,7 +80,7 @@ func (o *objectGoMapReflect) getPropStr(name string) Value {
 	return o.getStr(name)
 }
 
-func (o *objectGoMapReflect) getOwnProp(name string) Value {
+func (o *objectGoMapReflect) getOwnPropStr(name string) Value {
 	if v := o._getStr(name); v != nil {
 		return &valueProperty{
 			value:      v,
@@ -76,7 +88,7 @@ func (o *objectGoMapReflect) getOwnProp(name string) Value {
 			enumerable: true,
 		}
 	}
-	return o.objectGoReflect.getOwnProp(name)
+	return o.objectGoReflect.getOwnPropStr(name)
 }
 
 func (o *objectGoMapReflect) toValue(val Value, throw bool) (reflect.Value, bool) {
@@ -90,7 +102,7 @@ func (o *objectGoMapReflect) toValue(val Value, throw bool) (reflect.Value, bool
 }
 
 func (o *objectGoMapReflect) put(key, val Value, throw bool) {
-	k := o.toKey(key)
+	k := o.toKey(key, throw)
 	v, ok := o.toValue(val, throw)
 	if !ok {
 		return
@@ -99,7 +111,10 @@ func (o *objectGoMapReflect) put(key, val Value, throw bool) {
 }
 
 func (o *objectGoMapReflect) putStr(name string, val Value, throw bool) {
-	k := o.strToKey(name)
+	k := o.strToKey(name, throw)
+	if !k.IsValid() {
+		return
+	}
 	v, ok := o.toValue(val, throw)
 	if !ok {
 		return
@@ -113,8 +128,7 @@ func (o *objectGoMapReflect) _putProp(name string, value Value, writable, enumer
 }
 
 func (o *objectGoMapReflect) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
-	name := n.String()
-	if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
+	if !o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) {
 		return false
 	}
 
@@ -123,11 +137,20 @@ func (o *objectGoMapReflect) defineOwnProperty(n Value, descr propertyDescr, thr
 }
 
 func (o *objectGoMapReflect) hasOwnPropertyStr(name string) bool {
-	return o.value.MapIndex(o.strToKey(name)).IsValid()
+	key := o.strToKey(name, false)
+	if !key.IsValid() {
+		return false
+	}
+	return o.value.MapIndex(key).IsValid()
 }
 
 func (o *objectGoMapReflect) hasOwnProperty(n Value) bool {
-	return o.value.MapIndex(o.toKey(n)).IsValid()
+	key := o.toKey(n, false)
+	if !key.IsValid() {
+		return false
+	}
+
+	return o.value.MapIndex(key).IsValid()
 }
 
 func (o *objectGoMapReflect) hasProperty(n Value) bool {
@@ -145,12 +168,20 @@ func (o *objectGoMapReflect) hasPropertyStr(name string) bool {
 }
 
 func (o *objectGoMapReflect) delete(n Value, throw bool) bool {
-	o.value.SetMapIndex(o.toKey(n), reflect.Value{})
+	key := o.toKey(n, throw)
+	if !key.IsValid() {
+		return false
+	}
+	o.value.SetMapIndex(key, reflect.Value{})
 	return true
 }
 
 func (o *objectGoMapReflect) deleteStr(name string, throw bool) bool {
-	o.value.SetMapIndex(o.strToKey(name), reflect.Value{})
+	key := o.strToKey(name, throw)
+	if !key.IsValid() {
+		return false
+	}
+	o.value.SetMapIndex(key, reflect.Value{})
 	return true
 }
 

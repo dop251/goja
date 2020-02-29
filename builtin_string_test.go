@@ -88,3 +88,60 @@ assert.sameValue('A—', String.fromCharCode(65, 0x2014));
 
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
+
+func TestStringMatchSym(t *testing.T) {
+	const SCRIPT = `
+function Prefix(p) {
+	this.p = p;
+}
+
+Prefix.prototype[Symbol.match] = function(s) {
+	return s.substring(0, this.p.length) === this.p;
+}
+
+var prefix1 = new Prefix("abc");
+var prefix2 = new Prefix("def");
+
+"abc123".match(prefix1) === true && "abc123".match(prefix2) === false &&
+"def123".match(prefix1) === false && "def123".match(prefix2) === true;
+`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestGenericSplitter(t *testing.T) {
+	const SCRIPT = `
+function MyRegexp(pattern, flags) {
+	if (pattern instanceof MyRegexp) {
+		pattern = pattern.wrapped;
+	}
+	this.wrapped = new RegExp(pattern, flags);
+}
+
+MyRegexp.prototype.exec = function() {
+	return this.wrapped.exec.apply(this.wrapped, arguments);
+}
+
+Object.defineProperty(MyRegexp.prototype, "lastIndex", {
+	get: function() {
+		return this.wrapped.lastIndex;
+	},
+	set: function(v) {
+		this.wrapped.lastIndex = v;
+	}
+});
+
+Object.defineProperty(MyRegexp.prototype, "flags", {
+	get: function() {
+		return this.wrapped.flags;
+	}
+});
+
+MyRegexp[Symbol.species] = MyRegexp;
+MyRegexp.prototype[Symbol.split] = RegExp.prototype[Symbol.split];
+
+var r = new MyRegexp(/ /);
+var res = "a b c".split(r);
+res.length === 3 && res[0] === "a" && res[1] === "b" && res[2] === "c";
+`
+	testScript1(SCRIPT, valueTrue, t)
+}

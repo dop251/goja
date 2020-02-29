@@ -11,7 +11,7 @@ func (r *Runtime) builtin_Object(args []Value, proto *Object) *Object {
 			return arg.ToObject(r)
 		}
 	}
-	return r.NewObject()
+	return r.newBaseObject(proto, classObject).val
 }
 
 func (r *Runtime) object_getPrototypeOf(call FunctionCall) Value {
@@ -25,7 +25,7 @@ func (r *Runtime) object_getPrototypeOf(call FunctionCall) Value {
 
 func (r *Runtime) object_getOwnPropertyDescriptor(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
-	propName := call.Argument(1).String()
+	propName := call.Argument(1)
 	desc := obj.self.getOwnProp(propName)
 	if desc == nil {
 		return _undefined
@@ -81,6 +81,11 @@ func (r *Runtime) object_getOwnPropertyNames(call FunctionCall) Value {
 		values = append(values, newStringValue(item.name))
 	}
 	return r.newArrayValues(values)
+}
+
+func (r *Runtime) object_getOwnPropertySymbols(call FunctionCall) Value {
+	obj := call.Argument(0).ToObject(r)
+	return r.newArrayValues(obj.self.getOwnSymbols())
 }
 
 func (r *Runtime) toPropertyDescr(v Value) (ret propertyDescr) {
@@ -188,7 +193,7 @@ func (r *Runtime) object_seal(call FunctionCall) Value {
 			Configurable: FLAG_FALSE,
 		}
 		for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
-			v := obj.self.getOwnProp(item.name)
+			v := obj.self.getOwnPropStr(item.name)
 			if prop, ok := v.(*valueProperty); ok {
 				if !prop.configurable {
 					continue
@@ -198,6 +203,18 @@ func (r *Runtime) object_seal(call FunctionCall) Value {
 				descr.Value = v
 				obj.self.defineOwnProperty(newStringValue(item.name), descr, true)
 				//obj.self._putProp(item.name, v, true, true, false)
+			}
+		}
+		for _, sym := range obj.self.getOwnSymbols() {
+			v := obj.self.getOwnProp(sym)
+			if prop, ok := v.(*valueProperty); ok {
+				if !prop.configurable {
+					continue
+				}
+				prop.configurable = false
+			} else {
+				descr.Value = v
+				obj.self.defineOwnProperty(sym, descr, true)
 			}
 		}
 		obj.self.preventExtensions()
@@ -215,7 +232,7 @@ func (r *Runtime) object_freeze(call FunctionCall) Value {
 			Configurable: FLAG_FALSE,
 		}
 		for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
-			v := obj.self.getOwnProp(item.name)
+			v := obj.self.getOwnPropStr(item.name)
 			if prop, ok := v.(*valueProperty); ok {
 				prop.configurable = false
 				if prop.value != nil {
@@ -224,6 +241,18 @@ func (r *Runtime) object_freeze(call FunctionCall) Value {
 			} else {
 				descr.Value = v
 				obj.self.defineOwnProperty(newStringValue(item.name), descr, true)
+			}
+		}
+		for _, sym := range obj.self.getOwnSymbols() {
+			v := obj.self.getOwnProp(sym)
+			if prop, ok := v.(*valueProperty); ok {
+				prop.configurable = false
+				if prop.value != nil {
+					prop.writable = false
+				}
+			} else {
+				descr.Value = v
+				obj.self.defineOwnProperty(sym, descr, true)
 			}
 		}
 		obj.self.preventExtensions()
@@ -252,7 +281,17 @@ func (r *Runtime) object_isSealed(call FunctionCall) Value {
 			return valueFalse
 		}
 		for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
-			prop := obj.self.getOwnProp(item.name)
+			prop := obj.self.getOwnPropStr(item.name)
+			if prop, ok := prop.(*valueProperty); ok {
+				if prop.configurable {
+					return valueFalse
+				}
+			} else {
+				return valueFalse
+			}
+		}
+		for _, sym := range obj.self.getOwnSymbols() {
+			prop := obj.self.getOwnProp(sym)
 			if prop, ok := prop.(*valueProperty); ok {
 				if prop.configurable {
 					return valueFalse
@@ -275,7 +314,17 @@ func (r *Runtime) object_isFrozen(call FunctionCall) Value {
 			return valueFalse
 		}
 		for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
-			prop := obj.self.getOwnProp(item.name)
+			prop := obj.self.getOwnPropStr(item.name)
+			if prop, ok := prop.(*valueProperty); ok {
+				if prop.configurable || prop.value != nil && prop.writable {
+					return valueFalse
+				}
+			} else {
+				return valueFalse
+			}
+		}
+		for _, sym := range obj.self.getOwnSymbols() {
+			prop := obj.self.getOwnProp(sym)
 			if prop, ok := prop.(*valueProperty); ok {
 				if prop.configurable || prop.value != nil && prop.writable {
 					return valueFalse
@@ -321,9 +370,9 @@ func (r *Runtime) object_keys(call FunctionCall) Value {
 }
 
 func (r *Runtime) objectproto_hasOwnProperty(call FunctionCall) Value {
-	p := call.Argument(0).String()
+	p := call.Argument(0)
 	o := call.This.ToObject(r)
-	if o.self.hasOwnPropertyStr(p) {
+	if o.self.hasOwnProperty(p) {
 		return valueTrue
 	} else {
 		return valueFalse
@@ -347,9 +396,9 @@ func (r *Runtime) objectproto_isPrototypeOf(call FunctionCall) Value {
 }
 
 func (r *Runtime) objectproto_propertyIsEnumerable(call FunctionCall) Value {
-	p := call.Argument(0).ToString()
+	p := call.Argument(0)
 	o := call.This.ToObject(r)
-	pv := o.self.getOwnProp(p.String())
+	pv := o.self.getOwnProp(p)
 	if pv == nil {
 		return valueFalse
 	}
@@ -367,11 +416,18 @@ func (r *Runtime) objectproto_toString(call FunctionCall) Value {
 		return stringObjectNull
 	case valueUndefined:
 		return stringObjectUndefined
-	case *Object:
-		return newStringValue(fmt.Sprintf("[object %s]", o.self.className()))
 	default:
-		obj := call.This.ToObject(r)
-		return newStringValue(fmt.Sprintf("[object %s]", obj.self.className()))
+		obj := o.ToObject(r)
+		var clsName string
+		if tag := obj.self.get(symToStringTag); tag != nil {
+			if str, ok := tag.assertString(); ok {
+				clsName = str.String()
+			}
+		}
+		if clsName == "" {
+			clsName = obj.self.className()
+		}
+		return newStringValue(fmt.Sprintf("[object %s]", clsName))
 	}
 }
 
@@ -399,6 +455,7 @@ func (r *Runtime) initObject() {
 	o._putProp("getOwnPropertyDescriptor", r.newNativeFunc(r.object_getOwnPropertyDescriptor, nil, "getOwnPropertyDescriptor", nil, 2), true, false, true)
 	o._putProp("getPrototypeOf", r.newNativeFunc(r.object_getPrototypeOf, nil, "getPrototypeOf", nil, 1), true, false, true)
 	o._putProp("getOwnPropertyNames", r.newNativeFunc(r.object_getOwnPropertyNames, nil, "getOwnPropertyNames", nil, 1), true, false, true)
+	o._putProp("getOwnPropertySymbols", r.newNativeFunc(r.object_getOwnPropertySymbols, nil, "getOwnPropertySymbols", nil, 1), true, false, true)
 	o._putProp("create", r.newNativeFunc(r.object_create, nil, "create", nil, 2), true, false, true)
 	o._putProp("seal", r.newNativeFunc(r.object_seal, nil, "seal", nil, 1), true, false, true)
 	o._putProp("freeze", r.newNativeFunc(r.object_freeze, nil, "freeze", nil, 1), true, false, true)

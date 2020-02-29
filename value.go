@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"regexp"
@@ -53,12 +54,17 @@ type Value interface {
 	baseObject(r *Runtime) *Object
 }
 
+type typeError string
+
 type valueInt int64
 type valueFloat float64
 type valueBool bool
 type valueNull struct{}
 type valueUndefined struct {
 	valueNull
+}
+type valueSymbol struct {
+	desc string
 }
 
 type valueUnresolved struct {
@@ -498,7 +504,7 @@ func (f valueFloat) ToString() valueString {
 	return asciiString(f.String())
 }
 
-var matchLeading0Exponent = regexp.MustCompile(`([eE][\+\-])0+([1-9])`) // 1e-07 => 1e-7
+var matchLeading0Exponent = regexp.MustCompile(`([eE][+\-])0+([1-9])`) // 1e-07 => 1e-7
 
 func (f valueFloat) String() string {
 	value := float64(f)
@@ -852,6 +858,77 @@ func (o valueUnresolved) Export() interface{} {
 func (o valueUnresolved) ExportType() reflect.Type {
 	o.throw()
 	return nil
+}
+
+func (s *valueSymbol) ToInteger() int64 {
+	panic(typeError("Cannot convert a Symbol value to a number"))
+}
+
+func (s *valueSymbol) ToString() valueString {
+	panic(typeError("Cannot convert a Symbol value to a string"))
+}
+
+func (s *valueSymbol) String() string {
+	return s.descString()
+}
+
+func (s *valueSymbol) ToFloat() float64 {
+	panic(typeError("Cannot convert a Symbol value to a number"))
+}
+
+func (s *valueSymbol) ToNumber() Value {
+	panic(typeError("Cannot convert a Symbol value to a number"))
+}
+
+func (s *valueSymbol) ToBoolean() bool {
+	return true
+}
+
+func (s *valueSymbol) ToObject(r *Runtime) *Object {
+	return s.baseObject(r)
+}
+
+func (s *valueSymbol) SameAs(other Value) bool {
+	if s1, ok := other.(*valueSymbol); ok {
+		return s == s1
+	}
+	return false
+}
+
+func (s *valueSymbol) Equals(o Value) bool {
+	return s.SameAs(o)
+}
+
+func (s *valueSymbol) StrictEquals(o Value) bool {
+	return s.SameAs(o)
+}
+
+func (s *valueSymbol) Export() interface{} {
+	return s.String()
+}
+
+func (s *valueSymbol) ExportType() reflect.Type {
+	return reflectTypeString
+}
+
+func (s *valueSymbol) assertInt() (int64, bool) {
+	return 0, false
+}
+
+func (s *valueSymbol) assertString() (valueString, bool) {
+	return nil, false
+}
+
+func (s *valueSymbol) assertFloat() (float64, bool) {
+	return 0, false
+}
+
+func (s *valueSymbol) baseObject(r *Runtime) *Object {
+	return r.newPrimitiveObject(s, r.global.SymbolPrototype, "Symbol")
+}
+
+func (s *valueSymbol) descString() string {
+	return fmt.Sprintf("Symbol(%s)", s.desc)
 }
 
 func init() {

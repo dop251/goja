@@ -1388,7 +1388,7 @@ func (c *compiler) compileArrayLiteral(v *ast.ArrayLiteral) compiledExpr {
 
 func (e *compiledRegexpLiteral) emitGetter(putOnStack bool) {
 	if putOnStack {
-		pattern, global, ignoreCase, multiline, err := compileRegexp(e.expr.Pattern, e.expr.Flags)
+		pattern, global, ignoreCase, multiline, sticky, err := compileRegexp(e.expr.Pattern, e.expr.Flags)
 		if err != nil {
 			e.c.throwSyntaxError(e.offset, err.Error())
 		}
@@ -1398,6 +1398,7 @@ func (e *compiledRegexpLiteral) emitGetter(putOnStack bool) {
 			global:     global,
 			ignoreCase: ignoreCase,
 			multiline:  multiline,
+			sticky:     sticky,
 		})
 	}
 }

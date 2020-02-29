@@ -37,7 +37,13 @@ func (o *lazyObject) getStr(name string) Value {
 	return obj.getStr(name)
 }
 
-func (o *lazyObject) getOwnProp(name string) Value {
+func (o *lazyObject) getOwnPropStr(name string) Value {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.getOwnPropStr(name)
+}
+
+func (o *lazyObject) getOwnProp(name Value) Value {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.getOwnProp(name)
@@ -179,6 +185,12 @@ func (o *lazyObject) equal(other objectImpl) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.equal(other)
+}
+
+func (o *lazyObject) getOwnSymbols() []Value {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.getOwnSymbols()
 }
 
 func (o *lazyObject) sortLen() int64 {

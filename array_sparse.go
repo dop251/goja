@@ -120,9 +120,12 @@ func (a *sparseArrayObject) getProp(n Value) Value {
 		return a.getIdx(idx, "", n)
 	}
 
-	if n.String() == "length" {
-		return a.getLengthProp()
+	if _, ok := n.(*valueSymbol); !ok {
+		if n.String() == "length" {
+			return a.getLengthProp()
+		}
 	}
+
 	return a.baseObject.getProp(n)
 }
 
@@ -131,7 +134,7 @@ func (a *sparseArrayObject) getLengthProp() Value {
 	return &a.lengthProp
 }
 
-func (a *sparseArrayObject) getOwnProp(name string) Value {
+func (a *sparseArrayObject) getOwnPropStr(name string) Value {
 	if idx := strToIdx(name); idx >= 0 {
 		i := a.findIdx(idx)
 		if i < len(a.items) && a.items[i].idx == idx {
@@ -142,7 +145,7 @@ func (a *sparseArrayObject) getOwnProp(name string) Value {
 	if name == "length" {
 		return a.getLengthProp()
 	}
-	return a.baseObject.getOwnProp(name)
+	return a.baseObject.getOwnPropStr(name)
 }
 
 func (a *sparseArrayObject) getPropStr(name string) Value {

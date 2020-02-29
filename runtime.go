@@ -27,6 +27,14 @@ var (
 	typeTime     = reflect.TypeOf(time.Time{})
 )
 
+type iterationKind int
+
+const (
+	iterationKindKey iterationKind = iota
+	iterationKindValue
+	iterationKindKeyValue
+)
+
 type global struct {
 	Object   *Object
 	Array    *Object
@@ -36,6 +44,7 @@ type global struct {
 	Boolean  *Object
 	RegExp   *Object
 	Date     *Object
+	Symbol   *Object
 
 	ArrayBuffer *Object
 
@@ -57,8 +66,13 @@ type global struct {
 	FunctionPrototype *Object
 	RegExpPrototype   *Object
 	DatePrototype     *Object
+	SymbolPrototype   *Object
+	ArrayIterator     *Object
 
 	ArrayBufferPrototype *Object
+
+	IteratorPrototype      *Object
+	ArrayIteratorPrototype *Object
 
 	ErrorPrototype          *Object
 	TypeErrorPrototype      *Object
@@ -74,6 +88,8 @@ type global struct {
 
 	thrower         *Object
 	throwerProperty Value
+
+	regexpProtoExec Value
 }
 
 type Flag int
@@ -106,6 +122,8 @@ type Runtime struct {
 	rand            RandSource
 	now             Now
 	_collator       *collate.Collator
+
+	symbolRegistry map[string]*valueSymbol
 
 	typeInfoCache   map[reflect.Type]*reflectTypeInfo
 	fieldNameMapper FieldNameMapper
@@ -237,6 +255,13 @@ func (r *Runtime) addToGlobal(name string, value Value) {
 	r.globalObject.self._putProp(name, value, true, false, true)
 }
 
+func (r *Runtime) createIterProto(val *Object) objectImpl {
+	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
+
+	o.put(symIterator, valueProp(r.newNativeFunc(r.returnThis, nil, "[Symbol.iterator]", nil, 0), true, false, true), true)
+	return o
+}
+
 func (r *Runtime) init() {
 	r.rand = rand.Float64
 	r.now = time.Now
@@ -249,6 +274,8 @@ func (r *Runtime) init() {
 	r.vm.init()
 
 	r.global.FunctionPrototype = r.newNativeFunc(nil, nil, "Empty", nil, 0)
+	r.global.IteratorPrototype = r.newLazyObject(r.createIterProto)
+
 	r.initObject()
 	r.initFunction()
 	r.initArray()
@@ -269,6 +296,7 @@ func (r *Runtime) init() {
 	r.initJSON()
 
 	//r.initTypedArrays()
+	r.initSymbol()
 
 	r.global.thrower = r.newNativeFunc(r.builtin_thrower, nil, "thrower", nil, 0)
 	r.global.throwerProperty = &valueProperty{
@@ -297,56 +325,20 @@ func (r *Runtime) newSyntaxError(msg string, offset int) Value {
 	return r.builtin_new((r.global.SyntaxError), []Value{newStringValue(msg)})
 }
 
-func (r *Runtime) newArray(prototype *Object) (a *arrayObject) {
-	v := &Object{runtime: r}
-
-	a = &arrayObject{}
-	a.class = classArray
-	a.val = v
-	a.extensible = true
-	v.self = a
-	a.prototype = prototype
-	a.init()
-	return
-}
-
-func (r *Runtime) newArrayObject() *arrayObject {
-	return r.newArray(r.global.ArrayPrototype)
-}
-
-func (r *Runtime) newArrayValues(values []Value) *Object {
-	v := &Object{runtime: r}
-
-	a := &arrayObject{}
-	a.class = classArray
-	a.val = v
-	a.extensible = true
-	v.self = a
-	a.prototype = r.global.ArrayPrototype
-	a.init()
-	a.values = values
-	a.length = int64(len(values))
-	a.objCount = a.length
-	return v
-}
-
-func (r *Runtime) newArrayLength(l int64) *Object {
-	a := r.newArrayValues(nil)
-	a.self.putStr("length", intToValue(l), true)
-	return a
+func newBaseObjectObj(obj, proto *Object, class string) *baseObject {
+	o := &baseObject{}
+	o.class = class
+	o.val = obj
+	o.extensible = true
+	obj.self = o
+	o.prototype = proto
+	o.init()
+	return o
 }
 
 func (r *Runtime) newBaseObject(proto *Object, class string) (o *baseObject) {
 	v := &Object{runtime: r}
-
-	o = &baseObject{}
-	o.class = class
-	o.val = v
-	o.extensible = true
-	v.self = o
-	o.prototype = proto
-	o.init()
-	return
+	return newBaseObjectObj(v, proto, class)
 }
 
 func (r *Runtime) NewObject() (v *Object) {
@@ -603,37 +595,44 @@ func (r *Runtime) builtin_Error(args []Value, proto *Object) *Object {
 	return obj.val
 }
 
-func (r *Runtime) builtin_new(construct *Object, args []Value) *Object {
+func getConstructor(construct *Object) func(args []Value) *Object {
 repeat:
 	switch f := construct.self.(type) {
 	case *nativeFuncObject:
 		if f.construct != nil {
-			return f.construct(args)
+			return f.construct
 		} else {
-			panic("Not a constructor")
+			panic(construct.runtime.NewTypeError("Not a constructor"))
 		}
 	case *boundFuncObject:
 		if f.construct != nil {
-			return f.construct(args)
+			return f.construct
 		} else {
-			panic("Not a constructor")
+			panic(construct.runtime.NewTypeError("Not a constructor"))
 		}
 	case *funcObject:
-		// TODO: implement
-		panic("Not implemented")
+		return f.construct
 	case *lazyObject:
 		construct.self = f.create(construct)
 		goto repeat
-	default:
+	}
+
+	return nil
+}
+
+func (r *Runtime) builtin_new(construct *Object, args []Value) *Object {
+	f := getConstructor(construct)
+	if f == nil {
 		panic("Not a constructor")
 	}
+	return f(args)
 }
 
 func (r *Runtime) throw(e Value) {
 	panic(e)
 }
 
-func (r *Runtime) builtin_thrower(call FunctionCall) Value {
+func (r *Runtime) builtin_thrower(FunctionCall) Value {
 	r.typeErrorResult(true, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them")
 	return nil
 }
@@ -1571,4 +1570,50 @@ func tryFunc(f func()) (err error) {
 	f()
 
 	return nil
+}
+
+func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
+	if obj, ok := v.(*Object); ok {
+		return obj
+	}
+	if len(args) > 0 {
+		panic(r.NewTypeError(args...))
+	} else {
+		var s string
+		if v == nil {
+			s = "undefined"
+		} else {
+			s = v.String()
+		}
+		panic(r.NewTypeError("Value is not an object: %s", s))
+	}
+}
+
+func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value) *Object {
+	c := o.self.getStr("constructor")
+	if c != nil && c != _undefined {
+		c = r.toObject(c).self.get(symSpecies)
+	}
+	if c == nil || c == _undefined {
+		c = defaultConstructor
+	}
+	return getConstructor(r.toObject(c))
+}
+
+func (r *Runtime) returnThis(call FunctionCall) Value {
+	return call.This
+}
+
+func (r *Runtime) createIterResultObject(value Value, done bool) Value {
+	o := r.NewObject()
+	o.self.putStr("value", value, false)
+	o.self.putStr("done", r.toBoolean(done), false)
+	return o
+}
+
+func nilSafe(v Value) Value {
+	if v != nil {
+		return v
+	}
+	return _undefined
 }

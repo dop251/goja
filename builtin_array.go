@@ -6,11 +6,48 @@ import (
 	"strings"
 )
 
+func (r *Runtime) newArray(prototype *Object) (a *arrayObject) {
+	v := &Object{runtime: r}
+
+	a = &arrayObject{}
+	a.class = classArray
+	a.val = v
+	a.extensible = true
+	v.self = a
+	a.prototype = prototype
+	a.init()
+	return
+}
+
+func (r *Runtime) newArrayObject() *arrayObject {
+	return r.newArray(r.global.ArrayPrototype)
+}
+
+func setArrayValues(a *arrayObject, values []Value) *arrayObject {
+	a.values = values
+	a.length = int64(len(values))
+	a.objCount = a.length
+	return a
+}
+
+func setArrayLength(a *arrayObject, l int64) *arrayObject {
+	a.putStr("length", intToValue(l), true)
+	return a
+}
+
+func (r *Runtime) newArrayValues(values []Value) *Object {
+	return setArrayValues(r.newArrayObject(), values).val
+}
+
+func (r *Runtime) newArrayLength(l int64) *Object {
+	return setArrayLength(r.newArrayObject(), l).val
+}
+
 func (r *Runtime) builtin_newArray(args []Value, proto *Object) *Object {
 	l := len(args)
 	if l == 1 {
 		if al, ok := args[0].assertInt(); ok {
-			return r.newArrayLength(al)
+			return setArrayLength(r.newArray(proto), al).val
 		} else if f, ok := args[0].assertFloat(); ok {
 			al := int64(f)
 			if float64(al) == f {
@@ -19,11 +56,11 @@ func (r *Runtime) builtin_newArray(args []Value, proto *Object) *Object {
 				panic(r.newError(r.global.RangeError, "Invalid array length"))
 			}
 		}
-		return r.newArrayValues([]Value{args[0]})
+		return setArrayValues(r.newArray(proto), []Value{args[0]}).val
 	} else {
 		argsCopy := make([]Value, l)
 		copy(argsCopy, args)
-		return r.newArrayValues(argsCopy)
+		return setArrayValues(r.newArray(proto), argsCopy).val
 	}
 }
 
@@ -47,7 +84,7 @@ func (r *Runtime) arrayproto_push(call FunctionCall) Value {
 	return r.generic_push(obj, call)
 }
 
-func (r *Runtime) arrayproto_pop_generic(obj *Object, call FunctionCall) Value {
+func (r *Runtime) arrayproto_pop_generic(obj *Object) Value {
 	l := toLength(obj.self.getStr("length"))
 	if l == 0 {
 		obj.self.putStr("length", intToValue(0), true)
@@ -72,11 +109,11 @@ func (r *Runtime) arrayproto_pop(call FunctionCall) Value {
 			}
 			if val == nil {
 				// optimisation bail-out
-				return r.arrayproto_pop_generic(obj, call)
+				return r.arrayproto_pop_generic(obj)
 			}
 			if _, ok := val.(*valueProperty); ok {
 				// optimisation bail-out
-				return r.arrayproto_pop_generic(obj, call)
+				return r.arrayproto_pop_generic(obj)
 			}
 			//a._setLengthInt(l, false)
 			a.values[l] = nil
@@ -86,7 +123,7 @@ func (r *Runtime) arrayproto_pop(call FunctionCall) Value {
 		}
 		return _undefined
 	} else {
-		return r.arrayproto_pop_generic(obj, call)
+		return r.arrayproto_pop_generic(obj)
 	}
 }
 
@@ -191,6 +228,14 @@ func (r *Runtime) arrayproto_toLocaleString(call FunctionCall) Value {
 
 }
 
+func isConcatSpreadable(obj *Object) bool {
+	spreadable := obj.self.get(symIsConcatSpreadable)
+	if spreadable != nil && spreadable != _undefined {
+		return spreadable.ToBoolean()
+	}
+	return isArray(obj)
+}
+
 func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 	descr := propertyDescr{
 		Writable:     FLAG_TRUE,
@@ -200,7 +245,7 @@ func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 
 	aLength := toLength(a.self.getStr("length"))
 	if obj, ok := item.(*Object); ok {
-		if isArray(obj) {
+		if isConcatSpreadable(obj) {
 			length := toLength(obj.self.getStr("length"))
 			for i := int64(0); i < length; i++ {
 				v := obj.self.get(intToValue(i))
@@ -220,8 +265,29 @@ func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 	a.self.defineOwnProperty(intToValue(aLength), descr, false)
 }
 
+func arraySpeciesCreate(obj *Object, size int) *Object {
+	if isArray(obj) {
+		v := obj.self.getStr("constructor")
+		if constructObj, ok := v.(*Object); ok {
+			species := constructObj.self.get(symSpecies)
+			if species != nil && !IsUndefined(species) && !IsNull(species) {
+				constructObj, _ = species.(*Object)
+				if constructObj != nil {
+					constructor := getConstructor(constructObj)
+					if constructor != nil {
+						return constructor([]Value{intToValue(int64(size))})
+					}
+				}
+				panic(obj.runtime.NewTypeError())
+			}
+		}
+	}
+	return obj.runtime.newArrayValues(nil)
+}
+
 func (r *Runtime) arrayproto_concat(call FunctionCall) Value {
-	a := r.newArrayValues(nil)
+	obj := call.This.ToObject(r)
+	a := arraySpeciesCreate(obj, 0)
 	r.arrayproto_concat_append(a, call.This.ToObject(r))
 	for _, item := range call.Arguments {
 		r.arrayproto_concat_append(a, item)
@@ -758,6 +824,10 @@ func (r *Runtime) arrayproto_shift(call FunctionCall) Value {
 	return first
 }
 
+func (r *Runtime) arrayproto_values(call FunctionCall) Value {
+	return r.createArrayIterator(call.This.ToObject(r), iterationKindValue)
+}
+
 func (r *Runtime) array_isArray(call FunctionCall) Value {
 	if o, ok := call.Argument(0).(*Object); ok {
 		if isArray(o) {
@@ -765,6 +835,14 @@ func (r *Runtime) array_isArray(call FunctionCall) Value {
 		}
 	}
 	return valueFalse
+}
+
+func (r *Runtime) arrayIterProto_next(call FunctionCall) Value {
+	thisObj := r.toObject(call.This)
+	if iter, ok := thisObj.self.(*arrayIterObject); ok {
+		return iter.next()
+	}
+	panic(r.NewTypeError("Method Array Iterator.prototype.next called on incompatible receiver %s", thisObj.String()))
 }
 
 func (r *Runtime) createArrayProto(val *Object) objectImpl {
@@ -800,6 +878,9 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 	o._putProp("filter", r.newNativeFunc(r.arrayproto_filter, nil, "filter", nil, 1), true, false, true)
 	o._putProp("reduce", r.newNativeFunc(r.arrayproto_reduce, nil, "reduce", nil, 1), true, false, true)
 	o._putProp("reduceRight", r.newNativeFunc(r.arrayproto_reduceRight, nil, "reduceRight", nil, 1), true, false, true)
+	valuesFunc := r.newNativeFunc(r.arrayproto_values, nil, "values", nil, 0)
+	o._putProp("values", valuesFunc, true, false, true)
+	o.put(symIterator, valueProp(valuesFunc, false, false, true), true)
 
 	return o
 }
@@ -807,10 +888,26 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 func (r *Runtime) createArray(val *Object) objectImpl {
 	o := r.newNativeFuncConstructObj(val, r.builtin_newArray, "Array", r.global.ArrayPrototype, 1)
 	o._putProp("isArray", r.newNativeFunc(r.array_isArray, nil, "isArray", nil, 1), true, false, true)
+	o.putSym(symSpecies, &valueProperty{
+		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
+		accessor:     true,
+		configurable: true,
+	}, true)
+
+	return o
+}
+
+func (r *Runtime) createArrayIterProto(val *Object) objectImpl {
+	o := newBaseObjectObj(val, r.global.IteratorPrototype, classObject)
+
+	o._putProp("next", r.newNativeFunc(r.arrayIterProto_next, nil, "next", nil, 0), true, false, true)
+	o.put(symToStringTag, valueProp(asciiString(classArrayIterator), false, false, true), true)
+
 	return o
 }
 
 func (r *Runtime) initArray() {
+	r.global.ArrayIteratorPrototype = r.newLazyObject(r.createArrayIterProto)
 	//r.global.ArrayPrototype = r.newArray(r.global.ObjectPrototype).val
 	//o := r.global.ArrayPrototype.self
 	r.global.ArrayPrototype = r.newLazyObject(r.createArrayProto)

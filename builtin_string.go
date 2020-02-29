@@ -20,15 +20,21 @@ func (r *Runtime) collator() *collate.Collator {
 	return collator
 }
 
+func toString(arg Value) valueString {
+	if s, ok := arg.assertString(); ok {
+		return s
+	}
+	if s, ok := arg.(*valueSymbol); ok {
+		return newStringValue(s.descString())
+	}
+	return arg.ToString()
+}
+
 func (r *Runtime) builtin_String(call FunctionCall) Value {
 	if len(call.Arguments) > 0 {
-		arg := call.Arguments[0]
-		if _, ok := arg.assertString(); ok {
-			return arg
-		}
-		return arg.ToString()
+		return toString(call.Arguments[0])
 	} else {
-		return newStringValue("")
+		return stringEmpty
 	}
 }
 
@@ -51,7 +57,7 @@ func (r *Runtime) _newString(s valueString) *Object {
 func (r *Runtime) builtin_newString(args []Value) *Object {
 	var s valueString
 	if len(args) > 0 {
-		s = args[0].ToString()
+		s = toString(args[0])
 	} else {
 		s = stringEmpty
 	}
@@ -226,8 +232,16 @@ func (r *Runtime) stringproto_localeCompare(call FunctionCall) Value {
 
 func (r *Runtime) stringproto_match(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
-	s := call.This.ToString()
 	regexp := call.Argument(0)
+	if regexp != _undefined && regexp != _null {
+		if matcher := toMethod(regexp.ToObject(r).self.get(symMatch)); matcher != nil {
+			return matcher(FunctionCall{
+				This:      regexp,
+				Arguments: []Value{call.This},
+			})
+		}
+	}
+
 	var rx *regexpObject
 	if regexp, ok := regexp.(*Object); ok {
 		rx, _ = regexp.self.(*regexpObject)
@@ -237,34 +251,29 @@ func (r *Runtime) stringproto_match(call FunctionCall) Value {
 		rx = r.builtin_newRegExp([]Value{regexp}).self.(*regexpObject)
 	}
 
-	if rx.global {
-		rx.putStr("lastIndex", intToValue(0), false)
-		var a []Value
-		var previousLastIndex int64
-		for {
-			match, result := rx.execRegexp(s)
-			if !match {
-				break
-			}
-			thisIndex := rx.getStr("lastIndex").ToInteger()
-			if thisIndex == previousLastIndex {
-				previousLastIndex++
-				rx.putStr("lastIndex", intToValue(previousLastIndex), false)
-			} else {
-				previousLastIndex = thisIndex
-			}
-			a = append(a, s.substring(int64(result[0]), int64(result[1])))
-		}
-		if len(a) == 0 {
-			return _null
-		}
-		return r.newArrayValues(a)
-	} else {
-		return rx.exec(s)
+	if matcher, ok := r.toObject(rx.getSym(symMatch)).self.assertCallable(); ok {
+		return matcher(FunctionCall{
+			This:      rx.val,
+			Arguments: []Value{call.This.ToString()},
+		})
 	}
+
+	panic(r.NewTypeError("RegExp matcher is not a function"))
 }
 
 func (r *Runtime) stringproto_replace(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
+	searchValue := call.Argument(0)
+	replaceValue := call.Argument(1)
+	if searchValue != _undefined && searchValue != _null {
+		if replacer := toMethod(searchValue.ToObject(r).self.get(symReplace)); replacer != nil {
+			return replacer(FunctionCall{
+				This:      searchValue,
+				Arguments: []Value{call.This, replaceValue},
+			})
+		}
+	}
+
 	s := call.This.ToString()
 	var str string
 	var isASCII bool
@@ -274,8 +283,6 @@ func (r *Runtime) stringproto_replace(call FunctionCall) Value {
 	} else {
 		str = s.String()
 	}
-	searchValue := call.Argument(0)
-	replaceValue := call.Argument(1)
 
 	var found [][]int
 
@@ -408,8 +415,16 @@ func (r *Runtime) stringproto_replace(call FunctionCall) Value {
 
 func (r *Runtime) stringproto_search(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
-	s := call.This.ToString()
 	regexp := call.Argument(0)
+	if regexp != _undefined && regexp != _null {
+		if searcher := toMethod(regexp.ToObject(r).self.get(symSearch)); searcher != nil {
+			return searcher(FunctionCall{
+				This:      regexp,
+				Arguments: []Value{call.This},
+			})
+		}
+	}
+
 	var rx *regexpObject
 	if regexp, ok := regexp.(*Object); ok {
 		rx, _ = regexp.self.(*regexpObject)
@@ -419,11 +434,14 @@ func (r *Runtime) stringproto_search(call FunctionCall) Value {
 		rx = r.builtin_newRegExp([]Value{regexp}).self.(*regexpObject)
 	}
 
-	match, result := rx.execRegexp(s)
-	if !match {
-		return intToValue(-1)
+	if searcher, ok := r.toObject(rx.getSym(symSearch)).self.assertCallable(); ok {
+		return searcher(FunctionCall{
+			This:      rx.val,
+			Arguments: []Value{call.This.ToString()},
+		})
 	}
-	return intToValue(int64(result[0]))
+
+	panic(r.NewTypeError("RegExp searcher is not a function"))
 }
 
 func (r *Runtime) stringproto_slice(call FunctionCall) Value {
@@ -469,10 +487,18 @@ func (r *Runtime) stringproto_slice(call FunctionCall) Value {
 
 func (r *Runtime) stringproto_split(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
-	s := call.This.ToString()
-
 	separatorValue := call.Argument(0)
 	limitValue := call.Argument(1)
+	if separatorValue != _undefined && separatorValue != _null {
+		if splitter := toMethod(separatorValue.ToObject(r).self.get(symSplit)); splitter != nil {
+			return splitter(FunctionCall{
+				This:      separatorValue,
+				Arguments: []Value{call.This, limitValue},
+			})
+		}
+	}
+	s := call.This.ToString()
+
 	limit := -1
 	if limitValue != _undefined {
 		limit = int(toUInt32(limitValue))
@@ -486,97 +512,31 @@ func (r *Runtime) stringproto_split(call FunctionCall) Value {
 		return r.newArrayValues([]Value{s})
 	}
 
-	var search *regexpObject
-	if o, ok := separatorValue.(*Object); ok {
-		search, _ = o.self.(*regexpObject)
+	separator := separatorValue.String()
+
+	excess := false
+	str := s.String()
+	if limit > len(str) {
+		limit = len(str)
+	}
+	splitLimit := limit
+	if limit > 0 {
+		splitLimit = limit + 1
+		excess = true
 	}
 
-	if search != nil {
-		targetLength := s.length()
-		valueArray := []Value{}
-		result := search.pattern.FindAllSubmatchIndex(s, -1)
-		lastIndex := 0
-		found := 0
+	split := strings.SplitN(str, separator, splitLimit)
 
-		for _, match := range result {
-			if match[0] == match[1] {
-				// FIXME Ugh, this is a hack
-				if match[0] == 0 || int64(match[0]) == targetLength {
-					continue
-				}
-			}
-
-			if lastIndex != match[0] {
-				valueArray = append(valueArray, s.substring(int64(lastIndex), int64(match[0])))
-				found++
-			} else if lastIndex == match[0] {
-				if lastIndex != -1 {
-					valueArray = append(valueArray, stringEmpty)
-					found++
-				}
-			}
-
-			lastIndex = match[1]
-			if found == limit {
-				goto RETURN
-			}
-
-			captureCount := len(match) / 2
-			for index := 1; index < captureCount; index++ {
-				offset := index * 2
-				var value Value
-				if match[offset] != -1 {
-					value = s.substring(int64(match[offset]), int64(match[offset+1]))
-				} else {
-					value = _undefined
-				}
-				valueArray = append(valueArray, value)
-				found++
-				if found == limit {
-					goto RETURN
-				}
-			}
-		}
-
-		if found != limit {
-			if int64(lastIndex) != targetLength {
-				valueArray = append(valueArray, s.substring(int64(lastIndex), targetLength))
-			} else {
-				valueArray = append(valueArray, stringEmpty)
-			}
-		}
-
-	RETURN:
-		return r.newArrayValues(valueArray)
-
-	} else {
-		separator := separatorValue.String()
-
-		excess := false
-		str := s.String()
-		if limit > len(str) {
-			limit = len(str)
-		}
-		splitLimit := limit
-		if limit > 0 {
-			splitLimit = limit + 1
-			excess = true
-		}
-
-		split := strings.SplitN(str, separator, splitLimit)
-
-		if excess && len(split) > limit {
-			split = split[:limit]
-		}
-
-		valueArray := make([]Value, len(split))
-		for index, value := range split {
-			valueArray[index] = newStringValue(value)
-		}
-
-		return r.newArrayValues(valueArray)
+	if excess && len(split) > limit {
+		split = split[:limit]
 	}
 
+	valueArray := make([]Value, len(split))
+	for index, value := range split {
+		valueArray[index] = newStringValue(value)
+	}
+
+	return r.newArrayValues(valueArray)
 }
 
 func (r *Runtime) stringproto_substring(call FunctionCall) Value {
