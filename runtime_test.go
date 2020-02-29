@@ -1320,6 +1320,13 @@ func TestAutoBoxing(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestProtoGetter(t *testing.T) {
+	const SCRIPT = `
+	({}).__proto__ === Object.prototype && [].__proto__ === Array.prototype;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
