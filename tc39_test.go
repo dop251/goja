@@ -32,29 +32,45 @@ var (
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
 		"test/annexB/built-ins/escape/escape-above-astral.js":         true, // \u{xxxxx}
 
-		"test/built-ins/Symbol/unscopables/cross-realm.js":                                                true,
-		"test/built-ins/Symbol/toStringTag/cross-realm.js":                                                true,
-		"test/built-ins/Symbol/toPrimitive/cross-realm.js":                                                true,
-		"test/built-ins/Symbol/split/cross-realm.js":                                                      true,
-		"test/built-ins/Symbol/species/cross-realm.js":                                                    true,
-		"test/built-ins/Symbol/search/cross-realm.js":                                                     true,
-		"test/built-ins/Symbol/replace/cross-realm.js":                                                    true,
-		"test/built-ins/Symbol/match/cross-realm.js":                                                      true,
-		"test/built-ins/Symbol/keyFor/cross-realm.js":                                                     true,
-		"test/built-ins/Symbol/iterator/cross-realm.js":                                                   true,
-		"test/built-ins/Symbol/isConcatSpreadable/cross-realm.js":                                         true,
-		"test/built-ins/Symbol/hasInstance/cross-realm.js":                                                true,
-		"test/built-ins/Symbol/for/cross-realm.js":                                                        true,
-		"test/built-ins/Set/symbol-as-entry.js":                                                           true,
-		"test/built-ins/Map/symbol-as-entry-key.js":                                                       true,
+		// cross-realm
+		"test/built-ins/Symbol/unscopables/cross-realm.js":        true,
+		"test/built-ins/Symbol/toStringTag/cross-realm.js":        true,
+		"test/built-ins/Symbol/toPrimitive/cross-realm.js":        true,
+		"test/built-ins/Symbol/split/cross-realm.js":              true,
+		"test/built-ins/Symbol/species/cross-realm.js":            true,
+		"test/built-ins/Symbol/search/cross-realm.js":             true,
+		"test/built-ins/Symbol/replace/cross-realm.js":            true,
+		"test/built-ins/Symbol/match/cross-realm.js":              true,
+		"test/built-ins/Symbol/keyFor/cross-realm.js":             true,
+		"test/built-ins/Symbol/iterator/cross-realm.js":           true,
+		"test/built-ins/Symbol/isConcatSpreadable/cross-realm.js": true,
+		"test/built-ins/Symbol/hasInstance/cross-realm.js":        true,
+		"test/built-ins/Symbol/for/cross-realm.js":                true,
+		"test/built-ins/WeakSet/proto-from-ctor-realm.js":         true,
+
+		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
 		"test/language/statements/class/subclass/builtin-objects/Symbol/new-symbol-with-super-throws.js":  true,
+		"test/language/statements/class/subclass/builtin-objects/WeakSet/super-must-be-called.js":         true,
+		"test/language/statements/class/subclass/builtin-objects/WeakSet/regular-subclassing.js":          true,
 
 		// Proxy
 		"test/built-ins/Object/prototype/toString/proxy-revoked.js":  true,
 		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
 		"test/built-ins/Object/prototype/toString/proxy-array.js":    true,
 		"test/built-ins/JSON/stringify/value-proxy.js":               true,
+
+		// Set
+		"test/built-ins/WeakSet/prototype/has/does-not-have-weaksetdata-internal-slot-set.js":    true,
+		"test/built-ins/WeakSet/prototype/delete/does-not-have-weaksetdata-internal-slot-set.js": true,
+		"test/built-ins/WeakSet/prototype/add/does-not-have-weaksetdata-internal-slot-set.js":    true,
+		"test/built-ins/Set/symbol-as-entry.js":                                                  true,
+
+		// Map
+		"test/built-ins/WeakSet/prototype/has/does-not-have-weaksetdata-internal-slot-map.js":    true,
+		"test/built-ins/WeakSet/prototype/delete/does-not-have-weaksetdata-internal-slot-map.js": true,
+		"test/built-ins/WeakSet/prototype/add/does-not-have-weaksetdata-internal-slot-map.js":    true,
+		"test/built-ins/Map/symbol-as-entry-key.js":                                              true,
 	}
 
 	es6WhiteList = map[string]bool{}
@@ -73,6 +89,7 @@ var (
 		"22.1.2.5",
 		//"22.1.3.1",
 		"22.1.3.29",
+		"23.4",
 		"25.1.2",
 		"B.2.1",
 		"B.2.2",

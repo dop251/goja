@@ -3,11 +3,14 @@ package goja
 import (
 	"fmt"
 	"reflect"
+	"runtime"
+	"unsafe"
 )
 
 const (
 	classObject   = "Object"
 	classArray    = "Array"
+	classWeakSet  = "WeakSet"
 	classFunction = "Function"
 	classNumber   = "Number"
 	classString   = "String"
@@ -19,9 +22,68 @@ const (
 	classArrayIterator = "Array Iterator"
 )
 
+type weakCollection interface {
+	removePtr(uintptr)
+}
+
+type weakCollections struct {
+	colls []weakCollection
+}
+
+func (r *weakCollections) add(c weakCollection) {
+	for _, ec := range r.colls {
+		if ec == c {
+			return
+		}
+	}
+	r.colls = append(r.colls, c)
+}
+
+func (r *weakCollections) id() uintptr {
+	return uintptr(unsafe.Pointer(r))
+}
+
+func (r *weakCollections) remove(c weakCollection) {
+	if cap(r.colls) > 16 && cap(r.colls)>>2 > len(r.colls) {
+		// shrink
+		colls := make([]weakCollection, 0, len(r.colls))
+		for _, coll := range r.colls {
+			if coll != c {
+				colls = append(colls, coll)
+			}
+		}
+		r.colls = colls
+	} else {
+		for i, coll := range r.colls {
+			if coll == c {
+				l := len(r.colls) - 1
+				r.colls[i] = r.colls[l]
+				r.colls[l] = nil
+				r.colls = r.colls[:l]
+				break
+			}
+		}
+	}
+}
+
+func finalizeObjectWeakRefs(r *weakCollections) {
+	id := r.id()
+	for _, c := range r.colls {
+		c.removePtr(id)
+	}
+	r.colls = nil
+}
+
 type Object struct {
 	runtime *Runtime
 	self    objectImpl
+
+	// Contains references to all weak collections that contain this Object.
+	// weakColls has a finalizer that removes the Object's id from all weak collections.
+	// The id is the weakColls pointer value converted to uintptr.
+	// Note, cannot set the finalizer on the *Object itself because it's a part of a
+	// reference cycle.
+	weakColls *weakCollections
 }
 
 type iterNextFunc func() (propIterItem, iterNextFunc)
@@ -789,4 +851,13 @@ func instanceOfOperator(o Value, c *Object) bool {
 	}
 
 	return c.self.hasInstance(o)
+}
+
+func (o *Object) getWeakRefs() *weakCollections {
+	if o.weakColls == nil {
+		o.weakColls = &weakCollections{}
+		runtime.SetFinalizer(o.weakColls, finalizeObjectWeakRefs)
+	}
+
+	return o.weakColls
 }

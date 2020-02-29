@@ -881,6 +881,7 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 	valuesFunc := r.newNativeFunc(r.arrayproto_values, nil, "values", nil, 0)
 	o._putProp("values", valuesFunc, true, false, true)
 	o.put(symIterator, valueProp(valuesFunc, false, false, true), true)
+	r.global.arrayValues = valuesFunc
 
 	return o
 }
