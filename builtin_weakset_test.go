@@ -37,7 +37,10 @@ func TestWeakSetExpiry(t *testing.T) {
 	}
 	runtime.GC()
 	wso := vm.Get("s").ToObject(vm).self.(*weakSetObject)
-	if len(wso.set.data) > 0 {
+	wso.set.Lock()
+	l := len(wso.set.data)
+	wso.set.Unlock()
+	if l > 0 {
 		t.Fatal("Object has not been removed")
 	}
 }
