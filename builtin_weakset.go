@@ -32,7 +32,7 @@ func (ws *weakSet) removePtr(ptr uintptr) {
 }
 
 func (ws *weakSet) add(o *Object) {
-	refs := o.getWeakRefs()
+	refs := o.getWeakCollRefs()
 	ws.Lock()
 	ws.data[refs.id()] = struct{}{}
 	ws.Unlock()
@@ -158,7 +158,7 @@ func (r *Runtime) createWeakSetProto(val *Object) objectImpl {
 	o._putProp("delete", r.newNativeFunc(r.weakSetProto_delete, nil, "delete", nil, 1), true, false, true)
 	o._putProp("has", r.newNativeFunc(r.weakSetProto_has, nil, "has", nil, 1), true, false, true)
 
-	o.put(symToStringTag, valueProp(asciiString("WeakSet"), false, false, true), true)
+	o.put(symToStringTag, valueProp(asciiString(classWeakSet), false, false, true), true)
 
 	return o
 }

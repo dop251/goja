@@ -48,6 +48,7 @@ type global struct {
 
 	ArrayBuffer *Object
 	WeakSet     *Object
+	WeakMap     *Object
 
 	Error          *Object
 	TypeError      *Object
@@ -72,6 +73,7 @@ type global struct {
 
 	ArrayBufferPrototype *Object
 	WeakSetPrototype     *Object
+	WeakMapPrototype     *Object
 
 	IteratorPrototype      *Object
 	ArrayIteratorPrototype *Object
@@ -93,6 +95,7 @@ type global struct {
 
 	regexpProtoExec Value
 	weakSetAdder    *Object
+	weakMapAdder    *Object
 	arrayValues     *Object
 }
 
@@ -302,6 +305,7 @@ func (r *Runtime) init() {
 	//r.initTypedArrays()
 	r.initSymbol()
 	r.initWeakSet()
+	r.initWeakMap()
 
 	r.global.thrower = r.newNativeFunc(r.builtin_thrower, nil, "thrower", nil, 0)
 	r.global.throwerProperty = &valueProperty{

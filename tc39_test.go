@@ -47,12 +47,15 @@ var (
 		"test/built-ins/Symbol/hasInstance/cross-realm.js":        true,
 		"test/built-ins/Symbol/for/cross-realm.js":                true,
 		"test/built-ins/WeakSet/proto-from-ctor-realm.js":         true,
+		"test/built-ins/WeakMap/proto-from-ctor-realm.js":         true,
 
 		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
 		"test/language/statements/class/subclass/builtin-objects/Symbol/new-symbol-with-super-throws.js":  true,
 		"test/language/statements/class/subclass/builtin-objects/WeakSet/super-must-be-called.js":         true,
 		"test/language/statements/class/subclass/builtin-objects/WeakSet/regular-subclassing.js":          true,
+		"test/language/statements/class/subclass/builtin-objects/WeakMap/super-must-be-called.js":         true,
+		"test/language/statements/class/subclass/builtin-objects/WeakMap/regular-subclassing.js":          true,
 
 		// Proxy
 		"test/built-ins/Object/prototype/toString/proxy-revoked.js":  true,
@@ -64,12 +67,20 @@ var (
 		"test/built-ins/WeakSet/prototype/has/does-not-have-weaksetdata-internal-slot-set.js":    true,
 		"test/built-ins/WeakSet/prototype/delete/does-not-have-weaksetdata-internal-slot-set.js": true,
 		"test/built-ins/WeakSet/prototype/add/does-not-have-weaksetdata-internal-slot-set.js":    true,
+		"test/built-ins/WeakMap/prototype/set/does-not-have-weakmapdata-internal-slot-set.js":    true,
+		"test/built-ins/WeakMap/prototype/has/does-not-have-weakmapdata-internal-slot-set.js":    true,
+		"test/built-ins/WeakMap/prototype/get/does-not-have-weakmapdata-internal-slot-set.js":    true,
+		"test/built-ins/WeakMap/prototype/delete/does-not-have-weakmapdata-internal-slot-set.js": true,
 		"test/built-ins/Set/symbol-as-entry.js":                                                  true,
 
 		// Map
 		"test/built-ins/WeakSet/prototype/has/does-not-have-weaksetdata-internal-slot-map.js":    true,
 		"test/built-ins/WeakSet/prototype/delete/does-not-have-weaksetdata-internal-slot-map.js": true,
 		"test/built-ins/WeakSet/prototype/add/does-not-have-weaksetdata-internal-slot-map.js":    true,
+		"test/built-ins/WeakMap/prototype/set/does-not-have-weakmapdata-internal-slot-map.js":    true,
+		"test/built-ins/WeakMap/prototype/get/does-not-have-weakmapdata-internal-slot-map.js":    true,
+		"test/built-ins/WeakMap/prototype/delete/does-not-have-weakmapdata-internal-slot-map.js": true,
+		"test/built-ins/WeakMap/prototype/has/does-not-have-weakmapdata-internal-slot-map.js":    true,
 		"test/built-ins/Map/symbol-as-entry-key.js":                                              true,
 	}
 
@@ -89,6 +100,7 @@ var (
 		"22.1.2.5",
 		//"22.1.3.1",
 		"22.1.3.29",
+		"23.3",
 		"23.4",
 		"25.1.2",
 		"B.2.1",

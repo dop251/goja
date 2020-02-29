@@ -11,6 +11,7 @@ const (
 	classObject   = "Object"
 	classArray    = "Array"
 	classWeakSet  = "WeakSet"
+	classWeakMap  = "WeakMap"
 	classFunction = "Function"
 	classNumber   = "Number"
 	classString   = "String"
@@ -853,7 +854,7 @@ func instanceOfOperator(o Value, c *Object) bool {
 	return c.self.hasInstance(o)
 }
 
-func (o *Object) getWeakRefs() *weakCollections {
+func (o *Object) getWeakCollRefs() *weakCollections {
 	if o.weakColls == nil {
 		o.weakColls = &weakCollections{}
 		runtime.SetFinalizer(o.weakColls, finalizeObjectWeakRefs)
