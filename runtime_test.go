@@ -1320,6 +1320,13 @@ func TestAutoBoxing(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestProtoGetter(t *testing.T) {
+	const SCRIPT = `
+	({}).__proto__ === Object.prototype && [].__proto__ === Array.prototype;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func TestSymbol1(t *testing.T) {
 	const SCRIPT = `
 		Symbol.toPrimitive[Symbol.toPrimitive]() === Symbol.toPrimitive;
