@@ -151,9 +151,9 @@ func (r *Runtime) builtin_newWeakMap(args []Value) *Object {
 			i1 := intToValue(1)
 			if adder == r.global.weakMapAdder {
 				r.iterate(iter, func(item Value) {
-					o := r.toObject(item)
-					k := o.self.get(i0)
-					v := o.self.get(i1)
+					itemObj := r.toObject(item)
+					k := itemObj.self.get(i0)
+					v := itemObj.self.get(i1)
 					wmo.m.set(r.toObject(k), v)
 				})
 			} else {

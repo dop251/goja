@@ -12,6 +12,7 @@ const (
 	classArray    = "Array"
 	classWeakSet  = "WeakSet"
 	classWeakMap  = "WeakMap"
+	classMap      = "Map"
 	classFunction = "Function"
 	classNumber   = "Number"
 	classString   = "String"
