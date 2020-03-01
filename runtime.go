@@ -79,6 +79,7 @@ type global struct {
 
 	IteratorPrototype      *Object
 	ArrayIteratorPrototype *Object
+	MapIteratorPrototype   *Object
 
 	ErrorPrototype          *Object
 	TypeErrorPrototype      *Object

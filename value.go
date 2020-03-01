@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"regexp"
 	"strconv"
+	"unsafe"
 )
 
 var (
@@ -52,6 +53,8 @@ type Value interface {
 	assertFloat() (float64, bool)
 
 	baseObject(r *Runtime) *Object
+
+	hash() uint64
 }
 
 type typeError string
@@ -199,6 +202,10 @@ func (i valueInt) ExportType() reflect.Type {
 	return reflectTypeInt
 }
 
+func (i valueInt) hash() uint64 {
+	return uint64(i)
+}
+
 func (o valueBool) ToInteger() int64 {
 	if o {
 		return 1
@@ -293,6 +300,13 @@ func (o valueBool) ExportType() reflect.Type {
 	return reflectTypeBool
 }
 
+func (b valueBool) hash() uint64 {
+	if b {
+		return uint64(uintptr(unsafe.Pointer(&valueTrue)))
+	}
+	return uint64(uintptr(unsafe.Pointer(&valueFalse)))
+}
+
 func (n valueNull) ToInteger() int64 {
 	return 0
 }
@@ -329,6 +343,10 @@ func (u valueUndefined) StrictEquals(other Value) bool {
 
 func (u valueUndefined) ToFloat() float64 {
 	return math.NaN()
+}
+
+func (u valueUndefined) hash() uint64 {
+	return uint64(uintptr(unsafe.Pointer(&_undefined)))
 }
 
 func (n valueNull) ToFloat() float64 {
@@ -389,6 +407,10 @@ func (n valueNull) Export() interface{} {
 
 func (n valueNull) ExportType() reflect.Type {
 	return reflectTypeNil
+}
+
+func (n valueNull) hash() uint64 {
+	return uint64(uintptr(unsafe.Pointer(&_null)))
 }
 
 func (p *valueProperty) ToInteger() int64 {
@@ -486,6 +508,10 @@ func (n *valueProperty) Export() interface{} {
 
 func (n *valueProperty) ExportType() reflect.Type {
 	panic("Cannot export valueProperty")
+}
+
+func (n *valueProperty) hash() uint64 {
+	panic("valueProperty should never be used in maps or sets")
 }
 
 func (f valueFloat) ToInteger() int64 {
@@ -621,6 +647,13 @@ func (f valueFloat) ExportType() reflect.Type {
 	return reflectTypeFloat
 }
 
+func (f valueFloat) hash() uint64 {
+	if f == _negativeZero {
+		return 0
+	}
+	return math.Float64bits(float64(f))
+}
+
 func (o *Object) ToInteger() int64 {
 	return o.self.toPrimitiveNumber().ToNumber().ToInteger()
 }
@@ -708,6 +741,10 @@ func (o *Object) Export() interface{} {
 
 func (o *Object) ExportType() reflect.Type {
 	return o.self.exportType()
+}
+
+func (o *Object) hash() uint64 {
+	return uint64(uintptr(unsafe.Pointer(o)))
 }
 
 func (o *Object) Get(name string) Value {
@@ -860,6 +897,11 @@ func (o valueUnresolved) ExportType() reflect.Type {
 	return nil
 }
 
+func (o valueUnresolved) hash() uint64 {
+	o.throw()
+	return 0
+}
+
 func (s *valueSymbol) ToInteger() int64 {
 	panic(typeError("Cannot convert a Symbol value to a number"))
 }
@@ -925,6 +967,10 @@ func (s *valueSymbol) assertFloat() (float64, bool) {
 
 func (s *valueSymbol) baseObject(r *Runtime) *Object {
 	return r.newPrimitiveObject(s, r.global.SymbolPrototype, "Symbol")
+}
+
+func (s *valueSymbol) hash() uint64 {
+	return uint64(uintptr(unsafe.Pointer(s)))
 }
 
 func (s *valueSymbol) descString() string {

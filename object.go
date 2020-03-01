@@ -22,6 +22,7 @@ const (
 	classDate     = "Date"
 
 	classArrayIterator = "Array Iterator"
+	classMapIterator   = "Map Iterator"
 )
 
 type weakCollection interface {

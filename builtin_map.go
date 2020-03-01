@@ -1,196 +1,55 @@
 package goja
 
-import (
-	"hash/maphash"
-	"math"
-	"unsafe"
-)
-
-var (
-	mapHasher maphash.Hash
-)
-
-type mapEntry struct {
-	key, value Value
-
-	iterPrev, iterNext *mapEntry
-	hNext              *mapEntry
-}
-
-type orderedMap struct {
-	hash                map[uint64]*mapEntry
-	iterFirst, iterLast *mapEntry
-	size                int
-}
-
-type orderedMapIter struct {
-	m   *orderedMap
-	cur *mapEntry
-}
-
 type mapObject struct {
 	baseObject
 	m *orderedMap
 }
 
-func mapHash(v Value) uint64 {
-	switch v := v.(type) {
-	case valueUndefined, valueNull:
-		return uint64(uintptr(unsafe.Pointer(&v)))
-	case valueBool:
-		if v {
-			return uint64(uintptr(unsafe.Pointer(&valueTrue)))
-		}
-		return uint64(uintptr(unsafe.Pointer(&valueFalse)))
-	case *valueSymbol:
-		return uint64(uintptr(unsafe.Pointer(v)))
-	case *Object:
-		return uint64(uintptr(unsafe.Pointer(v)))
-	case valueInt:
-		return uint64(v)
-	case valueFloat:
-		if IsNaN(v) {
-			return uint64(uintptr(unsafe.Pointer(&_NaN)))
-		}
-		if v == _negativeZero {
-			return 0
-		}
-		return math.Float64bits(float64(v))
-	case asciiString:
-		_, _ = mapHasher.WriteString(string(v))
-	case unicodeString:
-		_, _ = mapHasher.Write(*(*[]byte)(unsafe.Pointer(&v)))
-	}
-	h := mapHasher.Sum64()
-	mapHasher.Reset()
-	return h
+type mapIterObject struct {
+	baseObject
+	iter *orderedMapIter
+	kind iterationKind
 }
 
-func (m *orderedMap) lookup(key Value) (h uint64, entry, hPrev *mapEntry) {
-	if key == _negativeZero {
-		key = intToValue(0)
-	}
-	h = mapHash(key)
-	for entry = m.hash[h]; entry != nil && !entry.key.SameAs(key); hPrev, entry = entry, entry.hNext {
-	}
-	return
-}
-
-func (m *orderedMap) set(key, value Value) {
-	h, entry, hPrev := m.lookup(key)
-	if entry != nil {
-		entry.value = value
-	} else {
-		entry = &mapEntry{key: key, value: value}
-		if hPrev == nil {
-			m.hash[h] = entry
-		} else {
-			hPrev.hNext = entry
-		}
-		if m.iterLast != nil {
-			entry.iterPrev = m.iterLast
-			m.iterLast.iterNext = entry
-		} else {
-			m.iterFirst = entry
-		}
-		m.iterLast = entry
-		m.size++
-	}
-}
-
-func (m *orderedMap) get(key Value) Value {
-	_, entry, _ := m.lookup(key)
-	if entry != nil {
-		return entry.value
+func (o *mapIterObject) next() Value {
+	if o.iter == nil {
+		return o.val.runtime.createIterResultObject(_undefined, true)
 	}
 
-	return nil
-}
-
-func (m *orderedMap) remove(key Value) bool {
-	h, entry, hPrev := m.lookup(key)
-	if entry != nil {
-		entry.key = nil
-		entry.value = nil
-
-		// remove from the doubly-linked list
-		if entry.iterPrev != nil {
-			entry.iterPrev.iterNext = entry.iterNext
-		} else {
-			m.iterFirst = entry.iterNext
-		}
-		if entry.iterNext != nil {
-			entry.iterNext.iterPrev = entry.iterPrev
-		} else {
-			m.iterLast = entry.iterPrev
-		}
-
-		// remove from the hash
-		if hPrev == nil {
-			delete(m.hash, h)
-		} else {
-			hPrev.hNext = entry.hNext
-		}
-
-		m.size--
-		return true
+	entry := o.iter.next()
+	if entry == nil {
+		o.iter = nil
+		return o.val.runtime.createIterResultObject(_undefined, true)
 	}
 
-	return false
-}
+	var result Value
+	switch o.kind {
+	case iterationKindKey:
+		result = entry.key
+	case iterationKindValue:
+		result = entry.value
+	default:
+		result = o.val.runtime.newArrayValues([]Value{entry.key, entry.value})
+	}
 
-func (m *orderedMap) has(key Value) bool {
-	_, entry, _ := m.lookup(key)
-	return entry != nil
-}
-
-func (iter *orderedMapIter) next() *mapEntry {
-	if iter.m == nil {
-		return nil
-	}
-	cur := iter.cur
-	if cur != nil {
-		// the entry which 'cur' is pointing to may have been deleted
-		for cur.key == nil {
-			cur = cur.iterNext
-			if cur == nil {
-				break
-			}
-		}
-	} else {
-		cur = iter.m.iterFirst
-	}
-	if cur != nil {
-		iter.cur = cur.iterNext
-	} else {
-		iter.cur = nil
-	}
-	if iter.cur == nil {
-		iter.close()
-	}
-	return cur
-}
-
-func (iter *orderedMapIter) close() {
-	iter.m = nil
-}
-
-func newOrderedMap() *orderedMap {
-	return &orderedMap{
-		hash: make(map[uint64]*mapEntry),
-	}
-}
-
-func (m *orderedMap) newIter() *orderedMapIter {
-	iter := &orderedMapIter{
-		m: m,
-	}
-	return iter
+	return o.val.runtime.createIterResultObject(result, false)
 }
 
 func (mo *mapObject) init() {
 	mo.baseObject.init()
 	mo.m = newOrderedMap()
+}
+
+func (r *Runtime) mapProto_clear(call FunctionCall) Value {
+	thisObj := r.toObject(call.This)
+	mo, ok := thisObj.self.(*mapObject)
+	if !ok {
+		panic(r.NewTypeError("Method Map.prototype.clear called on incompatible receiver %s", thisObj.String()))
+	}
+
+	mo.m.clear()
+
+	return _undefined
 }
 
 func (r *Runtime) mapProto_delete(call FunctionCall) Value {
@@ -199,8 +58,8 @@ func (r *Runtime) mapProto_delete(call FunctionCall) Value {
 	if !ok {
 		panic(r.NewTypeError("Method Map.prototype.delete called on incompatible receiver %s", thisObj.String()))
 	}
-	key, ok := call.Argument(0).(*Object)
-	if ok && mo.m.remove(key) {
+
+	if mo.m.remove(call.Argument(0)) {
 		return valueTrue
 	}
 	return valueFalse
@@ -212,14 +71,8 @@ func (r *Runtime) mapProto_get(call FunctionCall) Value {
 	if !ok {
 		panic(r.NewTypeError("Method Map.prototype.get called on incompatible receiver %s", thisObj.String()))
 	}
-	var res Value
-	if key, ok := call.Argument(0).(*Object); ok {
-		res = mo.m.get(key)
-	}
-	if res == nil {
-		return _undefined
-	}
-	return res
+
+	return nilSafe(mo.m.get(call.Argument(0)))
 }
 
 func (r *Runtime) mapProto_has(call FunctionCall) Value {
@@ -228,8 +81,7 @@ func (r *Runtime) mapProto_has(call FunctionCall) Value {
 	if !ok {
 		panic(r.NewTypeError("Method Map.prototype.has called on incompatible receiver %s", thisObj.String()))
 	}
-	key, ok := call.Argument(0).(*Object)
-	if ok && mo.m.has(key) {
+	if mo.m.has(call.Argument(0)) {
 		return valueTrue
 	}
 	return valueFalse
@@ -241,10 +93,45 @@ func (r *Runtime) mapProto_set(call FunctionCall) Value {
 	if !ok {
 		panic(r.NewTypeError("Method Map.prototype.set called on incompatible receiver %s", thisObj.String()))
 	}
-	key := r.toObject(call.Argument(0))
-	mo.m.set(key, call.Argument(1))
+	mo.m.set(call.Argument(0), call.Argument(1))
 	return call.This
 }
+
+func (r *Runtime) mapProto_entries(call FunctionCall) Value {
+	return r.createMapIterator(call.This, iterationKindKeyValue)
+}
+
+func (r *Runtime) mapProto_forEach(call FunctionCall) Value {
+	thisObj := r.toObject(call.This)
+	mo, ok := thisObj.self.(*mapObject)
+	if !ok {
+		panic(r.NewTypeError("Method Map.prototype.forEach called on incompatible receiver %s", thisObj.String()))
+	}
+	callbackFn, ok := r.toObject(call.Argument(0)).self.assertCallable()
+	if !ok {
+		panic(r.NewTypeError("object is not a function %s"))
+	}
+	t := call.Argument(1)
+	iter := mo.m.newIter()
+	for {
+		entry := iter.next()
+		if entry == nil {
+			break
+		}
+		callbackFn(FunctionCall{This: t, Arguments: []Value{entry.value, entry.key, thisObj}})
+	}
+
+	return _undefined
+}
+
+func (r *Runtime) mapProto_keys(call FunctionCall) Value {
+	return r.createMapIterator(call.This, iterationKindKey)
+}
+
+func (r *Runtime) mapProto_values(call FunctionCall) Value {
+	return r.createMapIterator(call.This, iterationKindValue)
+}
+
 func (r *Runtime) mapProto_getSize(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	mo, ok := thisObj.self.(*mapObject)
@@ -294,13 +181,46 @@ func (r *Runtime) builtin_newMap(args []Value) *Object {
 	return o
 }
 
+func (r *Runtime) createMapIterator(mapValue Value, kind iterationKind) Value {
+	obj := r.toObject(mapValue)
+	mapObj, ok := obj.self.(*mapObject)
+	if !ok {
+		panic(r.NewTypeError("Object is not Map"))
+	}
+
+	o := &Object{runtime: r}
+
+	mi := &mapIterObject{
+		iter: mapObj.m.newIter(),
+		kind: kind,
+	}
+	mi.class = classMapIterator
+	mi.val = o
+	mi.extensible = true
+	o.self = mi
+	mi.prototype = r.global.MapIteratorPrototype
+	mi.init()
+
+	return o
+}
+
+func (r *Runtime) mapIterProto_next(call FunctionCall) Value {
+	thisObj := r.toObject(call.This)
+	if iter, ok := thisObj.self.(*mapIterObject); ok {
+		return iter.next()
+	}
+	panic(r.NewTypeError("Method Map Iterator.prototype.next called on incompatible receiver %s", thisObj.String()))
+}
+
 func (r *Runtime) createMapProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 
 	o._putProp("constructor", r.global.Map, true, false, true)
+	o._putProp("clear", r.newNativeFunc(r.mapProto_clear, nil, "clear", nil, 0), true, false, true)
 	r.global.mapAdder = r.newNativeFunc(r.mapProto_set, nil, "set", nil, 2)
 	o._putProp("set", r.global.mapAdder, true, false, true)
 	o._putProp("delete", r.newNativeFunc(r.mapProto_delete, nil, "delete", nil, 1), true, false, true)
+	o._putProp("forEach", r.newNativeFunc(r.mapProto_forEach, nil, "forEach", nil, 1), true, false, true)
 	o._putProp("has", r.newNativeFunc(r.mapProto_has, nil, "has", nil, 1), true, false, true)
 	o._putProp("get", r.newNativeFunc(r.mapProto_get, nil, "get", nil, 1), true, false, true)
 	o.putStr("size", &valueProperty{
@@ -309,7 +229,12 @@ func (r *Runtime) createMapProto(val *Object) objectImpl {
 		writable:     true,
 		configurable: true,
 	}, true)
+	o._putProp("keys", r.newNativeFunc(r.mapProto_keys, nil, "keys", nil, 0), true, false, true)
+	o._putProp("values", r.newNativeFunc(r.mapProto_values, nil, "values", nil, 0), true, false, true)
 
+	entriesFunc := r.newNativeFunc(r.mapProto_entries, nil, "entries", nil, 0)
+	o._putProp("entries", entriesFunc, true, false, true)
+	o.put(symIterator, valueProp(entriesFunc, true, false, true), true)
 	o.put(symToStringTag, valueProp(asciiString(classMap), false, false, true), true)
 
 	return o
@@ -317,11 +242,27 @@ func (r *Runtime) createMapProto(val *Object) objectImpl {
 
 func (r *Runtime) createMap(val *Object) objectImpl {
 	o := r.newNativeFuncObj(val, r.constructorThrower("Map"), r.builtin_newMap, "Map", r.global.MapPrototype, 0)
+	o.putSym(symSpecies, &valueProperty{
+		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
+		accessor:     true,
+		configurable: true,
+	}, true)
+
+	return o
+}
+
+func (r *Runtime) createMapIterProto(val *Object) objectImpl {
+	o := newBaseObjectObj(val, r.global.IteratorPrototype, classObject)
+
+	o._putProp("next", r.newNativeFunc(r.mapIterProto_next, nil, "next", nil, 0), true, false, true)
+	o.put(symToStringTag, valueProp(asciiString(classMapIterator), false, false, true), true)
 
 	return o
 }
 
 func (r *Runtime) initMap() {
+	r.global.MapIteratorPrototype = r.newLazyObject(r.createMapIterProto)
+
 	r.global.MapPrototype = r.newLazyObject(r.createMapProto)
 	r.global.Map = r.newLazyObject(r.createMap)
 

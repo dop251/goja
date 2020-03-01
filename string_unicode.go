@@ -13,6 +13,7 @@ import (
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+	"unsafe"
 )
 
 type unicodeString []uint16
@@ -316,4 +317,11 @@ func (s unicodeString) Export() interface{} {
 
 func (s unicodeString) ExportType() reflect.Type {
 	return reflectTypeString
+}
+
+func (s unicodeString) hash() uint64 {
+	_, _ = mapHasher.Write(*(*[]byte)(unsafe.Pointer(&s)))
+	h := mapHasher.Sum64()
+	mapHasher.Reset()
+	return h
 }

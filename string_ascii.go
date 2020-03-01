@@ -225,6 +225,13 @@ func (s asciiString) baseObject(r *Runtime) *Object {
 	return ss.val
 }
 
+func (s asciiString) hash() uint64 {
+	_, _ = mapHasher.WriteString(string(s))
+	h := mapHasher.Sum64()
+	mapHasher.Reset()
+	return h
+}
+
 func (s asciiString) charAt(idx int64) rune {
 	return rune(s[idx])
 }

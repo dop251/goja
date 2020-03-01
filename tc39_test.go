@@ -48,6 +48,7 @@ var (
 		"test/built-ins/Symbol/for/cross-realm.js":                true,
 		"test/built-ins/WeakSet/proto-from-ctor-realm.js":         true,
 		"test/built-ins/WeakMap/proto-from-ctor-realm.js":         true,
+		"test/built-ins/Map/proto-from-ctor-realm.js":             true,
 
 		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
@@ -100,6 +101,7 @@ var (
 		"22.1.2.5",
 		//"22.1.3.1",
 		"22.1.3.29",
+		"23.1",
 		"23.3",
 		"23.4",
 		"25.1.2",
