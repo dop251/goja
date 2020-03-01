@@ -145,20 +145,34 @@ func (m *orderedMap) has(key Value) bool {
 }
 
 func (iter *orderedMapIter) next() *mapEntry {
+	if iter.m == nil {
+		return nil
+	}
 	cur := iter.cur
 	if cur != nil {
-		for {
-			iter.cur = iter.cur.iterNext
-			if iter.cur == nil || iter.cur.key != nil {
+		// the entry which 'cur' is pointing to may have been deleted
+		for cur.key == nil {
+			cur = cur.iterNext
+			if cur == nil {
 				break
 			}
 		}
+	} else {
+		cur = iter.m.iterFirst
+	}
+	if cur != nil {
+		iter.cur = cur.iterNext
+	} else {
+		iter.cur = nil
+	}
+	if iter.cur == nil {
+		iter.close()
 	}
 	return cur
 }
 
 func (iter *orderedMapIter) close() {
-	iter.cur = nil
+	iter.m = nil
 }
 
 func newOrderedMap() *orderedMap {
@@ -169,8 +183,7 @@ func newOrderedMap() *orderedMap {
 
 func (m *orderedMap) newIter() *orderedMapIter {
 	iter := &orderedMapIter{
-		m:   m,
-		cur: m.iterFirst,
+		m: m,
 	}
 	return iter
 }
