@@ -13,6 +13,7 @@ const (
 	classWeakSet  = "WeakSet"
 	classWeakMap  = "WeakMap"
 	classMap      = "Map"
+	classSet      = "Set"
 	classFunction = "Function"
 	classNumber   = "Number"
 	classString   = "String"
@@ -23,6 +24,7 @@ const (
 
 	classArrayIterator = "Array Iterator"
 	classMapIterator   = "Map Iterator"
+	classSetIterator   = "Set Iterator"
 )
 
 type weakCollection interface {

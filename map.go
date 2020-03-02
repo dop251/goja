@@ -1,13 +1,5 @@
 package goja
 
-import (
-	"hash/maphash"
-)
-
-var (
-	mapHasher maphash.Hash
-)
-
 type mapEntry struct {
 	key, value Value
 
@@ -37,13 +29,13 @@ func (m *orderedMap) lookup(key Value) (h uint64, entry, hPrev *mapEntry) {
 }
 
 func (m *orderedMap) set(key, value Value) {
-	if key == _negativeZero {
-		key = intToValue(0)
-	}
 	h, entry, hPrev := m.lookup(key)
 	if entry != nil {
 		entry.value = value
 	} else {
+		if key == _negativeZero {
+			key = intToValue(0)
+		}
 		entry = &mapEntry{key: key, value: value}
 		if hPrev == nil {
 			m.hash[h] = entry
@@ -113,29 +105,24 @@ func (m *orderedMap) has(key Value) bool {
 
 func (iter *orderedMapIter) next() *mapEntry {
 	if iter.m == nil {
+		// closed iterator
 		return nil
 	}
 	cur := iter.cur
 	if cur != nil {
-		// the entry which 'cur' is pointing to may have been deleted
-		for cur.key == nil {
+		cur = cur.iterNext
+		// skip deleted entries
+		for cur != nil && cur.key == nil {
 			cur = cur.iterNext
-			if cur == nil {
-				break
-			}
 		}
+		iter.cur = cur
 	} else {
-		cur = iter.m.iterFirst
-	}
-	if cur != nil {
-		iter.cur = cur.iterNext
-	} else {
-		iter.cur = nil
+		iter.cur = iter.m.iterFirst
 	}
 	if iter.cur == nil {
 		iter.close()
 	}
-	return cur
+	return iter.cur
 }
 
 func (iter *orderedMapIter) close() {

@@ -2,6 +2,7 @@ package goja
 
 import (
 	"fmt"
+	"hash/maphash"
 	"math"
 	"reflect"
 	"regexp"
@@ -33,6 +34,10 @@ var (
 )
 
 var intCache [256]Value
+
+var (
+	mapHasher maphash.Hash
+)
 
 type Value interface {
 	ToInteger() int64

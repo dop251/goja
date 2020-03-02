@@ -59,10 +59,7 @@ func (r *Runtime) mapProto_delete(call FunctionCall) Value {
 		panic(r.NewTypeError("Method Map.prototype.delete called on incompatible receiver %s", thisObj.String()))
 	}
 
-	if mo.m.remove(call.Argument(0)) {
-		return valueTrue
-	}
-	return valueFalse
+	return r.toBoolean(mo.m.remove(call.Argument(0)))
 }
 
 func (r *Runtime) mapProto_get(call FunctionCall) Value {
@@ -185,7 +182,7 @@ func (r *Runtime) createMapIterator(mapValue Value, kind iterationKind) Value {
 	obj := r.toObject(mapValue)
 	mapObj, ok := obj.self.(*mapObject)
 	if !ok {
-		panic(r.NewTypeError("Object is not Map"))
+		panic(r.NewTypeError("Object is not a Map"))
 	}
 
 	o := &Object{runtime: r}

@@ -49,6 +49,7 @@ var (
 		"test/built-ins/WeakSet/proto-from-ctor-realm.js":         true,
 		"test/built-ins/WeakMap/proto-from-ctor-realm.js":         true,
 		"test/built-ins/Map/proto-from-ctor-realm.js":             true,
+		"test/built-ins/Set/proto-from-ctor-realm.js":             true,
 
 		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
@@ -57,6 +58,10 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/WeakSet/regular-subclassing.js":          true,
 		"test/language/statements/class/subclass/builtin-objects/WeakMap/super-must-be-called.js":         true,
 		"test/language/statements/class/subclass/builtin-objects/WeakMap/regular-subclassing.js":          true,
+		"test/language/statements/class/subclass/builtin-objects/Map/super-must-be-called.js":             true,
+		"test/language/statements/class/subclass/builtin-objects/Map/regular-subclassing.js":              true,
+		"test/language/statements/class/subclass/builtin-objects/Set/super-must-be-called.js":             true,
+		"test/language/statements/class/subclass/builtin-objects/Set/regular-subclassing.js":              true,
 
 		// Proxy
 		"test/built-ins/Object/prototype/toString/proxy-revoked.js":  true,
@@ -64,25 +69,8 @@ var (
 		"test/built-ins/Object/prototype/toString/proxy-array.js":    true,
 		"test/built-ins/JSON/stringify/value-proxy.js":               true,
 
-		// Set
-		"test/built-ins/WeakSet/prototype/has/does-not-have-weaksetdata-internal-slot-set.js":    true,
-		"test/built-ins/WeakSet/prototype/delete/does-not-have-weaksetdata-internal-slot-set.js": true,
-		"test/built-ins/WeakSet/prototype/add/does-not-have-weaksetdata-internal-slot-set.js":    true,
-		"test/built-ins/WeakMap/prototype/set/does-not-have-weakmapdata-internal-slot-set.js":    true,
-		"test/built-ins/WeakMap/prototype/has/does-not-have-weakmapdata-internal-slot-set.js":    true,
-		"test/built-ins/WeakMap/prototype/get/does-not-have-weakmapdata-internal-slot-set.js":    true,
-		"test/built-ins/WeakMap/prototype/delete/does-not-have-weakmapdata-internal-slot-set.js": true,
-		"test/built-ins/Set/symbol-as-entry.js":                                                  true,
-
-		// Map
-		"test/built-ins/WeakSet/prototype/has/does-not-have-weaksetdata-internal-slot-map.js":    true,
-		"test/built-ins/WeakSet/prototype/delete/does-not-have-weaksetdata-internal-slot-map.js": true,
-		"test/built-ins/WeakSet/prototype/add/does-not-have-weaksetdata-internal-slot-map.js":    true,
-		"test/built-ins/WeakMap/prototype/set/does-not-have-weakmapdata-internal-slot-map.js":    true,
-		"test/built-ins/WeakMap/prototype/get/does-not-have-weakmapdata-internal-slot-map.js":    true,
-		"test/built-ins/WeakMap/prototype/delete/does-not-have-weakmapdata-internal-slot-map.js": true,
-		"test/built-ins/WeakMap/prototype/has/does-not-have-weakmapdata-internal-slot-map.js":    true,
-		"test/built-ins/Map/symbol-as-entry-key.js":                                              true,
+		// Arrow functions
+		"test/built-ins/Set/prototype/forEach/this-arg-explicit-cannot-override-lexical-this-arrow.js": true,
 	}
 
 	es6WhiteList = map[string]bool{}
@@ -102,6 +90,7 @@ var (
 		//"22.1.3.1",
 		"22.1.3.29",
 		"23.1",
+		"23.2",
 		"23.3",
 		"23.4",
 		"25.1.2",
