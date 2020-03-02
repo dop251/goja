@@ -811,3 +811,96 @@ func BenchmarkGoReflectGet(b *testing.B) {
 		v.Get("Test")
 	}
 }
+
+func TestNestedStructSet(t *testing.T) {
+	type B struct {
+		Field int
+	}
+	type A struct {
+		B B
+	}
+
+	const SCRIPT = `
+	'use strict';
+	a.B.Field++;
+	if (a1.B.Field != 1) {
+		throw new Error("a1.B.Field = " + a1.B.Field);
+	}
+	var d = Object.getOwnPropertyDescriptor(a1.B, "Field");
+	if (d.writable) {
+		throw new Error("a1.B is writable");
+	}
+	var thrown = false;
+	try {
+		a1.B.Field = 42;
+	} catch (e) {
+		if (e instanceof TypeError) {
+			thrown = true;
+		}
+	}
+	if (!thrown) {
+		throw new Error("TypeError was not thrown");
+	}
+	`
+	a := A{
+		B: B{
+			Field: 1,
+		},
+	}
+	vm := New()
+	vm.Set("a", &a)
+	vm.Set("a1", a)
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if v := a.B.Field; v != 2 {
+		t.Fatalf("Unexpected a.B.Field: %d", v)
+	}
+}
+
+func TestStructNonAddressableAnonStruct(t *testing.T) {
+
+	type C struct {
+		Z int64
+		X string
+	}
+
+	type B struct {
+		C
+		Y string
+	}
+
+	type A struct {
+		B B
+	}
+
+	a := A{
+		B: B{
+			C: C{
+				Z: 1,
+				X: "X2",
+			},
+			Y: "Y3",
+		},
+	}
+	const SCRIPT = `
+	"use strict";
+	var s = JSON.stringify(a);
+	s;
+`
+
+	vm := New()
+	vm.Set("a", &a)
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := `{"B":{"C":{"Z":1,"X":"X2"},"Z":1,"X":"X2","Y":"Y3"}}`
+	if expected != v.String() {
+		t.Fatalf("Expected '%s', got '%s'", expected, v.String())
+	}
+
+}
