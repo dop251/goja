@@ -155,3 +155,42 @@ func TestOrderedMapIterVisitAfterReAdd(t *testing.T) {
 		t.Fatalf("3: unexpected key: %v", entry.key)
 	}
 }
+
+func TestOrderedMapIterAddAfterClear(t *testing.T) {
+	m := newOrderedMap()
+	one := intToValue(1)
+	m.set(one, valueTrue)
+	iter := m.newIter()
+	iter.next()
+	m.clear()
+	m.set(one, valueTrue)
+	entry := iter.next()
+	if entry == nil {
+		t.Fatal("entry is nil")
+	}
+	if entry.key != one {
+		t.Fatalf("unexpected key: %v", entry.key)
+	}
+	entry = iter.next()
+	if entry != nil {
+		t.Fatalf("entry is not nil: %v", entry)
+	}
+}
+
+func TestOrderedMapIterDeleteCurrent(t *testing.T) {
+	m := newOrderedMap()
+	one := intToValue(1)
+	two := intToValue(2)
+	iter := m.newIter()
+	m.set(one, valueTrue)
+	m.set(two, valueTrue)
+	entry := iter.next()
+	if entry.key != one {
+		t.Fatalf("unexpected key: %v", entry.key)
+	}
+	m.remove(one)
+	entry = iter.next()
+	if entry.key != two {
+		t.Fatalf("2: unexpected key: %v", entry.key)
+	}
+}
