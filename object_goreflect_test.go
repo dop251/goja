@@ -623,6 +623,53 @@ func TestStructNonAddressable(t *testing.T) {
 	}
 }
 
+func TestStructNonAddressableAnonStruct(t *testing.T) {
+
+	type C struct {
+		Z int64
+		X string
+	}
+
+	type B struct {
+		C
+		Y string
+	}
+
+	type A struct {
+		B B
+	}
+
+	a := A{
+		B: B{
+			C: C{
+				Z: 1,
+				X: "X2",
+			},
+			Y: "Y3",
+		},
+	}
+
+	const SCRIPT = `
+	"use strict";
+
+	var s = JSON.stringify(a);
+	s;
+`
+
+	vm := New()
+	vm.Set("a", &a)
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := `{"B":{"C":{"Z":1,"X":"X2"},"Z":1,"X":"X2","Y":"Y3"}}`
+	if expected != v.String() {
+		t.Fatalf("Expected '%s', got '%s'", expected, v.String())
+	}
+
+}
+
 type testFieldMapper struct {
 }
 

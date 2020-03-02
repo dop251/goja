@@ -89,7 +89,7 @@ func (o *objectGoReflect) get(n Value) Value {
 func (o *objectGoReflect) _getField(jsName string) reflect.Value {
 	if info, exists := o.valueTypeInfo.Fields[jsName]; exists {
 		v := o.value.FieldByIndex(info.Index)
-		if info.Anonymous {
+		if info.Anonymous && v.CanAddr() {
 			v = v.Addr()
 		}
 		return v
