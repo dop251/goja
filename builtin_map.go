@@ -157,8 +157,8 @@ func (r *Runtime) builtin_newMap(args []Value) *Object {
 			if adder == r.global.mapAdder {
 				r.iterate(iter, func(item Value) {
 					itemObj := r.toObject(item)
-					k := itemObj.self.get(i0)
-					v := itemObj.self.get(i1)
+					k := nilSafe(itemObj.self.get(i0))
+					v := nilSafe(itemObj.self.get(i1))
 					mo.m.set(k, v)
 				})
 			} else {

@@ -153,7 +153,7 @@ func (r *Runtime) builtin_newWeakMap(args []Value) *Object {
 				r.iterate(iter, func(item Value) {
 					itemObj := r.toObject(item)
 					k := itemObj.self.get(i0)
-					v := itemObj.self.get(i1)
+					v := nilSafe(itemObj.self.get(i1))
 					wmo.m.set(r.toObject(k), v)
 				})
 			} else {
