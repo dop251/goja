@@ -108,17 +108,11 @@ func (iter *orderedMapIter) next() *mapEntry {
 		// closed iterator
 		return nil
 	}
+
 	cur := iter.cur
-	if cur != nil {
-		if cur.key == nil {
-			// the current item was deleted, track back to find the latest that hasn't
-			for {
-				cur = cur.iterPrev
-				if cur == nil || cur.key != nil {
-					break
-				}
-			}
-		}
+	// if the current item was deleted, track back to find the latest that wasn't
+	for cur != nil && cur.key == nil {
+		cur = cur.iterPrev
 	}
 
 	if cur != nil {
@@ -126,11 +120,13 @@ func (iter *orderedMapIter) next() *mapEntry {
 	} else {
 		cur = iter.m.iterFirst
 	}
+
 	if cur == nil {
 		iter.close()
 	} else {
 		iter.cur = cur
 	}
+
 	return cur
 }
 

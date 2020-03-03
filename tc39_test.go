@@ -71,6 +71,12 @@ var (
 
 		// Arrow functions
 		"test/built-ins/Set/prototype/forEach/this-arg-explicit-cannot-override-lexical-this-arrow.js": true,
+
+		// full unicode regexp flag
+		"test/built-ins/RegExp/prototype/Symbol.match/u-advance-after-empty.js":               true,
+		"test/built-ins/RegExp/prototype/Symbol.match/get-unicode-error.js":                   true,
+		"test/built-ins/RegExp/prototype/Symbol.match/builtin-success-u-return-val-groups.js": true,
+		"test/built-ins/RegExp/prototype/Symbol.match/builtin-infer-unicode.js":               true,
 	}
 
 	es6WhiteList = map[string]bool{}
@@ -85,7 +91,7 @@ var (
 		"21.1.3.14",
 		"21.1.3.15",
 		"21.1.3.17",
-		//"21.2.5.6",
+		"21.2.5.6",
 		"22.1.2.5",
 		//"22.1.3.1",
 		"22.1.3.29",
