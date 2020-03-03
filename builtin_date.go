@@ -111,7 +111,7 @@ func (r *Runtime) builtin_newDate(args []Value) *Object {
 	return r.newDateTime(args, time.Local)
 }
 
-func (r *Runtime) builtin_date(call FunctionCall) Value {
+func (r *Runtime) builtin_date(FunctionCall) Value {
 	return asciiString(dateFormat(r.now()))
 }
 
@@ -131,7 +131,7 @@ func (r *Runtime) date_UTC(call FunctionCall) Value {
 	return intToValue(timeToMsec(t))
 }
 
-func (r *Runtime) date_now(call FunctionCall) Value {
+func (r *Runtime) date_now(FunctionCall) Value {
 	return intToValue(timeToMsec(r.now()))
 }
 
@@ -908,16 +908,6 @@ func (r *Runtime) createDate(val *Object) objectImpl {
 	o._putProp("now", r.newNativeFunc(r.date_now, nil, "now", nil, 0), true, false, true)
 
 	return o
-}
-
-func (r *Runtime) newLazyObject(create func(*Object) objectImpl) *Object {
-	val := &Object{runtime: r}
-	o := &lazyObject{
-		val:    val,
-		create: create,
-	}
-	val.self = o
-	return val
 }
 
 func (r *Runtime) initDate() {

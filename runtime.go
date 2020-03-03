@@ -47,6 +47,10 @@ type global struct {
 	Symbol   *Object
 
 	ArrayBuffer *Object
+	WeakSet     *Object
+	WeakMap     *Object
+	Map         *Object
+	Set         *Object
 
 	Error          *Object
 	TypeError      *Object
@@ -70,9 +74,15 @@ type global struct {
 	ArrayIterator     *Object
 
 	ArrayBufferPrototype *Object
+	WeakSetPrototype     *Object
+	WeakMapPrototype     *Object
+	MapPrototype         *Object
+	SetPrototype         *Object
 
 	IteratorPrototype      *Object
 	ArrayIteratorPrototype *Object
+	MapIteratorPrototype   *Object
+	SetIteratorPrototype   *Object
 
 	ErrorPrototype          *Object
 	TypeErrorPrototype      *Object
@@ -90,6 +100,11 @@ type global struct {
 	throwerProperty Value
 
 	regexpProtoExec Value
+	weakSetAdder    *Object
+	weakMapAdder    *Object
+	mapAdder        *Object
+	setAdder        *Object
+	arrayValues     *Object
 }
 
 type Flag int
@@ -297,6 +312,10 @@ func (r *Runtime) init() {
 
 	//r.initTypedArrays()
 	r.initSymbol()
+	r.initWeakSet()
+	r.initWeakMap()
+	r.initMap()
+	r.initSet()
 
 	r.global.thrower = r.newNativeFunc(r.builtin_thrower, nil, "thrower", nil, 0)
 	r.global.throwerProperty = &valueProperty{
@@ -326,12 +345,13 @@ func (r *Runtime) newSyntaxError(msg string, offset int) Value {
 }
 
 func newBaseObjectObj(obj, proto *Object, class string) *baseObject {
-	o := &baseObject{}
-	o.class = class
-	o.val = obj
-	o.extensible = true
+	o := &baseObject{
+		class:      class,
+		val:        obj,
+		extensible: true,
+		prototype:  proto,
+	}
 	obj.self = o
-	o.prototype = proto
 	o.init()
 	return o
 }
@@ -1604,11 +1624,61 @@ func (r *Runtime) returnThis(call FunctionCall) Value {
 	return call.This
 }
 
+func (r *Runtime) getIterator(obj *Object, method func(FunctionCall) Value) *Object {
+	if method == nil {
+		method = toMethod(obj.self.get(symIterator))
+		if method == nil {
+			panic(r.NewTypeError("object is not iterable"))
+		}
+	}
+
+	return r.toObject(method(FunctionCall{
+		This: obj,
+	}))
+}
+
+func (r *Runtime) iterate(iter *Object, step func(Value)) {
+	for {
+		res := r.toObject(toMethod(iter.self.getStr("next"))(FunctionCall{This: iter}))
+		if res.self.getStr("done").ToBoolean() {
+			break
+		}
+		err := tryFunc(func() {
+			step(res.self.getStr("value"))
+		})
+		if err != nil {
+			retMethod := toMethod(iter.self.getStr("return"))
+			if retMethod != nil {
+				_ = tryFunc(func() {
+					retMethod(FunctionCall{This: iter})
+				})
+			}
+			panic(err)
+		}
+	}
+}
+
 func (r *Runtime) createIterResultObject(value Value, done bool) Value {
 	o := r.NewObject()
 	o.self.putStr("value", value, false)
 	o.self.putStr("done", r.toBoolean(done), false)
 	return o
+}
+
+func (r *Runtime) newLazyObject(create func(*Object) objectImpl) *Object {
+	val := &Object{runtime: r}
+	o := &lazyObject{
+		val:    val,
+		create: create,
+	}
+	val.self = o
+	return val
+}
+
+func (r *Runtime) constructorThrower(name string) func(call FunctionCall) Value {
+	return func(FunctionCall) Value {
+		panic(r.NewTypeError("Constructor %s requires 'new'", name))
+	}
 }
 
 func nilSafe(v Value) Value {

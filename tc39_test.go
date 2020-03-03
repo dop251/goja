@@ -32,29 +32,51 @@ var (
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
 		"test/annexB/built-ins/escape/escape-above-astral.js":         true, // \u{xxxxx}
 
-		"test/built-ins/Symbol/unscopables/cross-realm.js":                                                true,
-		"test/built-ins/Symbol/toStringTag/cross-realm.js":                                                true,
-		"test/built-ins/Symbol/toPrimitive/cross-realm.js":                                                true,
-		"test/built-ins/Symbol/split/cross-realm.js":                                                      true,
-		"test/built-ins/Symbol/species/cross-realm.js":                                                    true,
-		"test/built-ins/Symbol/search/cross-realm.js":                                                     true,
-		"test/built-ins/Symbol/replace/cross-realm.js":                                                    true,
-		"test/built-ins/Symbol/match/cross-realm.js":                                                      true,
-		"test/built-ins/Symbol/keyFor/cross-realm.js":                                                     true,
-		"test/built-ins/Symbol/iterator/cross-realm.js":                                                   true,
-		"test/built-ins/Symbol/isConcatSpreadable/cross-realm.js":                                         true,
-		"test/built-ins/Symbol/hasInstance/cross-realm.js":                                                true,
-		"test/built-ins/Symbol/for/cross-realm.js":                                                        true,
-		"test/built-ins/Set/symbol-as-entry.js":                                                           true,
-		"test/built-ins/Map/symbol-as-entry-key.js":                                                       true,
+		// cross-realm
+		"test/built-ins/Symbol/unscopables/cross-realm.js":        true,
+		"test/built-ins/Symbol/toStringTag/cross-realm.js":        true,
+		"test/built-ins/Symbol/toPrimitive/cross-realm.js":        true,
+		"test/built-ins/Symbol/split/cross-realm.js":              true,
+		"test/built-ins/Symbol/species/cross-realm.js":            true,
+		"test/built-ins/Symbol/search/cross-realm.js":             true,
+		"test/built-ins/Symbol/replace/cross-realm.js":            true,
+		"test/built-ins/Symbol/match/cross-realm.js":              true,
+		"test/built-ins/Symbol/keyFor/cross-realm.js":             true,
+		"test/built-ins/Symbol/iterator/cross-realm.js":           true,
+		"test/built-ins/Symbol/isConcatSpreadable/cross-realm.js": true,
+		"test/built-ins/Symbol/hasInstance/cross-realm.js":        true,
+		"test/built-ins/Symbol/for/cross-realm.js":                true,
+		"test/built-ins/WeakSet/proto-from-ctor-realm.js":         true,
+		"test/built-ins/WeakMap/proto-from-ctor-realm.js":         true,
+		"test/built-ins/Map/proto-from-ctor-realm.js":             true,
+		"test/built-ins/Set/proto-from-ctor-realm.js":             true,
+
+		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
 		"test/language/statements/class/subclass/builtin-objects/Symbol/new-symbol-with-super-throws.js":  true,
+		"test/language/statements/class/subclass/builtin-objects/WeakSet/super-must-be-called.js":         true,
+		"test/language/statements/class/subclass/builtin-objects/WeakSet/regular-subclassing.js":          true,
+		"test/language/statements/class/subclass/builtin-objects/WeakMap/super-must-be-called.js":         true,
+		"test/language/statements/class/subclass/builtin-objects/WeakMap/regular-subclassing.js":          true,
+		"test/language/statements/class/subclass/builtin-objects/Map/super-must-be-called.js":             true,
+		"test/language/statements/class/subclass/builtin-objects/Map/regular-subclassing.js":              true,
+		"test/language/statements/class/subclass/builtin-objects/Set/super-must-be-called.js":             true,
+		"test/language/statements/class/subclass/builtin-objects/Set/regular-subclassing.js":              true,
 
 		// Proxy
 		"test/built-ins/Object/prototype/toString/proxy-revoked.js":  true,
 		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
 		"test/built-ins/Object/prototype/toString/proxy-array.js":    true,
 		"test/built-ins/JSON/stringify/value-proxy.js":               true,
+
+		// Arrow functions
+		"test/built-ins/Set/prototype/forEach/this-arg-explicit-cannot-override-lexical-this-arrow.js": true,
+
+		// full unicode regexp flag
+		"test/built-ins/RegExp/prototype/Symbol.match/u-advance-after-empty.js":               true,
+		"test/built-ins/RegExp/prototype/Symbol.match/get-unicode-error.js":                   true,
+		"test/built-ins/RegExp/prototype/Symbol.match/builtin-success-u-return-val-groups.js": true,
+		"test/built-ins/RegExp/prototype/Symbol.match/builtin-infer-unicode.js":               true,
 	}
 
 	es6WhiteList = map[string]bool{}
@@ -69,10 +91,14 @@ var (
 		"21.1.3.14",
 		"21.1.3.15",
 		"21.1.3.17",
-		//"21.2.5.6",
+		"21.2.5.6",
 		"22.1.2.5",
 		//"22.1.3.1",
 		"22.1.3.29",
+		"23.1",
+		"23.2",
+		"23.3",
+		"23.4",
 		"25.1.2",
 		"B.2.1",
 		"B.2.2",
