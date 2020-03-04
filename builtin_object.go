@@ -25,7 +25,7 @@ func (r *Runtime) object_getPrototypeOf(call FunctionCall) Value {
 
 func (r *Runtime) object_getOwnPropertyDescriptor(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
-	propName := call.Argument(1)
+	propName := toPropertyKey(call.Argument(1))
 	desc := obj.self.getOwnProp(propName)
 	if desc == nil {
 		return _undefined
@@ -370,7 +370,7 @@ func (r *Runtime) object_keys(call FunctionCall) Value {
 }
 
 func (r *Runtime) objectproto_hasOwnProperty(call FunctionCall) Value {
-	p := call.Argument(0)
+	p := toPropertyKey(call.Argument(0))
 	o := call.This.ToObject(r)
 	if o.self.hasOwnProperty(p) {
 		return valueTrue
@@ -396,7 +396,7 @@ func (r *Runtime) objectproto_isPrototypeOf(call FunctionCall) Value {
 }
 
 func (r *Runtime) objectproto_propertyIsEnumerable(call FunctionCall) Value {
-	p := call.Argument(0)
+	p := toPropertyKey(call.Argument(0))
 	o := call.This.ToObject(r)
 	pv := o.self.getOwnProp(p)
 	if pv == nil {
@@ -432,11 +432,68 @@ func (r *Runtime) objectproto_toString(call FunctionCall) Value {
 }
 
 func (r *Runtime) objectproto_toLocaleString(call FunctionCall) Value {
-	return call.This.ToObject(r).ToString()
+	toString := toMethod(r.getVStr(call.This, "toString"))
+	return toString(FunctionCall{This: call.This})
 }
 
 func (r *Runtime) objectproto_valueOf(call FunctionCall) Value {
 	return call.This.ToObject(r)
+}
+
+func (r *Runtime) object_assign(call FunctionCall) Value {
+	to := call.Argument(0).ToObject(r)
+	if len(call.Arguments) > 1 {
+		for _, arg := range call.Arguments[1:] {
+			if arg != _undefined && arg != _null {
+				source := arg.ToObject(r)
+				for item, f := source.self.enumerate(false, false)(); f != nil; item, f = f() {
+					p := source.self.getOwnPropStr(item.name)
+					if v, ok := p.(*valueProperty); ok {
+						p = v.get(source)
+					}
+					to.self.putStr(item.name, p, true)
+				}
+
+				for _, sym := range source.self.getOwnSymbols() {
+					p := source.self.getOwnProp(sym)
+					if v, ok := p.(*valueProperty); ok {
+						if !v.enumerable {
+							continue
+						}
+						p = v.get(source)
+					}
+					to.self.put(sym, p, true)
+				}
+			}
+		}
+	}
+
+	return to
+}
+
+func (r *Runtime) object_is(call FunctionCall) Value {
+	return r.toBoolean(call.Argument(0).SameAs(call.Argument(1)))
+}
+
+func (r *Runtime) object_setPrototypeOf(call FunctionCall) Value {
+	o := call.Argument(0)
+	r.checkObjectCoercible(o)
+	proto := call.Argument(1)
+	var protoObj *Object
+	if proto != _null {
+		if obj, ok := proto.(*Object); ok {
+			protoObj = obj
+		} else {
+			panic(r.NewTypeError("Object prototype may only be an Object or null: %s", proto))
+		}
+	}
+	if o, ok := o.(*Object); ok {
+		if res := o.self.setProto(protoObj); res != nil {
+			panic(res)
+		}
+	}
+
+	return o
 }
 
 func (r *Runtime) initObject() {
@@ -450,10 +507,12 @@ func (r *Runtime) initObject() {
 
 	r.global.Object = r.newNativeFuncConstruct(r.builtin_Object, classObject, r.global.ObjectPrototype, 1)
 	o = r.global.Object.self
+	o._putProp("assign", r.newNativeFunc(r.object_assign, nil, "assign", nil, 2), true, false, true)
 	o._putProp("defineProperty", r.newNativeFunc(r.object_defineProperty, nil, "defineProperty", nil, 3), true, false, true)
 	o._putProp("defineProperties", r.newNativeFunc(r.object_defineProperties, nil, "defineProperties", nil, 2), true, false, true)
 	o._putProp("getOwnPropertyDescriptor", r.newNativeFunc(r.object_getOwnPropertyDescriptor, nil, "getOwnPropertyDescriptor", nil, 2), true, false, true)
 	o._putProp("getPrototypeOf", r.newNativeFunc(r.object_getPrototypeOf, nil, "getPrototypeOf", nil, 1), true, false, true)
+	o._putProp("is", r.newNativeFunc(r.object_is, nil, "is", nil, 2), true, false, true)
 	o._putProp("getOwnPropertyNames", r.newNativeFunc(r.object_getOwnPropertyNames, nil, "getOwnPropertyNames", nil, 1), true, false, true)
 	o._putProp("getOwnPropertySymbols", r.newNativeFunc(r.object_getOwnPropertySymbols, nil, "getOwnPropertySymbols", nil, 1), true, false, true)
 	o._putProp("create", r.newNativeFunc(r.object_create, nil, "create", nil, 2), true, false, true)
@@ -464,6 +523,7 @@ func (r *Runtime) initObject() {
 	o._putProp("isFrozen", r.newNativeFunc(r.object_isFrozen, nil, "isFrozen", nil, 1), true, false, true)
 	o._putProp("isExtensible", r.newNativeFunc(r.object_isExtensible, nil, "isExtensible", nil, 1), true, false, true)
 	o._putProp("keys", r.newNativeFunc(r.object_keys, nil, "keys", nil, 1), true, false, true)
+	o._putProp("setPrototypeOf", r.newNativeFunc(r.object_setPrototypeOf, nil, "setPrototypeOf", nil, 2), true, false, true)
 
 	r.addToGlobal("Object", r.global.Object)
 }

@@ -28,9 +28,9 @@ repeat:
 	case *funcObject:
 		return newStringValue(f.src)
 	case *nativeFuncObject:
-		return newStringValue(fmt.Sprintf("function %s() { [native code] }", f.nameProp.get(call.This).ToString()))
+		return newStringValue(fmt.Sprintf("function %s() { [native code] }", f.nameProp.get(call.This).toString()))
 	case *boundFuncObject:
-		return newStringValue(fmt.Sprintf("function %s() { [native code] }", f.nameProp.get(call.This).ToString()))
+		return newStringValue(fmt.Sprintf("function %s() { [native code] }", f.nameProp.get(call.This).toString()))
 	case *lazyObject:
 		obj.self = f.create(obj)
 		goto repeat
@@ -129,7 +129,7 @@ repeat:
 		f = ff.create(obj)
 		goto repeat
 	default:
-		r.typeErrorResult(true, "Value is not callable: %s", obj.ToString())
+		r.typeErrorResult(true, "Value is not callable: %s", obj.toString())
 	}
 
 	l := int(toUInt32(obj.self.getStr("length")))

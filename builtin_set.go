@@ -134,7 +134,7 @@ func (r *Runtime) builtin_newSet(args []Value) *Object {
 	if len(args) > 0 {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
 			adder := so.getStr("add")
-			iter := r.getIterator(arg.ToObject(r), nil)
+			iter := r.getIterator(arg, nil)
 			if adder == r.global.setAdder {
 				r.iterate(iter, func(item Value) {
 					so.m.set(item, nil)

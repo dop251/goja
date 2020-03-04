@@ -146,7 +146,7 @@ func (r *Runtime) builtin_newWeakMap(args []Value) *Object {
 	if len(args) > 0 {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
 			adder := wmo.getStr("set")
-			iter := r.getIterator(arg.ToObject(r), nil)
+			iter := r.getIterator(arg, nil)
 			i0 := intToValue(0)
 			i1 := intToValue(1)
 			if adder == r.global.weakMapAdder {

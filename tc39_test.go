@@ -50,6 +50,7 @@ var (
 		"test/built-ins/WeakMap/proto-from-ctor-realm.js":         true,
 		"test/built-ins/Map/proto-from-ctor-realm.js":             true,
 		"test/built-ins/Set/proto-from-ctor-realm.js":             true,
+		"test/built-ins/Object/proto-from-ctor.js":                true,
 
 		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
@@ -62,12 +63,18 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/Map/regular-subclassing.js":              true,
 		"test/language/statements/class/subclass/builtin-objects/Set/super-must-be-called.js":             true,
 		"test/language/statements/class/subclass/builtin-objects/Set/regular-subclassing.js":              true,
+		"test/language/statements/class/subclass/builtin-objects/Object/replacing-prototype.js":           true,
+		"test/language/statements/class/subclass/builtin-objects/Object/regular-subclassing.js":           true,
 
 		// Proxy
-		"test/built-ins/Object/prototype/toString/proxy-revoked.js":  true,
-		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
-		"test/built-ins/Object/prototype/toString/proxy-array.js":    true,
-		"test/built-ins/JSON/stringify/value-proxy.js":               true,
+		"test/built-ins/Object/prototype/toString/proxy-revoked.js":    true,
+		"test/built-ins/Object/prototype/toString/proxy-function.js":   true,
+		"test/built-ins/Object/prototype/toString/proxy-array.js":      true,
+		"test/built-ins/JSON/stringify/value-proxy.js":                 true,
+		"test/built-ins/Object/setPrototypeOf/set-error.js":            true,
+		"test/built-ins/Object/assign/source-own-prop-keys-error.js":   true,
+		"test/built-ins/Object/assign/source-own-prop-error.js":        true,
+		"test/built-ins/Object/assign/source-own-prop-desc-missing.js": true,
 
 		// Arrow functions
 		"test/built-ins/Set/prototype/forEach/this-arg-explicit-cannot-override-lexical-this-arrow.js": true,
@@ -84,9 +91,7 @@ var (
 	es6IdWhiteList = []string{
 		"12.9.3",
 		"12.9.4",
-		"19.1.2.8",
-		"19.1.2.5",
-		"19.1.3.6",
+		"19.1",
 		"19.4",
 		"21.1.3.14",
 		"21.1.3.15",

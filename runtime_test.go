@@ -1348,6 +1348,76 @@ func TestFreezeSymbol(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestToPropertyKey(t *testing.T) {
+	const SCRIPT = `
+	var sym = Symbol(42);
+	var callCount = 0;
+
+	var wrapper = {
+	  toString: function() {
+		callCount += 1;
+		return sym;
+	  },
+	  valueOf: function() {
+		$ERROR("valueOf() called");
+	  }
+	};
+
+	var o = {};
+	o[wrapper] = function() { return "test" };
+	assert.sameValue(o[wrapper], o[sym], "o[wrapper] === o[sym]");
+	assert.sameValue(o[wrapper](), "test", "o[wrapper]()");
+	assert.sameValue(o[sym](), "test", "o[sym]()");
+	`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestPrimThisValue(t *testing.T) {
+	const SCRIPT = `
+	function t() {
+		'use strict';
+
+		Boolean.prototype.toString = function() {
+		  return typeof this;
+		};
+
+		assert.sameValue(true.toLocaleString(), "boolean");
+
+		Boolean.prototype[Symbol.iterator] = function() {
+			return [typeof this][Symbol.iterator]();
+		}
+		var s = new Set(true);
+		assert.sameValue(s.size, 1, "size");
+		assert.sameValue(s.has("boolean"), true, "s.has('boolean')");
+	}
+	t();
+	`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestPrimThisValueGetter(t *testing.T) {
+	const SCRIPT = `
+	function t() {
+		'use strict';
+		Object.defineProperty(Boolean.prototype, "toString", {
+		  get: function() {
+			var v = typeof this;
+			return function() {
+			  return v;
+			};
+		  }
+		});
+
+		assert.sameValue(true.toLocaleString(), "boolean");
+	}
+	t();
+	`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

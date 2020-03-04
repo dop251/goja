@@ -384,7 +384,7 @@ func (a *sparseArrayObject) _deleteProp(idx int64, throw bool) bool {
 	if i < len(a.items) && a.items[i].idx == idx {
 		if p, ok := a.items[i].value.(*valueProperty); ok {
 			if !p.configurable {
-				a.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of %s", idx, a.val.ToString())
+				a.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of %s", idx, a.val.toString())
 				return false
 			}
 			a.propValueCount--

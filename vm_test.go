@@ -91,10 +91,10 @@ func f_add(vm *vm) {
 
 	if isLeftString || isRightString {
 		if !isLeftString {
-			leftString = left.ToString()
+			leftString = left.toString()
 		}
 		if !isRightString {
-			rightString = right.ToString()
+			rightString = right.toString()
 		}
 		ret = leftString.concat(rightString)
 	} else {

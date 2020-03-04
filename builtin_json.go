@@ -449,7 +449,7 @@ func (ctx *_builtinJSON_stringifyContext) jo(object *Object) {
 		if !empty {
 			ctx.buf.WriteString(separator)
 		}
-		ctx.quote(name.ToString())
+		ctx.quote(name.toString())
 		if ctx.gap != "" {
 			ctx.buf.WriteString(": ")
 		} else {

@@ -193,6 +193,12 @@ func (o *lazyObject) getOwnSymbols() []Value {
 	return obj.getOwnSymbols()
 }
 
+func (o *lazyObject) setProto(proto *Object) *Object {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.setProto(proto)
+}
+
 func (o *lazyObject) sortLen() int64 {
 	obj := o.create(o.val)
 	o.val.self = obj

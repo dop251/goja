@@ -322,7 +322,7 @@ func (o *objectGoReflect) toPrimitiveNumber() Value {
 
 func (o *objectGoReflect) toPrimitiveString() Value {
 	if v := o._toNumber(); v != nil {
-		return v.ToString()
+		return v.toString()
 	}
 	return o._toString()
 }

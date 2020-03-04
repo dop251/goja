@@ -133,7 +133,7 @@ func (r *Runtime) builtin_newRegExp(args []Value) *Object {
 			}
 		}
 		if args[0] != _undefined {
-			pattern = args[0].ToString()
+			pattern = args[0].toString()
 		}
 	}
 	if len(args) > 1 {
@@ -161,22 +161,22 @@ func (r *Runtime) builtin_RegExp(call FunctionCall) Value {
 
 func (r *Runtime) regexpproto_exec(call FunctionCall) Value {
 	if this, ok := r.toObject(call.This).self.(*regexpObject); ok {
-		return this.exec(call.Argument(0).ToString())
+		return this.exec(call.Argument(0).toString())
 	} else {
-		r.typeErrorResult(true, "Method RegExp.prototype.exec called on incompatible receiver %s", call.This.ToString())
+		r.typeErrorResult(true, "Method RegExp.prototype.exec called on incompatible receiver %s", call.This.toString())
 		return nil
 	}
 }
 
 func (r *Runtime) regexpproto_test(call FunctionCall) Value {
 	if this, ok := r.toObject(call.This).self.(*regexpObject); ok {
-		if this.test(call.Argument(0).ToString()) {
+		if this.test(call.Argument(0).toString()) {
 			return valueTrue
 		} else {
 			return valueFalse
 		}
 	} else {
-		r.typeErrorResult(true, "Method RegExp.prototype.test called on incompatible receiver %s", call.This.ToString())
+		r.typeErrorResult(true, "Method RegExp.prototype.test called on incompatible receiver %s", call.This.toString())
 		return nil
 	}
 }
@@ -207,7 +207,7 @@ func (r *Runtime) regexpproto_getSource(call FunctionCall) Value {
 	if this, ok := r.toObject(call.This).self.(*regexpObject); ok {
 		return this.source
 	} else {
-		r.typeErrorResult(true, "Method RegExp.prototype.source getter called on incompatible receiver %s", call.This.ToString())
+		r.typeErrorResult(true, "Method RegExp.prototype.source getter called on incompatible receiver %s", call.This.toString())
 		return nil
 	}
 }
@@ -220,7 +220,7 @@ func (r *Runtime) regexpproto_getGlobal(call FunctionCall) Value {
 			return valueFalse
 		}
 	} else {
-		r.typeErrorResult(true, "Method RegExp.prototype.global getter called on incompatible receiver %s", call.This.ToString())
+		r.typeErrorResult(true, "Method RegExp.prototype.global getter called on incompatible receiver %s", call.This.toString())
 		return nil
 	}
 }
@@ -233,7 +233,7 @@ func (r *Runtime) regexpproto_getMultiline(call FunctionCall) Value {
 			return valueFalse
 		}
 	} else {
-		r.typeErrorResult(true, "Method RegExp.prototype.multiline getter called on incompatible receiver %s", call.This.ToString())
+		r.typeErrorResult(true, "Method RegExp.prototype.multiline getter called on incompatible receiver %s", call.This.toString())
 		return nil
 	}
 }
@@ -246,7 +246,7 @@ func (r *Runtime) regexpproto_getIgnoreCase(call FunctionCall) Value {
 			return valueFalse
 		}
 	} else {
-		r.typeErrorResult(true, "Method RegExp.prototype.ignoreCase getter called on incompatible receiver %s", call.This.ToString())
+		r.typeErrorResult(true, "Method RegExp.prototype.ignoreCase getter called on incompatible receiver %s", call.This.toString())
 		return nil
 	}
 }
@@ -259,7 +259,7 @@ func (r *Runtime) regexpproto_getSticky(call FunctionCall) Value {
 			return valueFalse
 		}
 	} else {
-		r.typeErrorResult(true, "Method RegExp.prototype.sticky getter called on incompatible receiver %s", call.This.ToString())
+		r.typeErrorResult(true, "Method RegExp.prototype.sticky getter called on incompatible receiver %s", call.This.toString())
 		return nil
 	}
 }
@@ -332,7 +332,7 @@ func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, arg Value) Value 
 			if res == _null {
 				break
 			}
-			matchStr := nilSafe(r.toObject(res).self.get(intToValue(0))).ToString()
+			matchStr := nilSafe(r.toObject(res).self.get(intToValue(0))).toString()
 			a = append(a, matchStr)
 			if matchStr.length() == 0 {
 				thisIndex := rx.getStr("lastIndex").ToInteger()
@@ -368,7 +368,7 @@ func (r *Runtime) checkStdRegexp(rxObj *Object) *regexpObject {
 
 func (r *Runtime) regexpproto_stdMatcher(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
-	s := call.Argument(0).ToString()
+	s := call.Argument(0).toString()
 	rx := r.checkStdRegexp(thisObj)
 	if rx == nil {
 		return r.regexpproto_stdMatcherGeneric(thisObj, s)
@@ -421,7 +421,7 @@ func (r *Runtime) regexpproto_stdSearchGeneric(rxObj *Object, arg valueString) V
 
 func (r *Runtime) regexpproto_stdSearch(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
-	s := call.Argument(0).ToString()
+	s := call.Argument(0).toString()
 	rx := r.checkStdRegexp(thisObj)
 	if rx == nil {
 		return r.regexpproto_stdSearchGeneric(thisObj, s)
@@ -496,7 +496,7 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s valueString
 func (r *Runtime) regexpproto_stdSplitter(call FunctionCall) Value {
 	rxObj := r.toObject(call.This)
 	c := r.speciesConstructor(rxObj, r.global.RegExp)
-	flags := nilSafe(rxObj.self.getStr("flags")).ToString()
+	flags := nilSafe(rxObj.self.getStr("flags")).toString()
 
 	// Add 'y' flag if missing
 	if flagsStr := flags.String(); !strings.Contains(flagsStr, "y") {
@@ -504,7 +504,7 @@ func (r *Runtime) regexpproto_stdSplitter(call FunctionCall) Value {
 	}
 	splitter := c([]Value{rxObj, flags})
 
-	s := call.Argument(0).ToString()
+	s := call.Argument(0).toString()
 	limitValue := call.Argument(1)
 	search := r.checkStdRegexp(splitter)
 	if search == nil {

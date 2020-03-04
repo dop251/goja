@@ -153,7 +153,7 @@ func BenchmarkToString1(b *testing.B) {
 	v := asciiString("test")
 
 	for i := 0; i < b.N; i++ {
-		v.ToString()
+		v.toString()
 	}
 }
 

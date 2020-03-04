@@ -41,7 +41,8 @@ var (
 
 type Value interface {
 	ToInteger() int64
-	ToString() valueString
+	toString() valueString
+	ToPrimitiveString() Value
 	String() string
 	ToFloat() float64
 	ToNumber() Value
@@ -103,7 +104,7 @@ func propGetter(o Value, v Value, r *Runtime) *Object {
 			return obj
 		}
 	}
-	r.typeErrorResult(true, "Getter must be a function: %s", v.ToString())
+	r.typeErrorResult(true, "Getter must be a function: %s", v.toString())
 	return nil
 }
 
@@ -116,7 +117,7 @@ func propSetter(o Value, v Value, r *Runtime) *Object {
 			return obj
 		}
 	}
-	r.typeErrorResult(true, "Setter must be a function: %s", v.ToString())
+	r.typeErrorResult(true, "Setter must be a function: %s", v.toString())
 	return nil
 }
 
@@ -124,8 +125,12 @@ func (i valueInt) ToInteger() int64 {
 	return int64(i)
 }
 
-func (i valueInt) ToString() valueString {
+func (i valueInt) toString() valueString {
 	return asciiString(i.String())
+}
+
+func (i valueInt) ToPrimitiveString() Value {
+	return i
 }
 
 func (i valueInt) String() string {
@@ -218,11 +223,15 @@ func (o valueBool) ToInteger() int64 {
 	return 0
 }
 
-func (o valueBool) ToString() valueString {
+func (o valueBool) toString() valueString {
 	if o {
 		return stringTrue
 	}
 	return stringFalse
+}
+
+func (o valueBool) ToPrimitiveString() Value {
+	return o
 }
 
 func (o valueBool) String() string {
@@ -316,16 +325,24 @@ func (n valueNull) ToInteger() int64 {
 	return 0
 }
 
-func (n valueNull) ToString() valueString {
+func (n valueNull) toString() valueString {
 	return stringNull
+}
+
+func (n valueNull) ToPrimitiveString() Value {
+	return n
 }
 
 func (n valueNull) String() string {
 	return "null"
 }
 
-func (u valueUndefined) ToString() valueString {
+func (u valueUndefined) toString() valueString {
 	return stringUndefined
+}
+
+func (u valueUndefined) ToPrimitiveString() Value {
+	return u
 }
 
 func (u valueUndefined) String() string {
@@ -402,7 +419,7 @@ func (n valueNull) assertString() (valueString, bool) {
 	return nil, false
 }
 
-func (n valueNull) baseObject(r *Runtime) *Object {
+func (n valueNull) baseObject(*Runtime) *Object {
 	return nil
 }
 
@@ -422,8 +439,12 @@ func (p *valueProperty) ToInteger() int64 {
 	return 0
 }
 
-func (p *valueProperty) ToString() valueString {
+func (p *valueProperty) toString() valueString {
 	return stringEmpty
+}
+
+func (p *valueProperty) ToPrimitiveString() Value {
+	return _undefined
 }
 
 func (p *valueProperty) String() string {
@@ -438,7 +459,7 @@ func (p *valueProperty) ToBoolean() bool {
 	return false
 }
 
-func (p *valueProperty) ToObject(r *Runtime) *Object {
+func (p *valueProperty) ToObject(*Runtime) *Object {
 	return nil
 }
 
@@ -494,11 +515,11 @@ func (p *valueProperty) SameAs(other Value) bool {
 	return false
 }
 
-func (p *valueProperty) Equals(other Value) bool {
+func (p *valueProperty) Equals(Value) bool {
 	return false
 }
 
-func (p *valueProperty) StrictEquals(other Value) bool {
+func (p *valueProperty) StrictEquals(Value) bool {
 	return false
 }
 
@@ -531,8 +552,12 @@ func (f valueFloat) ToInteger() int64 {
 	return int64(f)
 }
 
-func (f valueFloat) ToString() valueString {
+func (f valueFloat) toString() valueString {
 	return asciiString(f.String())
+}
+
+func (f valueFloat) ToPrimitiveString() Value {
+	return f
 }
 
 var matchLeading0Exponent = regexp.MustCompile(`([eE][+\-])0+([1-9])`) // 1e-07 => 1e-7
@@ -663,8 +688,12 @@ func (o *Object) ToInteger() int64 {
 	return o.self.toPrimitiveNumber().ToNumber().ToInteger()
 }
 
-func (o *Object) ToString() valueString {
-	return o.self.toPrimitiveString().ToString()
+func (o *Object) toString() valueString {
+	return o.self.toPrimitiveString().toString()
+}
+
+func (o *Object) ToPrimitiveString() Value {
+	return o.self.toPrimitiveString().ToPrimitiveString()
 }
 
 func (o *Object) String() string {
@@ -679,7 +708,7 @@ func (o *Object) ToBoolean() bool {
 	return true
 }
 
-func (o *Object) ToObject(r *Runtime) *Object {
+func (o *Object) ToObject(*Runtime) *Object {
 	return o
 }
 
@@ -736,7 +765,7 @@ func (o *Object) assertString() (valueString, bool) {
 	return nil, false
 }
 
-func (o *Object) baseObject(r *Runtime) *Object {
+func (o *Object) baseObject(*Runtime) *Object {
 	return o
 }
 
@@ -827,7 +856,12 @@ func (o valueUnresolved) ToInteger() int64 {
 	return 0
 }
 
-func (o valueUnresolved) ToString() valueString {
+func (o valueUnresolved) toString() valueString {
+	o.throw()
+	return nil
+}
+
+func (o valueUnresolved) ToPrimitiveString() Value {
 	o.throw()
 	return nil
 }
@@ -847,7 +881,7 @@ func (o valueUnresolved) ToBoolean() bool {
 	return false
 }
 
-func (o valueUnresolved) ToObject(r *Runtime) *Object {
+func (o valueUnresolved) ToObject(*Runtime) *Object {
 	o.throw()
 	return nil
 }
@@ -857,17 +891,17 @@ func (o valueUnresolved) ToNumber() Value {
 	return nil
 }
 
-func (o valueUnresolved) SameAs(other Value) bool {
+func (o valueUnresolved) SameAs(Value) bool {
 	o.throw()
 	return false
 }
 
-func (o valueUnresolved) Equals(other Value) bool {
+func (o valueUnresolved) Equals(Value) bool {
 	o.throw()
 	return false
 }
 
-func (o valueUnresolved) StrictEquals(other Value) bool {
+func (o valueUnresolved) StrictEquals(Value) bool {
 	o.throw()
 	return false
 }
@@ -887,7 +921,7 @@ func (o valueUnresolved) assertString() (valueString, bool) {
 	return nil, false
 }
 
-func (o valueUnresolved) baseObject(r *Runtime) *Object {
+func (o valueUnresolved) baseObject(*Runtime) *Object {
 	o.throw()
 	return nil
 }
@@ -911,8 +945,12 @@ func (s *valueSymbol) ToInteger() int64 {
 	panic(typeError("Cannot convert a Symbol value to a number"))
 }
 
-func (s *valueSymbol) ToString() valueString {
+func (s *valueSymbol) toString() valueString {
 	panic(typeError("Cannot convert a Symbol value to a string"))
+}
+
+func (s *valueSymbol) ToPrimitiveString() Value {
+	return s
 }
 
 func (s *valueSymbol) String() string {

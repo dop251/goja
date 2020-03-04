@@ -125,10 +125,11 @@ type objectImpl interface {
 	deleteStr(name string, throw bool) bool
 	delete(name Value, throw bool) bool
 	proto() *Object
+	setProto(proto *Object) *Object
 	hasInstance(v Value) bool
 	isExtensible() bool
 	preventExtensions()
-	enumerate(all, recusrive bool) iterNextFunc
+	enumerate(all, recursive bool) iterNextFunc
 	_enumerate(recursive bool) iterNextFunc
 	export() interface{}
 	exportType() reflect.Type
@@ -269,7 +270,7 @@ func (o *baseObject) get(n Value) Value {
 
 func (o *baseObject) checkDeleteProp(name string, prop *valueProperty, throw bool) bool {
 	if !prop.configurable {
-		o.val.runtime.typeErrorResult(throw, "Cannot delete property '%s' of %s", name, o.val.ToString())
+		o.val.runtime.typeErrorResult(throw, "Cannot delete property '%s' of %s", name, o.val.toString())
 		return false
 	}
 	return true
@@ -344,6 +345,24 @@ func (o *baseObject) getOwnProp(name Value) Value {
 	return o.val.self.getOwnPropStr(name.String())
 }
 
+func (o *baseObject) setProto(proto *Object) *Object {
+	current := o.prototype
+	if current.SameAs(proto) {
+		return nil
+	}
+	if !o.extensible {
+		return o.val.runtime.NewTypeError("%s is not extensible", o.val)
+	}
+	for p := proto; p != nil; {
+		if p.SameAs(o.val) {
+			return o.val.runtime.NewTypeError("Cyclic __proto__ value")
+		}
+		p = p.self.proto()
+	}
+	o.prototype = proto
+	return nil
+}
+
 func (o *baseObject) putStr(name string, val Value, throw bool) {
 	if v, exists := o.values[name]; exists {
 		if prop, ok := v.(*valueProperty); ok {
@@ -359,17 +378,16 @@ func (o *baseObject) putStr(name string, val Value, throw bool) {
 	}
 
 	if name == __proto__ {
-		if !o.extensible {
-			o.val.runtime.typeErrorResult(throw, "%s is not extensible", o.val)
-			return
-		}
-		if val == _undefined || val == _null {
-			o.prototype = nil
-			return
-		} else {
-			if val, ok := val.(*Object); ok {
-				o.prototype = val
+		var proto *Object
+		if val != _null {
+			if obj, ok := val.(*Object); ok {
+				proto = obj
+			} else {
+				return
 			}
+		}
+		if ex := o.setProto(proto); ex != nil {
+			panic(ex)
 		}
 		return
 	}
@@ -556,12 +574,13 @@ func (o *baseObject) _defineOwnProperty(name, existingValue Value, descr propert
 	return existing, true
 
 Reject:
-	o.val.runtime.typeErrorResult(throw, "Cannot redefine property: %s", name.ToString())
+	o.val.runtime.typeErrorResult(throw, "Cannot redefine property: %s", name.toString())
 	return nil, false
 
 }
 
 func (o *baseObject) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
+	n = toPropertyKey(n)
 	if s, ok := n.(*valueSymbol); ok {
 		existingVal := o.symValues[s]
 		if v, ok := o._defineOwnProperty(n, existingVal, descr, throw); ok {
@@ -832,7 +851,7 @@ func (o *baseObject) getOwnSymbols() (res []Value) {
 }
 
 func (o *baseObject) hasInstance(Value) bool {
-	panic(o.val.runtime.NewTypeError("Expecting a function in instanceof check, but got %s", o.val.ToString()))
+	panic(o.val.runtime.NewTypeError("Expecting a function in instanceof check, but got %s", o.val.toString()))
 }
 
 func toMethod(v Value) func(FunctionCall) Value {

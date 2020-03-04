@@ -104,7 +104,11 @@ func (s asciiString) ToInteger() int64 {
 	return i
 }
 
-func (s asciiString) ToString() valueString {
+func (s asciiString) toString() valueString {
+	return s
+}
+
+func (s asciiString) ToPrimitiveString() Value {
 	return s
 }
 

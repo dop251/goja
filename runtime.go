@@ -600,9 +600,9 @@ func (r *Runtime) error_toString(call FunctionCall) Value {
 		return newStringValue(fmt.Sprintf("%s: %s", name.String(), msgStr))
 	} else {
 		if nameStr != "" {
-			return name.ToString()
+			return name.toString()
 		} else {
-			return msg.ToString()
+			return msg.toString()
 		}
 	}
 }
@@ -707,7 +707,7 @@ func (r *Runtime) toCallable(v Value) func(FunctionCall) Value {
 	if call, ok := r.toObject(v).self.assertCallable(); ok {
 		return call
 	}
-	r.typeErrorResult(true, "Value is not callable: %s", v.ToString())
+	r.typeErrorResult(true, "Value is not callable: %s", v.toString())
 	return nil
 }
 
@@ -1292,11 +1292,11 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 	}
 
 	if typ == typeTime && et.Kind() == reflect.String {
-		time, ok := dateParse(v.String())
+		tme, ok := dateParse(v.String())
 		if !ok {
 			return reflect.Value{}, fmt.Errorf("Could not convert string %v to %v", v, typ)
 		}
-		return reflect.ValueOf(time), nil
+		return reflect.ValueOf(tme), nil
 	}
 
 	switch typ.Kind() {
@@ -1624,9 +1624,31 @@ func (r *Runtime) returnThis(call FunctionCall) Value {
 	return call.This
 }
 
-func (r *Runtime) getIterator(obj *Object, method func(FunctionCall) Value) *Object {
+func toPropertyKey(key Value) Value {
+	return key.ToPrimitiveString()
+}
+
+func (r *Runtime) getVStr(v Value, p string) Value {
+	o := v.ToObject(r)
+	prop := o.self.getPropStr(p)
+	if prop, ok := prop.(*valueProperty); ok {
+		return prop.get(v)
+	}
+	return prop
+}
+
+func (r *Runtime) getV(v Value, p Value) Value {
+	o := v.ToObject(r)
+	prop := o.self.getProp(p)
+	if prop, ok := prop.(*valueProperty); ok {
+		return prop.get(v)
+	}
+	return prop
+}
+
+func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *Object {
 	if method == nil {
-		method = toMethod(obj.self.get(symIterator))
+		method = toMethod(r.getV(obj, symIterator))
 		if method == nil {
 			panic(r.NewTypeError("object is not iterable"))
 		}

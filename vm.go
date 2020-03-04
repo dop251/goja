@@ -463,7 +463,7 @@ func (vm *vm) toCallee(v Value) *Object {
 	case memberUnresolved:
 		panic(vm.r.NewTypeError("Object has no member '%s'", unresolved.ref))
 	}
-	panic(vm.r.NewTypeError("Value is not an object: %s", v.ToString()))
+	panic(vm.r.NewTypeError("Value is not an object: %s", v.toString()))
 }
 
 type _newStash struct{}
@@ -600,10 +600,10 @@ func (_add) exec(vm *vm) {
 
 	if isLeftString || isRightString {
 		if !isLeftString {
-			leftString = left.ToString()
+			leftString = left.toString()
 		}
 		if !isRightString {
-			rightString = right.ToString()
+			rightString = right.toString()
 		}
 		ret = leftString.concat(rightString)
 	} else {
@@ -950,7 +950,7 @@ var setElem _setElem
 
 func (_setElem) exec(vm *vm) {
 	obj := vm.stack[vm.sp-3].ToObject(vm.r)
-	propName := vm.stack[vm.sp-2]
+	propName := toPropertyKey(vm.stack[vm.sp-2])
 	val := vm.stack[vm.sp-1]
 
 	obj.self.put(propName, val, false)
@@ -966,7 +966,7 @@ var setElemStrict _setElemStrict
 
 func (_setElemStrict) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-3])
-	propName := vm.stack[vm.sp-2]
+	propName := toPropertyKey(vm.stack[vm.sp-2])
 	val := vm.stack[vm.sp-1]
 
 	obj.self.put(propName, val, true)
@@ -982,7 +982,7 @@ var deleteElem _deleteElem
 
 func (_deleteElem) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
-	propName := vm.stack[vm.sp-1]
+	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if !obj.self.hasProperty(propName) || obj.self.delete(propName, false) {
 		vm.stack[vm.sp-2] = valueTrue
 	} else {
@@ -998,7 +998,7 @@ var deleteElemStrict _deleteElemStrict
 
 func (_deleteElemStrict) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
-	propName := vm.stack[vm.sp-1]
+	propName := toPropertyKey(vm.stack[vm.sp-1])
 	obj.self.delete(propName, true)
 	vm.stack[vm.sp-2] = valueTrue
 	vm.sp--
@@ -1154,7 +1154,7 @@ var getElem _getElem
 func (_getElem) exec(vm *vm) {
 	v := vm.stack[vm.sp-2]
 	obj := v.baseObject(vm.r)
-	propName := vm.stack[vm.sp-1]
+	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if obj == nil {
 		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
 	}
@@ -1180,10 +1180,9 @@ var getElemCallee _getElemCallee
 func (_getElemCallee) exec(vm *vm) {
 	v := vm.stack[vm.sp-2]
 	obj := v.baseObject(vm.r)
-	propName := vm.stack[vm.sp-1]
+	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if obj == nil {
-		vm.r.typeErrorResult(true, "Cannot read property '%s' of undefined", propName.String())
-		panic("Unreachable")
+		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
 	}
 
 	prop := obj.self.getProp(propName)
@@ -1735,7 +1734,7 @@ repeat:
 		obj.self = f.create(obj)
 		goto repeat
 	default:
-		vm.r.typeErrorResult(true, "Not a function: %s", obj.ToString())
+		vm.r.typeErrorResult(true, "Not a function: %s", obj.toString())
 	}
 }
 

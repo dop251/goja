@@ -17,7 +17,7 @@ var (
 func (r *Runtime) builtin_symbol(call FunctionCall) Value {
 	desc := ""
 	if arg := call.Argument(0); !IsUndefined(arg) {
-		desc = arg.ToString().String()
+		desc = arg.toString().String()
 	}
 	return &valueSymbol{
 		desc: desc,
@@ -59,7 +59,7 @@ func (r *Runtime) symbolproto_valueOf(call FunctionCall) Value {
 }
 
 func (r *Runtime) symbol_for(call FunctionCall) Value {
-	key := call.Argument(0).ToString().String()
+	key := call.Argument(0).toString().String()
 	if v := r.symbolRegistry[key]; v != nil {
 		return v
 	}

@@ -81,7 +81,11 @@ func (s unicodeString) ToInteger() int64 {
 	return 0
 }
 
-func (s unicodeString) ToString() valueString {
+func (s unicodeString) toString() valueString {
+	return s
+}
+
+func (s unicodeString) ToPrimitiveString() Value {
 	return s
 }
 

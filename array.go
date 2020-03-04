@@ -485,7 +485,7 @@ func (a *arrayObject) _deleteProp(idx int64, throw bool) bool {
 		if v := a.values[idx]; v != nil {
 			if p, ok := v.(*valueProperty); ok {
 				if !p.configurable {
-					a.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of %s", idx, a.val.ToString())
+					a.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of %s", idx, a.val.toString())
 					return false
 				}
 				a.propValueCount--
