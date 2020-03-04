@@ -52,6 +52,7 @@ var (
 		"test/built-ins/Set/proto-from-ctor-realm.js":             true,
 		"test/built-ins/Object/proto-from-ctor.js":                true,
 		"test/built-ins/Array/from/proto-from-ctor-realm.js":      true,
+		"test/built-ins/Array/of/proto-from-ctor-realm.js":        true,
 
 		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
@@ -67,19 +68,6 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/Object/replacing-prototype.js":           true,
 		"test/language/statements/class/subclass/builtin-objects/Object/regular-subclassing.js":           true,
 
-		// Proxy
-		"test/built-ins/Object/prototype/toString/proxy-revoked.js":    true,
-		"test/built-ins/Object/prototype/toString/proxy-function.js":   true,
-		"test/built-ins/Object/prototype/toString/proxy-array.js":      true,
-		"test/built-ins/JSON/stringify/value-proxy.js":                 true,
-		"test/built-ins/Object/setPrototypeOf/set-error.js":            true,
-		"test/built-ins/Object/assign/source-own-prop-keys-error.js":   true,
-		"test/built-ins/Object/assign/source-own-prop-error.js":        true,
-		"test/built-ins/Object/assign/source-own-prop-desc-missing.js": true,
-
-		// Arrow functions
-		"test/built-ins/Set/prototype/forEach/this-arg-explicit-cannot-override-lexical-this-arrow.js": true,
-
 		// full unicode regexp flag
 		"test/built-ins/RegExp/prototype/Symbol.match/u-advance-after-empty.js":               true,
 		"test/built-ins/RegExp/prototype/Symbol.match/get-unicode-error.js":                   true,
@@ -94,6 +82,11 @@ var (
 		"test/built-ins/Array/from/items-is-arraybuffer.js": true,
 	}
 
+	featuresBlackList = []string{
+		"Proxy",
+		"arrow-function",
+	}
+
 	es6WhiteList = map[string]bool{}
 
 	es6IdWhiteList = []string{
@@ -106,6 +99,7 @@ var (
 		"21.1.3.17",
 		"21.2.5.6",
 		"22.1.2.1",
+		"22.1.2.3",
 		"22.1.2.5",
 		//"22.1.3.1",
 		"22.1.3.29",
@@ -140,6 +134,7 @@ type tc39Meta struct {
 	Negative TC39MetaNegative
 	Includes []string
 	Flags    []string
+	Features []string
 	Es5id    string
 	Es6id    string
 	Esid     string
@@ -273,6 +268,14 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		}
 		if skip {
 			t.Skip("Not ES5")
+		}
+
+		for _, feature := range meta.Features {
+			for _, bl := range featuresBlackList {
+				if feature == bl {
+					t.Skip("Blacklisted feature")
+				}
+			}
 		}
 	}
 

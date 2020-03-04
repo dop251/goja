@@ -98,3 +98,101 @@ func TestArraySetLengthWithPropItems(t *testing.T) {
 
 	testScript1(SCRIPT, valueTrue, t)
 }
+
+func TestArrayFrom(t *testing.T) {
+	const SCRIPT = `
+	function checkDest(dest, prefix) {
+		assert(dest !== source, prefix + ": dest !== source");
+		assert.sameValue(dest.length, 3, prefix + ": dest.length");
+		assert.sameValue(dest[0], 1, prefix + ": [0]");
+		assert.sameValue(dest[1], undefined, prefix + ": [1]");
+		assert(dest.hasOwnProperty("1"), prefix + ': hasOwnProperty("1")');
+		assert.sameValue(dest[2], 3, prefix + ": [2]");
+	}
+
+	var source = [];
+	source[0] = 1;
+	source[2] = 3;
+	checkDest(Array.from(source), "std source/std dest");
+
+	function Iter() {
+		this.idx = 0;
+	}
+	Iter.prototype.next = function() {
+		if (this.idx < source.length) {
+			return {value: source[this.idx++]};
+		} else {
+			return {done: true};
+		}
+	}
+
+	var src = {};
+	src[Symbol.iterator] = function() {
+		return new Iter();
+	}
+	checkDest(Array.from(src), "iter src/std dest");
+
+	src = {0: 1, 2: 3, length: 3};
+	checkDest(Array.from(src), "arrayLike src/std dest");
+
+	function A() {}
+	A.from = Array.from;
+
+	checkDest(A.from(source), "std src/cust dest");
+	checkDest(A.from(src), "arrayLike src/cust dest");
+
+	function T2() {
+	  Object.defineProperty(this, 0, {
+		configurable: false,
+		writable: true,
+		enumerable: true
+	  });
+	}
+
+	assert.throws(TypeError, function() {
+		Array.from.call(T2, source);
+	});
+
+	`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestArrayOf(t *testing.T) {
+	const SCRIPT = `
+	function T1() {
+	  Object.preventExtensions(this);
+	}
+	
+	assert.throws(TypeError, function() {
+	  Array.of.call(T1, 'Bob');
+	});
+
+	function T2() {
+	  Object.defineProperty(this, 0, {
+		configurable: false,
+		writable: true,
+		enumerable: true
+	  });
+	}
+	
+	assert.throws(TypeError, function() {
+	  Array.of.call(T2, 'Bob');
+	})
+
+	result = Array.of.call(undefined);
+	assert(
+	  result instanceof Array,
+	  'this is not a constructor'
+	);
+
+	result = Array.of.call(Math.cos);
+	assert(
+	  result instanceof Array,
+	  'this is a builtin function with no [[Construct]] slot'
+	);
+
+	`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}

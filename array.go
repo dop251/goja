@@ -358,7 +358,7 @@ func (a *arrayObject) enumerate(all, recursive bool) iterNextFunc {
 
 func (a *arrayObject) hasOwnProperty(n Value) bool {
 	if idx := toIdx(n); idx >= 0 {
-		return idx < int64(len(a.values)) && a.values[idx] != nil && a.values[idx] != _undefined
+		return idx < int64(len(a.values)) && a.values[idx] != nil
 	} else {
 		return a.baseObject.hasOwnProperty(n)
 	}
@@ -366,7 +366,7 @@ func (a *arrayObject) hasOwnProperty(n Value) bool {
 
 func (a *arrayObject) hasOwnPropertyStr(name string) bool {
 	if idx := strToIdx(name); idx >= 0 {
-		return idx < int64(len(a.values)) && a.values[idx] != nil && a.values[idx] != _undefined
+		return idx < int64(len(a.values)) && a.values[idx] != nil
 	} else {
 		return a.baseObject.hasOwnPropertyStr(name)
 	}

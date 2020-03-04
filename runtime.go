@@ -621,14 +621,10 @@ repeat:
 	case *nativeFuncObject:
 		if f.construct != nil {
 			return f.construct
-		} else {
-			panic(construct.runtime.NewTypeError("Not a constructor"))
 		}
 	case *boundFuncObject:
 		if f.construct != nil {
 			return f.construct
-		} else {
-			panic(construct.runtime.NewTypeError("Not a constructor"))
 		}
 	case *funcObject:
 		return f.construct

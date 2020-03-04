@@ -870,9 +870,11 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 	}
 
 	var ctor func(args []Value) *Object
-	if o, ok := call.This.(*Object); ok {
-		if c := getConstructor(o); c != nil {
-			ctor = c
+	if call.This != r.global.Array {
+		if o, ok := call.This.(*Object); ok {
+			if c := getConstructor(o); c != nil {
+				ctor = c
+			}
 		}
 	}
 	var arr *Object
@@ -883,12 +885,22 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 			arr = r.newArrayValues(nil)
 		}
 		iter := r.getIterator(items, usingIterator)
+		if mapFn == nil {
+			if a := r.checkStdArrayIter(arr); a != nil {
+				var values []Value
+				r.iterate(iter, func(val Value) {
+					values = append(values, val)
+				})
+				setArrayValues(a, values)
+				return arr
+			}
+		}
 		k := int64(0)
 		r.iterate(iter, func(val Value) {
 			if mapFn != nil {
 				val = mapFn(FunctionCall{This: t, Arguments: []Value{val, intToValue(k)}})
 			}
-			arr.self.put(intToValue(k), val, true)
+			defineDataPropertyOrThrow(arr, intToValue(k), val)
 			k++
 		})
 		arr.self.putStr("length", intToValue(k), true)
@@ -898,15 +910,27 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		if ctor != nil {
 			arr = ctor([]Value{intToValue(l)})
 		} else {
-			arr = r.newArrayLength(l)
+			arr = r.newArrayValues(nil)
+		}
+		if mapFn == nil {
+			if a := r.checkStdArrayIter(arr); a != nil {
+				values := make([]Value, l)
+				for k := int64(0); k < l; k++ {
+					values[k] = nilSafe(arrayLike.self.get(intToValue(k)))
+				}
+				setArrayValues(a, values)
+				return arr
+			}
 		}
 		for k := int64(0); k < l; k++ {
 			idx := intToValue(k)
 			item := arrayLike.self.get(idx)
 			if mapFn != nil {
 				item = mapFn(FunctionCall{This: t, Arguments: []Value{item, idx}})
+			} else {
+				item = nilSafe(item)
 			}
-			arr.self.put(idx, item, true)
+			defineDataPropertyOrThrow(arr, idx, item)
 		}
 		arr.self.putStr("length", intToValue(l), true)
 	}
@@ -921,6 +945,38 @@ func (r *Runtime) array_isArray(call FunctionCall) Value {
 		}
 	}
 	return valueFalse
+}
+
+func defineDataPropertyOrThrow(o *Object, p Value, v Value) {
+	o.self.defineOwnProperty(p, propertyDescr{
+		Writable:     FLAG_TRUE,
+		Enumerable:   FLAG_TRUE,
+		Configurable: FLAG_TRUE,
+		Value:        v,
+	}, true)
+}
+
+func (r *Runtime) array_of(call FunctionCall) Value {
+	var ctor func(args []Value) *Object
+	if call.This != r.global.Array {
+		if o, ok := call.This.(*Object); ok {
+			if c := getConstructor(o); c != nil {
+				ctor = c
+			}
+		}
+	}
+	if ctor == nil {
+		values := make([]Value, len(call.Arguments))
+		copy(values, call.Arguments)
+		return r.newArrayValues(values)
+	}
+	l := intToValue(int64(len(call.Arguments)))
+	arr := ctor([]Value{l})
+	for i, val := range call.Arguments {
+		defineDataPropertyOrThrow(arr, intToValue(int64(i)), val)
+	}
+	arr.self.putStr("length", l, true)
+	return arr
 }
 
 func (r *Runtime) arrayIterProto_next(call FunctionCall) Value {
@@ -976,6 +1032,7 @@ func (r *Runtime) createArray(val *Object) objectImpl {
 	o := r.newNativeFuncConstructObj(val, r.builtin_newArray, "Array", r.global.ArrayPrototype, 1)
 	o._putProp("from", r.newNativeFunc(r.array_from, nil, "from", nil, 1), true, false, true)
 	o._putProp("isArray", r.newNativeFunc(r.array_isArray, nil, "isArray", nil, 1), true, false, true)
+	o._putProp("of", r.newNativeFunc(r.array_of, nil, "of", nil, 0), true, false, true)
 	o.putSym(symSpecies, &valueProperty{
 		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
 		accessor:     true,
