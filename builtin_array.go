@@ -828,6 +828,92 @@ func (r *Runtime) arrayproto_values(call FunctionCall) Value {
 	return r.createArrayIterator(call.This.ToObject(r), iterationKindValue)
 }
 
+func (r *Runtime) checkStdArrayIter(v Value) *arrayObject {
+	if obj, ok := v.(*Object); ok {
+		if arr, ok := obj.self.(*arrayObject); ok &&
+			arr.propValueCount == 0 &&
+			arr.length == int64(len(arr.values)) &&
+			arr.getSym(symIterator) == r.global.arrayValues {
+
+			return arr
+		}
+	}
+
+	return nil
+}
+
+func (r *Runtime) array_from(call FunctionCall) Value {
+	var mapFn func(FunctionCall) Value
+	if mapFnArg := call.Argument(1); mapFnArg != _undefined {
+		if mapFnObj, ok := mapFnArg.(*Object); ok {
+			if fn, ok := mapFnObj.self.assertCallable(); ok {
+				mapFn = fn
+			}
+		}
+		if mapFn == nil {
+			panic(r.NewTypeError("%s is not a function", mapFnArg))
+		}
+	}
+	t := call.Argument(2)
+	items := call.Argument(0)
+	if mapFn == nil && call.This == r.global.Array { // mapFn may mutate the array
+		if arr := r.checkStdArrayIter(items); arr != nil {
+			items := make([]Value, len(arr.values))
+			for i, item := range arr.values {
+				if item == nil {
+					item = nilSafe(arr.get(intToValue(int64(i))))
+				}
+				items[i] = item
+			}
+			return r.newArrayValues(items)
+		}
+	}
+
+	var ctor func(args []Value) *Object
+	if o, ok := call.This.(*Object); ok {
+		if c := getConstructor(o); c != nil {
+			ctor = c
+		}
+	}
+	var arr *Object
+	if usingIterator := toMethod(r.getV(items, symIterator)); usingIterator != nil {
+		if ctor != nil {
+			arr = ctor([]Value{})
+		} else {
+			arr = r.newArrayValues(nil)
+		}
+		iter := r.getIterator(items, usingIterator)
+		k := int64(0)
+		r.iterate(iter, func(val Value) {
+			if mapFn != nil {
+				val = mapFn(FunctionCall{This: t, Arguments: []Value{val, intToValue(k)}})
+			}
+			arr.self.put(intToValue(k), val, true)
+			k++
+		})
+		arr.self.putStr("length", intToValue(k), true)
+	} else {
+		arrayLike := items.ToObject(r)
+		l := toLength(arrayLike.self.getStr("length"))
+		if ctor != nil {
+			arr = ctor([]Value{intToValue(l)})
+		} else {
+			arr = r.newArrayLength(l)
+		}
+		for k := int64(0); k < l; k++ {
+			idx := intToValue(k)
+			item := arrayLike.self.get(idx)
+			if mapFn != nil {
+				item = mapFn(FunctionCall{This: t, Arguments: []Value{item, idx}})
+			}
+			arr.self.put(idx, item, true)
+		}
+		arr.self.putStr("length", intToValue(l), true)
+	}
+
+	return arr
+}
+
 func (r *Runtime) array_isArray(call FunctionCall) Value {
 	if o, ok := call.Argument(0).(*Object); ok {
 		if isArray(o) {
@@ -888,6 +974,7 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 
 func (r *Runtime) createArray(val *Object) objectImpl {
 	o := r.newNativeFuncConstructObj(val, r.builtin_newArray, "Array", r.global.ArrayPrototype, 1)
+	o._putProp("from", r.newNativeFunc(r.array_from, nil, "from", nil, 1), true, false, true)
 	o._putProp("isArray", r.newNativeFunc(r.array_isArray, nil, "isArray", nil, 1), true, false, true)
 	o.putSym(symSpecies, &valueProperty{
 		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),

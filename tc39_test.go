@@ -51,6 +51,7 @@ var (
 		"test/built-ins/Map/proto-from-ctor-realm.js":             true,
 		"test/built-ins/Set/proto-from-ctor-realm.js":             true,
 		"test/built-ins/Object/proto-from-ctor.js":                true,
+		"test/built-ins/Array/from/proto-from-ctor-realm.js":      true,
 
 		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
@@ -84,6 +85,13 @@ var (
 		"test/built-ins/RegExp/prototype/Symbol.match/get-unicode-error.js":                   true,
 		"test/built-ins/RegExp/prototype/Symbol.match/builtin-success-u-return-val-groups.js": true,
 		"test/built-ins/RegExp/prototype/Symbol.match/builtin-infer-unicode.js":               true,
+
+		// object literals
+		"test/built-ins/Array/from/source-object-iterator-1.js": true,
+		"test/built-ins/Array/from/source-object-iterator-2.js": true,
+
+		// Typed arrays
+		"test/built-ins/Array/from/items-is-arraybuffer.js": true,
 	}
 
 	es6WhiteList = map[string]bool{}
@@ -97,6 +105,7 @@ var (
 		"21.1.3.15",
 		"21.1.3.17",
 		"21.2.5.6",
+		"22.1.2.1",
 		"22.1.2.5",
 		//"22.1.3.1",
 		"22.1.3.29",

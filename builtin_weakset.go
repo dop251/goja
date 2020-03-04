@@ -127,20 +127,14 @@ func (r *Runtime) builtin_newWeakSet(args []Value) *Object {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
 			adder := wso.getStr("add")
 			if adder == r.global.weakSetAdder {
-				if obj, ok := arg.(*Object); ok {
-					if arr, ok := obj.self.(*arrayObject); ok &&
-						arr.propValueCount == 0 &&
-						arr.length == int64(len(arr.values)) &&
-						arr.getSym(symIterator) == r.global.arrayValues {
-
-						for i, v := range arr.values {
-							if v == nil {
-								v = arr.get(intToValue(int64(i)))
-							}
-							wso.set.add(r.toObject(v))
+				if arr := r.checkStdArrayIter(arg); arr != nil {
+					for i, v := range arr.values {
+						if v == nil {
+							v = arr.get(intToValue(int64(i)))
 						}
-						return o
+						wso.set.add(r.toObject(v))
 					}
+					return o
 				}
 			}
 			r.populateWeakSetGeneric(o, adder, arg)
