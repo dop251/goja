@@ -59,7 +59,11 @@ func (f *funcObject) putStr(name string, val Value, throw bool) {
 }
 
 func (f *funcObject) put(n Value, val Value, throw bool) {
-	f.putStr(n.String(), val, throw)
+	if s, ok := n.(*valueSymbol); ok {
+		f.putSym(s, val, throw)
+	} else {
+		f.putStr(n.String(), val, throw)
+	}
 }
 
 func (f *funcObject) deleteStr(name string, throw bool) bool {
@@ -68,6 +72,9 @@ func (f *funcObject) deleteStr(name string, throw bool) bool {
 }
 
 func (f *funcObject) delete(n Value, throw bool) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return f.deleteSym(s, throw)
+	}
 	return f.deleteStr(n.String(), throw)
 }
 
