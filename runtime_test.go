@@ -1230,6 +1230,26 @@ func TestProtoGetter(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestFuncProto(t *testing.T) {
+	const SCRIPT = `
+	"use strict";
+	function A() {}
+	A.__proto__ = Object;
+	A.prototype = {};
+
+	function B() {}
+	B.__proto__ = Object.create(null);
+	var thrown = false;
+	try {
+		delete B.prototype;
+	} catch (e) {
+		thrown = e instanceof TypeError;
+	}
+	thrown;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func TestSymbol1(t *testing.T) {
 	const SCRIPT = `
 		Symbol.toPrimitive[Symbol.toPrimitive]() === Symbol.toPrimitive;
