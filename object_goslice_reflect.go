@@ -65,6 +65,13 @@ func (o *objectGoSliceReflect) get(n Value) Value {
 	return o.objectGoReflect.get(n)
 }
 
+func (o *objectGoSliceReflect) getStr(name string) Value {
+	if v := o._getStr(name); v != nil {
+		return v
+	}
+	return o.objectGoReflect.getStr(name)
+}
+
 func (o *objectGoSliceReflect) getProp(n Value) Value {
 	if v := o._get(n); v != nil {
 		return v
@@ -185,7 +192,7 @@ func (o *objectGoSliceReflect) delete(name Value, throw bool) bool {
 		o.value.Index(int(idx)).Set(reflect.Zero(o.value.Type().Elem()))
 		return true
 	}
-	return true
+	return o.objectGoReflect.delete(name, throw)
 }
 
 type gosliceReflectPropIter struct {

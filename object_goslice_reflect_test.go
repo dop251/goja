@@ -112,3 +112,13 @@ func TestGoSliceReflectMethod(t *testing.T) {
 	}
 
 }
+
+func TestGoSliceReflectGetStr(t *testing.T) {
+	r := New()
+	v := r.ToValue([]string{"test"})
+	if o, ok := v.(*Object); ok {
+		if e := o.Get("0").Export(); e != "test" {
+			t.Fatalf("Unexpected o.Get(\"0\"): %v", e)
+		}
+	}
+}
