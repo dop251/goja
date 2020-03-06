@@ -337,16 +337,10 @@ func (r *Runtime) arrayproto_slice(call FunctionCall) Value {
 	a := r.newArrayLength(count)
 
 	n := int64(0)
-	descr := propertyDescr{
-		Writable:     FLAG_TRUE,
-		Enumerable:   FLAG_TRUE,
-		Configurable: FLAG_TRUE,
-	}
 	for start < end {
 		p := o.self.get(intToValue(start))
-		if p != nil && p != _undefined {
-			descr.Value = p
-			a.self.defineOwnProperty(intToValue(n), descr, false)
+		if p != nil {
+			defineDataPropertyOrThrow(a, intToValue(n), p)
 		}
 		start++
 		n++
@@ -828,15 +822,78 @@ func (r *Runtime) arrayproto_values(call FunctionCall) Value {
 	return r.createArrayIterator(call.This.ToObject(r), iterationKindValue)
 }
 
-func (r *Runtime) checkStdArrayIter(v Value) *arrayObject {
-	if obj, ok := v.(*Object); ok {
-		if arr, ok := obj.self.(*arrayObject); ok &&
-			arr.propValueCount == 0 &&
-			arr.length == int64(len(arr.values)) &&
-			arr.getSym(symIterator) == r.global.arrayValues {
-
-			return arr
+func (r *Runtime) arrayproto_copyWithin(call FunctionCall) Value {
+	o := call.This.ToObject(r)
+	l := toLength(o.self.getStr("length"))
+	relTarget := call.Argument(0).ToInteger()
+	var from, to, relEnd, final, dir int64
+	if relTarget < 0 {
+		to = max(l+relTarget, 0)
+	} else {
+		to = min(relTarget, l)
+	}
+	relStart := call.Argument(1).ToInteger()
+	if relStart < 0 {
+		from = max(l+relStart, 0)
+	} else {
+		from = min(relStart, l)
+	}
+	if end := call.Argument(2); end != _undefined {
+		relEnd = end.ToInteger()
+	} else {
+		relEnd = l
+	}
+	if relEnd < 0 {
+		final = max(l+relEnd, 0)
+	} else {
+		final = min(relEnd, l)
+	}
+	count := min(final-from, l-to)
+	if from < to && to < from+count {
+		dir = -1
+		from = from + count - 1
+		to = to + count - 1
+	} else {
+		dir = 1
+	}
+	for count > 0 {
+		if p := o.self.get(intToValue(from)); p != nil {
+			o.self.put(intToValue(to), p, true)
+		} else {
+			o.self.delete(intToValue(to), true)
 		}
+		from += dir
+		to += dir
+		count--
+	}
+
+	return o
+}
+
+func (r *Runtime) checkStdArrayObj(obj *Object) *arrayObject {
+	if arr, ok := obj.self.(*arrayObject); ok &&
+		arr.propValueCount == 0 &&
+		arr.length == int64(len(arr.values)) {
+
+		return arr
+	}
+
+	return nil
+}
+
+func (r *Runtime) checkStdArray(v Value) *arrayObject {
+	if obj, ok := v.(*Object); ok {
+		return r.checkStdArrayObj(obj)
+	}
+
+	return nil
+}
+
+func (r *Runtime) checkStdArrayIter(v Value) *arrayObject {
+	if arr := r.checkStdArray(v); arr != nil &&
+		arr.getSym(symIterator) == r.global.arrayValues {
+
+		return arr
 	}
 
 	return nil
@@ -886,7 +943,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		}
 		iter := r.getIterator(items, usingIterator)
 		if mapFn == nil {
-			if a := r.checkStdArrayIter(arr); a != nil {
+			if a := r.checkStdArrayObj(arr); a != nil {
 				var values []Value
 				r.iterate(iter, func(val Value) {
 					values = append(values, val)
@@ -913,7 +970,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 			arr = r.newArrayValues(nil)
 		}
 		if mapFn == nil {
-			if a := r.checkStdArrayIter(arr); a != nil {
+			if a := r.checkStdArrayObj(arr); a != nil {
 				values := make([]Value, l)
 				for k := int64(0); k < l; k++ {
 					values[k] = nilSafe(arrayLike.self.get(intToValue(k)))
@@ -945,15 +1002,6 @@ func (r *Runtime) array_isArray(call FunctionCall) Value {
 		}
 	}
 	return valueFalse
-}
-
-func defineDataPropertyOrThrow(o *Object, p Value, v Value) {
-	o.self.defineOwnProperty(p, propertyDescr{
-		Writable:     FLAG_TRUE,
-		Enumerable:   FLAG_TRUE,
-		Configurable: FLAG_TRUE,
-		Value:        v,
-	}, true)
 }
 
 func (r *Runtime) array_of(call FunctionCall) Value {
@@ -999,6 +1047,7 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 	o.init()
 
 	o._putProp("constructor", r.global.Array, true, false, true)
+	o._putProp("copyWithin", r.newNativeFunc(r.arrayproto_copyWithin, nil, "copyWithin", nil, 2), true, false, true)
 	o._putProp("pop", r.newNativeFunc(r.arrayproto_pop, nil, "pop", nil, 0), true, false, true)
 	o._putProp("push", r.newNativeFunc(r.arrayproto_push, nil, "push", nil, 1), true, false, true)
 	o._putProp("join", r.newNativeFunc(r.arrayproto_join, nil, "join", nil, 1), true, false, true)
@@ -1022,7 +1071,7 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 	o._putProp("reduceRight", r.newNativeFunc(r.arrayproto_reduceRight, nil, "reduceRight", nil, 1), true, false, true)
 	valuesFunc := r.newNativeFunc(r.arrayproto_values, nil, "values", nil, 0)
 	o._putProp("values", valuesFunc, true, false, true)
-	o.put(symIterator, valueProp(valuesFunc, false, false, true), true)
+	o.put(symIterator, valueProp(valuesFunc, true, false, true), true)
 	r.global.arrayValues = valuesFunc
 
 	return o

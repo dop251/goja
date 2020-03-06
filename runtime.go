@@ -1620,6 +1620,15 @@ func (r *Runtime) returnThis(call FunctionCall) Value {
 	return call.This
 }
 
+func defineDataPropertyOrThrow(o *Object, p Value, v Value) {
+	o.self.defineOwnProperty(p, propertyDescr{
+		Writable:     FLAG_TRUE,
+		Enumerable:   FLAG_TRUE,
+		Configurable: FLAG_TRUE,
+		Value:        v,
+	}, true)
+}
+
 func toPropertyKey(key Value) Value {
 	return key.ToPrimitiveString()
 }

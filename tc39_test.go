@@ -102,6 +102,7 @@ var (
 		"22.1.2.3",
 		"22.1.2.5",
 		//"22.1.3.1",
+		"22.1.3.3",
 		"22.1.3.29",
 		"23.1",
 		"23.2",
@@ -259,7 +260,9 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		} else {
 			if meta.Es6id != "" {
 				for _, prefix := range es6IdWhiteList {
-					if strings.HasPrefix(meta.Es6id, prefix) {
+					if strings.HasPrefix(meta.Es6id, prefix) &&
+						(len(meta.Es6id) == len(prefix) || meta.Es6id[len(prefix)] == '.') {
+
 						skip = false
 						break
 					}
