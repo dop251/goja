@@ -143,7 +143,7 @@ func (o *objectGoReflect) getOwnProp(name string) Value {
 	if o.value.Kind() == reflect.Struct {
 		if v := o._getField(name); v.IsValid() {
 			canSet := v.CanSet()
-			if v.Kind() == reflect.Struct && v.CanAddr() {
+			if (v.Kind() == reflect.Struct || v.Kind() == reflect.Slice) && v.CanAddr() {
 				v = v.Addr()
 			}
 			return &valueProperty{
