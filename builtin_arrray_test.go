@@ -101,7 +101,7 @@ func TestArraySetLengthWithPropItems(t *testing.T) {
 
 func TestArrayFrom(t *testing.T) {
 	const SCRIPT = `
-	function checkDest(dest, prefix) {
+	function checkDestHoles(dest, prefix) {
 		assert(dest !== source, prefix + ": dest !== source");
 		assert.sameValue(dest.length, 3, prefix + ": dest.length");
 		assert.sameValue(dest[0], 1, prefix + ": [0]");
@@ -110,10 +110,19 @@ func TestArrayFrom(t *testing.T) {
 		assert.sameValue(dest[2], 3, prefix + ": [2]");
 	}
 
-	var source = [];
-	source[0] = 1;
-	source[2] = 3;
+	function checkDest(dest, prefix) {
+		assert(dest !== source, prefix + ": dest !== source");
+		assert.sameValue(dest.length, 3, prefix + ": dest.length");
+		assert.sameValue(dest[0], 1, prefix + ": [0]");
+		assert.sameValue(dest[1], 2, prefix + ": [1]");
+		assert.sameValue(dest[2], 3, prefix + ": [2]");
+	}
+
+	var source = [1,2,3];
+	var srcHoles = [1,,3];
+
 	checkDest(Array.from(source), "std source/std dest");
+	checkDestHoles(Array.from(srcHoles), "std source (holes)/std dest");
 
 	function Iter() {
 		this.idx = 0;
@@ -133,13 +142,14 @@ func TestArrayFrom(t *testing.T) {
 	checkDest(Array.from(src), "iter src/std dest");
 
 	src = {0: 1, 2: 3, length: 3};
-	checkDest(Array.from(src), "arrayLike src/std dest");
+	checkDestHoles(Array.from(src), "arrayLike src/std dest");
 
 	function A() {}
 	A.from = Array.from;
 
 	checkDest(A.from(source), "std src/cust dest");
-	checkDest(A.from(src), "arrayLike src/cust dest");
+	checkDestHoles(A.from(srcHoles), "std src (holes)/cust dest");
+	checkDestHoles(A.from(src), "arrayLike src/cust dest");
 
 	function T2() {
 	  Object.defineProperty(this, 0, {

@@ -237,32 +237,21 @@ func isConcatSpreadable(obj *Object) bool {
 }
 
 func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
-	descr := propertyDescr{
-		Writable:     FLAG_TRUE,
-		Enumerable:   FLAG_TRUE,
-		Configurable: FLAG_TRUE,
-	}
-
 	aLength := toLength(a.self.getStr("length"))
-	if obj, ok := item.(*Object); ok {
-		if isConcatSpreadable(obj) {
-			length := toLength(obj.self.getStr("length"))
-			for i := int64(0); i < length; i++ {
-				v := obj.self.get(intToValue(i))
-				if v != nil {
-					descr.Value = v
-					a.self.defineOwnProperty(intToValue(aLength), descr, false)
-					aLength++
-				} else {
-					aLength++
-					a.self.putStr("length", intToValue(aLength), false)
-				}
+	if obj, ok := item.(*Object); ok && isConcatSpreadable(obj) {
+		length := toLength(obj.self.getStr("length"))
+		for i := int64(0); i < length; i++ {
+			v := obj.self.get(intToValue(i))
+			if v != nil {
+				defineDataPropertyOrThrow(a, intToValue(aLength), v)
 			}
-			return
+			aLength++
 		}
+	} else {
+		defineDataPropertyOrThrow(a, intToValue(aLength), item)
+		aLength++
 	}
-	descr.Value = item
-	a.self.defineOwnProperty(intToValue(aLength), descr, false)
+	a.self.putStr("length", intToValue(aLength), true)
 }
 
 func arraySpeciesCreate(obj *Object, size int) *Object {
@@ -334,8 +323,14 @@ func (r *Runtime) arrayproto_slice(call FunctionCall) Value {
 	if count < 0 {
 		count = 0
 	}
-	a := r.newArrayLength(count)
 
+	if arr := r.checkStdArrayObj(o); arr != nil {
+		values := make([]Value, count)
+		copy(values, arr.values[start:])
+		return r.newArrayValues(values)
+	}
+
+	a := r.newArrayLength(count)
 	n := int64(0)
 	for start < end {
 		p := o.self.get(intToValue(start))
@@ -466,6 +461,15 @@ func (r *Runtime) arrayproto_indexOf(call FunctionCall) Value {
 
 	searchElement := call.Argument(0)
 
+	if arr := r.checkStdArrayObj(o); arr != nil {
+		for i, val := range arr.values[n:] {
+			if searchElement.StrictEquals(val) {
+				return intToValue(n + int64(i))
+			}
+		}
+		return intToValue(-1)
+	}
+
 	for ; n < length; n++ {
 		idx := intToValue(n)
 		if val := o.self.get(idx); val != nil {
@@ -499,6 +503,16 @@ func (r *Runtime) arrayproto_lastIndexOf(call FunctionCall) Value {
 	}
 
 	searchElement := call.Argument(0)
+
+	if arr := r.checkStdArrayObj(o); arr != nil {
+		vals := arr.values
+		for k := fromIndex; k >= 0; k-- {
+			if v := vals[k]; v != nil && searchElement.StrictEquals(v) {
+				return intToValue(k)
+			}
+		}
+		return intToValue(-1)
+	}
 
 	for k := fromIndex; k >= 0; k-- {
 		idx := intToValue(k)
@@ -849,6 +863,12 @@ func (r *Runtime) arrayproto_copyWithin(call FunctionCall) Value {
 		final = min(relEnd, l)
 	}
 	count := min(final-from, l-to)
+	if arr := r.checkStdArrayObj(o); arr != nil {
+		if count > 0 {
+			copy(arr.values[to:to+count], arr.values[from:from+count])
+		}
+		return o
+	}
 	if from < to && to < from+count {
 		dir = -1
 		from = from + count - 1
@@ -873,7 +893,8 @@ func (r *Runtime) arrayproto_copyWithin(call FunctionCall) Value {
 func (r *Runtime) checkStdArrayObj(obj *Object) *arrayObject {
 	if arr, ok := obj.self.(*arrayObject); ok &&
 		arr.propValueCount == 0 &&
-		arr.length == int64(len(arr.values)) {
+		arr.length == int64(len(arr.values)) &&
+		arr.objCount == arr.length {
 
 		return arr
 	}
@@ -916,11 +937,11 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 	if mapFn == nil && call.This == r.global.Array { // mapFn may mutate the array
 		if arr := r.checkStdArrayIter(items); arr != nil {
 			items := make([]Value, len(arr.values))
-			for i, item := range arr.values {
+			copy(items, arr.values)
+			for i, item := range items {
 				if item == nil {
-					item = nilSafe(arr.get(intToValue(int64(i))))
+					items[i] = _undefined
 				}
-				items[i] = item
 			}
 			return r.newArrayValues(items)
 		}

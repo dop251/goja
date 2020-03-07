@@ -1248,6 +1248,21 @@ func (l newArray) exec(vm *vm) {
 	vm.pc++
 }
 
+type newArraySparse struct {
+	l, objCount uint32
+}
+
+func (n *newArraySparse) exec(vm *vm) {
+	values := make([]Value, n.l)
+	copy(values, vm.stack[vm.sp-int(n.l):vm.sp])
+	arr := vm.r.newArrayObject()
+	setArrayValues(arr, values)
+	arr.objCount = int64(n.objCount)
+	vm.sp -= int(n.l) - 1
+	vm.stack[vm.sp-1] = arr.val
+	vm.pc++
+}
+
 type newRegexp struct {
 	pattern regexpPattern
 	src     valueString

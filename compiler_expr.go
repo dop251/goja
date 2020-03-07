@@ -1365,14 +1365,23 @@ func (c *compiler) compileObjectLiteral(v *ast.ObjectLiteral) compiledExpr {
 
 func (e *compiledArrayLiteral) emitGetter(putOnStack bool) {
 	e.addSrcMap()
+	objCount := uint32(0)
 	for _, v := range e.expr.Value {
 		if v != nil {
 			e.c.compileExpression(v).emitGetter(true)
+			objCount++
 		} else {
 			e.c.emit(loadNil)
 		}
 	}
-	e.c.emit(newArray(len(e.expr.Value)))
+	if objCount == uint32(len(e.expr.Value)) {
+		e.c.emit(newArray(objCount))
+	} else {
+		e.c.emit(&newArraySparse{
+			l:        uint32(len(e.expr.Value)),
+			objCount: objCount,
+		})
+	}
 	if !putOnStack {
 		e.c.emit(pop)
 	}
