@@ -24,16 +24,16 @@ func (ai *arrayIterObject) next() Value {
 		return ai.val.runtime.createIterResultObject(_undefined, true)
 	}
 	ai.nextIdx++
+	idxVal := intToValue(index)
 	if ai.kind == iterationKindKey {
-		return ai.val.runtime.createIterResultObject(intToValue(index), false)
+		return ai.val.runtime.createIterResultObject(idxVal, false)
 	}
-	elementKey := asciiString(strconv.FormatInt(index, 10))
-	elementValue := ai.obj.self.get(intToValue(index))
+	elementValue := ai.obj.self.get(idxVal)
 	var result Value
 	if ai.kind == iterationKindValue {
 		result = elementValue
 	} else {
-		result = ai.val.runtime.newArrayValues([]Value{elementKey, elementValue})
+		result = ai.val.runtime.newArrayValues([]Value{idxVal, elementValue})
 	}
 	return ai.val.runtime.createIterResultObject(result, false)
 }

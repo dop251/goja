@@ -80,6 +80,9 @@ var (
 
 		// Typed arrays
 		"test/built-ins/Array/from/items-is-arraybuffer.js": true,
+
+		// for-of
+		"test/language/statements/for-of/Array.prototype.entries.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -103,6 +106,8 @@ var (
 		"22.1.2.5",
 		//"22.1.3.1",
 		"22.1.3.3",
+		"22.1.3.4",
+		"22.1.3.6",
 		"22.1.3.29",
 		"23.1",
 		"23.2",

@@ -35,6 +35,13 @@ func setArrayLength(a *arrayObject, l int64) *arrayObject {
 	return a
 }
 
+func relToIdx(rel, l int64) int64 {
+	if rel >= 0 {
+		return min(rel, l)
+	}
+	return max(l+rel, 0)
+}
+
 func (r *Runtime) newArrayValues(values []Value) *Object {
 	return setArrayValues(r.newArrayObject(), values).val
 }
@@ -301,23 +308,14 @@ func min(a, b int64) int64 {
 func (r *Runtime) arrayproto_slice(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	length := toLength(o.self.getStr("length"))
-	start := call.Argument(0).ToInteger()
-	if start < 0 {
-		start = max(length+start, 0)
-	} else {
-		start = min(start, length)
-	}
+	start := relToIdx(call.Argument(0).ToInteger(), length)
 	var end int64
 	if endArg := call.Argument(1); endArg != _undefined {
 		end = endArg.ToInteger()
 	} else {
 		end = length
 	}
-	if end < 0 {
-		end = max(length+end, 0)
-	} else {
-		end = min(end, length)
-	}
+	end = relToIdx(end, length)
 
 	count := end - start
 	if count < 0 {
@@ -365,13 +363,7 @@ func (r *Runtime) arrayproto_splice(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	a := r.newArrayValues(nil)
 	length := toLength(o.self.getStr("length"))
-	relativeStart := call.Argument(0).ToInteger()
-	var actualStart int64
-	if relativeStart < 0 {
-		actualStart = max(length+relativeStart, 0)
-	} else {
-		actualStart = min(relativeStart, length)
-	}
+	actualStart := relToIdx(call.Argument(0).ToInteger(), length)
 
 	actualDeleteCount := min(max(call.Argument(1).ToInteger(), 0), length-actualStart)
 
@@ -839,29 +831,15 @@ func (r *Runtime) arrayproto_values(call FunctionCall) Value {
 func (r *Runtime) arrayproto_copyWithin(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	l := toLength(o.self.getStr("length"))
-	relTarget := call.Argument(0).ToInteger()
-	var from, to, relEnd, final, dir int64
-	if relTarget < 0 {
-		to = max(l+relTarget, 0)
-	} else {
-		to = min(relTarget, l)
-	}
-	relStart := call.Argument(1).ToInteger()
-	if relStart < 0 {
-		from = max(l+relStart, 0)
-	} else {
-		from = min(relStart, l)
-	}
+	var relEnd, dir int64
+	to := relToIdx(call.Argument(0).ToInteger(), l)
+	from := relToIdx(call.Argument(1).ToInteger(), l)
 	if end := call.Argument(2); end != _undefined {
 		relEnd = end.ToInteger()
 	} else {
 		relEnd = l
 	}
-	if relEnd < 0 {
-		final = max(l+relEnd, 0)
-	} else {
-		final = min(relEnd, l)
-	}
+	final := relToIdx(relEnd, l)
 	count := min(final-from, l-to)
 	if arr := r.checkStdArrayObj(o); arr != nil {
 		if count > 0 {
@@ -887,6 +865,34 @@ func (r *Runtime) arrayproto_copyWithin(call FunctionCall) Value {
 		count--
 	}
 
+	return o
+}
+
+func (r *Runtime) arrayproto_entries(call FunctionCall) Value {
+	return r.createArrayIterator(call.This.ToObject(r), iterationKindKeyValue)
+}
+
+func (r *Runtime) arrayproto_fill(call FunctionCall) Value {
+	o := call.This.ToObject(r)
+	l := toLength(o.self.getStr("length"))
+	k := relToIdx(call.Argument(1).ToInteger(), l)
+	var relEnd int64
+	if endArg := call.Argument(2); endArg != _undefined {
+		relEnd = endArg.ToInteger()
+	} else {
+		relEnd = l
+	}
+	final := relToIdx(relEnd, l)
+	value := call.Argument(0)
+	if arr := r.checkStdArrayObj(o); arr != nil {
+		for ; k < final; k++ {
+			arr.values[k] = value
+		}
+	} else {
+		for ; k < final; k++ {
+			o.self.put(intToValue(k), value, true)
+		}
+	}
 	return o
 }
 
@@ -938,11 +944,6 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		if arr := r.checkStdArrayIter(items); arr != nil {
 			items := make([]Value, len(arr.values))
 			copy(items, arr.values)
-			for i, item := range items {
-				if item == nil {
-					items[i] = _undefined
-				}
-			}
 			return r.newArrayValues(items)
 		}
 	}
@@ -1069,6 +1070,8 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 
 	o._putProp("constructor", r.global.Array, true, false, true)
 	o._putProp("copyWithin", r.newNativeFunc(r.arrayproto_copyWithin, nil, "copyWithin", nil, 2), true, false, true)
+	o._putProp("entries", r.newNativeFunc(r.arrayproto_entries, nil, "entries", nil, 0), true, false, true)
+	o._putProp("fill", r.newNativeFunc(r.arrayproto_fill, nil, "fill", nil, 1), true, false, true)
 	o._putProp("pop", r.newNativeFunc(r.arrayproto_pop, nil, "pop", nil, 0), true, false, true)
 	o._putProp("push", r.newNativeFunc(r.arrayproto_push, nil, "push", nil, 1), true, false, true)
 	o._putProp("join", r.newNativeFunc(r.arrayproto_join, nil, "join", nil, 1), true, false, true)
