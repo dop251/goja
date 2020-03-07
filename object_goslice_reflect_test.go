@@ -71,6 +71,44 @@ func TestGoSliceReflectSet(t *testing.T) {
 	}
 }
 
+func TestGoSliceReflectPush(t *testing.T) {
+
+	r := New()
+
+	t.Run("Can push to array by array ptr", func(t *testing.T) {
+		a := []int8{1}
+		r.Set("a", &a)
+		_, err := r.RunString(`a.push (10)`)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if a[1] != 10 {
+			t.Fatalf("a[1] = %d, expected 10", a[1])
+		}
+	})
+
+	t.Run("Can push to array by struct ptr", func(t *testing.T) {
+		type testStr struct {
+			A []int
+		}
+		a := testStr{
+			A: []int{2},
+		}
+
+		r.Set("a", &a)
+		_, err := r.RunString(`a.A.push (10)`)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if a.A[1] != 10 {
+			t.Fatalf("a[1] = %v, expected 10", a)
+		}
+	})
+
+}
+
 func TestGoSliceReflectProto(t *testing.T) {
 	const SCRIPT = `
 	a.join(",")
