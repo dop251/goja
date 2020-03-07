@@ -540,6 +540,52 @@ func TestGoReflectCustomNaming(t *testing.T) {
 	})
 }
 
+func TestGoReflectCustomObjNaming(t *testing.T) {
+
+	type testStructWithJsonTags struct {
+		A string `json:"b"` // <-- script sees field "A" as property "b"
+	}
+
+	r := New()
+	r.SetFieldNameMapper(&jsonTagNamer{})
+
+	t.Run("Set object in slice", func(t *testing.T) {
+		testSlice := &[]testStructWithJsonTags{{"Hello world"}}
+		r.Set("testslice", testSlice)
+		_, err := r.RunString(`testslice[0] = {b:"setted"}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (*testSlice)[0].A != "setted" {
+			t.Fatalf("Expected \"setted\", got %q", (*testSlice)[0])
+		}
+	})
+
+	t.Run("Set object in map", func(t *testing.T) {
+		testMap := map[string]testStructWithJsonTags{"key": {"Hello world"}}
+		r.Set("testmap", testMap)
+		_, err := r.RunString(`testmap["key"] = {b:"setted"}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if testMap["key"].A != "setted" {
+			t.Fatalf("Expected \"setted\", got %q", testMap["key"])
+		}
+	})
+
+	t.Run("Add object to map", func(t *testing.T) {
+		testMap := map[string]testStructWithJsonTags{}
+		r.Set("testmap", testMap)
+		_, err := r.RunString(`testmap["newkey"] = {b:"setted"}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if testMap["newkey"].A != "setted" {
+			t.Fatalf("Expected \"setted\", got %q", testMap["newkey"])
+		}
+	})
+}
+
 type fieldNameMapper1 struct{}
 
 func (fieldNameMapper1) FieldName(t reflect.Type, f reflect.StructField) string {
