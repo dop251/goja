@@ -261,24 +261,28 @@ func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 	a.self.putStr("length", intToValue(aLength), true)
 }
 
-func arraySpeciesCreate(obj *Object, size int) *Object {
+func arraySpeciesCreate(obj *Object, size int64) *Object {
 	if isArray(obj) {
 		v := obj.self.getStr("constructor")
 		if constructObj, ok := v.(*Object); ok {
-			species := constructObj.self.get(symSpecies)
-			if species != nil && !IsUndefined(species) && !IsNull(species) {
-				constructObj, _ = species.(*Object)
-				if constructObj != nil {
-					constructor := getConstructor(constructObj)
-					if constructor != nil {
-						return constructor([]Value{intToValue(int64(size))})
-					}
-				}
-				panic(obj.runtime.NewTypeError())
+			v = constructObj.self.get(symSpecies)
+			if v == _null {
+				v = nil
 			}
 		}
+
+		if v != nil && v != _undefined {
+			constructObj, _ := v.(*Object)
+			if constructObj != nil {
+				constructor := getConstructor(constructObj)
+				if constructor != nil {
+					return constructor([]Value{intToValue(size)})
+				}
+			}
+			panic(obj.runtime.NewTypeError("Species is not a constructor"))
+		}
 	}
-	return obj.runtime.newArrayValues(nil)
+	return obj.runtime.newArrayLength(size)
 }
 
 func (r *Runtime) arrayproto_concat(call FunctionCall) Value {
@@ -624,24 +628,42 @@ func (r *Runtime) arrayproto_filter(call FunctionCall) Value {
 	length := toLength(o.self.getStr("length"))
 	callbackFn := call.Argument(0).ToObject(r)
 	if callbackFn, ok := callbackFn.self.assertCallable(); ok {
-		a := r.newArrayObject()
+		a := arraySpeciesCreate(o, 0)
 		fc := FunctionCall{
 			This:      call.Argument(1),
 			Arguments: []Value{nil, nil, o},
 		}
+		if _, stdSrc := o.self.(*arrayObject); stdSrc {
+			if arr := r.checkStdArrayObj(a); arr != nil {
+				var values []Value
+				for k := int64(0); k < length; k++ {
+					idx := intToValue(k)
+					if val := o.self.get(idx); val != nil {
+						fc.Arguments[0] = val
+						fc.Arguments[1] = idx
+						if callbackFn(fc).ToBoolean() {
+							values = append(values, val)
+						}
+					}
+				}
+				setArrayValues(arr, values)
+				return a
+			}
+		}
+
+		to := int64(0)
 		for k := int64(0); k < length; k++ {
 			idx := intToValue(k)
 			if val := o.self.get(idx); val != nil {
 				fc.Arguments[0] = val
 				fc.Arguments[1] = idx
 				if callbackFn(fc).ToBoolean() {
-					a.values = append(a.values, val)
+					defineDataPropertyOrThrow(a, intToValue(to), val)
+					to++
 				}
 			}
 		}
-		a.length = int64(len(a.values))
-		a.objCount = a.length
-		return a.val
+		return a
 	} else {
 		r.typeErrorResult(true, "%s is not a function", call.Argument(0))
 	}
@@ -896,6 +918,26 @@ func (r *Runtime) arrayproto_fill(call FunctionCall) Value {
 	return o
 }
 
+func (r *Runtime) arrayproto_find(call FunctionCall) Value {
+	o := call.This.ToObject(r)
+	l := toLength(o.self.getStr("length"))
+	predicate := r.toCallable(call.Argument(0))
+	fc := FunctionCall{
+		This:      call.Argument(1),
+		Arguments: []Value{nil, nil, o},
+	}
+	for k := int64(0); k < l; k++ {
+		idx := intToValue(k)
+		kValue := o.self.get(idx)
+		fc.Arguments[0], fc.Arguments[1] = kValue, idx
+		if predicate(fc).ToBoolean() {
+			return kValue
+		}
+	}
+
+	return _undefined
+}
+
 func (r *Runtime) checkStdArrayObj(obj *Object) *arrayObject {
 	if arr, ok := obj.self.(*arrayObject); ok &&
 		arr.propValueCount == 0 &&
@@ -1072,6 +1114,8 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 	o._putProp("copyWithin", r.newNativeFunc(r.arrayproto_copyWithin, nil, "copyWithin", nil, 2), true, false, true)
 	o._putProp("entries", r.newNativeFunc(r.arrayproto_entries, nil, "entries", nil, 0), true, false, true)
 	o._putProp("fill", r.newNativeFunc(r.arrayproto_fill, nil, "fill", nil, 1), true, false, true)
+	o._putProp("filter", r.newNativeFunc(r.arrayproto_filter, nil, "filter", nil, 1), true, false, true)
+	o._putProp("find", r.newNativeFunc(r.arrayproto_find, nil, "find", nil, 1), true, false, true)
 	o._putProp("pop", r.newNativeFunc(r.arrayproto_pop, nil, "pop", nil, 0), true, false, true)
 	o._putProp("push", r.newNativeFunc(r.arrayproto_push, nil, "push", nil, 1), true, false, true)
 	o._putProp("join", r.newNativeFunc(r.arrayproto_join, nil, "join", nil, 1), true, false, true)
@@ -1090,7 +1134,6 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 	o._putProp("some", r.newNativeFunc(r.arrayproto_some, nil, "some", nil, 1), true, false, true)
 	o._putProp("forEach", r.newNativeFunc(r.arrayproto_forEach, nil, "forEach", nil, 1), true, false, true)
 	o._putProp("map", r.newNativeFunc(r.arrayproto_map, nil, "map", nil, 1), true, false, true)
-	o._putProp("filter", r.newNativeFunc(r.arrayproto_filter, nil, "filter", nil, 1), true, false, true)
 	o._putProp("reduce", r.newNativeFunc(r.arrayproto_reduce, nil, "reduce", nil, 1), true, false, true)
 	o._putProp("reduceRight", r.newNativeFunc(r.arrayproto_reduceRight, nil, "reduceRight", nil, 1), true, false, true)
 	valuesFunc := r.newNativeFunc(r.arrayproto_values, nil, "values", nil, 0)
