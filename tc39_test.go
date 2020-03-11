@@ -32,6 +32,9 @@ var (
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
 		"test/annexB/built-ins/escape/escape-above-astral.js":         true, // \u{xxxxx}
 
+		// utf-16
+		"test/built-ins/Array/prototype/concat/Array.prototype.concat_spreadable-string-wrapper.js": true,
+
 		// cross-realm
 		"test/built-ins/Symbol/unscopables/cross-realm.js":                                true,
 		"test/built-ins/Symbol/toStringTag/cross-realm.js":                                true,
@@ -57,6 +60,12 @@ var (
 		"test/built-ins/Array/prototype/concat/create-proto-from-ctor-realm-array.js":     true,
 		"test/built-ins/Array/prototype/filter/create-proto-from-ctor-realm-non-array.js": true,
 		"test/built-ins/Array/prototype/filter/create-proto-from-ctor-realm-array.js":     true,
+		"test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-non-array.js":    true,
+		"test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js":        true,
+		"test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-non-array.js":  true,
+		"test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js":      true,
+		"test/built-ins/Array/prototype/splice/create-proto-from-ctor-realm-non-array.js": true,
+		"test/built-ins/Array/prototype/splice/create-proto-from-ctor-realm-array.js":     true,
 
 		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
@@ -71,6 +80,8 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/Set/regular-subclassing.js":              true,
 		"test/language/statements/class/subclass/builtin-objects/Object/replacing-prototype.js":           true,
 		"test/language/statements/class/subclass/builtin-objects/Object/regular-subclassing.js":           true,
+		"test/built-ins/Array/prototype/concat/Array.prototype.concat_non-array.js":                       true,
+		"test/language/statements/class/subclass/builtin-objects/Array/length.js":                         true,
 
 		// full unicode regexp flag
 		"test/built-ins/RegExp/prototype/Symbol.match/u-advance-after-empty.js":               true,
@@ -83,10 +94,14 @@ var (
 		"test/built-ins/Array/from/source-object-iterator-2.js": true,
 
 		// Typed arrays
-		"test/built-ins/Array/from/items-is-arraybuffer.js": true,
+		"test/built-ins/Array/from/items-is-arraybuffer.js":                                 true,
+		"test/built-ins/Array/prototype/concat/Array.prototype.concat_small-typed-array.js": true,
+		"test/built-ins/Array/prototype/concat/Array.prototype.concat_large-typed-array.js": true,
 
 		// for-of
-		"test/language/statements/for-of/Array.prototype.entries.js": true,
+		"test/language/statements/for-of/Array.prototype.keys.js":            true,
+		"test/language/statements/for-of/Array.prototype.entries.js":         true,
+		"test/language/statements/for-of/Array.prototype.Symbol.iterator.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -108,14 +123,8 @@ var (
 		"22.1.2.1",
 		"22.1.2.3",
 		"22.1.2.5",
-		"22.1.3.1",
-		"22.1.3.3",
-		"22.1.3.4",
-		"22.1.3.5",
-		"22.1.3.6",
-		"22.1.3.7",
-		"22.1.3.8",
-		"22.1.3.29",
+		"22.1.3",
+		"22.1.4",
 		"23.1",
 		"23.2",
 		"23.3",
