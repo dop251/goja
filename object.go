@@ -21,6 +21,7 @@ const (
 	classError    = "Error"
 	classRegExp   = "RegExp"
 	classDate     = "Date"
+	classProxy    = "Proxy"
 
 	classArrayIterator = "Array Iterator"
 	classMapIterator   = "Map Iterator"
@@ -93,12 +94,36 @@ type Object struct {
 
 type iterNextFunc func() (propIterItem, iterNextFunc)
 
-type propertyDescr struct {
+type PropertyDescriptor struct {
+	jsDescriptor *Object
+
 	Value Value
 
 	Writable, Configurable, Enumerable Flag
 
 	Getter, Setter Value
+}
+
+func(p PropertyDescriptor) toValue(r *Runtime) Value {
+	if p.jsDescriptor != nil {
+		return p.jsDescriptor
+	}
+
+	o := r.NewObject()
+	s := o.self
+
+	s._putProp("value", p.Value, false, false, false)
+
+	s._putProp("writable", valueBool(p.Writable.Bool()), false, false, false)
+	s._putProp("enumerable", valueBool(p.Enumerable.Bool()), false, false, false)
+	s._putProp("configurable", valueBool(p.Configurable.Bool()), false, false, false)
+
+	s._putProp("get", p.Getter, false, false, false)
+	s._putProp("set", p.Setter, false, false, false)
+
+	s.preventExtensions()
+
+	return o
 }
 
 type objectImpl interface {
@@ -117,7 +142,7 @@ type objectImpl interface {
 	hasOwnProperty(Value) bool
 	hasOwnPropertyStr(string) bool
 	_putProp(name string, value Value, writable, enumerable, configurable bool) Value
-	defineOwnProperty(name Value, descr propertyDescr, throw bool) bool
+	defineOwnProperty(name Value, descr PropertyDescriptor, throw bool) bool
 	toPrimitiveNumber() Value
 	toPrimitiveString() Value
 	toPrimitive() Value
@@ -135,6 +160,7 @@ type objectImpl interface {
 	exportType() reflect.Type
 	equal(objectImpl) bool
 	getOwnSymbols() []Value
+	getOwnPropertyDescriptor(name string) Value
 }
 
 type baseObject struct {
@@ -476,7 +502,54 @@ func (o *baseObject) hasOwnPropertyStr(name string) bool {
 	return v != nil
 }
 
-func (o *baseObject) _defineOwnProperty(name, existingValue Value, descr propertyDescr, throw bool) (val Value, ok bool) {
+func (o *baseObject) getOwnPropertyDescriptor(name string) Value {
+	desc := o.getOwnProp(name)
+	if desc == nil {
+		return _undefined
+	}
+	var writable, configurable, enumerable, accessor bool
+	var get, set *Object
+	var value Value
+	if v, ok := desc.(*valueProperty); ok {
+		writable = v.writable
+		configurable = v.configurable
+		enumerable = v.enumerable
+		accessor = v.accessor
+		value = v.value
+		get = v.getterFunc
+		set = v.setterFunc
+	} else {
+		writable = true
+		configurable = true
+		enumerable = true
+		value = desc
+	}
+
+	r := o.val.runtime
+	ret := r.NewObject()
+	obj := ret.self
+	if !accessor {
+		obj.putStr("value", value, false)
+		obj.putStr("writable", r.toBoolean(writable), false)
+	} else {
+		if get != nil {
+			obj.putStr("get", get, false)
+		} else {
+			obj.putStr("get", _undefined, false)
+		}
+		if set != nil {
+			obj.putStr("set", set, false)
+		} else {
+			obj.putStr("set", _undefined, false)
+		}
+	}
+	obj.putStr("enumerable", r.toBoolean(enumerable), false)
+	obj.putStr("configurable", r.toBoolean(configurable), false)
+
+	return ret
+}
+
+func (o *baseObject) _defineOwnProperty(name, existingValue Value, descr PropertyDescriptor, throw bool) (val Value, ok bool) {
 
 	getterObj, _ := descr.Getter.(*Object)
 	setterObj, _ := descr.Setter.(*Object)
@@ -579,7 +652,7 @@ Reject:
 
 }
 
-func (o *baseObject) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
+func (o *baseObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
 	n = toPropertyKey(n)
 	if s, ok := n.(*valueSymbol); ok {
 		existingVal := o.symValues[s]

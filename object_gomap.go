@@ -110,7 +110,7 @@ func (o *objectGoMapSimple) _putProp(name string, value Value, writable, enumera
 	return value
 }
 
-func (o *objectGoMapSimple) defineOwnProperty(name Value, descr propertyDescr, throw bool) bool {
+func (o *objectGoMapSimple) defineOwnProperty(name Value, descr PropertyDescriptor, throw bool) bool {
 	if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 		return false
 	}

@@ -127,7 +127,7 @@ func (o *objectGoMapReflect) _putProp(name string, value Value, writable, enumer
 	return value
 }
 
-func (o *objectGoMapReflect) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
+func (o *objectGoMapReflect) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
 	if !o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) {
 		return false
 	}
@@ -209,11 +209,11 @@ func (i *gomapReflectPropIter) next() (propIterItem, iterNextFunc) {
 	return propIterItem{}, nil
 }
 
-func (o *objectGoMapReflect) _enumerate(recusrive bool) iterNextFunc {
+func (o *objectGoMapReflect) _enumerate(recursive bool) iterNextFunc {
 	r := &gomapReflectPropIter{
 		o:         o,
 		keys:      o.value.MapKeys(),
-		recursive: recusrive,
+		recursive: recursive,
 	}
 	return r.next
 }

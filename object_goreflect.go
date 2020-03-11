@@ -196,7 +196,7 @@ func (o *objectGoReflect) _putProp(name string, value Value, writable, enumerabl
 	return o.baseObject._putProp(name, value, writable, enumerable, configurable)
 }
 
-func (r *Runtime) checkHostObjectPropertyDescr(n Value, descr propertyDescr, throw bool) bool {
+func (r *Runtime) checkHostObjectPropertyDescr(n Value, descr PropertyDescriptor, throw bool) bool {
 	if _, ok := n.(*valueSymbol); ok {
 		r.typeErrorResult(throw, "Host objects do not support symbol properties")
 		return false
@@ -216,7 +216,7 @@ func (r *Runtime) checkHostObjectPropertyDescr(n Value, descr propertyDescr, thr
 	return true
 }
 
-func (o *objectGoReflect) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
+func (o *objectGoReflect) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
 	if _, ok := n.(*valueSymbol); !ok {
 		if o.value.Kind() == reflect.Struct {
 			name := n.String()

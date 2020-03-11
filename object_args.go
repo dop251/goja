@@ -94,7 +94,7 @@ func (a *argumentsObject) enumerate(all, recursive bool) iterNextFunc {
 	}).next
 }
 
-func (a *argumentsObject) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
+func (a *argumentsObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
 	if _, ok := n.(*valueSymbol); ok {
 		return a.baseObject.defineOwnProperty(n, descr, throw)
 	}

@@ -26,55 +26,18 @@ func (r *Runtime) object_getPrototypeOf(call FunctionCall) Value {
 func (r *Runtime) object_getOwnPropertyDescriptor(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
 	propName := toPropertyKey(call.Argument(1))
-	desc := obj.self.getOwnProp(propName)
-	if desc == nil {
-		return _undefined
-	}
-	var writable, configurable, enumerable, accessor bool
-	var get, set *Object
-	var value Value
-	if v, ok := desc.(*valueProperty); ok {
-		writable = v.writable
-		configurable = v.configurable
-		enumerable = v.enumerable
-		accessor = v.accessor
-		value = v.value
-		get = v.getterFunc
-		set = v.setterFunc
-	} else {
-		writable = true
-		configurable = true
-		enumerable = true
-		value = desc
-	}
-
-	ret := r.NewObject()
-	o := ret.self
-	if !accessor {
-		o.putStr("value", value, false)
-		o.putStr("writable", r.toBoolean(writable), false)
-	} else {
-		if get != nil {
-			o.putStr("get", get, false)
-		} else {
-			o.putStr("get", _undefined, false)
-		}
-		if set != nil {
-			o.putStr("set", set, false)
-		} else {
-			o.putStr("set", _undefined, false)
-		}
-	}
-	o.putStr("enumerable", r.toBoolean(enumerable), false)
-	o.putStr("configurable", r.toBoolean(configurable), false)
-
-	return ret
+	return obj.self.getOwnPropertyDescriptor(propName)
 }
 
 func (r *Runtime) object_getOwnPropertyNames(call FunctionCall) Value {
 	// ES6
 	obj := call.Argument(0).ToObject(r)
 	// obj := r.toObject(call.Argument(0))
+
+	if r.isProxy(obj) {
+		proxy := r.getProxy(obj)
+		return proxy.ownKeys(true, false)
+	}
 
 	var values []Value
 	for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
@@ -88,9 +51,12 @@ func (r *Runtime) object_getOwnPropertySymbols(call FunctionCall) Value {
 	return r.newArrayValues(obj.self.getOwnSymbols())
 }
 
-func (r *Runtime) toPropertyDescr(v Value) (ret propertyDescr) {
+func (r *Runtime) toPropertyDescriptor(v Value) (ret PropertyDescriptor) {
 	if o, ok := v.(*Object); ok {
 		descr := o.self
+
+		// Save the original descriptor for reference
+		ret.jsDescriptor = o
 
 		ret.Value = descr.getStr("value")
 
@@ -121,7 +87,6 @@ func (r *Runtime) toPropertyDescr(v Value) (ret propertyDescr) {
 
 		if (ret.Getter != nil || ret.Setter != nil) && (ret.Value != nil || ret.Writable != FLAG_NOT_SET) {
 			r.typeErrorResult(true, "Invalid property descriptor. Cannot both specify accessors and a value or writable attribute")
-			return
 		}
 	} else {
 		r.typeErrorResult(true, "Property description must be an object: %s", v.String())
@@ -133,14 +98,14 @@ func (r *Runtime) toPropertyDescr(v Value) (ret propertyDescr) {
 func (r *Runtime) _defineProperties(o *Object, p Value) {
 	type propItem struct {
 		name string
-		prop propertyDescr
+		prop PropertyDescriptor
 	}
 	props := p.ToObject(r)
 	var list []propItem
 	for item, f := props.self.enumerate(false, false)(); f != nil; item, f = f() {
 		list = append(list, propItem{
 			name: item.name,
-			prop: r.toPropertyDescr(props.self.getStr(item.name)),
+			prop: r.toPropertyDescriptor(props.self.getStr(item.name)),
 		})
 	}
 	for _, prop := range list {
@@ -168,7 +133,7 @@ func (r *Runtime) object_create(call FunctionCall) Value {
 
 func (r *Runtime) object_defineProperty(call FunctionCall) (ret Value) {
 	if obj, ok := call.Argument(0).(*Object); ok {
-		descr := r.toPropertyDescr(call.Argument(2))
+		descr := r.toPropertyDescriptor(call.Argument(2))
 		obj.self.defineOwnProperty(call.Argument(1), descr, true)
 		ret = call.Argument(0)
 	} else {
@@ -187,7 +152,7 @@ func (r *Runtime) object_seal(call FunctionCall) Value {
 	// ES6
 	arg := call.Argument(0)
 	if obj, ok := arg.(*Object); ok {
-		descr := propertyDescr{
+		descr := PropertyDescriptor{
 			Writable:     FLAG_TRUE,
 			Enumerable:   FLAG_TRUE,
 			Configurable: FLAG_FALSE,
@@ -226,7 +191,7 @@ func (r *Runtime) object_seal(call FunctionCall) Value {
 func (r *Runtime) object_freeze(call FunctionCall) Value {
 	arg := call.Argument(0)
 	if obj, ok := arg.(*Object); ok {
-		descr := propertyDescr{
+		descr := PropertyDescriptor{
 			Writable:     FLAG_FALSE,
 			Enumerable:   FLAG_TRUE,
 			Configurable: FLAG_FALSE,
@@ -358,6 +323,12 @@ func (r *Runtime) object_keys(call FunctionCall) Value {
 	// ES6
 	obj := call.Argument(0).ToObject(r)
 	//if obj, ok := call.Argument(0).(*valueObject); ok {
+
+	if r.isProxy(obj) {
+		proxy := r.getProxy(obj)
+		return proxy.ownKeys(true, false)
+	}
+
 	var keys []Value
 	for item, f := obj.self.enumerate(false, false)(); f != nil; item, f = f() {
 		keys = append(keys, newStringValue(item.name))

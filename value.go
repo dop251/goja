@@ -786,8 +786,17 @@ func (o *Object) Get(name string) Value {
 }
 
 func (o *Object) Keys() (keys []string) {
-	for item, f := o.self.enumerate(false, false)(); f != nil; item, f = f() {
-		keys = append(keys, item.name)
+	if o.runtime.isProxy(o) {
+		proxy := o.runtime.getProxy(o)
+		v := proxy.ownKeys(true, false)
+		values := v.(*Object).self.(*arrayObject).values
+		for _, val := range values {
+			keys = append(keys, val.String())
+		}
+	} else {
+		for item, f := o.self.enumerate(false, false)(); f != nil; item, f = f() {
+			keys = append(keys, item.name)
+		}
 	}
 
 	return
@@ -797,7 +806,7 @@ func (o *Object) Keys() (keys []string) {
 // configurable: configurable, enumerable: enumerable})
 func (o *Object) DefineDataProperty(name string, value Value, writable, configurable, enumerable Flag) error {
 	return tryFunc(func() {
-		o.self.defineOwnProperty(newStringValue(name), propertyDescr{
+		o.self.defineOwnProperty(newStringValue(name), PropertyDescriptor{
 			Value:        value,
 			Writable:     writable,
 			Configurable: configurable,
@@ -810,7 +819,7 @@ func (o *Object) DefineDataProperty(name string, value Value, writable, configur
 // configurable: configurable, enumerable: enumerable})
 func (o *Object) DefineAccessorProperty(name string, getter, setter Value, configurable, enumerable Flag) error {
 	return tryFunc(func() {
-		o.self.defineOwnProperty(newStringValue(name), propertyDescr{
+		o.self.defineOwnProperty(newStringValue(name), PropertyDescriptor{
 			Getter:       getter,
 			Setter:       setter,
 			Configurable: configurable,

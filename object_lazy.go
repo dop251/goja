@@ -91,7 +91,7 @@ func (o *lazyObject) _putProp(name string, value Value, writable, enumerable, co
 	return obj._putProp(name, value, writable, enumerable, configurable)
 }
 
-func (o *lazyObject) defineOwnProperty(name Value, descr propertyDescr, throw bool) bool {
+func (o *lazyObject) defineOwnProperty(name Value, descr PropertyDescriptor, throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.defineOwnProperty(name, descr, throw)
@@ -157,10 +157,10 @@ func (o *lazyObject) preventExtensions() {
 	obj.preventExtensions()
 }
 
-func (o *lazyObject) enumerate(all, recusrive bool) iterNextFunc {
+func (o *lazyObject) enumerate(all, recursive bool) iterNextFunc {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.enumerate(all, recusrive)
+	return obj.enumerate(all, recursive)
 }
 
 func (o *lazyObject) _enumerate(recursive bool) iterNextFunc {
@@ -215,4 +215,10 @@ func (o *lazyObject) swap(i, j int64) {
 	obj := o.create(o.val)
 	o.val.self = obj
 	obj.swap(i, j)
+}
+
+func (o *lazyObject) getOwnPropertyDescriptor(name string) Value {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.getOwnPropertyDescriptor(name)
 }

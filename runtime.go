@@ -15,6 +15,7 @@ import (
 
 	js_ast "github.com/dop251/goja/ast"
 	"github.com/dop251/goja/parser"
+	"runtime"
 )
 
 const (
@@ -45,6 +46,7 @@ type global struct {
 	RegExp   *Object
 	Date     *Object
 	Symbol   *Object
+	Proxy    *Object
 
 	ArrayBuffer *Object
 	WeakSet     *Object
@@ -72,6 +74,7 @@ type global struct {
 	DatePrototype     *Object
 	SymbolPrototype   *Object
 	ArrayIterator     *Object
+	ProxyPrototype    *Object
 
 	ArrayBufferPrototype *Object
 	WeakSetPrototype     *Object
@@ -146,17 +149,40 @@ type Runtime struct {
 	vm *vm
 }
 
-type stackFrame struct {
+type StackFrame struct {
 	prg      *Program
 	funcName string
 	pc       int
 }
 
-func (f *stackFrame) position() Position {
+func (f *StackFrame) SrcName() string {
+	if f.prg == nil {
+		return "<native>"
+	}
+	return f.prg.src.name
+}
+
+func (f *StackFrame) FuncName() string {
+	if f.funcName == "" && f.prg == nil {
+		return "<native>"
+	}
+	if f.funcName == "" {
+		return "<anonymous>"
+	}
+	return f.funcName
+}
+
+func (f *StackFrame) Position() Position {
+	if f.prg == nil || f.prg.src == nil {
+		return Position{
+			0,
+			0,
+		}
+	}
 	return f.prg.src.Position(f.prg.sourceOffset(f.pc))
 }
 
-func (f *stackFrame) write(b *bytes.Buffer) {
+func (f *StackFrame) Write(b *bytes.Buffer) {
 	if f.prg != nil {
 		if n := f.prg.funcName; n != "" {
 			b.WriteString(n)
@@ -168,7 +194,7 @@ func (f *stackFrame) write(b *bytes.Buffer) {
 			b.WriteString("<eval>")
 		}
 		b.WriteByte(':')
-		b.WriteString(f.position().String())
+		b.WriteString(f.Position().String())
 		b.WriteByte('(')
 		b.WriteString(strconv.Itoa(f.pc))
 		b.WriteByte(')')
@@ -189,7 +215,7 @@ func (f *stackFrame) write(b *bytes.Buffer) {
 
 type Exception struct {
 	val   Value
-	stack []stackFrame
+	stack []StackFrame
 }
 
 type InterruptedError struct {
@@ -227,7 +253,7 @@ func (e *InterruptedError) Error() string {
 func (e *Exception) writeFullStack(b *bytes.Buffer) {
 	for _, frame := range e.stack {
 		b.WriteString("\tat ")
-		frame.write(b)
+		frame.Write(b)
 		b.WriteByte('\n')
 	}
 }
@@ -235,7 +261,7 @@ func (e *Exception) writeFullStack(b *bytes.Buffer) {
 func (e *Exception) writeShortStack(b *bytes.Buffer) {
 	if len(e.stack) > 0 && (e.stack[0].prg != nil || e.stack[0].funcName != "") {
 		b.WriteString(" at ")
-		e.stack[0].write(b)
+		e.stack[0].Write(b)
 	}
 }
 
@@ -299,6 +325,7 @@ func (r *Runtime) init() {
 	r.initRegExp()
 	r.initDate()
 	r.initBoolean()
+	r.initProxy()
 
 	r.initErrors()
 
@@ -928,6 +955,18 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	return
 }
 
+func (r *Runtime) CaptureCallStack(n int) []StackFrame {
+	m := len(r.vm.callStack)
+	if n > 0 {
+		m -= m - n
+	} else {
+		m = 0
+	}
+	stackFrames := make([]StackFrame, 0)
+	stackFrames = r.vm.captureStack(stackFrames, m)
+	return stackFrames
+}
+
 // Interrupt a running JavaScript. The corresponding Go call will return an *InterruptedError containing v.
 // Note, it only works while in JavaScript code, it does not interrupt native Go functions (which includes all built-ins).
 // If the runtime is currently not running, it will be immediately interrupted on the next Run*() call.
@@ -987,9 +1026,17 @@ func (r *Runtime) ToValue(i interface{}) Value {
 			return valueFalse
 		}
 	case func(FunctionCall) Value:
-		return r.newNativeFunc(i, nil, "", nil, 0)
+		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+		return r.newNativeFunc(i, nil, name, nil, 0)
 	case func(ConstructorCall) *Object:
-		return r.newNativeConstructor(i, "", 0)
+		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+		return r.newNativeConstructor(i, name, 0)
+	case *Proxy:
+		proxy := i.proxy
+		if proxy.runtime != r {
+			r.typeErrorResult(true, "Illegal runtime transition for proxy")
+		}
+		return proxy
 	case int:
 		return intToValue(int64(i))
 	case int8:
@@ -1116,7 +1163,8 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		obj.self = a
 		return obj
 	case reflect.Func:
-		return r.newNativeFunc(r.wrapReflectFunc(value), nil, "", nil, value.Type().NumIn())
+		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+		return r.newNativeFunc(r.wrapReflectFunc(value), nil, name, nil, value.Type().NumIn())
 	}
 
 	obj := &Object{runtime: r}

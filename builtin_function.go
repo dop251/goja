@@ -34,6 +34,23 @@ repeat:
 	case *lazyObject:
 		obj.self = f.create(obj)
 		goto repeat
+	case *proxyObject:
+		var name string
+		repeat2:
+		switch c := f.target.self.(type) {
+		case *funcObject:
+			name = c.src
+		case *nativeFuncObject:
+			name = c.nameProp.get(call.This).String()
+		case *boundFuncObject:
+			name = c.nameProp.get(call.This).String()
+		case *lazyObject:
+			f.target.self = c.create(obj)
+			goto repeat2
+		default:
+			name = f.target.String()
+		}
+		return newStringValue(fmt.Sprintf("function proxy() { [%s] }", name))
 	}
 
 	r.typeErrorResult(true, "Object is not a function")
@@ -51,11 +68,17 @@ func (r *Runtime) toValueArray(a Value) []Value {
 }
 
 func (r *Runtime) functionproto_apply(call FunctionCall) Value {
-	f := r.toCallable(call.This)
 	var args []Value
 	if len(call.Arguments) >= 2 {
 		args = r.toValueArray(call.Arguments[1])
 	}
+
+	if r.isProxy(call.This) {
+		proxy := r.getProxy(call.This)
+		return proxy.apply(call.This, args)
+	}
+
+	f := r.toCallable(call.This)
 	return f(FunctionCall{
 		This:      call.Argument(0),
 		Arguments: args,
@@ -63,11 +86,17 @@ func (r *Runtime) functionproto_apply(call FunctionCall) Value {
 }
 
 func (r *Runtime) functionproto_call(call FunctionCall) Value {
-	f := r.toCallable(call.This)
 	var args []Value
 	if len(call.Arguments) > 0 {
 		args = call.Arguments[1:]
 	}
+
+	if r.isProxy(call.This) {
+		proxy := r.getProxy(call.This)
+		return proxy.apply(call.This, args)
+	}
+
+	f := r.toCallable(call.This)
 	return f(FunctionCall{
 		This:      call.Argument(0),
 		Arguments: args,

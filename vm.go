@@ -317,12 +317,12 @@ func (vm *vm) ClearInterrupt() {
 	atomic.StoreUint32(&vm.interrupted, 0)
 }
 
-func (vm *vm) captureStack(stack []stackFrame, ctxOffset int) []stackFrame {
+func (vm *vm) captureStack(stack []StackFrame, ctxOffset int) []StackFrame {
 	// Unroll the context stack
-	stack = append(stack, stackFrame{prg: vm.prg, pc: vm.pc, funcName: vm.funcName})
+	stack = append(stack, StackFrame{prg: vm.prg, pc: vm.pc, funcName: vm.funcName})
 	for i := len(vm.callStack) - 1; i > ctxOffset-1; i-- {
 		if vm.callStack[i].pc != -1 {
-			stack = append(stack, stackFrame{prg: vm.callStack[i].prg, pc: vm.callStack[i].pc - 1, funcName: vm.callStack[i].funcName})
+			stack = append(stack, StackFrame{prg: vm.callStack[i].prg, pc: vm.callStack[i].pc - 1, funcName: vm.callStack[i].funcName})
 		}
 	}
 	return stack
@@ -409,7 +409,11 @@ func (vm *vm) peek() Value {
 
 func (vm *vm) saveCtx(ctx *context) {
 	ctx.prg = vm.prg
-	ctx.funcName = vm.funcName
+	if vm.funcName != "" {
+		ctx.funcName = vm.funcName
+	} else if ctx.prg.funcName != "" {
+		ctx.funcName = ctx.prg.funcName
+	}
 	ctx.stash = vm.stash
 	ctx.pc = vm.pc
 	ctx.sb = vm.sb
@@ -1075,7 +1079,7 @@ func (s setPropGetter) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
 	val := vm.stack[vm.sp-1]
 
-	descr := propertyDescr{
+	descr := PropertyDescriptor{
 		Getter:       val,
 		Configurable: FLAG_TRUE,
 		Enumerable:   FLAG_TRUE,
@@ -1093,7 +1097,7 @@ func (s setPropSetter) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
 	val := vm.stack[vm.sp-1]
 
-	descr := propertyDescr{
+	descr := PropertyDescriptor{
 		Setter:       val,
 		Configurable: FLAG_TRUE,
 		Enumerable:   FLAG_TRUE,
@@ -1745,6 +1749,20 @@ repeat:
 		vm._nativeCall(f, n)
 	case *boundFuncObject:
 		vm._nativeCall(&f.nativeFuncObject, n)
+	case *proxyObject:
+		vm.pushCtx()
+		vm.prg = nil
+		vm.funcName = "proxy"
+		arguments := vm.stack[vm.sp-n : vm.sp]
+		this := vm.stack[vm.sp-n-2]
+		ret := f.apply(this, arguments)
+		if ret == nil {
+			ret = _undefined
+		}
+		vm.stack[vm.sp-n-2] = ret
+		vm.popCtx()
+		vm.sp -= n + 1
+		vm.pc++
 	case *lazyObject:
 		obj.self = f.create(obj)
 		goto repeat
