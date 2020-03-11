@@ -1,8 +1,8 @@
 package goja
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 )
 
 type Proxy struct {
@@ -304,7 +304,7 @@ type ProxyTrapConfig struct {
 type proxyTrap int8
 
 const (
-	proxy_trap_getPrototypeOf           proxyTrap = iota
+	proxy_trap_getPrototypeOf proxyTrap = iota
 	proxy_trap_setPrototypeOf
 	proxy_trap_isExtensible
 	proxy_trap_preventExtensions
@@ -362,7 +362,7 @@ type proxyObject struct {
 }
 
 func (p *proxyObject) isExtensible() (ret bool) {
-	ex := p.handleProxyRequest(proxy_trap_isExtensible, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_isExtensible, func(proxyFunction func(FunctionCall) Value, this Value) {
 		v := proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target},
@@ -375,14 +375,11 @@ func (p *proxyObject) isExtensible() (ret bool) {
 	}, func(target *Object) {
 		ret = target.self.isExtensible()
 	})
-	if ex != nil {
-		panic(ex)
-	}
 	return
 }
 
 func (p *proxyObject) preventExtensions() {
-	ex := p.handleProxyRequest(proxy_trap_preventExtensions, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_preventExtensions, func(proxyFunction func(FunctionCall) Value, this Value) {
 		proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target},
@@ -390,13 +387,10 @@ func (p *proxyObject) preventExtensions() {
 	}, func(target *Object) {
 		target.self.preventExtensions()
 	})
-	if ex != nil {
-		panic(ex)
-	}
 }
 
 func (p *proxyObject) defineOwnProperty(name Value, descr PropertyDescriptor, throw bool) (ret bool) {
-	ex := p.handleProxyRequest(proxy_trap_defineProperty, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_defineProperty, func(proxyFunction func(FunctionCall) Value, this Value) {
 		proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target, name, descr.toValue(p.val.runtime)},
@@ -404,19 +398,13 @@ func (p *proxyObject) defineOwnProperty(name Value, descr PropertyDescriptor, th
 	}, func(target *Object) {
 		ret = p.target.self.defineOwnProperty(name, descr, throw)
 	})
-	if ex != nil {
-		if throw {
-			panic(ex)
-		}
-		ret = false
-	}
 	return
 }
 
-func (p *proxyObject) __getOwnPropertyDescriptor(name string, proxyFunction func(FunctionCall) Value, this Value, target *Object, runtime *Runtime) Value {
+func (p *proxyObject) __getOwnPropertyDescriptor(name Value, proxyFunction func(FunctionCall) Value, this Value, target *Object, runtime *Runtime) Value {
 	desc := proxyFunction(FunctionCall{
 		This:      this,
-		Arguments: []Value{p.target, newStringValue(name)},
+		Arguments: []Value{p.target, name},
 	})
 
 	if !p.strict {
@@ -428,55 +416,52 @@ func (p *proxyObject) __getOwnPropertyDescriptor(name string, proxyFunction func
 
 	if desc == nil {
 		if p.__isSealed(p.target, name) {
-			return runtime.NewTypeError("cannot report non-configurable property as non-existing")
+			panic(runtime.NewTypeError("cannot report non-configurable property as non-existing"))
 		}
 
 		if !extensible && targetDesc != nil {
-			return runtime.NewTypeError("cannot report existing property on non-extensible object as non-existing")
+			panic(runtime.NewTypeError("cannot report existing property on non-extensible object as non-existing"))
 		}
 		return _undefined
 	}
 
 	if !extensible && targetDesc == nil {
-		return runtime.NewTypeError("cannot report a new property on a non-extensible object")
+		panic(runtime.NewTypeError("cannot report a new property on a non-extensible object"))
 	}
 
 	if !p.__isCompatibleDescriptor(extensible, desc, targetDesc) {
-		return runtime.NewTypeError("cannot report incompatible property descriptor")
+		panic(runtime.NewTypeError("cannot report incompatible property descriptor"))
 	}
 
 	current := runtime.toPropertyDescriptor(desc)
 	if current.Configurable == FLAG_FALSE {
 		if targetDesc == nil || targetDesc == _undefined {
-			return runtime.NewTypeError("cannot report non-configurable descriptor for non-existing property")
+			panic(runtime.NewTypeError("cannot report non-configurable descriptor for non-existing property"))
 		}
 
 		target := runtime.toPropertyDescriptor(targetDesc)
 		if target.Configurable == FLAG_TRUE {
-			return runtime.NewTypeError("cannot report non-configurable descriptor for configurable property")
+			panic(runtime.NewTypeError("cannot report non-configurable descriptor for configurable property"))
 		}
 
 		if current.Writable == FLAG_FALSE && target.Writable == FLAG_TRUE {
-			return runtime.NewTypeError("cannot report non-configurable, writable property as non-configurable, non-writable")
+			panic(runtime.NewTypeError("cannot report non-configurable, writable property as non-configurable, non-writable"))
 		}
 	}
 	return desc
 }
 
-func (p *proxyObject) getOwnPropertyDescriptor(name string) (ret Value) {
-	ex := p.handleProxyRequest(proxy_trap_getOwnPropertyDescriptor, func(proxyFunction func(FunctionCall) Value, this Value) {
+func (p *proxyObject) getOwnPropertyDescriptor(name Value) (ret Value) {
+	p.handleProxyRequest(proxy_trap_getOwnPropertyDescriptor, func(proxyFunction func(FunctionCall) Value, this Value) {
 		ret = p.__getOwnPropertyDescriptor(name, proxyFunction, this, p.target, p.val.runtime)
 	}, func(target *Object) {
 		ret = target.self.getOwnPropertyDescriptor(name)
 	})
-	if ex != nil {
-		ret = ex.Value()
-	}
 	return
 }
 
 func (p *proxyObject) hasProperty(n Value) (ret bool) {
-	ex := p.handleProxyRequest(proxy_trap_has, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_has, func(proxyFunction func(FunctionCall) Value, this Value) {
 		v := proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target, n},
@@ -489,14 +474,11 @@ func (p *proxyObject) hasProperty(n Value) (ret bool) {
 	}, func(target *Object) {
 		ret = target.self.hasProperty(n)
 	})
-	if ex != nil {
-		panic(ex)
-	}
 	return
 }
 
 func (p *proxyObject) hasPropertyStr(name string) (ret bool) {
-	ex := p.handleProxyRequest(proxy_trap_has, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_has, func(proxyFunction func(FunctionCall) Value, this Value) {
 		v := proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target, newStringValue(name)},
@@ -509,15 +491,12 @@ func (p *proxyObject) hasPropertyStr(name string) (ret bool) {
 	}, func(target *Object) {
 		ret = target.self.hasPropertyStr(name)
 	})
-	if ex != nil {
-		panic(ex)
-	}
 	return
 }
 
 func (p *proxyObject) getProp(n Value) (ret Value) {
 	var propFound bool
-	ex := p.handleProxyRequest(proxy_trap_has, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_has, func(proxyFunction func(FunctionCall) Value, this Value) {
 		v := proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target, n},
@@ -530,13 +509,10 @@ func (p *proxyObject) getProp(n Value) (ret Value) {
 	}, func(target *Object) {
 		propFound = target.self.hasPropertyStr(n.String())
 	})
-	if ex != nil {
-		panic(ex)
-	}
 
 	ret = _undefined
 	if propFound {
-		ex := p.handleProxyRequest(proxy_trap_get, func(proxyFunction func(FunctionCall) Value, this Value) {
+		p.handleProxyRequest(proxy_trap_get, func(proxyFunction func(FunctionCall) Value, this Value) {
 			ret = proxyFunction(FunctionCall{
 				This:      this,
 				Arguments: []Value{p.target, n, p.val},
@@ -544,16 +520,13 @@ func (p *proxyObject) getProp(n Value) (ret Value) {
 		}, func(target *Object) {
 			ret = target.self.getProp(n)
 		})
-		if ex != nil {
-			ret = ex.Value()
-		}
 	}
 	return
 }
 
 func (p *proxyObject) getStr(name string) (ret Value) {
 	var propFound bool
-	ex := p.handleProxyRequest(proxy_trap_has, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_has, func(proxyFunction func(FunctionCall) Value, this Value) {
 		v := proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target, newStringValue(name)},
@@ -566,13 +539,10 @@ func (p *proxyObject) getStr(name string) (ret Value) {
 	}, func(target *Object) {
 		propFound = target.self.hasPropertyStr(name)
 	})
-	if ex != nil {
-		panic(ex)
-	}
 
 	ret = _undefined
 	if propFound {
-		ex := p.handleProxyRequest(proxy_trap_get, func(proxyFunction func(FunctionCall) Value, this Value) {
+		p.handleProxyRequest(proxy_trap_get, func(proxyFunction func(FunctionCall) Value, this Value) {
 			ret = proxyFunction(FunctionCall{
 				This:      this,
 				Arguments: []Value{p.target, newStringValue(name), p.val},
@@ -580,16 +550,13 @@ func (p *proxyObject) getStr(name string) (ret Value) {
 		}, func(target *Object) {
 			ret = target.self.getStr(name)
 		})
-		if ex != nil {
-			ret = ex.Value()
-		}
 	}
 	return
 }
 
 func (p *proxyObject) getPropStr(name string) (ret Value) {
 	var propFound bool
-	ex := p.handleProxyRequest(proxy_trap_has, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_has, func(proxyFunction func(FunctionCall) Value, this Value) {
 		v := proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target, newStringValue(name)},
@@ -602,13 +569,10 @@ func (p *proxyObject) getPropStr(name string) (ret Value) {
 	}, func(target *Object) {
 		propFound = target.self.hasPropertyStr(name)
 	})
-	if ex != nil {
-		panic(ex)
-	}
 
 	ret = _undefined
 	if propFound {
-		ex := p.handleProxyRequest(proxy_trap_get, func(proxyFunction func(FunctionCall) Value, this Value) {
+		p.handleProxyRequest(proxy_trap_get, func(proxyFunction func(FunctionCall) Value, this Value) {
 			ret = proxyFunction(FunctionCall{
 				This:      this,
 				Arguments: []Value{p.target, newStringValue(name), p.val},
@@ -616,19 +580,16 @@ func (p *proxyObject) getPropStr(name string) (ret Value) {
 		}, func(target *Object) {
 			ret = target.self.getPropStr(name)
 		})
-		if ex != nil {
-			ret = ex.Value()
-		}
 	}
 	return
 }
 
-func (p *proxyObject) getOwnProp(name string) (ret Value) {
+func (p *proxyObject) getOwnProp(name Value) (ret Value) {
 	var propFound bool
-	ex := p.handleProxyRequest(proxy_trap_has, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_has, func(proxyFunction func(FunctionCall) Value, this Value) {
 		v := proxyFunction(FunctionCall{
 			This:      this,
-			Arguments: []Value{p.target, newStringValue(name)},
+			Arguments: []Value{p.target, name},
 		})
 		if o, ok := v.(valueBool); ok {
 			propFound = o.ToBoolean()
@@ -636,31 +597,25 @@ func (p *proxyObject) getOwnProp(name string) (ret Value) {
 			panic(errors.New("illegal return type from proxy trap"))
 		}
 	}, func(target *Object) {
-		propFound = target.self.hasPropertyStr(name)
+		propFound = target.self.hasProperty(name)
 	})
-	if ex != nil {
-		panic(ex)
-	}
 
 	ret = _undefined
 	if propFound {
-		ex := p.handleProxyRequest(proxy_trap_get, func(proxyFunction func(FunctionCall) Value, this Value) {
+		p.handleProxyRequest(proxy_trap_get, func(proxyFunction func(FunctionCall) Value, this Value) {
 			ret = proxyFunction(FunctionCall{
 				This:      this,
-				Arguments: []Value{p.target, newStringValue(name), p.val},
+				Arguments: []Value{p.target, name, p.val},
 			})
 		}, func(target *Object) {
 			ret = target.self.getOwnProp(name)
 		})
-		if ex != nil {
-			ret = ex.Value()
-		}
 	}
 	return
 }
 
 func (p *proxyObject) proto() (ret *Object) {
-	ex := p.handleProxyRequest(proxy_trap_getPrototypeOf, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_getPrototypeOf, func(proxyFunction func(FunctionCall) Value, this Value) {
 		ret = proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target},
@@ -668,14 +623,11 @@ func (p *proxyObject) proto() (ret *Object) {
 	}, func(target *Object) {
 		ret = target.self.proto()
 	})
-	if ex != nil {
-		panic(ex)
-	}
 	return
 }
 
 func (p *proxyObject) put(n Value, val Value, throw bool) {
-	ex := p.handleProxyRequest(proxy_trap_set, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_set, func(proxyFunction func(FunctionCall) Value, this Value) {
 		proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target, n, val, p.val},
@@ -683,13 +635,10 @@ func (p *proxyObject) put(n Value, val Value, throw bool) {
 	}, func(target *Object) {
 		target.self.putStr(n.String(), val, throw)
 	})
-	if ex != nil {
-		panic(ex)
-	}
 }
 
 func (p *proxyObject) putStr(name string, val Value, throw bool) {
-	ex := p.handleProxyRequest(proxy_trap_set, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_set, func(proxyFunction func(FunctionCall) Value, this Value) {
 		proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target, newStringValue(name), val, p.val},
@@ -697,13 +646,10 @@ func (p *proxyObject) putStr(name string, val Value, throw bool) {
 	}, func(target *Object) {
 		target.self.putStr(name, val, throw)
 	})
-	if ex != nil {
-		panic(ex)
-	}
 }
 
 func (p *proxyObject) deleteStr(name string, throw bool) (ret bool) {
-	ex := p.handleProxyRequest(proxy_trap_deleteProperty, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_deleteProperty, func(proxyFunction func(FunctionCall) Value, this Value) {
 		v := proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target, newStringValue(name)},
@@ -716,14 +662,11 @@ func (p *proxyObject) deleteStr(name string, throw bool) (ret bool) {
 	}, func(target *Object) {
 		ret = target.self.deleteStr(name, throw)
 	})
-	if ex != nil {
-		panic(ex)
-	}
 	return
 }
 
 func (p *proxyObject) delete(n Value, throw bool) (ret bool) {
-	ex := p.handleProxyRequest(proxy_trap_deleteProperty, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_deleteProperty, func(proxyFunction func(FunctionCall) Value, this Value) {
 		v := proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target, n},
@@ -736,14 +679,11 @@ func (p *proxyObject) delete(n Value, throw bool) (ret bool) {
 	}, func(target *Object) {
 		ret = target.self.delete(n, throw)
 	})
-	if ex != nil {
-		panic(ex)
-	}
 	return
 }
 
 func (p *proxyObject) ownKeys(all, recursive bool) (ret Value) {
-	ex := p.handleProxyRequest(proxy_trap_ownKeys, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_ownKeys, func(proxyFunction func(FunctionCall) Value, this Value) {
 		ret = proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target},
@@ -755,9 +695,6 @@ func (p *proxyObject) ownKeys(all, recursive bool) (ret Value) {
 		}
 		ret = p.val.runtime.newArrayValues(keys)
 	})
-	if ex != nil {
-		panic(ex)
-	}
 	return
 }
 
@@ -765,7 +702,7 @@ func (p *proxyObject) apply(this Value, arguments []Value) (ret Value) {
 	if this == _undefined {
 		this = p.target
 	}
-	ex := p.handleProxyRequest(proxy_trap_apply, func(proxyFunction func(FunctionCall) Value, this Value) {
+	p.handleProxyRequest(proxy_trap_apply, func(proxyFunction func(FunctionCall) Value, this Value) {
 		ret = proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target, this, p.val.runtime.newArrayValues(arguments)},
@@ -777,69 +714,46 @@ func (p *proxyObject) apply(this Value, arguments []Value) (ret Value) {
 			Arguments: arguments,
 		})
 	})
-	if ex != nil {
-		panic(ex)
-	}
 	return
 }
 
-func (p *proxyObject) construct(args []Value) (ret Value) {
-	ex := p.handleProxyRequest(proxy_trap_construct, func(proxyFunction func(FunctionCall) Value, this Value) {
-		ret = proxyFunction(FunctionCall{
+func (p *proxyObject) construct(args []Value) (ret *Object) {
+	p.handleProxyRequest(proxy_trap_construct, func(proxyFunction func(FunctionCall) Value, this Value) {
+		ret = p.val.runtime.toObject(proxyFunction(FunctionCall{
 			This:      this,
 			Arguments: []Value{p.target, p.val.runtime.newArrayValues(args), p.val},
-		})
+		}))
 	}, func(target *Object) {
-		nativeConstruct := func(f *nativeFuncObject, args []Value) Value {
-			if f.construct != nil {
-				return f.construct(args)
-			}
+		ctor := getConstructor(target)
+		if ctor == nil {
 			p.val.runtime.typeErrorResult(true, "Not a constructor")
 			panic("Unreachable")
 		}
-
-	repeat:
-		switch f := target.self.(type) {
-		case *funcObject:
-			ret = f.construct(args)
-		case *nativeFuncObject:
-			ret = nativeConstruct(f, args)
-		case *boundFuncObject:
-			ret = nativeConstruct(&f.nativeFuncObject, args)
-		case *lazyObject:
-			target.self = f.create(target)
-			goto repeat
-		default:
-			p.val.runtime.typeErrorResult(true, "Not a constructor")
-		}
+		ret = ctor(args)
 	})
-	if ex != nil {
-		panic(ex)
-	}
 	return
 }
 
-func (p *proxyObject) handleProxyRequest(trap proxyTrap, proxyCallback func(proxyFunction func(FunctionCall) Value, this Value), targetCallback func(target *Object)) *Exception {
+func (p *proxyObject) handleProxyRequest(trap proxyTrap, proxyCallback func(proxyFunction func(FunctionCall) Value, this Value), targetCallback func(target *Object)) {
 	runtime := p.val.runtime
 	if p.revocable && p.revoked {
 		runtime.typeErrorResult(true, "Proxy already revoked")
 		panic("Unreachable")
 	}
 
-	return runtime.vm.try(func() {
-		prop := p.handler.self.getOwnProp(trap.String())
-		if prop == nil {
-			// Redirect to target object
-			targetCallback(p.target)
-		} else {
-			handler := prop.(*Object)
-			f := runtime.toCallable(handler)
-			proxyCallback(f, handler)
-		}
-	})
+	prop := p.handler.self.getOwnPropStr(trap.String())
+	if prop == nil {
+		// Redirect to target object
+		targetCallback(p.target)
+	} else {
+		handler := prop.(*Object)
+		f := runtime.toCallable(handler)
+		proxyCallback(f, handler)
+	}
+
 }
 
-func (p *proxyObject) __isSealed(target *Object, name string) bool {
+func (p *proxyObject) __isSealed(target *Object, name Value) bool {
 	prop := target.self.getOwnProp(name)
 	if prop == nil {
 		return false
@@ -962,7 +876,7 @@ func (r *Runtime) getProxy(value Value) *proxyObject {
 	if o, ok := value.(*Object); ok {
 		return o.self.(*proxyObject)
 	}
-	r.typeErrorResult(true, "Value is not a proxy: %s", value.ToString())
+	r.typeErrorResult(true, "Value is not a proxy: %s", value.String())
 	panic("Unreachable")
 }
 
@@ -1008,7 +922,7 @@ func (r *Runtime) proxy_revocable(call FunctionCall) Value {
 func (r *Runtime) proxyproto_toString(call FunctionCall) Value {
 	obj := r.toObject(call.This)
 	if d, ok := obj.self.(*proxyObject); ok {
-		return asciiString(fmt.Sprintf("ES6 Proxy[%s]", d.target.ToString()))
+		return asciiString(fmt.Sprintf("ES6 Proxy[%s]", d.target.String()))
 	}
 	r.typeErrorResult(true, "Method Proxy.prototype.toString is called on incompatible receiver")
 	panic("Unreachable")

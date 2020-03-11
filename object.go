@@ -104,7 +104,7 @@ type PropertyDescriptor struct {
 	Getter, Setter Value
 }
 
-func(p PropertyDescriptor) toValue(r *Runtime) Value {
+func (p PropertyDescriptor) toValue(r *Runtime) Value {
 	if p.jsDescriptor != nil {
 		return p.jsDescriptor
 	}
@@ -160,7 +160,7 @@ type objectImpl interface {
 	exportType() reflect.Type
 	equal(objectImpl) bool
 	getOwnSymbols() []Value
-	getOwnPropertyDescriptor(name string) Value
+	getOwnPropertyDescriptor(name Value) Value
 }
 
 type baseObject struct {
@@ -502,7 +502,7 @@ func (o *baseObject) hasOwnPropertyStr(name string) bool {
 	return v != nil
 }
 
-func (o *baseObject) getOwnPropertyDescriptor(name string) Value {
+func (o *baseObject) getOwnPropertyDescriptor(name Value) Value {
 	desc := o.getOwnProp(name)
 	if desc == nil {
 		return _undefined

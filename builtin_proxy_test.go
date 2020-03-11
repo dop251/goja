@@ -2,7 +2,6 @@ package goja
 
 import (
 	"testing"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestProxy_Object_target_getPrototypeOf(t *testing.T) {
@@ -50,7 +49,7 @@ func TestProxy_Object_native_proxy_getPrototypeOf(t *testing.T) {
 		GetPrototypeOf: func(target *Object) *Object {
 			return prototype
 		},
-	}, false)
+	}, false, false)
 	runtime.Set("proxy", proxy)
 
 	_, err := runtime.RunString(TESTLIB + SCRIPT)
@@ -133,14 +132,16 @@ func TestProxy_native_proxy_isExtensible(t *testing.T) {
 		IsExtensible: func(target *Object) (success bool) {
 			return true
 		},
-	}, false)
+	}, false, false)
 	runtime.Set("proxy", proxy)
 
 	val, err := runtime.RunString(SCRIPT)
 	if err != nil {
 		panic(err)
 	}
-	assert.Equal(t, true, val.ToBoolean())
+	if !val.ToBoolean() {
+		t.Fatal()
+	}
 }
 
 func TestProxy_Object_target_preventExtensions(t *testing.T) {
@@ -193,14 +194,16 @@ func TestProxy_native_proxy_preventExtensions(t *testing.T) {
 			target.Set("canEvolve", false)
 			return true
 		},
-	}, false)
+	}, false, false)
 	runtime.Set("proxy", proxy)
 
 	val, err := runtime.RunString(SCRIPT)
 	if err != nil {
 		panic(err)
 	}
-	assert.Equal(t, false, val.ToBoolean())
+	if val.ToBoolean() {
+		t.Fatal()
+	}
 }
 
 func TestProxy_Object_target_getOwnPropertyDescriptor(t *testing.T) {
@@ -248,11 +251,13 @@ func TestProxy_proxy_getOwnPropertyDescriptor(t *testing.T) {
 		}
 	});
 
-	var desc2 = Object.getOwnPropertyDescriptor(proxy, "foo");
-	desc2.value
+	assert.throws(TypeError, function() {
+		Object.getOwnPropertyDescriptor(proxy, "foo");
+	});
+	undefined;
 	`
 
-	testScript1(SCRIPT, valueInt(24), t)
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
 func TestProxy_native_proxy_getOwnPropertyDescriptor(t *testing.T) {
@@ -293,7 +298,7 @@ func TestProxy_native_proxy_getOwnPropertyDescriptor(t *testing.T) {
 			GetOwnPropertyDescriptor: func(target *Object, prop string) PropertyDescriptor {
 				return runtime.toPropertyDescriptor(proxyDesc)
 			},
-		}, false).proxy
+		}, false, false).proxy
 	}
 
 	val, err := runtime.RunString(SCRIPT)
@@ -306,9 +311,11 @@ func TestProxy_native_proxy_getOwnPropertyDescriptor(t *testing.T) {
 			This:      val,
 			Arguments: []Value{runtime.ToValue(constructor)},
 		})
-		assert.Equal(t, int64(24), val.ToInteger())
+		if i := val.ToInteger(); i != 24 {
+			t.Fatalf("val: %d", i)
+		}
 	} else {
-		assert.Fail(t, "not a function")
+		t.Fatal("not a function")
 	}
 }
 
@@ -360,14 +367,16 @@ func TestProxy_native_proxy_defineProperty(t *testing.T) {
 			target.Set("foo", "321tset")
 			return true
 		},
-	}, false)
+	}, false, false)
 	runtime.Set("proxy", proxy)
 
 	val, err := runtime.RunString(SCRIPT)
 	if err != nil {
 		panic(err)
 	}
-	assert.Equal(t, "321tset", val.String())
+	if s := val.String(); s != "321tset" {
+		t.Fatalf("val: %s", s)
+	}
 }
 
 func TestProxy_target_has_in(t *testing.T) {

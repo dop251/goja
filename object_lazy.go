@@ -217,7 +217,7 @@ func (o *lazyObject) swap(i, j int64) {
 	obj.swap(i, j)
 }
 
-func (o *lazyObject) getOwnPropertyDescriptor(name string) Value {
+func (o *lazyObject) getOwnPropertyDescriptor(name Value) Value {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.getOwnPropertyDescriptor(name)

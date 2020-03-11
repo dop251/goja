@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	blockLoop   = iota
+	blockLoop = iota
 	blockTry
 	blockBranch
 	blockSwitch

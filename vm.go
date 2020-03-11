@@ -411,7 +411,7 @@ func (vm *vm) saveCtx(ctx *context) {
 	ctx.prg = vm.prg
 	if vm.funcName != "" {
 		ctx.funcName = vm.funcName
-	} else if ctx.prg.funcName != "" {
+	} else if ctx.prg != nil && ctx.prg.funcName != "" {
 		ctx.funcName = ctx.prg.funcName
 	}
 	ctx.stash = vm.stash

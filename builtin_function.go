@@ -36,7 +36,7 @@ repeat:
 		goto repeat
 	case *proxyObject:
 		var name string
-		repeat2:
+	repeat2:
 		switch c := f.target.self.(type) {
 		case *funcObject:
 			name = c.src

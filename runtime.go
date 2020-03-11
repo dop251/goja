@@ -658,6 +658,8 @@ repeat:
 	case *lazyObject:
 		construct.self = f.create(construct)
 		goto repeat
+	case *proxyObject:
+		return f.construct
 	}
 
 	return nil
@@ -1673,7 +1675,7 @@ func (r *Runtime) returnThis(call FunctionCall) Value {
 }
 
 func defineDataPropertyOrThrow(o *Object, p Value, v Value) {
-	o.self.defineOwnProperty(p, propertyDescr{
+	o.self.defineOwnProperty(p, PropertyDescriptor{
 		Writable:     FLAG_TRUE,
 		Enumerable:   FLAG_TRUE,
 		Configurable: FLAG_TRUE,
