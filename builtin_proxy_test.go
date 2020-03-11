@@ -436,7 +436,14 @@ func TestProxy_proxy_has_with(t *testing.T) {
 	});
 	
 	with(proxy) {
-		(secret);
+		try {
+			(secret);
+			throw new Error("Expected ReferenceError");
+		} catch (e) {
+			if (!(e instanceof ReferenceError)) {
+				throw e;
+			}
+		}
 	}
 	`
 
@@ -465,7 +472,8 @@ func TestProxy_proxy_get(t *testing.T) {
 		}
 	});
 	Object.defineProperty(proxy, "foo", {
-		value: "test123"
+		value: "test123",
+		configurable: true,
 	});
 	proxy.foo;
 	`
@@ -586,8 +594,11 @@ func TestProxy_proxy_keys(t *testing.T) {
 	});
 
 	var keys = Object.keys(proxy);
-	if (keys.length != 2) {
-		throw new Error("assertion error");
+	if (keys.length != 1) {
+		throw new Error("length is "+keys.length);
+	}
+	if (keys[0] !== "foo") {
+		throw new Error("keys[0] is "+keys[0]);
 	}
 	`
 

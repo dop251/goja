@@ -73,11 +73,6 @@ func (r *Runtime) functionproto_apply(call FunctionCall) Value {
 		args = r.toValueArray(call.Arguments[1])
 	}
 
-	if r.isProxy(call.This) {
-		proxy := r.getProxy(call.This)
-		return proxy.apply(call.This, args)
-	}
-
 	f := r.toCallable(call.This)
 	return f(FunctionCall{
 		This:      call.Argument(0),
@@ -89,11 +84,6 @@ func (r *Runtime) functionproto_call(call FunctionCall) Value {
 	var args []Value
 	if len(call.Arguments) > 0 {
 		args = call.Arguments[1:]
-	}
-
-	if r.isProxy(call.This) {
-		proxy := r.getProxy(call.This)
-		return proxy.apply(call.This, args)
 	}
 
 	f := r.toCallable(call.This)

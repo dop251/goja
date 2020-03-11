@@ -34,11 +34,6 @@ func (r *Runtime) object_getOwnPropertyNames(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
 	// obj := r.toObject(call.Argument(0))
 
-	if r.isProxy(obj) {
-		proxy := r.getProxy(obj)
-		return proxy.ownKeys(true, false)
-	}
-
 	var values []Value
 	for item, f := obj.self.enumerate(true, false)(); f != nil; item, f = f() {
 		values = append(values, newStringValue(item.name))
@@ -49,6 +44,55 @@ func (r *Runtime) object_getOwnPropertyNames(call FunctionCall) Value {
 func (r *Runtime) object_getOwnPropertySymbols(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
 	return r.newArrayValues(obj.self.getOwnSymbols())
+}
+
+func (r *Runtime) toValueProp(v Value) Value {
+	obj := r.toObject(v)
+	getter := obj.self.getStr("get")
+	setter := obj.self.getStr("set")
+	writable := obj.self.getStr("writable")
+	value := obj.self.getStr("value")
+	if (getter != nil || setter != nil) && (value != nil || writable != nil) {
+		r.typeErrorResult(true, "Invalid property descriptor. Cannot both specify accessors and a value or writable attribute")
+	}
+
+	ret := &valueProperty{}
+	if writable != nil && writable.ToBoolean() {
+		ret.writable = true
+	}
+	if e := obj.self.getStr("enumerable"); e != nil && e.ToBoolean() {
+		ret.enumerable = true
+	}
+	if c := obj.self.getStr("configurable"); c != nil && c.ToBoolean() {
+		ret.configurable = true
+	}
+	ret.value = value
+
+	if getter != nil && getter != _undefined {
+		o := r.toObject(getter)
+		if _, ok := o.self.assertCallable(); !ok {
+			r.typeErrorResult(true, "getter must be a function")
+		}
+		ret.getterFunc = o
+	}
+
+	if setter != nil && setter != _undefined {
+		o := r.toObject(v)
+		if _, ok := o.self.assertCallable(); !ok {
+			r.typeErrorResult(true, "setter must be a function")
+		}
+		ret.setterFunc = o
+	}
+
+	if ret.getterFunc != nil || ret.setterFunc != nil {
+		ret.accessor = true
+	} else {
+		if ret.writable && ret.configurable && ret.enumerable {
+			return value
+		}
+	}
+
+	return ret
 }
 
 func (r *Runtime) toPropertyDescriptor(v Value) (ret PropertyDescriptor) {
@@ -323,11 +367,6 @@ func (r *Runtime) object_keys(call FunctionCall) Value {
 	// ES6
 	obj := call.Argument(0).ToObject(r)
 	//if obj, ok := call.Argument(0).(*valueObject); ok {
-
-	if r.isProxy(obj) {
-		proxy := r.getProxy(obj)
-		return proxy.ownKeys(true, false)
-	}
 
 	var keys []Value
 	for item, f := obj.self.enumerate(false, false)(); f != nil; item, f = f() {

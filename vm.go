@@ -232,12 +232,10 @@ func (s *stash) getByIdx(idx uint32) Value {
 
 func (s *stash) getByName(name string, _ *vm) (v Value, exists bool) {
 	if s.obj != nil {
-		v = s.obj.getStr(name)
-		if v == nil {
-			return nil, false
-			//return valueUnresolved{r: vm.r, ref: name}, false
+		if s.obj.hasPropertyStr(name) {
+			return s.obj.getStr(name), true
 		}
-		return v, true
+		return nil, false
 	}
 	if idx, exists := s.names[name]; exists {
 		return s.values[idx], true
