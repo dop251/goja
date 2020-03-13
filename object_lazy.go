@@ -61,6 +61,18 @@ func (o *lazyObject) putStr(name string, val Value, throw bool) {
 	obj.putStr(name, val, throw)
 }
 
+func (o *lazyObject) set(p, v, receiver Value, throw bool) bool {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.set(p, v, receiver, throw)
+}
+
+func (o *lazyObject) setStr(p string, v, receiver Value, throw bool) bool {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.setStr(p, v, receiver, throw)
+}
+
 func (o *lazyObject) hasProperty(n Value) bool {
 	obj := o.create(o.val)
 	o.val.self = obj

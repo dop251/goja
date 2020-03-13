@@ -94,10 +94,13 @@ func (s *stringObject) setLength() {
 }
 
 func (s *stringObject) get(n Value, receiver Value) Value {
+	if sym, ok := n.(*valueSymbol); ok {
+		return s.getSym(sym, receiver)
+	}
 	if idx := toIdx(n); idx >= 0 && idx < s.length {
 		return s.getIdx(idx)
 	}
-	return s.baseObject.get(n, receiver)
+	return s.baseObject.getStr(n.String(), receiver)
 }
 
 func (s *stringObject) getStr(name string, receiver Value) Value {

@@ -17,17 +17,22 @@ func (o *objectGoSlice) init() {
 	o.class = classArray
 	o.prototype = o.val.runtime.global.ArrayPrototype
 	o.lengthProp.writable = o.sliceExtensible
-	o._setLen()
+	o.extensible = true
+	o.updateLen()
 	o.baseObject._put("length", &o.lengthProp)
 }
 
-func (o *objectGoSlice) _setLen() {
+func (o *objectGoSlice) updateLen() {
 	o.lengthProp.value = intToValue(int64(len(*o.data)))
 }
 
 func (o *objectGoSlice) getIdx(idx int64) Value {
 	if idx < int64(len(*o.data)) {
-		return o.val.runtime.ToValue((*o.data)[idx])
+		v := (*o.data)[idx]
+		if v == nil {
+			return nil
+		}
+		return o.val.runtime.ToValue(v)
 	}
 	return nil
 }
@@ -47,6 +52,9 @@ func (o *objectGoSlice) _getStr(name string) Value {
 }
 
 func (o *objectGoSlice) get(n Value, receiver Value) Value {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.getSym(s, receiver)
+	}
 	if v := o._get(n); v != nil {
 		return v
 	}
@@ -118,9 +126,22 @@ func (o *objectGoSlice) grow(size int64) {
 		copy(n, *o.data)
 		*o.data = n
 	} else {
+		tail := (*o.data)[len(*o.data):size]
+		for k := range tail {
+			tail[k] = nil
+		}
 		*o.data = (*o.data)[:size]
 	}
-	o._setLen()
+	o.updateLen()
+}
+
+func (o *objectGoSlice) shrink(size int64) {
+	tail := (*o.data)[size:]
+	for k := range tail {
+		tail[k] = nil
+	}
+	*o.data = (*o.data)[:size]
+	o.updateLen()
 }
 
 func (o *objectGoSlice) putIdx(idx int64, v Value, throw bool) {
@@ -134,13 +155,41 @@ func (o *objectGoSlice) putIdx(idx int64, v Value, throw bool) {
 	(*o.data)[idx] = v.Export()
 }
 
+func (o *objectGoSlice) putLength(v Value, throw bool) {
+	newLen := toLength(v)
+	curLen := int64(len(*o.data))
+	if newLen > curLen {
+		if !o.sliceExtensible {
+			o.val.runtime.typeErrorResult(throw, "Cannot extend Go slice")
+			return
+		}
+		o.grow(newLen)
+	} else if newLen < curLen {
+		if !o.sliceExtensible {
+			o.val.runtime.typeErrorResult(throw, "Cannot shrink Go slice")
+			return
+		}
+		o.shrink(newLen)
+	}
+}
+
 func (o *objectGoSlice) put(n Value, val Value, throw bool) {
+	if s, ok := n.(*valueSymbol); ok {
+		o.putSym(s, val, throw)
+		return
+	}
 	if idx := toIdx(n); idx >= 0 {
 		o.putIdx(idx, val, throw)
 		return
 	}
-	// TODO: length
-	o.baseObject.put(n, val, throw)
+	name := n.String()
+	if name == "length" {
+		o.putLength(val, throw)
+		return
+	}
+	if !o.protoPut(name, val, throw) {
+		o.val.runtime.typeErrorResult(throw, "Can't set property '%s' on Go slice", name)
+	}
 }
 
 func (o *objectGoSlice) putStr(name string, val Value, throw bool) {
@@ -148,8 +197,13 @@ func (o *objectGoSlice) putStr(name string, val Value, throw bool) {
 		o.putIdx(idx, val, throw)
 		return
 	}
-	// TODO: length
-	o.baseObject.putStr(name, val, throw)
+	if name == "length" {
+		o.putLength(val, throw)
+		return
+	}
+	if !o.protoPut(name, val, throw) {
+		o.val.runtime.typeErrorResult(throw, "Can't set property '%s' on Go slice", name)
+	}
 }
 
 func (o *objectGoSlice) _has(n Value) bool {
@@ -186,6 +240,9 @@ func (o *objectGoSlice) _putProp(name string, value Value, writable, enumerable,
 }
 
 func (o *objectGoSlice) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.defineOwnPropertySym(s, descr, throw)
+	}
 	if idx := toIdx(n); idx >= 0 {
 		if !o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) {
 			return false
@@ -197,7 +254,8 @@ func (o *objectGoSlice) defineOwnProperty(n Value, descr PropertyDescriptor, thr
 		o.putIdx(idx, val, throw)
 		return true
 	}
-	return o.baseObject.defineOwnProperty(n, descr, throw)
+	o.val.runtime.typeErrorResult(throw, "Cannot define property '%s' on a Go slice", n.String())
+	return false
 }
 
 func (o *objectGoSlice) toPrimitiveNumber() Value {
@@ -222,12 +280,15 @@ func (o *objectGoSlice) deleteStr(name string, throw bool) bool {
 	return o.baseObject.deleteStr(name, throw)
 }
 
-func (o *objectGoSlice) delete(name Value, throw bool) bool {
-	if idx := toIdx(name); idx >= 0 && idx < int64(len(*o.data)) {
+func (o *objectGoSlice) delete(n Value, throw bool) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.deleteSym(s, throw)
+	}
+	if idx := toIdx(n); idx >= 0 && idx < int64(len(*o.data)) {
 		(*o.data)[idx] = nil
 		return true
 	}
-	return o.baseObject.delete(name, throw)
+	return o.baseObject.deleteStr(n.String(), throw)
 }
 
 type goslicePropIter struct {

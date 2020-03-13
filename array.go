@@ -171,9 +171,6 @@ func toIdx(v Value) (idx int64) {
 	if idxVal, ok1 := v.(valueInt); ok1 {
 		idx = int64(idxVal)
 	} else {
-		if _, ok := v.(*valueSymbol); ok {
-			return -1
-		}
 		if i, err := strconv.ParseInt(v.String(), 10, 64); err == nil {
 			idx = i
 		}
@@ -197,11 +194,11 @@ func strToIdx(s string) (idx int64) {
 }
 
 func (a *arrayObject) get(p Value, receiver Value) Value {
-	return a.getFromProp(a.getProp(p), receiver)
+	return a.getWithOwnProp(a.getOwnProp(p), p, receiver)
 }
 
 func (a *arrayObject) getStr(name string, receiver Value) Value {
-	return a.getFromProp(a.getPropStr(name), receiver)
+	return a.getStrWithOwnProp(a.getOwnPropStr(name), name, receiver)
 }
 
 func (a *arrayObject) getProp(n Value) Value {
@@ -457,12 +454,15 @@ Reject:
 }
 
 func (a *arrayObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return a.defineOwnPropertySym(s, descr, throw)
+	}
 	if idx := toIdx(n); idx >= 0 {
 		var existing Value
 		if idx < int64(len(a.values)) {
 			existing = a.values[idx]
 		}
-		prop, ok := a.baseObject._defineOwnProperty(n, existing, descr, throw)
+		prop, ok := a.baseObject._defineOwnProperty(n.String(), existing, descr, throw)
 		if ok {
 			if idx >= a.length {
 				if !a.setLengthInt(idx+1, throw) {
@@ -481,10 +481,11 @@ func (a *arrayObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw
 		}
 		return ok
 	} else {
-		if n.String() == "length" {
+		name := n.String()
+		if name == "length" {
 			return a.val.runtime.defineArrayLength(&a.lengthProp, descr, a.setLength, throw)
 		}
-		return a.baseObject.defineOwnProperty(n, descr, throw)
+		return a.defineOwnPropertyStr(name, descr, throw)
 	}
 }
 

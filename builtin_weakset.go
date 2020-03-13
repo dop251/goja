@@ -11,7 +11,7 @@ type weakSet struct {
 
 type weakSetObject struct {
 	baseObject
-	set *weakSet
+	s *weakSet
 }
 
 func newWeakSet() *weakSet {
@@ -22,7 +22,7 @@ func newWeakSet() *weakSet {
 
 func (ws *weakSetObject) init() {
 	ws.baseObject.init()
-	ws.set = newWeakSet()
+	ws.s = newWeakSet()
 }
 
 func (ws *weakSet) removePtr(ptr uintptr) {
@@ -72,7 +72,7 @@ func (r *Runtime) weakSetProto_add(call FunctionCall) Value {
 	if !ok {
 		panic(r.NewTypeError("Method WeakSet.prototype.add called on incompatible receiver %s", thisObj.String()))
 	}
-	wso.set.add(r.toObject(call.Argument(0)))
+	wso.s.add(r.toObject(call.Argument(0)))
 	return call.This
 }
 
@@ -83,7 +83,7 @@ func (r *Runtime) weakSetProto_delete(call FunctionCall) Value {
 		panic(r.NewTypeError("Method WeakSet.prototype.delete called on incompatible receiver %s", thisObj.String()))
 	}
 	obj, ok := call.Argument(0).(*Object)
-	if ok && wso.set.remove(obj) {
+	if ok && wso.s.remove(obj) {
 		return valueTrue
 	}
 	return valueFalse
@@ -96,7 +96,7 @@ func (r *Runtime) weakSetProto_has(call FunctionCall) Value {
 		panic(r.NewTypeError("Method WeakSet.prototype.has called on incompatible receiver %s", thisObj.String()))
 	}
 	obj, ok := call.Argument(0).(*Object)
-	if ok && wso.set.has(obj) {
+	if ok && wso.s.has(obj) {
 		return valueTrue
 	}
 	return valueFalse
@@ -129,7 +129,7 @@ func (r *Runtime) builtin_newWeakSet(args []Value) *Object {
 			if adder == r.global.weakSetAdder {
 				if arr := r.checkStdArrayIter(arg); arr != nil {
 					for _, v := range arr.values {
-						wso.set.add(r.toObject(v))
+						wso.s.add(r.toObject(v))
 					}
 					return o
 				}

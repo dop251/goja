@@ -1,6 +1,8 @@
 package goja
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestGoSliceReflectBasic(t *testing.T) {
 	const SCRIPT = `
@@ -158,5 +160,54 @@ func TestGoSliceReflectGetStr(t *testing.T) {
 		if e := o.Get("0").Export(); e != "test" {
 			t.Fatalf("Unexpected o.Get(\"0\"): %v", e)
 		}
+	}
+}
+
+func TestGoSliceReflectSetLength(t *testing.T) {
+	r := New()
+	a := []int{1, 2, 3, 4}
+	b := []Value{&Object{}, &Object{}, &Object{}}
+	r.Set("a", &a)
+	r.Set("b", &b)
+	_, err := r.RunString(`
+	'use strict';
+	a.length = 3;
+	if (a.length !== 3) {
+		throw new Error("length="+a.length);
+	}
+	if (a[3] !== undefined) {
+		throw new Error("a[3]="+a[3]);
+	}
+	a.length = 5;
+	if (a.length !== 5) {
+		throw new Error("a.length="+a.length);
+	}
+	if (a[3] !== 0) {
+		throw new Error("a[3]="+a[3]);
+	}
+	if (a[4] !== 0) {
+		throw new Error("a[4]="+a[4]);
+	}
+
+	b.length = 3;
+	if (b.length !== 3) {
+		throw new Error("b.length="+b.length);
+	}
+	if (b[3] !== undefined) {
+		throw new Error("b[3]="+b[3]);
+	}
+	b.length = 5;
+	if (b.length !== 5) {
+		throw new Error("length="+b.length);
+	}
+	if (b[3] !== undefined) {
+		throw new Error("b[3]="+b[3]);
+	}
+	if (b[4] !== undefined) {
+		throw new Error("b[4]="+b[4]);
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

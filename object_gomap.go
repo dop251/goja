@@ -30,11 +30,14 @@ func (o *objectGoMapSimple) _getStr(name string) Value {
 }
 
 func (o *objectGoMapSimple) get(p Value, receiver Value) Value {
-	return o.getFromProp(o.getProp(p), receiver)
+	return o.getWithOwnProp(o.getOwnProp(p), p, receiver)
 }
 
 func (o *objectGoMapSimple) getStr(name string, receiver Value) Value {
-	return o.getFromProp(o.getPropStr(name), receiver)
+	if v := o._getStr(name); v != nil {
+		return v
+	}
+	return o.baseObject.getStr(name, receiver)
 }
 
 func (o *objectGoMapSimple) getProp(n Value) Value {
@@ -67,8 +70,8 @@ func (o *objectGoMapSimple) getOwnProp(n Value) Value {
 }
 
 func (o *objectGoMapSimple) put(n Value, val Value, throw bool) {
-	if _, ok := n.(*valueSymbol); ok {
-		o.val.runtime.typeErrorResult(throw, "Cannot set Symbol properties on Go maps")
+	if s, ok := n.(*valueSymbol); ok {
+		o.putSym(s, val, throw)
 		return
 	}
 	o.putStr(n.String(), val, throw)
@@ -84,10 +87,8 @@ func (o *objectGoMapSimple) _has(n Value) bool {
 }
 
 func (o *objectGoMapSimple) putStr(name string, val Value, throw bool) {
-	if o.extensible || o._hasStr(name) {
+	if o._hasStr(name) || !o.protoPut(name, val, throw) {
 		o.data[name] = val.Export()
-	} else {
-		o.val.runtime.typeErrorResult(throw, "Host object is not extensible")
 	}
 }
 
@@ -104,12 +105,22 @@ func (o *objectGoMapSimple) _putProp(name string, value Value, writable, enumera
 	return value
 }
 
-func (o *objectGoMapSimple) defineOwnProperty(name Value, descr PropertyDescriptor, throw bool) bool {
-	if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
+func (o *objectGoMapSimple) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.defineOwnPropertySym(s, descr, throw)
+	}
+	if !o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) {
 		return false
 	}
-	o.put(name, descr.Value, throw)
-	return true
+
+	name := n.String()
+	if o.extensible || o._hasStr(name) {
+		o.data[name] = descr.Value.Export()
+		return true
+	}
+
+	o.val.runtime.typeErrorResult(throw, "Cannot define property %s, object is not extensible", name)
+	return false
 }
 
 /*
@@ -135,12 +146,12 @@ func (o *objectGoMapSimple) deleteStr(name string, throw bool) bool {
 	return true
 }
 
-func (o *objectGoMapSimple) delete(name Value, throw bool) bool {
-	if _, ok := name.(*valueSymbol); ok {
-		return true
+func (o *objectGoMapSimple) delete(n Value, throw bool) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.deleteSym(s, throw)
 	}
 
-	return o.deleteStr(name.String(), throw)
+	return o.deleteStr(n.String(), throw)
 }
 
 type gomapPropIter struct {

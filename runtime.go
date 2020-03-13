@@ -1674,7 +1674,7 @@ func (r *Runtime) returnThis(call FunctionCall) Value {
 	return call.This
 }
 
-func defineDataPropertyOrThrow(o *Object, p Value, v Value) {
+func createDataPropertyOrThrow(o *Object, p Value, v Value) {
 	o.self.defineOwnProperty(p, PropertyDescriptor{
 		Writable:     FLAG_TRUE,
 		Enumerable:   FLAG_TRUE,

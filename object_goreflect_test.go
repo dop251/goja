@@ -487,14 +487,14 @@ func TestGoReflectEmbeddedStruct(t *testing.T) {
 
 type jsonTagNamer struct{}
 
-func (jsonTagNamer) FieldName(t reflect.Type, field reflect.StructField) string {
+func (jsonTagNamer) FieldName(_ reflect.Type, field reflect.StructField) string {
 	if jsonTag := field.Tag.Get("json"); jsonTag != "" {
 		return jsonTag
 	}
 	return field.Name
 }
 
-func (jsonTagNamer) MethodName(t reflect.Type, method reflect.Method) string {
+func (jsonTagNamer) MethodName(_ reflect.Type, method reflect.Method) string {
 	return method.Name
 }
 
@@ -588,11 +588,11 @@ func TestGoReflectCustomObjNaming(t *testing.T) {
 
 type fieldNameMapper1 struct{}
 
-func (fieldNameMapper1) FieldName(t reflect.Type, f reflect.StructField) string {
+func (fieldNameMapper1) FieldName(_ reflect.Type, f reflect.StructField) string {
 	return strings.ToLower(f.Name)
 }
 
-func (fieldNameMapper1) MethodName(t reflect.Type, m reflect.Method) string {
+func (fieldNameMapper1) MethodName(_ reflect.Type, m reflect.Method) string {
 	return m.Name
 }
 
@@ -672,7 +672,7 @@ func TestStructNonAddressable(t *testing.T) {
 type testFieldMapper struct {
 }
 
-func (testFieldMapper) FieldName(t reflect.Type, f reflect.StructField) string {
+func (testFieldMapper) FieldName(_ reflect.Type, f reflect.StructField) string {
 	if tag := f.Tag.Get("js"); tag != "" {
 		if tag == "-" {
 			return ""
@@ -683,7 +683,7 @@ func (testFieldMapper) FieldName(t reflect.Type, f reflect.StructField) string {
 	return f.Name
 }
 
-func (testFieldMapper) MethodName(t reflect.Type, m reflect.Method) string {
+func (testFieldMapper) MethodName(_ reflect.Type, m reflect.Method) string {
 	return m.Name
 }
 
@@ -792,7 +792,7 @@ func TestDefinePropertyUnexportedJsName(t *testing.T) {
 		throw new Error("Unexpected value: " + f.field);
 	}
 	if (f.hasOwnProperty("unexported")) {
-		throw new Error("hasOwnProporty('unexported') is true");
+		throw new Error("hasOwnProperty('unexported') is true");
 	}
 	var thrown;
 	try {
@@ -811,11 +811,11 @@ func TestDefinePropertyUnexportedJsName(t *testing.T) {
 
 type fieldNameMapperToLower struct{}
 
-func (fieldNameMapperToLower) FieldName(t reflect.Type, f reflect.StructField) string {
+func (fieldNameMapperToLower) FieldName(_ reflect.Type, f reflect.StructField) string {
 	return strings.ToLower(f.Name)
 }
 
-func (fieldNameMapperToLower) MethodName(t reflect.Type, m reflect.Method) string {
+func (fieldNameMapperToLower) MethodName(_ reflect.Type, m reflect.Method) string {
 	return strings.ToLower(m.Name)
 }
 
@@ -949,4 +949,66 @@ func TestStructNonAddressableAnonStruct(t *testing.T) {
 		t.Fatalf("Expected '%s', got '%s'", expected, v.String())
 	}
 
+}
+
+func TestGoReflectWithProto(t *testing.T) {
+	type S struct {
+		Field int
+	}
+	var s S
+	vm := New()
+	vm.Set("s", &s)
+	_, err := vm.RunString(TESTLIB + `
+	(function() {
+	'use strict';
+	var proto = {
+		Field: "protoField",
+		test: 42
+	};
+	var test1Holder;
+	Object.defineProperty(proto, "test1", {
+		set: function(v) {
+			test1Holder = v;
+		},
+		get: function() {
+			return test1Holder;
+		}
+	});
+	Object.setPrototypeOf(s, proto);
+	assert.sameValue(s.Field, 0, "s.Field");
+	s.Field = 2;
+	assert.sameValue(s.Field, 2, "s.Field");
+	assert.sameValue(s.test, 42, "s.test");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(s, "test", {value: 43});
+	});
+	test1Holder = 1;
+	assert.sameValue(s.test1, 1, "s.test1");
+	s.test1 = 2;
+	assert.sameValue(test1Holder, 2, "test1Holder");
+	})();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGoReflectSymbols(t *testing.T) {
+	type S struct {
+		Field int
+	}
+	var s S
+	vm := New()
+	vm.Set("s", &s)
+	_, err := vm.RunString(`
+	'use strict';
+	var sym = Symbol(66);
+	s[sym] = "Test";
+	if (s[sym] !== "Test") {
+		throw new Error("s[sym]=" + s[sym]);
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
 }

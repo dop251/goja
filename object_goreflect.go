@@ -62,6 +62,7 @@ func (o *objectGoReflect) init() {
 		o.class = classObject
 		o.prototype = o.val.runtime.global.ObjectPrototype
 	}
+	o.extensible = true
 
 	o.baseObject._putProp("toString", o.val.runtime.newNativeFunc(o.toStringFunc, nil, "toString", nil, 0), true, false, true)
 	o.baseObject._putProp("valueOf", o.val.runtime.newNativeFunc(o.valueOfFunc, nil, "valueOf", nil, 0), true, false, true)
@@ -182,15 +183,15 @@ func (o *objectGoReflect) getOwnPropStr(name string) Value {
 }
 
 func (o *objectGoReflect) put(n Value, val Value, throw bool) {
-	if _, ok := n.(*valueSymbol); ok {
-		o.val.runtime.typeErrorResult(throw, "Cannot assign to Symbol property %s of a host object", n.String())
+	if s, ok := n.(*valueSymbol); ok {
+		o.putSym(s, val, throw)
 		return
 	}
 	o.putStr(n.String(), val, throw)
 }
 
 func (o *objectGoReflect) putStr(name string, val Value, throw bool) {
-	if !o._put(name, val, throw) {
+	if !o._put(name, val, throw) && !o.protoPut(name, val, throw) {
 		o.val.runtime.typeErrorResult(throw, "Cannot assign to property %s of a host object", name)
 	}
 }
@@ -222,10 +223,6 @@ func (o *objectGoReflect) _putProp(name string, value Value, writable, enumerabl
 }
 
 func (r *Runtime) checkHostObjectPropertyDescr(n Value, descr PropertyDescriptor, throw bool) bool {
-	if _, ok := n.(*valueSymbol); ok {
-		r.typeErrorResult(throw, "Host objects do not support symbol properties")
-		return false
-	}
 	if descr.Getter != nil || descr.Setter != nil {
 		r.typeErrorResult(throw, "Host objects do not support accessor properties")
 		return false
@@ -242,29 +239,14 @@ func (r *Runtime) checkHostObjectPropertyDescr(n Value, descr PropertyDescriptor
 }
 
 func (o *objectGoReflect) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
-	if _, ok := n.(*valueSymbol); !ok {
-		if o.value.Kind() == reflect.Struct {
-			name := n.String()
-			if v := o._getField(name); v.IsValid() {
-				if !o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) {
-					return false
-				}
-				val := descr.Value
-				if val == nil {
-					val = _undefined
-				}
-				vv, err := o.val.runtime.toReflectValue(val, v.Type())
-				if err != nil {
-					o.val.runtime.typeErrorResult(throw, "Go struct conversion error: %v", err)
-					return false
-				}
-				v.Set(vv)
-				return true
-			}
-		}
+	if s, ok := n.(*valueSymbol); ok {
+		return o.defineOwnPropertySym(s, descr, throw)
 	}
-
-	return o.baseObject.defineOwnProperty(n, descr, throw)
+	if o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) && o._put(n.String(), descr.Value, throw) {
+		return true
+	}
+	o.val.runtime.typeErrorResult(throw, "Cannot define property '%s' on a host object", n.String())
+	return false
 }
 
 func (o *objectGoReflect) _has(name string) bool {
@@ -352,8 +334,11 @@ func (o *objectGoReflect) deleteStr(name string, throw bool) bool {
 	return o.baseObject.deleteStr(name, throw)
 }
 
-func (o *objectGoReflect) delete(name Value, throw bool) bool {
-	return o.deleteStr(name.String(), throw)
+func (o *objectGoReflect) delete(n Value, throw bool) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.deleteSym(s, throw)
+	}
+	return o.deleteStr(n.String(), throw)
 }
 
 type goreflectPropIter struct {

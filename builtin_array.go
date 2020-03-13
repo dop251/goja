@@ -271,12 +271,12 @@ func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 		for i := int64(0); i < length; i++ {
 			v := obj.self.get(intToValue(i), nil)
 			if v != nil {
-				defineDataPropertyOrThrow(a, intToValue(aLength), v)
+				createDataPropertyOrThrow(a, intToValue(aLength), v)
 			}
 			aLength++
 		}
 	} else {
-		defineDataPropertyOrThrow(a, intToValue(aLength), item)
+		createDataPropertyOrThrow(a, intToValue(aLength), item)
 		aLength++
 	}
 	a.self.putStr("length", intToValue(aLength), true)
@@ -323,7 +323,7 @@ func (r *Runtime) arrayproto_slice(call FunctionCall) Value {
 	for start < end {
 		p := o.self.get(intToValue(start), nil)
 		if p != nil {
-			defineDataPropertyOrThrow(a, intToValue(n), p)
+			createDataPropertyOrThrow(a, intToValue(n), p)
 		}
 		start++
 		n++
@@ -371,7 +371,7 @@ func (r *Runtime) arrayproto_splice(call FunctionCall) Value {
 			setArrayValues(dst, values)
 		} else {
 			for k := int64(0); k < actualDeleteCount; k++ {
-				defineDataPropertyOrThrow(a, intToValue(k), src.values[k+actualStart])
+				createDataPropertyOrThrow(a, intToValue(k), src.values[k+actualStart])
 			}
 		}
 		var values []Value
@@ -404,7 +404,7 @@ func (r *Runtime) arrayproto_splice(call FunctionCall) Value {
 		for k := int64(0); k < actualDeleteCount; k++ {
 			from := intToValue(k + actualStart)
 			if o.self.hasProperty(from) {
-				defineDataPropertyOrThrow(a, intToValue(k), o.self.get(from, nil))
+				createDataPropertyOrThrow(a, intToValue(k), o.self.get(from, nil))
 			}
 		}
 
@@ -656,7 +656,7 @@ func (r *Runtime) arrayproto_map(call FunctionCall) Value {
 		if val := o.self.get(idx, nil); val != nil {
 			fc.Arguments[0] = val
 			fc.Arguments[1] = idx
-			defineDataPropertyOrThrow(a, idx, callbackFn(fc))
+			createDataPropertyOrThrow(a, idx, callbackFn(fc))
 		}
 	}
 	return a
@@ -697,7 +697,7 @@ func (r *Runtime) arrayproto_filter(call FunctionCall) Value {
 				fc.Arguments[0] = val
 				fc.Arguments[1] = idx
 				if callbackFn(fc).ToBoolean() {
-					defineDataPropertyOrThrow(a, intToValue(to), val)
+					createDataPropertyOrThrow(a, intToValue(to), val)
 					to++
 				}
 			}
@@ -1061,7 +1061,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 			if mapFn != nil {
 				val = mapFn(FunctionCall{This: t, Arguments: []Value{val, intToValue(k)}})
 			}
-			defineDataPropertyOrThrow(arr, intToValue(k), val)
+			createDataPropertyOrThrow(arr, intToValue(k), val)
 			k++
 		})
 		arr.self.putStr("length", intToValue(k), true)
@@ -1091,7 +1091,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 			} else {
 				item = nilSafe(item)
 			}
-			defineDataPropertyOrThrow(arr, idx, item)
+			createDataPropertyOrThrow(arr, idx, item)
 		}
 		arr.self.putStr("length", intToValue(l), true)
 	}
@@ -1125,7 +1125,7 @@ func (r *Runtime) array_of(call FunctionCall) Value {
 	l := intToValue(int64(len(call.Arguments)))
 	arr := ctor([]Value{l})
 	for i, val := range call.Arguments {
-		defineDataPropertyOrThrow(arr, intToValue(int64(i)), val)
+		createDataPropertyOrThrow(arr, intToValue(int64(i)), val)
 	}
 	arr.self.putStr("length", l, true)
 	return arr

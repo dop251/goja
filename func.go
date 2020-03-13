@@ -46,15 +46,11 @@ func (f *funcObject) _addProto(n string) Value {
 }
 
 func (f *funcObject) get(p, receiver Value) Value {
-	if s, ok := p.(*valueSymbol); ok {
-		return f.getSym(s, receiver)
-	}
-
-	return f.getStr(p.String(), receiver)
+	return f.getWithOwnProp(f.getOwnProp(p), p, receiver)
 }
 
 func (f *funcObject) getStr(p string, receiver Value) Value {
-	return f.getFromProp(f.getPropStr(p), receiver)
+	return f.getStrWithOwnProp(f.getOwnPropStr(p), p, receiver)
 }
 
 func (f *funcObject) getProp(n Value) Value {
@@ -268,14 +264,11 @@ func (f *nativeFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
 }
 
 func (f *boundFuncObject) get(p, receiver Value) Value {
-	if s, ok := p.(*valueSymbol); ok {
-		return f.getSym(s, receiver)
-	}
-	return f.getStr(p.String(), receiver)
+	return f.getWithOwnProp(f.getOwnProp(p), p, receiver)
 }
 
 func (f *boundFuncObject) getStr(p string, receiver Value) Value {
-	return f.getFromProp(f.getPropStr(p), receiver)
+	return f.getStrWithOwnProp(f.getOwnPropStr(p), p, receiver)
 }
 
 func (f *boundFuncObject) getProp(n Value) Value {
@@ -303,7 +296,6 @@ func (f *boundFuncObject) getOwnProp(name Value) Value {
 
 func (f *boundFuncObject) getOwnPropStr(name string) Value {
 	if name == "caller" || name == "arguments" {
-		//f.runtime.typeErrorResult(true, "'caller' and 'arguments' are restricted function properties and cannot be accessed in this context.")
 		return f.val.runtime.global.throwerProperty
 	}
 

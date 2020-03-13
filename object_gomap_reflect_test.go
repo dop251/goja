@@ -164,3 +164,86 @@ func TestGoMapReflectWithMethods(t *testing.T) {
 	}
 
 }
+
+func TestGoMapReflectWithProto(t *testing.T) {
+	vm := New()
+	m := map[string]string{
+		"t": "42",
+	}
+	vm.Set("m", m)
+	_, err := vm.RunString(TESTLIB + `
+	(function() {
+	'use strict';
+	var proto = {};
+	var getterAllowed = false;
+	var setterAllowed = false;
+	var tHolder = "proto t";
+	Object.defineProperty(proto, "t", {
+		get: function() {
+			if (!getterAllowed) throw new Error("getter is called");
+			return tHolder;
+		},
+		set: function(v) {
+			if (!setterAllowed) throw new Error("setter is called");
+			tHolder = v;
+		}
+	});
+	var t1Holder;
+	Object.defineProperty(proto, "t1", {
+		get: function() {
+			return t1Holder;
+		},
+		set: function(v) {
+			t1Holder = v;
+		}
+	});
+	Object.setPrototypeOf(m, proto);
+	assert.sameValue(m.t, "42");
+	m.t = 43;
+	assert.sameValue(m.t, "43");
+	t1Holder = "test";
+	assert.sameValue(m.t1, "test");
+	m.t1 = "test1";
+	assert.sameValue(m.t1, "test1");
+	delete m.t;
+	getterAllowed = true;
+	assert.sameValue(m.t, "proto t", "after delete");
+	setterAllowed = true;
+	m.t = true;
+	assert.sameValue(m.t, true);
+	assert.sameValue(tHolder, true);
+	Object.preventExtensions(m);
+	assert.throws(TypeError, function() {
+		m.t2 = 1;
+	});
+	m.t1 = "test2";
+	assert.sameValue(m.t1, "test2");
+	})();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGoMapReflectProtoProp(t *testing.T) {
+	const SCRIPT = `
+	(function() {
+	"use strict";
+	var proto = {};
+	Object.defineProperty(proto, "ro", {value: 42});
+	Object.setPrototypeOf(m, proto);
+	assert.throws(TypeError, function() {
+		m.ro = 43;
+	});
+	Object.defineProperty(m, "ro", {value: 43});
+	assert.sameValue(m.ro, "43");
+	})();
+	`
+
+	r := New()
+	r.Set("m", map[string]string{})
+	_, err := r.RunString(TESTLIB + SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

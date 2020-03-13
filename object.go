@@ -135,8 +135,10 @@ type objectImpl interface {
 	getPropStr(string) Value
 	getOwnProp(Value) Value
 	getOwnPropStr(string) Value
-	put(Value, Value, bool)
-	putStr(string, Value, bool)
+	put(p, v Value, throw bool)
+	putStr(p string, v Value, throw bool)
+	set(p, v, receiver Value, throw bool) bool
+	setStr(p string, v, receiver Value, throw bool) bool
 	hasProperty(Value) bool
 	hasPropertyStr(string) bool
 	hasOwnProperty(Value) bool
@@ -294,12 +296,65 @@ func (o *baseObject) getOwnPropSym(s *valueSymbol) Value {
 	return o.symValues[s]
 }
 
+func (o *baseObject) getWithOwnProp(prop, p, receiver Value) Value {
+	if prop == nil && o.prototype != nil {
+		if receiver == nil {
+			return o.prototype.self.get(p, o.val)
+		}
+		return o.prototype.self.get(p, receiver)
+	}
+	if prop, ok := prop.(*valueProperty); ok {
+		if receiver == nil {
+			return prop.get(o.val)
+		}
+		return prop.get(receiver)
+	}
+	return prop
+}
+
+func (o *baseObject) getStrWithOwnProp(prop Value, name string, receiver Value) Value {
+	if prop == nil && o.prototype != nil {
+		if receiver == nil {
+			return o.prototype.self.getStr(name, o.val)
+		}
+		return o.prototype.self.getStr(name, receiver)
+	}
+	if prop, ok := prop.(*valueProperty); ok {
+		if receiver == nil {
+			return prop.get(o.val)
+		}
+		return prop.get(receiver)
+	}
+	return prop
+}
+
 func (o *baseObject) get(p Value, receiver Value) Value {
-	return o.getFromProp(o.getProp(p), receiver)
+	if s, ok := p.(*valueSymbol); ok {
+		return o.getSym(s, receiver)
+	}
+	return o.getStr(p.String(), receiver)
 }
 
 func (o *baseObject) getStr(name string, receiver Value) Value {
-	return o.getFromProp(o.getPropStr(name), receiver)
+	prop := o.values[name]
+	if prop == nil {
+		if name == __proto__ {
+			return o.prototype
+		}
+		if o.prototype != nil {
+			if receiver == nil {
+				return o.prototype.self.getStr(name, o.val)
+			}
+			return o.prototype.self.getStr(name, receiver)
+		}
+	}
+	if prop, ok := prop.(*valueProperty); ok {
+		if receiver == nil {
+			return prop.get(o.val)
+		}
+		return prop.get(receiver)
+	}
+	return prop
 }
 
 func (o *baseObject) getOwnPropStr(name string) Value {
@@ -399,31 +454,18 @@ func (o *baseObject) setProto(proto *Object, throw bool) bool {
 	return true
 }
 
-func (o *baseObject) putStr(name string, val Value, throw bool) {
-	if v, exists := o.values[name]; exists {
-		if prop, ok := v.(*valueProperty); ok {
-			if !prop.isWritable() {
-				o.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", name)
-				return
-			}
-			prop.set(o.val, val)
-			return
-		}
-		o.values[name] = val
-		return
-	}
-
+func (o *baseObject) protoPut(name string, val Value, throw bool) bool {
 	if name == __proto__ {
 		var proto *Object
 		if val != _null {
 			if obj, ok := val.(*Object); ok {
 				proto = obj
 			} else {
-				return
+				return true
 			}
 		}
 		o.setProto(proto, true)
-		return
+		return true
 	}
 
 	var pprop Value
@@ -434,23 +476,115 @@ func (o *baseObject) putStr(name string, val Value, throw bool) {
 	if pprop != nil {
 		if prop, ok := pprop.(*valueProperty); ok {
 			if !prop.isWritable() {
-				o.val.runtime.typeErrorResult(throw)
-				return
+				o.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", name)
+				return true
 			}
 			if prop.accessor {
 				prop.set(o.val, val)
-				return
+				return true
 			}
 		}
 	} else {
 		if !o.extensible {
-			o.val.runtime.typeErrorResult(throw)
-			return
+			o.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
+			return true
 		}
 	}
+	return false
+}
 
-	o.values[name] = val
-	o.propNames = append(o.propNames, name)
+func (o *baseObject) setStr(name string, val, receiver Value, throw bool) bool {
+	if !o._setStr(name, val, receiver, throw) {
+		if robj, ok := receiver.(*Object); ok {
+			if prop := robj.self.getOwnPropStr(name); prop != nil {
+				if desc, ok := prop.(*valueProperty); ok {
+					if desc.accessor {
+						o.val.runtime.typeErrorResult(throw, "Receiver property %s is an accessor", name)
+						return false
+					}
+					if !desc.writable {
+						o.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", name)
+						return false
+					}
+				}
+				return robj.self.defineOwnProperty(newStringValue(name), PropertyDescriptor{Value: val}, throw)
+			} else {
+				return robj.self.defineOwnProperty(newStringValue(name), PropertyDescriptor{
+					Value:        val,
+					Writable:     FLAG_TRUE,
+					Configurable: FLAG_TRUE,
+					Enumerable:   FLAG_TRUE,
+				}, throw)
+			}
+		}
+		o.val.runtime.typeErrorResult(throw, "Receiver is not an object")
+		return false
+	}
+	return true
+}
+
+func (o *baseObject) _setStr(name string, val, receiver Value, throw bool) bool {
+	ownDesc := o.values[name]
+	if ownDesc == nil {
+		if name == __proto__ {
+			var proto *Object
+			if val != _null {
+				if obj, ok := val.(*Object); ok {
+					proto = obj
+				} else {
+					return true
+				}
+			}
+			o.setProto(proto, true)
+			return true
+		}
+
+		if proto := o.prototype; proto != nil {
+			if proto.self.setStr(name, val, receiver, throw) {
+				return true
+			}
+		}
+		if receiver != o.val {
+			return false
+		}
+		if !o.extensible {
+			o.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
+			return true
+		} else {
+			o.values[name] = val
+			o.propNames = append(o.propNames, name)
+			return true
+		}
+	}
+	if prop, ok := ownDesc.(*valueProperty); ok {
+		if !prop.isWritable() {
+			o.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", name)
+			return true
+		}
+		if prop.setterFunc != nil {
+			prop.set(receiver, val)
+			return true
+		}
+		if receiver == o.val {
+			prop.value = val
+			return true
+		}
+		return false
+	}
+	if receiver == o.val {
+		o.values[name] = val
+		return true
+	}
+	return false
+}
+
+func (o *baseObject) set(p, val, receiver Value, throw bool) bool {
+	// FIXME implement
+	return false
+}
+
+func (o *baseObject) putStr(name string, val Value, throw bool) {
+	o.val.self.setStr(name, val, o.val, throw)
 }
 
 func (o *baseObject) putSym(s *valueSymbol, val Value, throw bool) {
@@ -510,7 +644,7 @@ func (o *baseObject) hasOwnPropertyStr(name string) bool {
 	return v != nil
 }
 
-func (o *baseObject) _defineOwnProperty(name, existingValue Value, descr PropertyDescriptor, throw bool) (val Value, ok bool) {
+func (o *baseObject) _defineOwnProperty(name string, existingValue Value, descr PropertyDescriptor, throw bool) (val Value, ok bool) {
 
 	getterObj, _ := descr.Getter.(*Object)
 	setterObj, _ := descr.Setter.(*Object)
@@ -519,7 +653,7 @@ func (o *baseObject) _defineOwnProperty(name, existingValue Value, descr Propert
 
 	if existingValue == nil {
 		if !o.extensible {
-			o.val.runtime.typeErrorResult(throw)
+			o.val.runtime.typeErrorResult(throw, "Cannot define property %s, object is not extensible", name)
 			return nil, false
 		}
 		existing = &valueProperty{}
@@ -608,27 +742,14 @@ func (o *baseObject) _defineOwnProperty(name, existingValue Value, descr Propert
 	return existing, true
 
 Reject:
-	o.val.runtime.typeErrorResult(throw, "Cannot redefine property: %s", name.toString())
+	o.val.runtime.typeErrorResult(throw, "Cannot redefine property: %s", name)
 	return nil, false
 
 }
 
-func (o *baseObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
-	n = toPropertyKey(n)
-	if s, ok := n.(*valueSymbol); ok {
-		existingVal := o.symValues[s]
-		if v, ok := o._defineOwnProperty(n, existingVal, descr, throw); ok {
-			if o.symValues == nil {
-				o.symValues = make(map[*valueSymbol]Value, 1)
-			}
-			o.symValues[s] = v
-			return true
-		}
-		return false
-	}
-	name := n.String()
+func (o *baseObject) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
 	existingVal := o.values[name]
-	if v, ok := o._defineOwnProperty(n, existingVal, descr, throw); ok {
+	if v, ok := o._defineOwnProperty(name, existingVal, descr, throw); ok {
 		o.values[name] = v
 		if existingVal == nil {
 			o.propNames = append(o.propNames, name)
@@ -636,6 +757,25 @@ func (o *baseObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw 
 		return true
 	}
 	return false
+}
+
+func (o *baseObject) defineOwnPropertySym(s *valueSymbol, descr PropertyDescriptor, throw bool) bool {
+	existingVal := o.symValues[s]
+	if v, ok := o._defineOwnProperty(s.String(), existingVal, descr, throw); ok {
+		if o.symValues == nil {
+			o.symValues = make(map[*valueSymbol]Value, 1)
+		}
+		o.symValues[s] = v
+		return true
+	}
+	return false
+}
+
+func (o *baseObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.defineOwnPropertySym(s, descr, throw)
+	}
+	return o.defineOwnPropertyStr(n.String(), descr, throw)
 }
 
 func (o *baseObject) _put(name string, v Value) {

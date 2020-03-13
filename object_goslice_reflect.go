@@ -41,7 +41,11 @@ func (o *objectGoSliceReflect) _hasStr(name string) bool {
 
 func (o *objectGoSliceReflect) getIdx(idx int64) Value {
 	if idx < int64(o.value.Len()) {
-		return o.val.runtime.ToValue(o.value.Index(int(idx)).Interface())
+		v := o.value.Index(int(idx))
+		if (v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface) && v.IsNil() {
+			return nil
+		}
+		return o.val.runtime.ToValue(v.Interface())
 	}
 	return nil
 }
@@ -61,10 +65,13 @@ func (o *objectGoSliceReflect) _getStr(name string) Value {
 }
 
 func (o *objectGoSliceReflect) get(n Value, receiver Value) Value {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.getSym(s, receiver)
+	}
 	if v := o._get(n); v != nil {
 		return v
 	}
-	return o.objectGoReflect.get(n, receiver)
+	return o.objectGoReflect.getStr(n.String(), receiver)
 }
 
 func (o *objectGoSliceReflect) getStr(name string, receiver Value) Value {
@@ -139,18 +146,59 @@ func (o *objectGoSliceReflect) grow(size int) {
 		reflect.Copy(n, o.value)
 		o.value.Set(n)
 	} else {
+		tail := o.value.Slice(o.value.Len(), size)
+		zero := reflect.Zero(o.value.Type().Elem())
+		for i := 0; i < tail.Len(); i++ {
+			tail.Index(i).Set(zero)
+		}
 		o.value.SetLen(size)
 	}
 	o._setLen()
 }
 
+func (o *objectGoSliceReflect) shrink(size int) {
+	tail := o.value.Slice(size, o.value.Len())
+	zero := reflect.Zero(o.value.Type().Elem())
+	for i := 0; i < tail.Len(); i++ {
+		tail.Index(i).Set(zero)
+	}
+	o.value.SetLen(size)
+	o._setLen()
+}
+
+func (o *objectGoSliceReflect) putLength(v Value, throw bool) {
+	newLen := int(toLength(v))
+	curLen := o.value.Len()
+	if newLen > curLen {
+		if !o.sliceExtensible {
+			o.val.runtime.typeErrorResult(throw, "Cannot extend Go slice")
+			return
+		}
+		o.grow(newLen)
+	} else if newLen < curLen {
+		if !o.sliceExtensible {
+			o.val.runtime.typeErrorResult(throw, "Cannot shrink Go slice")
+			return
+		}
+		o.shrink(newLen)
+	}
+}
+
 func (o *objectGoSliceReflect) put(n Value, val Value, throw bool) {
+	if s, ok := n.(*valueSymbol); ok {
+		o.putSym(s, val, throw)
+		return
+	}
 	if idx := toIdx(n); idx >= 0 {
 		o.putIdx(idx, val, throw)
 		return
 	}
-	// TODO: length
-	o.objectGoReflect.put(n, val, throw)
+	name := n.String()
+	if name == "length" {
+		o.putLength(val, throw)
+		return
+	}
+	o.objectGoReflect.putStr(name, val, throw)
 }
 
 func (o *objectGoSliceReflect) putStr(name string, val Value, throw bool) {
@@ -159,7 +207,7 @@ func (o *objectGoSliceReflect) putStr(name string, val Value, throw bool) {
 		return
 	}
 	if name == "length" {
-		o.baseObject.putStr(name, val, throw)
+		o.putLength(val, throw)
 		return
 	}
 	o.objectGoReflect.putStr(name, val, throw)

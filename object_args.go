@@ -18,7 +18,7 @@ func (a *argumentsObject) get(p Value, receiver Value) Value {
 }
 
 func (a *argumentsObject) getStr(name string, receiver Value) Value {
-	return a.getFromProp(a.getPropStr(name), receiver)
+	return a.getStrWithOwnProp(a.getOwnPropStr(name), name, receiver)
 }
 
 func (a *argumentsObject) getProp(n Value) Value {
@@ -125,8 +125,8 @@ func (a *argumentsObject) enumerate(all, recursive bool) iterNextFunc {
 }
 
 func (a *argumentsObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
-	if _, ok := n.(*valueSymbol); ok {
-		return a.baseObject.defineOwnProperty(n, descr, throw)
+	if s, ok := n.(*valueSymbol); ok {
+		return a.defineOwnPropertySym(s, descr, throw)
 	}
 	name := n.String()
 	if mapped, ok := a.values[name].(*mappedProperty); ok {
@@ -137,7 +137,7 @@ func (a *argumentsObject) defineOwnProperty(n Value, descr PropertyDescriptor, t
 			value:        mapped.get(a.val),
 		}
 
-		val, ok := a.baseObject._defineOwnProperty(n, existing, descr, throw)
+		val, ok := a.baseObject._defineOwnProperty(n.String(), existing, descr, throw)
 		if !ok {
 			return false
 		}

@@ -220,7 +220,7 @@ func (r *Runtime) object_create(call FunctionCall) Value {
 func (r *Runtime) object_defineProperty(call FunctionCall) (ret Value) {
 	if obj, ok := call.Argument(0).(*Object); ok {
 		descr := r.toPropertyDescriptor(call.Argument(2))
-		obj.self.defineOwnProperty(call.Argument(1), descr, true)
+		obj.self.defineOwnProperty(toPropertyKey(call.Argument(1)), descr, true)
 		ret = call.Argument(0)
 	} else {
 		r.typeErrorResult(true, "Object.defineProperty called on non-object")

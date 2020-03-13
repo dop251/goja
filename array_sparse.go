@@ -109,11 +109,11 @@ func (a *sparseArrayObject) getIdx(idx int64) Value {
 }
 
 func (a *sparseArrayObject) get(p Value, receiver Value) Value {
-	return a.getFromProp(a.getProp(p), receiver)
+	return a.getWithOwnProp(a.getOwnProp(p), p, receiver)
 }
 
 func (a *sparseArrayObject) getStr(name string, receiver Value) Value {
-	return a.getFromProp(a.getPropStr(name), receiver)
+	return a.getStrWithOwnProp(a.getOwnPropStr(name), name, receiver)
 }
 
 func (a *sparseArrayObject) getProp(n Value) Value {
@@ -348,7 +348,7 @@ func (a *sparseArrayObject) defineOwnProperty(n Value, descr PropertyDescriptor,
 		if i < len(a.items) && a.items[i].idx == idx {
 			existing = a.items[i].value
 		}
-		prop, ok := a.baseObject._defineOwnProperty(n, existing, descr, throw)
+		prop, ok := a.baseObject._defineOwnProperty(n.String(), existing, descr, throw)
 		if ok {
 			if idx >= a.length {
 				if !a.setLengthInt(idx+1, throw) {
