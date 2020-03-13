@@ -251,7 +251,7 @@ func (r *Runtime) stringproto_match(call FunctionCall) Value {
 		rx = r.builtin_newRegExp([]Value{regexp}).self.(*regexpObject)
 	}
 
-	if matcher, ok := r.toObject(rx.getSym(symMatch)).self.assertCallable(); ok {
+	if matcher, ok := r.toObject(rx.getSym(symMatch, nil)).self.assertCallable(); ok {
 		return matcher(FunctionCall{
 			This:      rx.val,
 			Arguments: []Value{call.This.toString()},
@@ -434,7 +434,7 @@ func (r *Runtime) stringproto_search(call FunctionCall) Value {
 		rx = r.builtin_newRegExp([]Value{regexp}).self.(*regexpObject)
 	}
 
-	if searcher, ok := r.toObject(rx.getSym(symSearch)).self.assertCallable(); ok {
+	if searcher, ok := r.toObject(rx.getSym(symSearch, nil)).self.assertCallable(); ok {
 		return searcher(FunctionCall{
 			This:      rx.val,
 			Arguments: []Value{call.This.toString()},

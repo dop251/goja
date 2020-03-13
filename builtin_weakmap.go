@@ -145,15 +145,15 @@ func (r *Runtime) builtin_newWeakMap(args []Value) *Object {
 	wmo.init()
 	if len(args) > 0 {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
-			adder := wmo.getStr("set")
+			adder := wmo.getStr("set", nil)
 			iter := r.getIterator(arg, nil)
 			i0 := intToValue(0)
 			i1 := intToValue(1)
 			if adder == r.global.weakMapAdder {
 				r.iterate(iter, func(item Value) {
 					itemObj := r.toObject(item)
-					k := itemObj.self.get(i0)
-					v := nilSafe(itemObj.self.get(i1))
+					k := itemObj.self.get(i0, nil)
+					v := nilSafe(itemObj.self.get(i1, nil))
 					wmo.m.set(r.toObject(k), v)
 				})
 			} else {
@@ -163,8 +163,8 @@ func (r *Runtime) builtin_newWeakMap(args []Value) *Object {
 				}
 				r.iterate(iter, func(item Value) {
 					itemObj := r.toObject(item)
-					k := itemObj.self.get(i0)
-					v := itemObj.self.get(i1)
+					k := itemObj.self.get(i0, nil)
+					v := itemObj.self.get(i1, nil)
 					adderFn(FunctionCall{This: o, Arguments: []Value{k, v}})
 				})
 			}

@@ -93,18 +93,18 @@ func (s *stringObject) setLength() {
 	s._put("length", &s.lengthProp)
 }
 
-func (s *stringObject) get(n Value) Value {
+func (s *stringObject) get(n Value, receiver Value) Value {
 	if idx := toIdx(n); idx >= 0 && idx < s.length {
 		return s.getIdx(idx)
 	}
-	return s.baseObject.get(n)
+	return s.baseObject.get(n, receiver)
 }
 
-func (s *stringObject) getStr(name string) Value {
+func (s *stringObject) getStr(name string, receiver Value) Value {
 	if i := strToIdx(name); i >= 0 && i < s.length {
 		return s.getIdx(i)
 	}
-	return s.baseObject.getStr(name)
+	return s.baseObject.getStr(name, receiver)
 }
 
 func (s *stringObject) getPropStr(name string) Value {
@@ -131,6 +131,18 @@ func (s *stringObject) getOwnPropStr(name string) Value {
 	}
 
 	return s.baseObject.getOwnPropStr(name)
+}
+
+func (s *stringObject) getOwnProp(name Value) Value {
+	if i := toIdx(name); i >= 0 && i < s.length {
+		val := s.getIdx(i)
+		return &valueProperty{
+			value:      val,
+			enumerable: true,
+		}
+	}
+
+	return s.baseObject.getOwnProp(name)
 }
 
 func (s *stringObject) getIdx(idx int64) Value {

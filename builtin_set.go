@@ -133,7 +133,7 @@ func (r *Runtime) builtin_newSet(args []Value) *Object {
 	so.init()
 	if len(args) > 0 {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
-			adder := so.getStr("add")
+			adder := so.getStr("add", nil)
 			iter := r.getIterator(arg, nil)
 			if adder == r.global.setAdder {
 				r.iterate(iter, func(item Value) {

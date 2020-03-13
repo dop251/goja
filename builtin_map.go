@@ -150,15 +150,15 @@ func (r *Runtime) builtin_newMap(args []Value) *Object {
 	mo.init()
 	if len(args) > 0 {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
-			adder := mo.getStr("set")
+			adder := mo.getStr("set", nil)
 			iter := r.getIterator(arg, nil)
 			i0 := intToValue(0)
 			i1 := intToValue(1)
 			if adder == r.global.mapAdder {
 				r.iterate(iter, func(item Value) {
 					itemObj := r.toObject(item)
-					k := nilSafe(itemObj.self.get(i0))
-					v := nilSafe(itemObj.self.get(i1))
+					k := nilSafe(itemObj.self.get(i0, nil))
+					v := nilSafe(itemObj.self.get(i1, nil))
 					mo.m.set(k, v)
 				})
 			} else {
@@ -168,8 +168,8 @@ func (r *Runtime) builtin_newMap(args []Value) *Object {
 				}
 				r.iterate(iter, func(item Value) {
 					itemObj := r.toObject(item)
-					k := itemObj.self.get(i0)
-					v := itemObj.self.get(i1)
+					k := itemObj.self.get(i0, nil)
+					v := itemObj.self.get(i1, nil)
 					adderFn(FunctionCall{This: o, Arguments: []Value{k, v}})
 				})
 			}

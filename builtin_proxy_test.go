@@ -106,13 +106,13 @@ func TestProxy_proxy_isExtensible(t *testing.T) {
 	Object.seal(obj);
 	var proxy = new Proxy(obj, {
 		isExtensible: function(target) {
-			return true;
+			return false;
 		}
 	});
 	Object.isExtensible(proxy);
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript1(SCRIPT, valueFalse, t)
 }
 
 func TestProxy_native_proxy_isExtensible(t *testing.T) {
@@ -130,7 +130,7 @@ func TestProxy_native_proxy_isExtensible(t *testing.T) {
 
 	proxy := runtime.NewProxy(target, &ProxyTrapConfig{
 		IsExtensible: func(target *Object) (success bool) {
-			return true
+			return false
 		},
 	}, false, false)
 	runtime.Set("proxy", proxy)
@@ -139,7 +139,7 @@ func TestProxy_native_proxy_isExtensible(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	if !val.ToBoolean() {
+	if val.ToBoolean() {
 		t.Fatal()
 	}
 }
@@ -165,11 +165,11 @@ func TestProxy_proxy_preventExtensions(t *testing.T) {
 	var proxy = new Proxy(obj, {
 		preventExtensions: function(target) {
 			target.canEvolve = false;
-			return true;
+			return false;
 		}
 	});
 	Object.preventExtensions(proxy);
-	proxy.canEvolve
+	proxy.canEvolve;
 	`
 
 	testScript1(SCRIPT, valueFalse, t)
@@ -192,7 +192,7 @@ func TestProxy_native_proxy_preventExtensions(t *testing.T) {
 	proxy := runtime.NewProxy(target, &ProxyTrapConfig{
 		PreventExtensions: func(target *Object) (success bool) {
 			target.Set("canEvolve", false)
-			return true
+			return false
 		},
 	}, false, false)
 	runtime.Set("proxy", proxy)
@@ -264,13 +264,13 @@ func TestProxy_native_proxy_getOwnPropertyDescriptor(t *testing.T) {
 	const SCRIPT = `
 	(function() {
 		var desc = {
-			configurable: false,
+			configurable: true,
 			enumerable: false,
 			value: 42,
 			writable: false 
 		};
 		var proxy_desc = {
-			configurable: false,
+			configurable: true,
 			enumerable: false,
 			value: 24,
 			writable: false 

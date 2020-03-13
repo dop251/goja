@@ -6,7 +6,7 @@ func TestArray1(t *testing.T) {
 	r := &Runtime{}
 	a := r.newArray(nil)
 	a.put(valueInt(0), asciiString("test"), true)
-	if l := a.getStr("length").ToInteger(); l != 1 {
+	if l := a.getStr("length", nil).ToInteger(); l != 1 {
 		t.Fatalf("Unexpected length: %d", l)
 	}
 }
@@ -119,7 +119,7 @@ func BenchmarkGet(b *testing.B) {
 	var n Value = asciiString("test")
 
 	for i := 0; i < b.N; i++ {
-		o.get(n)
+		o.get(n, nil)
 	}
 
 }
@@ -136,7 +136,7 @@ func BenchmarkGetStr(b *testing.B) {
 	o.init()
 
 	for i := 0; i < b.N; i++ {
-		o.getStr("test")
+		o.getStr("test", nil)
 	}
 }
 
@@ -194,7 +194,7 @@ func BenchmarkArrayGetStr(b *testing.B) {
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		a.getStr("0")
+		a.getStr("0", nil)
 	}
 
 }
@@ -221,7 +221,7 @@ func BenchmarkArrayGet(b *testing.B) {
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		a.get(idx)
+		a.get(idx, nil)
 	}
 
 }

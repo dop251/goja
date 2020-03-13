@@ -121,7 +121,7 @@ func (p PropertyDescriptor) toValue(r *Runtime) Value {
 	s._putProp("get", p.Getter, false, false, false)
 	s._putProp("set", p.Setter, false, false, false)
 
-	s.preventExtensions()
+	s.preventExtensions(false)
 
 	return o
 }
@@ -129,10 +129,10 @@ func (p PropertyDescriptor) toValue(r *Runtime) Value {
 type objectImpl interface {
 	sortable
 	className() string
-	get(Value) Value
+	get(p, receiver Value) Value
+	getStr(p string, receiver Value) Value
 	getProp(Value) Value
 	getPropStr(string) Value
-	getStr(string) Value
 	getOwnProp(Value) Value
 	getOwnPropStr(string) Value
 	put(Value, Value, bool)
@@ -150,17 +150,16 @@ type objectImpl interface {
 	deleteStr(name string, throw bool) bool
 	delete(name Value, throw bool) bool
 	proto() *Object
-	setProto(proto *Object) *Object
+	setProto(proto *Object, throw bool) bool
 	hasInstance(v Value) bool
 	isExtensible() bool
-	preventExtensions()
+	preventExtensions(throw bool) bool
 	enumerate(all, recursive bool) iterNextFunc
 	_enumerate(recursive bool) iterNextFunc
 	export() interface{}
 	exportType() reflect.Type
 	equal(objectImpl) bool
 	getOwnSymbols() []Value
-	getOwnPropertyDescriptor(name Value) Value
 }
 
 type baseObject struct {
@@ -220,78 +219,103 @@ func (o *baseObject) className() string {
 	return o.class
 }
 
+func (o *baseObject) getProtoPropStr(name string) Value {
+	if o.prototype != nil {
+		return o.prototype.self.getPropStr(name)
+	}
+
+	return nil
+}
+
+func (o *baseObject) getProtoProp(name Value) Value {
+	if o.prototype != nil {
+		return o.prototype.self.getProp(name)
+	}
+
+	return nil
+}
+
+func (o *baseObject) getFromProp(valOrProp Value, receiver Value) Value {
+	if prop, ok := valOrProp.(*valueProperty); ok {
+		if receiver == nil {
+			receiver = o.val
+		}
+		return prop.get(receiver)
+	}
+	return valOrProp
+}
+
 func (o *baseObject) getPropStr(name string) Value {
 	if val := o.getOwnPropStr(name); val != nil {
 		return val
 	}
-	if o.prototype != nil {
-		return o.prototype.self.getPropStr(name)
+	return o.getProtoPropStr(name)
+}
+
+func (o *baseObject) getProp(n Value) Value {
+	if v := o.getOwnProp(n); v != nil {
+		return v
 	}
-	return nil
+	return o.getProtoProp(n)
 }
 
 func (o *baseObject) getPropSym(s *valueSymbol) Value {
 	if val := o.symValues[s]; val != nil {
 		return val
 	}
-	if o.prototype != nil {
-		return o.prototype.self.getProp(s)
-	}
-	return nil
-}
-
-func (o *baseObject) getProp(n Value) Value {
-	if s, ok := n.(*valueSymbol); ok {
-		return o.getPropSym(s)
-	}
-	return o.val.self.getPropStr(n.String())
+	return o.getProtoProp(s)
 }
 
 func (o *baseObject) hasProperty(n Value) bool {
-	return o.val.self.getProp(n) != nil
+	if o.val.self.hasOwnProperty(n) {
+		return true
+	}
+	if o.prototype != nil {
+		return o.prototype.self.hasProperty(n)
+	}
+	return false
 }
 
 func (o *baseObject) hasPropertyStr(name string) bool {
-	return o.val.self.getPropStr(name) != nil
+	if o.val.self.hasOwnPropertyStr(name) {
+		return true
+	}
+	if o.prototype != nil {
+		return o.prototype.self.hasPropertyStr(name)
+	}
+	return false
 }
 
-func (o *baseObject) _getStr(name string) Value {
-	p := o.getOwnPropStr(name)
-
-	if p == nil && o.prototype != nil {
-		p = o.prototype.self.getPropStr(name)
-	}
-
-	if p, ok := p.(*valueProperty); ok {
-		return p.get(o.val)
-	}
-
-	return p
+func (o *baseObject) getSym(s *valueSymbol, receiver Value) Value {
+	return o.getFromProp(o.getPropSym(s), receiver)
 }
 
-func (o *baseObject) getStr(name string) Value {
-	p := o.val.self.getPropStr(name)
-	if p, ok := p.(*valueProperty); ok {
-		return p.get(o.val)
-	}
-
-	return p
+func (o *baseObject) getOwnPropSym(s *valueSymbol) Value {
+	return o.symValues[s]
 }
 
-func (o *baseObject) getSym(s *valueSymbol) Value {
-	p := o.getPropSym(s)
-	if p, ok := p.(*valueProperty); ok {
-		return p.get(o.val)
-	}
-
-	return p
+func (o *baseObject) get(p Value, receiver Value) Value {
+	return o.getFromProp(o.getProp(p), receiver)
 }
 
-func (o *baseObject) get(n Value) Value {
-	if s, ok := n.(*valueSymbol); ok {
-		return o.getSym(s)
+func (o *baseObject) getStr(name string, receiver Value) Value {
+	return o.getFromProp(o.getPropStr(name), receiver)
+}
+
+func (o *baseObject) getOwnPropStr(name string) Value {
+	v := o.values[name]
+	if v == nil && name == __proto__ {
+		return o.prototype
 	}
-	return o.getStr(n.String())
+	return v
+}
+
+func (o *baseObject) getOwnProp(name Value) Value {
+	if s, ok := name.(*valueSymbol); ok {
+		return o.symValues[s]
+	}
+
+	return o.getOwnPropStr(name.String())
 }
 
 func (o *baseObject) checkDeleteProp(name string, prop *valueProperty, throw bool) bool {
@@ -355,38 +379,24 @@ func (o *baseObject) put(n Value, val Value, throw bool) {
 	}
 }
 
-func (o *baseObject) getOwnPropStr(name string) Value {
-	v := o.values[name]
-	if v == nil && name == __proto__ {
-		return o.prototype
-	}
-	return v
-}
-
-func (o *baseObject) getOwnProp(name Value) Value {
-	if s, ok := name.(*valueSymbol); ok {
-		return o.symValues[s]
-	}
-
-	return o.val.self.getOwnPropStr(name.String())
-}
-
-func (o *baseObject) setProto(proto *Object) *Object {
+func (o *baseObject) setProto(proto *Object, throw bool) bool {
 	current := o.prototype
 	if current.SameAs(proto) {
-		return nil
+		return true
 	}
 	if !o.extensible {
-		return o.val.runtime.NewTypeError("%s is not extensible", o.val)
+		o.val.runtime.typeErrorResult(throw, "%s is not extensible", o.val)
+		return false
 	}
 	for p := proto; p != nil; {
 		if p.SameAs(o.val) {
-			return o.val.runtime.NewTypeError("Cyclic __proto__ value")
+			o.val.runtime.typeErrorResult(throw, "Cyclic __proto__ value")
+			return false
 		}
 		p = p.self.proto()
 	}
 	o.prototype = proto
-	return nil
+	return true
 }
 
 func (o *baseObject) putStr(name string, val Value, throw bool) {
@@ -412,9 +422,7 @@ func (o *baseObject) putStr(name string, val Value, throw bool) {
 				return
 			}
 		}
-		if ex := o.setProto(proto); ex != nil {
-			panic(ex)
-		}
+		o.setProto(proto, true)
 		return
 	}
 
@@ -500,53 +508,6 @@ func (o *baseObject) hasOwnProperty(n Value) bool {
 func (o *baseObject) hasOwnPropertyStr(name string) bool {
 	v := o.values[name]
 	return v != nil
-}
-
-func (o *baseObject) getOwnPropertyDescriptor(name Value) Value {
-	desc := o.getOwnProp(name)
-	if desc == nil {
-		return _undefined
-	}
-	var writable, configurable, enumerable, accessor bool
-	var get, set *Object
-	var value Value
-	if v, ok := desc.(*valueProperty); ok {
-		writable = v.writable
-		configurable = v.configurable
-		enumerable = v.enumerable
-		accessor = v.accessor
-		value = v.value
-		get = v.getterFunc
-		set = v.setterFunc
-	} else {
-		writable = true
-		configurable = true
-		enumerable = true
-		value = desc
-	}
-
-	r := o.val.runtime
-	ret := r.NewObject()
-	obj := ret.self
-	if !accessor {
-		obj.putStr("value", value, false)
-		obj.putStr("writable", r.toBoolean(writable), false)
-	} else {
-		if get != nil {
-			obj.putStr("get", get, false)
-		} else {
-			obj.putStr("get", _undefined, false)
-		}
-		if set != nil {
-			obj.putStr("set", set, false)
-		} else {
-			obj.putStr("set", _undefined, false)
-		}
-	}
-	obj.putStr("enumerable", r.toBoolean(enumerable), false)
-	obj.putStr("configurable", r.toBoolean(configurable), false)
-
-	return ret
 }
 
 func (o *baseObject) _defineOwnProperty(name, existingValue Value, descr PropertyDescriptor, throw bool) (val Value, ok bool) {
@@ -704,7 +665,7 @@ func (o *baseObject) _putProp(name string, value Value, writable, enumerable, co
 }
 
 func (o *baseObject) tryExoticToPrimitive(hint string) Value {
-	exoticToPrimitive := toMethod(o.getSym(symToPrimitive))
+	exoticToPrimitive := toMethod(o.getSym(symToPrimitive, nil))
 	if exoticToPrimitive != nil {
 		return exoticToPrimitive(FunctionCall{
 			This:      o.val,
@@ -715,7 +676,7 @@ func (o *baseObject) tryExoticToPrimitive(hint string) Value {
 }
 
 func (o *baseObject) tryPrimitive(methodName string) Value {
-	if method, ok := o.getStr(methodName).(*Object); ok {
+	if method, ok := o.val.self.getStr(methodName, nil).(*Object); ok {
 		if call, ok := method.self.assertCallable(); ok {
 			v := call(FunctionCall{
 				This: o.val,
@@ -778,24 +739,25 @@ func (o *baseObject) isExtensible() bool {
 	return o.extensible
 }
 
-func (o *baseObject) preventExtensions() {
+func (o *baseObject) preventExtensions(bool) bool {
 	o.extensible = false
+	return true
 }
 
 func (o *baseObject) sortLen() int64 {
-	return toLength(o.val.self.getStr("length"))
+	return toLength(o.val.self.getStr("length", nil))
 }
 
 func (o *baseObject) sortGet(i int64) Value {
-	return o.val.self.get(intToValue(i))
+	return o.val.self.get(intToValue(i), nil)
 }
 
 func (o *baseObject) swap(i, j int64) {
 	ii := intToValue(i)
 	jj := intToValue(j)
 
-	x := o.val.self.get(ii)
-	y := o.val.self.get(jj)
+	x := o.val.self.get(ii, nil)
+	y := o.val.self.get(jj, nil)
 
 	o.val.self.put(ii, y, false)
 	o.val.self.put(jj, x, false)
@@ -807,7 +769,7 @@ func (o *baseObject) export() interface{} {
 	for item, f := o.enumerate(false, false)(); f != nil; item, f = f() {
 		v := item.value
 		if v == nil {
-			v = o.getStr(item.name)
+			v = o.val.self.getStr(item.name, nil)
 		}
 		if v != nil {
 			m[item.name] = v.Export()
@@ -940,7 +902,7 @@ func toMethod(v Value) func(FunctionCall) Value {
 }
 
 func instanceOfOperator(o Value, c *Object) bool {
-	if instOfHandler := toMethod(c.self.get(symHasInstance)); instOfHandler != nil {
+	if instOfHandler := toMethod(c.self.get(symHasInstance, c)); instOfHandler != nil {
 		return instOfHandler(FunctionCall{
 			This:      c,
 			Arguments: []Value{o},

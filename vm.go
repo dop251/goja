@@ -67,7 +67,7 @@ type objRef struct {
 }
 
 func (r *objRef) get() Value {
-	return r.base.getStr(r.name)
+	return r.base.getStr(r.name, nil)
 }
 
 func (r *objRef) set(v Value) {
@@ -200,7 +200,7 @@ func (s *valueStack) expand(idx int) {
 
 func (s *stash) put(name string, v Value) bool {
 	if s.obj != nil {
-		if found := s.obj.getStr(name); found != nil {
+		if found := s.obj.getStr(name, nil); found != nil {
 			s.obj.putStr(name, v, false)
 			return true
 		}
@@ -233,7 +233,7 @@ func (s *stash) getByIdx(idx uint32) Value {
 func (s *stash) getByName(name string, _ *vm) (v Value, exists bool) {
 	if s.obj != nil {
 		if s.obj.hasPropertyStr(name) {
-			return s.obj.getStr(name), true
+			return s.obj.getStr(name, nil), true
 		}
 		return nil, false
 	}
@@ -1115,15 +1115,7 @@ func (g getProp) exec(vm *vm) {
 	if obj == nil {
 		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
 	}
-	prop := obj.self.getPropStr(string(g))
-	if prop1, ok := prop.(*valueProperty); ok {
-		vm.stack[vm.sp-1] = prop1.get(v)
-	} else {
-		if prop == nil {
-			prop = _undefined
-		}
-		vm.stack[vm.sp-1] = prop
-	}
+	vm.stack[vm.sp-1] = nilSafe(obj.self.getStr(string(g), v))
 
 	vm.pc++
 }
@@ -1136,15 +1128,11 @@ func (g getPropCallee) exec(vm *vm) {
 	if obj == nil {
 		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
 	}
-	prop := obj.self.getPropStr(string(g))
-	if prop1, ok := prop.(*valueProperty); ok {
-		vm.stack[vm.sp-1] = prop1.get(v)
-	} else {
-		if prop == nil {
-			prop = memberUnresolved{valueUnresolved{r: vm.r, ref: string(g)}}
-		}
-		vm.stack[vm.sp-1] = prop
+	prop := obj.self.getStr(string(g), v)
+	if prop == nil {
+		prop = memberUnresolved{valueUnresolved{r: vm.r, ref: string(g)}}
 	}
+	vm.stack[vm.sp-1] = prop
 
 	vm.pc++
 }
@@ -1161,15 +1149,7 @@ func (_getElem) exec(vm *vm) {
 		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
 	}
 
-	prop := obj.self.getProp(propName)
-	if prop1, ok := prop.(*valueProperty); ok {
-		vm.stack[vm.sp-2] = prop1.get(v)
-	} else {
-		if prop == nil {
-			prop = _undefined
-		}
-		vm.stack[vm.sp-2] = prop
-	}
+	vm.stack[vm.sp-2] = nilSafe(obj.self.get(propName, v))
 
 	vm.sp--
 	vm.pc++
@@ -1187,15 +1167,11 @@ func (_getElemCallee) exec(vm *vm) {
 		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
 	}
 
-	prop := obj.self.getProp(propName)
-	if prop1, ok := prop.(*valueProperty); ok {
-		vm.stack[vm.sp-2] = prop1.get(v)
-	} else {
-		if prop == nil {
-			prop = memberUnresolved{valueUnresolved{r: vm.r, ref: propName.String()}}
-		}
-		vm.stack[vm.sp-2] = prop
+	prop := obj.self.get(propName, v)
+	if prop == nil {
+		prop = memberUnresolved{valueUnresolved{r: vm.r, ref: propName.String()}}
 	}
+	vm.stack[vm.sp-2] = prop
 
 	vm.sp--
 	vm.pc++
@@ -1518,7 +1494,7 @@ func (g getVar) exec(vm *vm) {
 	if stash != nil {
 		vm.push(stash.getByIdx(idx))
 	} else {
-		v := vm.r.globalObject.self.getStr(name)
+		v := vm.r.globalObject.self.getStr(name, nil)
 		if v == nil {
 			if g.ref {
 				v = valueUnresolved{r: vm.r, ref: name}
@@ -1540,7 +1516,7 @@ type resolveVar struct {
 
 func (r resolveVar) exec(vm *vm) {
 	level := int(r.idx >> 24)
-	idx := uint32(r.idx & 0x00FFFFFF)
+	idx := r.idx & 0x00FFFFFF
 	stash := vm.stash
 	var ref ref
 	for i := 0; i < level; i++ {
@@ -1629,7 +1605,7 @@ func (n getVar1) exec(vm *vm) {
 		}
 	}
 	if val == nil {
-		val = vm.r.globalObject.self.getStr(name)
+		val = vm.r.globalObject.self.getStr(name, nil)
 		if val == nil {
 			vm.r.throwReferenceError(name)
 		}
@@ -1650,7 +1626,7 @@ func (n getVar1Callee) exec(vm *vm) {
 		}
 	}
 	if val == nil {
-		val = vm.r.globalObject.self.getStr(name)
+		val = vm.r.globalObject.self.getStr(name, nil)
 		if val == nil {
 			val = valueUnresolved{r: vm.r, ref: name}
 		}

@@ -13,10 +13,10 @@ func (o *lazyObject) className() string {
 	return obj.className()
 }
 
-func (o *lazyObject) get(n Value) Value {
+func (o *lazyObject) get(n Value, receiver Value) Value {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.get(n)
+	return obj.get(n, receiver)
 }
 
 func (o *lazyObject) getProp(n Value) Value {
@@ -31,10 +31,10 @@ func (o *lazyObject) getPropStr(name string) Value {
 	return obj.getPropStr(name)
 }
 
-func (o *lazyObject) getStr(name string) Value {
+func (o *lazyObject) getStr(name string, receiver Value) Value {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.getStr(name)
+	return obj.getStr(name, receiver)
 }
 
 func (o *lazyObject) getOwnPropStr(name string) Value {
@@ -151,10 +151,10 @@ func (o *lazyObject) isExtensible() bool {
 	return obj.isExtensible()
 }
 
-func (o *lazyObject) preventExtensions() {
+func (o *lazyObject) preventExtensions(throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
-	obj.preventExtensions()
+	return obj.preventExtensions(throw)
 }
 
 func (o *lazyObject) enumerate(all, recursive bool) iterNextFunc {
@@ -193,10 +193,10 @@ func (o *lazyObject) getOwnSymbols() []Value {
 	return obj.getOwnSymbols()
 }
 
-func (o *lazyObject) setProto(proto *Object) *Object {
+func (o *lazyObject) setProto(proto *Object, throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.setProto(proto)
+	return obj.setProto(proto, throw)
 }
 
 func (o *lazyObject) sortLen() int64 {
@@ -215,10 +215,4 @@ func (o *lazyObject) swap(i, j int64) {
 	obj := o.create(o.val)
 	o.val.self = obj
 	obj.swap(i, j)
-}
-
-func (o *lazyObject) getOwnPropertyDescriptor(name Value) Value {
-	obj := o.create(o.val)
-	o.val.self = obj
-	return obj.getOwnPropertyDescriptor(name)
 }

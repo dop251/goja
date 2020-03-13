@@ -33,7 +33,7 @@ func TestVM1(t *testing.T) {
 	rv := vm.pop()
 
 	if obj, ok := rv.(*Object); ok {
-		if v := obj.self.getStr("test").ToInteger(); v != 5 {
+		if v := obj.self.getStr("test", nil).ToInteger(); v != 5 {
 			t.Fatalf("Unexpected property value: %v", v)
 		}
 	} else {

@@ -301,7 +301,7 @@ func (r *regexpObject) execResultToArray(target valueString, result []int) Value
 
 func (r *regexpObject) execRegexp(target valueString) (match bool, result []int) {
 	lastIndex := int64(0)
-	if p := r.getStr("lastIndex"); p != nil {
+	if p := r.getStr("lastIndex", nil); p != nil {
 		lastIndex = p.ToInteger()
 		if lastIndex < 0 {
 			lastIndex = 0

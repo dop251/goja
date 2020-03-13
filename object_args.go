@@ -10,15 +10,45 @@ type mappedProperty struct {
 	v *Value
 }
 
-func (a *argumentsObject) getPropStr(name string) Value {
-	if prop, ok := a.values[name].(*mappedProperty); ok {
-		return *prop.v
+func (a *argumentsObject) get(p Value, receiver Value) Value {
+	if s, ok := p.(*valueSymbol); ok {
+		return a.getSym(s, receiver)
 	}
-	return a.baseObject.getPropStr(name)
+	return a.getStr(p.String(), receiver)
+}
+
+func (a *argumentsObject) getStr(name string, receiver Value) Value {
+	return a.getFromProp(a.getPropStr(name), receiver)
 }
 
 func (a *argumentsObject) getProp(n Value) Value {
+	if s, ok := n.(*valueSymbol); ok {
+		return a.getPropSym(s)
+	}
 	return a.getPropStr(n.String())
+}
+
+func (a *argumentsObject) getPropStr(name string) Value {
+	if val := a.getOwnPropStr(name); val != nil {
+		return val
+	}
+	return a.getProtoPropStr(name)
+}
+
+func (a *argumentsObject) getOwnPropStr(name string) Value {
+	if mapped, ok := a.values[name].(*mappedProperty); ok {
+		return *mapped.v
+	}
+
+	return a.baseObject.getOwnPropStr(name)
+}
+
+func (a *argumentsObject) getOwnProp(name Value) Value {
+	if s, ok := name.(*valueSymbol); ok {
+		return a.getOwnPropSym(s)
+	}
+
+	return a.getOwnPropStr(name.String())
 }
 
 func (a *argumentsObject) init() {
@@ -134,18 +164,10 @@ func (a *argumentsObject) defineOwnProperty(n Value, descr PropertyDescriptor, t
 	return a.baseObject.defineOwnProperty(n, descr, throw)
 }
 
-func (a *argumentsObject) getOwnPropStr(name string) Value {
-	if mapped, ok := a.values[name].(*mappedProperty); ok {
-		return *mapped.v
-	}
-
-	return a.baseObject.getOwnPropStr(name)
-}
-
 func (a *argumentsObject) export() interface{} {
 	arr := make([]interface{}, a.length)
 	for i := range arr {
-		v := a.get(intToValue(int64(i)))
+		v := a.get(intToValue(int64(i)), nil)
 		if v != nil {
 			arr[i] = v.Export()
 		}

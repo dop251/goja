@@ -125,7 +125,7 @@ func (r *Runtime) builtin_newWeakSet(args []Value) *Object {
 	wso.init()
 	if len(args) > 0 {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
-			adder := wso.getStr("add")
+			adder := wso.getStr("add", nil)
 			if adder == r.global.weakSetAdder {
 				if arr := r.checkStdArrayIter(arg); arr != nil {
 					for _, v := range arr.values {

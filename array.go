@@ -17,7 +17,7 @@ func (ai *arrayIterObject) next() Value {
 	if ai.obj == nil {
 		return ai.val.runtime.createIterResultObject(_undefined, true)
 	}
-	l := toLength(ai.obj.self.getStr("length"))
+	l := toLength(ai.obj.self.getStr("length", nil))
 	index := ai.nextIdx
 	if index >= l {
 		ai.obj = nil
@@ -28,7 +28,7 @@ func (ai *arrayIterObject) next() Value {
 	if ai.kind == iterationKindKey {
 		return ai.val.runtime.createIterResultObject(idxVal, false)
 	}
-	elementValue := ai.obj.self.get(idxVal)
+	elementValue := ai.obj.self.get(idxVal, nil)
 	var result Value
 	if ai.kind == iterationKindValue {
 		result = elementValue
@@ -143,18 +143,11 @@ func (a *arrayObject) setLength(v Value, throw bool) bool {
 	panic(a.val.runtime.newError(a.val.runtime.global.RangeError, "Invalid array length"))
 }
 
-func (a *arrayObject) getIdx(idx int64, origNameStr string, origName Value) (v Value) {
+func (a *arrayObject) getIdx(idx int64) Value {
 	if idx >= 0 && idx < int64(len(a.values)) {
-		v = a.values[idx]
+		return a.values[idx]
 	}
-	if v == nil && a.prototype != nil {
-		if origName != nil {
-			v = a.prototype.self.getProp(origName)
-		} else {
-			v = a.prototype.self.getPropStr(origNameStr)
-		}
-	}
-	return
+	return nil
 }
 
 func (a *arrayObject) sortLen() int64 {
@@ -203,16 +196,26 @@ func strToIdx(s string) (idx int64) {
 	return -1
 }
 
+func (a *arrayObject) get(p Value, receiver Value) Value {
+	return a.getFromProp(a.getProp(p), receiver)
+}
+
+func (a *arrayObject) getStr(name string, receiver Value) Value {
+	return a.getFromProp(a.getPropStr(name), receiver)
+}
+
 func (a *arrayObject) getProp(n Value) Value {
-	if idx := toIdx(n); idx >= 0 {
-		return a.getIdx(idx, "", n)
+	if v := a.getOwnProp(n); v != nil {
+		return v
 	}
-	if _, ok := n.(*valueSymbol); !ok {
-		if n.String() == "length" {
-			return a.getLengthProp()
-		}
+	return a.getProtoProp(n)
+}
+
+func (a *arrayObject) getPropStr(name string) Value {
+	if val := a.getOwnPropStr(name); val != nil {
+		return val
 	}
-	return a.baseObject.getProp(n)
+	return a.getProtoPropStr(name)
 }
 
 func (a *arrayObject) getLengthProp() Value {
@@ -220,14 +223,19 @@ func (a *arrayObject) getLengthProp() Value {
 	return &a.lengthProp
 }
 
-func (a *arrayObject) getPropStr(name string) Value {
-	if i := strToIdx(name); i >= 0 {
-		return a.getIdx(i, name, nil)
+func (a *arrayObject) getOwnProp(n Value) Value {
+	if s, ok := n.(*valueSymbol); ok {
+		return a.getPropSym(s)
 	}
-	if name == "length" {
+	if idx := toIdx(n); idx >= 0 {
+		return a.getIdx(idx)
+	}
+	s := n.String()
+	if s == "length" {
 		return a.getLengthProp()
 	}
-	return a.baseObject.getPropStr(name)
+
+	return a.baseObject.getOwnPropStr(s)
 }
 
 func (a *arrayObject) getOwnPropStr(name string) Value {

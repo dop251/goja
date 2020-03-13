@@ -58,26 +58,32 @@ func (o *objectGoMapReflect) _getStr(name string) Value {
 	return nil
 }
 
-func (o *objectGoMapReflect) get(n Value) Value {
+func (o *objectGoMapReflect) get(n Value, receiver Value) Value {
 	if v := o._get(n); v != nil {
 		return v
 	}
-	return o.objectGoReflect.get(n)
+	return o.objectGoReflect.get(n, receiver)
 }
 
-func (o *objectGoMapReflect) getStr(name string) Value {
+func (o *objectGoMapReflect) getStr(name string, receiver Value) Value {
 	if v := o._getStr(name); v != nil {
 		return v
 	}
-	return o.objectGoReflect.getStr(name)
+	return o.objectGoReflect.getStr(name, receiver)
 }
 
 func (o *objectGoMapReflect) getProp(n Value) Value {
-	return o.get(n)
+	if v := o._get(n); v != nil {
+		return v
+	}
+	return o.objectGoReflect.getProp(n)
 }
 
 func (o *objectGoMapReflect) getPropStr(name string) Value {
-	return o.getStr(name)
+	if v := o._getStr(name); v != nil {
+		return v
+	}
+	return o.objectGoReflect.getPropStr(name)
 }
 
 func (o *objectGoMapReflect) getOwnPropStr(name string) Value {
@@ -89,6 +95,17 @@ func (o *objectGoMapReflect) getOwnPropStr(name string) Value {
 		}
 	}
 	return o.objectGoReflect.getOwnPropStr(name)
+}
+
+func (o *objectGoMapReflect) getOwnProp(name Value) Value {
+	if v := o._get(name); v != nil {
+		return &valueProperty{
+			value:      v,
+			writable:   true,
+			enumerable: true,
+		}
+	}
+	return o.objectGoReflect.getOwnProp(name)
 }
 
 func (o *objectGoMapReflect) toValue(val Value, throw bool) (reflect.Value, bool) {
@@ -151,20 +168,6 @@ func (o *objectGoMapReflect) hasOwnProperty(n Value) bool {
 	}
 
 	return o.value.MapIndex(key).IsValid()
-}
-
-func (o *objectGoMapReflect) hasProperty(n Value) bool {
-	if o.hasOwnProperty(n) {
-		return true
-	}
-	return o.objectGoReflect.hasProperty(n)
-}
-
-func (o *objectGoMapReflect) hasPropertyStr(name string) bool {
-	if o.hasOwnPropertyStr(name) {
-		return true
-	}
-	return o.objectGoReflect.hasPropertyStr(name)
 }
 
 func (o *objectGoMapReflect) delete(n Value, throw bool) bool {

@@ -82,8 +82,36 @@ func (o *objectGoReflect) valueOfFunc(call FunctionCall) Value {
 	return o.toPrimitive()
 }
 
-func (o *objectGoReflect) get(n Value) Value {
-	return o.getStr(n.String())
+func (o *objectGoReflect) get(n Value, receiver Value) Value {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.getSym(s, receiver)
+	}
+	s := n.String()
+	if v := o._get(s); v != nil {
+		return v
+	}
+	return o.baseObject.getStr(s, receiver)
+}
+
+func (o *objectGoReflect) getStr(name string, receiver Value) Value {
+	if v := o._get(name); v != nil {
+		return v
+	}
+	return o.baseObject.getStr(name, receiver)
+}
+
+func (o *objectGoReflect) getPropStr(name string) Value {
+	if v := o.getOwnPropStr(name); v != nil {
+		return v
+	}
+	return o.baseObject.getPropStr(name)
+}
+
+func (o *objectGoReflect) getProp(name Value) Value {
+	if s, ok := name.(*valueSymbol); ok {
+		return o.getPropSym(s)
+	}
+	return o.getPropStr(name.String())
 }
 
 func (o *objectGoReflect) _getField(jsName string) reflect.Value {
@@ -103,10 +131,17 @@ func (o *objectGoReflect) _getMethod(jsName string) reflect.Value {
 	return reflect.Value{}
 }
 
+func (o *objectGoReflect) getAddr(v reflect.Value) reflect.Value {
+	if (v.Kind() == reflect.Struct || v.Kind() == reflect.Slice) && v.CanAddr() {
+		return v.Addr()
+	}
+	return v
+}
+
 func (o *objectGoReflect) _get(name string) Value {
 	if o.value.Kind() == reflect.Struct {
 		if v := o._getField(name); v.IsValid() {
-			return o.val.runtime.ToValue(v.Interface())
+			return o.val.runtime.ToValue(o.getAddr(v).Interface())
 		}
 	}
 
@@ -117,30 +152,20 @@ func (o *objectGoReflect) _get(name string) Value {
 	return nil
 }
 
-func (o *objectGoReflect) getStr(name string) Value {
-	if v := o._get(name); v != nil {
-		return v
+func (o *objectGoReflect) getOwnProp(name Value) Value {
+	if s, ok := name.(*valueSymbol); ok {
+		return o.getOwnPropSym(s)
 	}
-	return o.baseObject._getStr(name)
-}
 
-func (o *objectGoReflect) getPropStr(name string) Value {
-	if v := o.getOwnPropStr(name); v != nil {
-		return v
-	}
-	return o.baseObject.getPropStr(name)
+	return o.getOwnPropStr(name.String())
 }
 
 func (o *objectGoReflect) getOwnPropStr(name string) Value {
 	if o.value.Kind() == reflect.Struct {
 		if v := o._getField(name); v.IsValid() {
-			canSet := v.CanSet()
-			if (v.Kind() == reflect.Struct || v.Kind() == reflect.Slice) && v.CanAddr() {
-				v = v.Addr()
-			}
 			return &valueProperty{
-				value:      o.val.runtime.ToValue(v.Interface()),
-				writable:   canSet,
+				value:      o.val.runtime.ToValue(o.getAddr(v).Interface()),
+				writable:   v.CanSet(),
 				enumerable: true,
 			}
 		}
@@ -252,21 +277,6 @@ func (o *objectGoReflect) _has(name string) bool {
 		return true
 	}
 	return false
-}
-
-func (o *objectGoReflect) hasProperty(n Value) bool {
-	name := n.String()
-	if o._has(name) {
-		return true
-	}
-	return o.baseObject.hasProperty(n)
-}
-
-func (o *objectGoReflect) hasPropertyStr(name string) bool {
-	if o._has(name) {
-		return true
-	}
-	return o.baseObject.hasPropertyStr(name)
 }
 
 func (o *objectGoReflect) hasOwnProperty(n Value) bool {

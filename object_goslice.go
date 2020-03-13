@@ -46,25 +46,25 @@ func (o *objectGoSlice) _getStr(name string) Value {
 	return nil
 }
 
-func (o *objectGoSlice) get(n Value) Value {
+func (o *objectGoSlice) get(n Value, receiver Value) Value {
 	if v := o._get(n); v != nil {
 		return v
 	}
-	return o.baseObject._getStr(n.String())
+	return o.baseObject.get(n, receiver)
 }
 
-func (o *objectGoSlice) getStr(name string) Value {
+func (o *objectGoSlice) getStr(name string, receiver Value) Value {
 	if v := o._getStr(name); v != nil {
 		return v
 	}
-	return o.baseObject._getStr(name)
+	return o.baseObject.getStr(name, receiver)
 }
 
 func (o *objectGoSlice) getProp(n Value) Value {
 	if v := o._get(n); v != nil {
 		return v
 	}
-	return o.baseObject.getPropStr(n.String())
+	return o.baseObject.getProp(n)
 }
 
 func (o *objectGoSlice) getPropStr(name string) Value {
@@ -83,6 +83,18 @@ func (o *objectGoSlice) getOwnPropStr(name string) Value {
 		}
 	}
 	return o.baseObject.getOwnPropStr(name)
+}
+
+func (o *objectGoSlice) getOwnProp(name Value) Value {
+	if v := o._get(name); v != nil {
+		return &valueProperty{
+			value:      v,
+			writable:   true,
+			enumerable: true,
+		}
+	}
+
+	return o.baseObject.getOwnProp(name)
 }
 
 func (o *objectGoSlice) grow(size int64) {
@@ -152,20 +164,6 @@ func (o *objectGoSlice) _hasStr(name string) bool {
 		return idx < int64(len(*o.data))
 	}
 	return false
-}
-
-func (o *objectGoSlice) hasProperty(n Value) bool {
-	if o._has(n) {
-		return true
-	}
-	return o.baseObject.hasProperty(n)
-}
-
-func (o *objectGoSlice) hasPropertyStr(name string) bool {
-	if o._hasStr(name) {
-		return true
-	}
-	return o.baseObject.hasPropertyStr(name)
 }
 
 func (o *objectGoSlice) hasOwnProperty(n Value) bool {
@@ -289,14 +287,14 @@ func (o *objectGoSlice) sortLen() int64 {
 }
 
 func (o *objectGoSlice) sortGet(i int64) Value {
-	return o.get(intToValue(i))
+	return o.get(intToValue(i), nil)
 }
 
 func (o *objectGoSlice) swap(i, j int64) {
 	ii := intToValue(i)
 	jj := intToValue(j)
-	x := o.get(ii)
-	y := o.get(jj)
+	x := o.get(ii, nil)
+	y := o.get(jj, nil)
 
 	o.put(ii, y, false)
 	o.put(jj, x, false)

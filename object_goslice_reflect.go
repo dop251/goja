@@ -60,18 +60,18 @@ func (o *objectGoSliceReflect) _getStr(name string) Value {
 	return nil
 }
 
-func (o *objectGoSliceReflect) get(n Value) Value {
+func (o *objectGoSliceReflect) get(n Value, receiver Value) Value {
 	if v := o._get(n); v != nil {
 		return v
 	}
-	return o.objectGoReflect.get(n)
+	return o.objectGoReflect.get(n, receiver)
 }
 
-func (o *objectGoSliceReflect) getStr(name string) Value {
+func (o *objectGoSliceReflect) getStr(name string, receiver Value) Value {
 	if v := o._getStr(name); v != nil {
 		return v
 	}
-	return o.objectGoReflect.getStr(name)
+	return o.objectGoReflect.getStr(name, receiver)
 }
 
 func (o *objectGoSliceReflect) getProp(n Value) Value {
@@ -93,6 +93,13 @@ func (o *objectGoSliceReflect) getOwnPropStr(name string) Value {
 		return v
 	}
 	return o.objectGoReflect.getOwnPropStr(name)
+}
+
+func (o *objectGoSliceReflect) getOwnProp(name Value) Value {
+	if v := o._get(name); v != nil {
+		return v
+	}
+	return o.objectGoReflect.getOwnProp(name)
 }
 
 func (o *objectGoSliceReflect) putIdx(idx int64, v Value, throw bool) {
@@ -156,20 +163,6 @@ func (o *objectGoSliceReflect) putStr(name string, val Value, throw bool) {
 		return
 	}
 	o.objectGoReflect.putStr(name, val, throw)
-}
-
-func (o *objectGoSliceReflect) hasProperty(n Value) bool {
-	if o._has(n) {
-		return true
-	}
-	return o.objectGoReflect.hasProperty(n)
-}
-
-func (o *objectGoSliceReflect) hasPropertyStr(name string) bool {
-	if o._hasStr(name) {
-		return true
-	}
-	return o.objectGoReflect.hasOwnPropertyStr(name)
 }
 
 func (o *objectGoSliceReflect) hasOwnProperty(n Value) bool {
@@ -277,14 +270,14 @@ func (o *objectGoSliceReflect) sortLen() int64 {
 }
 
 func (o *objectGoSliceReflect) sortGet(i int64) Value {
-	return o.get(intToValue(i))
+	return o.get(intToValue(i), nil)
 }
 
 func (o *objectGoSliceReflect) swap(i, j int64) {
 	ii := intToValue(i)
 	jj := intToValue(j)
-	x := o.get(ii)
-	y := o.get(jj)
+	x := o.get(ii, nil)
+	y := o.get(jj, nil)
 
 	o.put(ii, y, false)
 	o.put(jj, x, false)

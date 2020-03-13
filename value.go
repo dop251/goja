@@ -782,7 +782,7 @@ func (o *Object) hash() uint64 {
 }
 
 func (o *Object) Get(name string) Value {
-	return o.self.getStr(name)
+	return o.self.getStr(name, nil)
 }
 
 func (o *Object) Keys() (keys []string) {

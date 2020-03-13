@@ -59,10 +59,10 @@ repeat:
 
 func (r *Runtime) toValueArray(a Value) []Value {
 	obj := r.toObject(a)
-	l := toUInt32(obj.self.getStr("length"))
+	l := toUInt32(obj.self.getStr("length", nil))
 	ret := make([]Value, l)
 	for i := uint32(0); i < l; i++ {
-		ret[i] = obj.self.get(valueInt(i))
+		ret[i] = obj.self.get(valueInt(i), nil)
 	}
 	return ret
 }
@@ -151,7 +151,7 @@ repeat:
 		r.typeErrorResult(true, "Value is not callable: %s", obj.toString())
 	}
 
-	l := int(toUInt32(obj.self.getStr("length")))
+	l := int(toUInt32(obj.self.getStr("length", nil)))
 	l -= len(call.Arguments) - 1
 	if l < 0 {
 		l = 0

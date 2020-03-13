@@ -148,14 +148,14 @@ func isArray(object *Object) bool {
 }
 
 func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holder *Object, name Value) Value {
-	value := holder.self.get(name)
+	value := holder.self.get(name, nil)
 	if value == nil {
 		value = _undefined
 	}
 
 	if object := value.(*Object); object != nil {
 		if isArray(object) {
-			length := object.self.getStr("length").ToInteger()
+			length := object.self.getStr("length", nil).ToInteger()
 			for index := int64(0); index < length; index++ {
 				name := intToValue(index)
 				value := r.builtinJSON_reviveWalk(reviver, object, name)
@@ -199,13 +199,13 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 	replacer, _ := call.Argument(1).(*Object)
 	if replacer != nil {
 		if isArray(replacer) {
-			length := replacer.self.getStr("length").ToInteger()
+			length := replacer.self.getStr("length", nil).ToInteger()
 			seen := map[string]bool{}
 			propertyList := make([]Value, length)
 			length = 0
 			for index := range propertyList {
 				var name string
-				value := replacer.self.get(intToValue(int64(index)))
+				value := replacer.self.get(intToValue(int64(index)), nil)
 				if s, ok := value.assertString(); ok {
 					name = s.String()
 				} else if _, ok := value.assertInt(); ok {
@@ -280,13 +280,13 @@ func (ctx *_builtinJSON_stringifyContext) do(v Value) bool {
 }
 
 func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
-	value := holder.self.get(key)
+	value := holder.self.get(key, nil)
 	if value == nil {
 		value = _undefined
 	}
 
 	if object, ok := value.(*Object); ok {
-		if toJSON, ok := object.self.getStr("toJSON").(*Object); ok {
+		if toJSON, ok := object.self.getStr("toJSON", nil).(*Object); ok {
 			if c, ok := toJSON.self.assertCallable(); ok {
 				value = c(FunctionCall{
 					This:      value,
@@ -384,7 +384,7 @@ func (ctx *_builtinJSON_stringifyContext) ja(array *Object) {
 		stepback = ctx.indent
 		ctx.indent += ctx.gap
 	}
-	length := array.self.getStr("length").ToInteger()
+	length := array.self.getStr("length", nil).ToInteger()
 	if length == 0 {
 		ctx.buf.WriteString("[]")
 		return

@@ -950,11 +950,11 @@ func (c *compiler) compileSequenceExpression(v *ast.SequenceExpression) compiled
 
 func (c *compiler) emitThrow(v Value) {
 	if o, ok := v.(*Object); ok {
-		t := o.self.getStr("name").String()
+		t := o.self.getStr("name", nil).String()
 		switch t {
 		case "TypeError":
 			c.emit(getVar1(t))
-			msg := o.self.getStr("message")
+			msg := o.self.getStr("message", nil)
 			if msg != nil {
 				c.emit(loadVal(c.p.defineLiteralValue(msg)))
 				c.emit(_new(1))

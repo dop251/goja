@@ -45,12 +45,46 @@ func (f *funcObject) _addProto(n string) Value {
 	return nil
 }
 
+func (f *funcObject) get(p, receiver Value) Value {
+	if s, ok := p.(*valueSymbol); ok {
+		return f.getSym(s, receiver)
+	}
+
+	return f.getStr(p.String(), receiver)
+}
+
+func (f *funcObject) getStr(p string, receiver Value) Value {
+	return f.getFromProp(f.getPropStr(p), receiver)
+}
+
+func (f *funcObject) getProp(n Value) Value {
+	if v := f.getOwnProp(n); v != nil {
+		return v
+	}
+	return f.getProtoProp(n)
+}
+
 func (f *funcObject) getPropStr(name string) Value {
+	if val := f.getOwnPropStr(name); val != nil {
+		return val
+	}
+	return f.getProtoPropStr(name)
+}
+
+func (f *funcObject) getOwnProp(name Value) Value {
+	if s, ok := name.(*valueSymbol); ok {
+		return f.symValues[s]
+	}
+
+	return f.getOwnPropStr(name.String())
+}
+
+func (f *funcObject) getOwnPropStr(name string) Value {
 	if v := f._addProto(name); v != nil {
 		return v
 	}
 
-	return f.baseObject.getPropStr(name)
+	return f.baseObject.getOwnPropStr(name)
 }
 
 func (f *funcObject) putStr(name string, val Value, throw bool) {
@@ -108,7 +142,7 @@ func (f *funcObject) hasOwnPropertyStr(name string) bool {
 }
 
 func (f *funcObject) construct(args []Value) *Object {
-	proto := f.getStr("prototype")
+	proto := f.getStr("prototype", nil)
 	var protoObj *Object
 	if p, ok := proto.(*Object); ok {
 		protoObj = p
@@ -187,7 +221,7 @@ func (f *baseFuncObject) init(name string, length int) {
 
 func (f *baseFuncObject) hasInstance(v Value) bool {
 	if v, ok := v.(*Object); ok {
-		o := f.val.self.getStr("prototype")
+		o := f.val.self.getStr("prototype", nil)
 		if o1, ok := o.(*Object); ok {
 			for {
 				v = v.self.proto()
@@ -207,7 +241,7 @@ func (f *baseFuncObject) hasInstance(v Value) bool {
 }
 
 func (f *nativeFuncObject) defaultConstruct(ccall func(ConstructorCall) *Object, args []Value) *Object {
-	proto := f.getStr("prototype")
+	proto := f.getStr("prototype", nil)
 	var protoObj *Object
 	if p, ok := proto.(*Object); ok {
 		protoObj = p
@@ -233,12 +267,47 @@ func (f *nativeFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
 	return nil, false
 }
 
+func (f *boundFuncObject) get(p, receiver Value) Value {
+	if s, ok := p.(*valueSymbol); ok {
+		return f.getSym(s, receiver)
+	}
+	return f.getStr(p.String(), receiver)
+}
+
+func (f *boundFuncObject) getStr(p string, receiver Value) Value {
+	return f.getFromProp(f.getPropStr(p), receiver)
+}
+
+func (f *boundFuncObject) getProp(n Value) Value {
+	if v := f.getOwnProp(n); v != nil {
+		return v
+	}
+	return f.getProtoProp(n)
+}
+
 func (f *boundFuncObject) getPropStr(name string) Value {
+	if val := f.getOwnPropStr(name); val != nil {
+		return val
+	}
+
+	return f.getProtoPropStr(name)
+}
+
+func (f *boundFuncObject) getOwnProp(name Value) Value {
+	if s, ok := name.(*valueSymbol); ok {
+		return f.getOwnPropSym(s)
+	}
+
+	return f.getOwnPropStr(name.String())
+}
+
+func (f *boundFuncObject) getOwnPropStr(name string) Value {
 	if name == "caller" || name == "arguments" {
 		//f.runtime.typeErrorResult(true, "'caller' and 'arguments' are restricted function properties and cannot be accessed in this context.")
 		return f.val.runtime.global.throwerProperty
 	}
-	return f.nativeFuncObject.getPropStr(name)
+
+	return f.nativeFuncObject.getOwnPropStr(name)
 }
 
 func (f *boundFuncObject) delete(n Value, throw bool) bool {

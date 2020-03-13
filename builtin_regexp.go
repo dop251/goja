@@ -271,16 +271,16 @@ func (r *Runtime) regexpproto_getFlags(call FunctionCall) Value {
 	if this, ok := thisObj.self.(*regexpObject); ok {
 		global, ignoreCase, multiline, sticky = this.global, this.ignoreCase, this.multiline, this.sticky
 	} else {
-		if v := thisObj.self.getStr("global"); v != nil {
+		if v := thisObj.self.getStr("global", nil); v != nil {
 			global = v.ToBoolean()
 		}
-		if v := thisObj.self.getStr("ignoreCase"); v != nil {
+		if v := thisObj.self.getStr("ignoreCase", nil); v != nil {
 			ignoreCase = v.ToBoolean()
 		}
-		if v := thisObj.self.getStr("multiline"); v != nil {
+		if v := thisObj.self.getStr("multiline", nil); v != nil {
 			multiline = v.ToBoolean()
 		}
-		if v := thisObj.self.getStr("sticky"); v != nil {
+		if v := thisObj.self.getStr("sticky", nil); v != nil {
 			sticky = v.ToBoolean()
 		}
 	}
@@ -319,10 +319,10 @@ func (r *Runtime) regExpExec(execFn func(FunctionCall) Value, rxObj *Object, arg
 
 func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, arg Value) Value {
 	rx := rxObj.self
-	global := rx.getStr("global")
+	global := rx.getStr("global", nil)
 	if global != nil && global.ToBoolean() {
 		rx.putStr("lastIndex", intToValue(0), true)
-		execFn, ok := r.toObject(rx.getStr("exec")).self.assertCallable()
+		execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
 		if !ok {
 			panic(r.NewTypeError("exec is not a function"))
 		}
@@ -332,10 +332,10 @@ func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, arg Value) Value 
 			if res == _null {
 				break
 			}
-			matchStr := nilSafe(r.toObject(res).self.get(intToValue(0))).toString()
+			matchStr := nilSafe(r.toObject(res).self.get(intToValue(0), nil)).toString()
 			a = append(a, matchStr)
 			if matchStr.length() == 0 {
-				thisIndex := rx.getStr("lastIndex").ToInteger()
+				thisIndex := rx.getStr("lastIndex", nil).ToInteger()
 				rx.putStr("lastIndex", intToValue(thisIndex+1), true) // TODO fullUnicode
 			}
 		}
@@ -345,7 +345,7 @@ func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, arg Value) Value 
 		return r.newArrayValues(a)
 	}
 
-	execFn, ok := r.toObject(rx.getStr("exec")).self.assertCallable()
+	execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
 	if !ok {
 		panic(r.NewTypeError("exec is not a function"))
 	}
@@ -382,7 +382,7 @@ func (r *Runtime) regexpproto_stdMatcher(call FunctionCall) Value {
 			if !match {
 				break
 			}
-			thisIndex := rx.getStr("lastIndex").ToInteger()
+			thisIndex := rx.getStr("lastIndex", nil).ToInteger()
 			if thisIndex == previousLastIndex {
 				previousLastIndex++
 				rx.putStr("lastIndex", intToValue(previousLastIndex), true)
@@ -402,9 +402,9 @@ func (r *Runtime) regexpproto_stdMatcher(call FunctionCall) Value {
 
 func (r *Runtime) regexpproto_stdSearchGeneric(rxObj *Object, arg valueString) Value {
 	rx := rxObj.self
-	previousLastIndex := rx.getStr("lastIndex")
+	previousLastIndex := rx.getStr("lastIndex", nil)
 	rx.putStr("lastIndex", intToValue(0), true)
-	execFn, ok := r.toObject(rx.getStr("exec")).self.assertCallable()
+	execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
 	if !ok {
 		panic(r.NewTypeError("exec is not a function"))
 	}
@@ -416,7 +416,7 @@ func (r *Runtime) regexpproto_stdSearchGeneric(rxObj *Object, arg valueString) V
 		return intToValue(-1)
 	}
 
-	return r.toObject(result).self.getStr("index")
+	return r.toObject(result).self.getStr("index", nil)
 }
 
 func (r *Runtime) regexpproto_stdSearch(call FunctionCall) Value {
@@ -427,7 +427,7 @@ func (r *Runtime) regexpproto_stdSearch(call FunctionCall) Value {
 		return r.regexpproto_stdSearchGeneric(thisObj, s)
 	}
 
-	previousLastIndex := rx.getStr("lastIndex")
+	previousLastIndex := rx.getStr("lastIndex", nil)
 	rx.putStr("lastIndex", intToValue(0), true)
 
 	match, result := rx.execRegexp(s)
@@ -452,7 +452,7 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s valueString
 	if lim == 0 {
 		return r.newArrayValues(a)
 	}
-	execFn := toMethod(splitter.ToObject(r).self.getStr("exec")) // must be non-nil
+	execFn := toMethod(splitter.ToObject(r).self.getStr("exec", nil)) // must be non-nil
 
 	if size == 0 {
 		if r.regExpExec(execFn, splitter, s) == _null {
@@ -469,7 +469,7 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s valueString
 			q++
 		} else {
 			z := r.toObject(z)
-			e := toLength(splitter.self.getStr("lastIndex"))
+			e := toLength(splitter.self.getStr("lastIndex", nil))
 			if e == p {
 				q++
 			} else {
@@ -478,9 +478,9 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s valueString
 					return r.newArrayValues(a)
 				}
 				p = e
-				numberOfCaptures := max(toLength(z.self.getStr("length"))-1, 0)
+				numberOfCaptures := max(toLength(z.self.getStr("length", nil))-1, 0)
 				for i := int64(1); i <= numberOfCaptures; i++ {
-					a = append(a, z.self.get(intToValue(i)))
+					a = append(a, z.self.get(intToValue(i), nil))
 					if int64(len(a)) == lim {
 						return r.newArrayValues(a)
 					}
@@ -496,7 +496,7 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s valueString
 func (r *Runtime) regexpproto_stdSplitter(call FunctionCall) Value {
 	rxObj := r.toObject(call.This)
 	c := r.speciesConstructor(rxObj, r.global.RegExp)
-	flags := nilSafe(rxObj.self.getStr("flags")).toString()
+	flags := nilSafe(rxObj.self.getStr("flags", nil)).toString()
 
 	// Add 'y' flag if missing
 	if flagsStr := flags.String(); !strings.Contains(flagsStr, "y") {

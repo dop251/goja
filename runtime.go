@@ -614,8 +614,8 @@ func (r *Runtime) builtin_newBoolean(args []Value) *Object {
 
 func (r *Runtime) error_toString(call FunctionCall) Value {
 	obj := call.This.ToObject(r).self
-	msg := obj.getStr("message")
-	name := obj.getStr("name")
+	msg := obj.getStr("message", nil)
+	name := obj.getStr("name", nil)
 	var nameStr, msgStr string
 	if name != nil && name != _undefined {
 		nameStr = name.String()
@@ -1349,11 +1349,11 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 	case reflect.Slice:
 		if o, ok := v.(*Object); ok {
 			if o.self.className() == classArray {
-				l := int(toLength(o.self.getStr("length")))
+				l := int(toLength(o.self.getStr("length", nil)))
 				s := reflect.MakeSlice(typ, l, l)
 				elemTyp := typ.Elem()
 				for i := 0; i < l; i++ {
-					item := o.self.get(intToValue(int64(i)))
+					item := o.self.get(intToValue(int64(i)), nil)
 					itemval, err := r.toReflectValue(item, elemTyp)
 					if err != nil {
 						return reflect.Value{}, fmt.Errorf("Could not convert array element %v to %v at %d: %s", v, typ, i, err)
@@ -1383,7 +1383,7 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 
 				ival := item.value
 				if ival == nil {
-					ival = o.self.getStr(item.name)
+					ival = o.self.getStr(item.name, nil)
 				}
 				if ival != nil {
 					vv, err := r.toReflectValue(ival, elemTyp)
@@ -1411,7 +1411,7 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 					if field.Anonymous {
 						v = o
 					} else {
-						v = o.self.getStr(name)
+						v = o.self.getStr(name, nil)
 					}
 
 					if v != nil {
@@ -1507,7 +1507,7 @@ func (r *Runtime) Set(name string, value interface{}) {
 
 // Get the specified property of the global object.
 func (r *Runtime) Get(name string) Value {
-	return r.globalObject.self.getStr(name)
+	return r.globalObject.self.getStr(name, nil)
 }
 
 // SetRandSource sets random source for this Runtime. If not called, the default math/rand is used.
@@ -1660,9 +1660,9 @@ func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
 }
 
 func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value) *Object {
-	c := o.self.getStr("constructor")
+	c := o.self.getStr("constructor", nil)
 	if c != nil && c != _undefined {
-		c = r.toObject(c).self.get(symSpecies)
+		c = r.toObject(c).self.get(symSpecies, nil)
 	}
 	if c == nil || c == _undefined {
 		c = defaultConstructor
@@ -1698,11 +1698,7 @@ func (r *Runtime) getVStr(v Value, p string) Value {
 
 func (r *Runtime) getV(v Value, p Value) Value {
 	o := v.ToObject(r)
-	prop := o.self.getProp(p)
-	if prop, ok := prop.(*valueProperty); ok {
-		return prop.get(v)
-	}
-	return prop
+	return o.self.get(p, v)
 }
 
 func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *Object {
@@ -1720,15 +1716,15 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *Objec
 
 func (r *Runtime) iterate(iter *Object, step func(Value)) {
 	for {
-		res := r.toObject(toMethod(iter.self.getStr("next"))(FunctionCall{This: iter}))
-		if nilSafe(res.self.getStr("done")).ToBoolean() {
+		res := r.toObject(toMethod(iter.self.getStr("next", nil))(FunctionCall{This: iter}))
+		if nilSafe(res.self.getStr("done", nil)).ToBoolean() {
 			break
 		}
 		err := tryFunc(func() {
-			step(nilSafe(res.self.getStr("value")))
+			step(nilSafe(res.self.getStr("value", nil)))
 		})
 		if err != nil {
-			retMethod := toMethod(iter.self.getStr("return"))
+			retMethod := toMethod(iter.self.getStr("return", nil))
 			if retMethod != nil {
 				_ = tryFunc(func() {
 					retMethod(FunctionCall{This: iter})

@@ -29,26 +29,26 @@ func (o *objectGoMapSimple) _getStr(name string) Value {
 	return o.val.runtime.ToValue(v)
 }
 
-func (o *objectGoMapSimple) get(n Value) Value {
-	return o.getStr(n.String())
+func (o *objectGoMapSimple) get(p Value, receiver Value) Value {
+	return o.getFromProp(o.getProp(p), receiver)
+}
+
+func (o *objectGoMapSimple) getStr(name string, receiver Value) Value {
+	return o.getFromProp(o.getPropStr(name), receiver)
 }
 
 func (o *objectGoMapSimple) getProp(n Value) Value {
-	return o.getPropStr(n.String())
+	if v := o.getOwnProp(n); v != nil {
+		return v
+	}
+	return o.getProtoProp(n)
 }
 
 func (o *objectGoMapSimple) getPropStr(name string) Value {
-	if v := o._getStr(name); v != nil {
-		return v
+	if val := o.getOwnPropStr(name); val != nil {
+		return val
 	}
-	return o.baseObject.getPropStr(name)
-}
-
-func (o *objectGoMapSimple) getStr(name string) Value {
-	if v := o._getStr(name); v != nil {
-		return v
-	}
-	return o.baseObject._getStr(name)
+	return o.getProtoPropStr(name)
 }
 
 func (o *objectGoMapSimple) getOwnPropStr(name string) Value {
@@ -56,6 +56,14 @@ func (o *objectGoMapSimple) getOwnPropStr(name string) Value {
 		return v
 	}
 	return o.baseObject.getOwnPropStr(name)
+}
+
+func (o *objectGoMapSimple) getOwnProp(n Value) Value {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.getPropSym(s)
+	}
+
+	return o.getOwnPropStr(n.String())
 }
 
 func (o *objectGoMapSimple) put(n Value, val Value, throw bool) {
@@ -81,20 +89,6 @@ func (o *objectGoMapSimple) putStr(name string, val Value, throw bool) {
 	} else {
 		o.val.runtime.typeErrorResult(throw, "Host object is not extensible")
 	}
-}
-
-func (o *objectGoMapSimple) hasProperty(n Value) bool {
-	if o._has(n) {
-		return true
-	}
-	return o.baseObject.hasProperty(n)
-}
-
-func (o *objectGoMapSimple) hasPropertyStr(name string) bool {
-	if o._hasStr(name) {
-		return true
-	}
-	return o.baseObject.hasOwnPropertyStr(name)
 }
 
 func (o *objectGoMapSimple) hasOwnProperty(n Value) bool {
@@ -214,14 +208,14 @@ func (o *objectGoMapSimple) sortLen() int64 {
 }
 
 func (o *objectGoMapSimple) sortGet(i int64) Value {
-	return o.getStr(strconv.FormatInt(i, 10))
+	return o.getStr(strconv.FormatInt(i, 10), nil)
 }
 
 func (o *objectGoMapSimple) swap(i, j int64) {
 	ii := strconv.FormatInt(i, 10)
 	jj := strconv.FormatInt(j, 10)
-	x := o.getStr(ii)
-	y := o.getStr(jj)
+	x := o.getStr(ii, nil)
+	y := o.getStr(jj, nil)
 
 	o.putStr(ii, y, false)
 	o.putStr(jj, x, false)

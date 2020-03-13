@@ -99,34 +99,50 @@ func (a *sparseArrayObject) setLength(v Value, throw bool) bool {
 	panic(a.val.runtime.newError(a.val.runtime.global.RangeError, "Invalid array length"))
 }
 
-func (a *sparseArrayObject) getIdx(idx int64, origNameStr string, origName Value) (v Value) {
+func (a *sparseArrayObject) getIdx(idx int64) Value {
 	i := a.findIdx(idx)
 	if i < len(a.items) && a.items[i].idx == idx {
 		return a.items[i].value
 	}
 
-	if a.prototype != nil {
-		if origName != nil {
-			v = a.prototype.self.getProp(origName)
-		} else {
-			v = a.prototype.self.getPropStr(origNameStr)
-		}
-	}
-	return
+	return nil
+}
+
+func (a *sparseArrayObject) get(p Value, receiver Value) Value {
+	return a.getFromProp(a.getProp(p), receiver)
+}
+
+func (a *sparseArrayObject) getStr(name string, receiver Value) Value {
+	return a.getFromProp(a.getPropStr(name), receiver)
 }
 
 func (a *sparseArrayObject) getProp(n Value) Value {
+	if v := a.getOwnProp(n); v != nil {
+		return v
+	}
+	return a.getProtoProp(n)
+}
+
+func (a *sparseArrayObject) getPropStr(name string) Value {
+	if val := a.getOwnPropStr(name); val != nil {
+		return val
+	}
+	return a.getProtoPropStr(name)
+}
+
+func (a *sparseArrayObject) getOwnProp(n Value) Value {
+	if s, ok := n.(*valueSymbol); ok {
+		return a.getPropSym(s)
+	}
 	if idx := toIdx(n); idx >= 0 {
-		return a.getIdx(idx, "", n)
+		return a.getIdx(idx)
+	}
+	s := n.String()
+	if s == "length" {
+		return a.getLengthProp()
 	}
 
-	if _, ok := n.(*valueSymbol); !ok {
-		if n.String() == "length" {
-			return a.getLengthProp()
-		}
-	}
-
-	return a.baseObject.getProp(n)
+	return a.baseObject.getOwnPropStr(s)
 }
 
 func (a *sparseArrayObject) getLengthProp() Value {
@@ -146,16 +162,6 @@ func (a *sparseArrayObject) getOwnPropStr(name string) Value {
 		return a.getLengthProp()
 	}
 	return a.baseObject.getOwnPropStr(name)
-}
-
-func (a *sparseArrayObject) getPropStr(name string) Value {
-	if i := strToIdx(name); i >= 0 {
-		return a.getIdx(i, name, nil)
-	}
-	if name == "length" {
-		return a.getLengthProp()
-	}
-	return a.baseObject.getPropStr(name)
 }
 
 func (a *sparseArrayObject) putIdx(idx int64, val Value, throw bool, origNameStr string, origName Value) {
