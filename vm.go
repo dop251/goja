@@ -71,7 +71,7 @@ func (r *objRef) get() Value {
 }
 
 func (r *objRef) set(v Value) {
-	r.base.putStr(r.name, v, r.strict)
+	r.base.setOwnStr(r.name, v, r.strict)
 }
 
 func (r *objRef) refname() string {
@@ -201,7 +201,7 @@ func (s *valueStack) expand(idx int) {
 func (s *stash) put(name string, v Value) bool {
 	if s.obj != nil {
 		if found := s.obj.getStr(name, nil); found != nil {
-			s.obj.putStr(name, v, false)
+			s.obj.setOwnStr(name, v, false)
 			return true
 		}
 		return false
@@ -955,7 +955,7 @@ func (_setElem) exec(vm *vm) {
 	propName := toPropertyKey(vm.stack[vm.sp-2])
 	val := vm.stack[vm.sp-1]
 
-	obj.self.put(propName, val, false)
+	obj.self.setOwn(propName, val, false)
 
 	vm.sp -= 2
 	vm.stack[vm.sp-1] = val
@@ -971,7 +971,7 @@ func (_setElemStrict) exec(vm *vm) {
 	propName := toPropertyKey(vm.stack[vm.sp-2])
 	val := vm.stack[vm.sp-1]
 
-	obj.self.put(propName, val, true)
+	obj.self.setOwn(propName, val, true)
 
 	vm.sp -= 2
 	vm.stack[vm.sp-1] = val
@@ -1032,7 +1032,7 @@ type setProp string
 
 func (p setProp) exec(vm *vm) {
 	val := vm.stack[vm.sp-1]
-	vm.stack[vm.sp-2].ToObject(vm.r).self.putStr(string(p), val, false)
+	vm.stack[vm.sp-2].ToObject(vm.r).self.setOwnStr(string(p), val, false)
 	vm.stack[vm.sp-2] = val
 	vm.sp--
 	vm.pc++
@@ -1045,7 +1045,7 @@ func (p setPropStrict) exec(vm *vm) {
 	val := vm.stack[vm.sp-1]
 
 	obj1 := vm.r.toObject(obj)
-	obj1.self.putStr(string(p), val, true)
+	obj1.self.setOwnStr(string(p), val, true)
 	vm.stack[vm.sp-2] = val
 	vm.sp--
 	vm.pc++
@@ -1065,7 +1065,7 @@ type _setProto struct{}
 var setProto _setProto
 
 func (_setProto) exec(vm *vm) {
-	vm.r.toObject(vm.stack[vm.sp-2]).self.putStr(__proto__, vm.stack[vm.sp-1], true)
+	vm.r.toObject(vm.stack[vm.sp-2]).self.setOwnStr(__proto__, vm.stack[vm.sp-1], true)
 
 	vm.sp--
 	vm.pc++
@@ -1300,7 +1300,7 @@ func (s setVar) exec(vm *vm) {
 	if stash != nil {
 		stash.putByIdx(idx, v)
 	} else {
-		vm.r.globalObject.self.putStr(name, v, false)
+		vm.r.globalObject.self.setOwnStr(name, v, false)
 	}
 
 end:
@@ -1440,7 +1440,7 @@ type setGlobal string
 func (s setGlobal) exec(vm *vm) {
 	v := vm.peek()
 
-	vm.r.globalObject.self.putStr(string(s), v, false)
+	vm.r.globalObject.self.setOwnStr(string(s), v, false)
 	vm.pc++
 }
 
@@ -1452,7 +1452,7 @@ func (s setGlobalStrict) exec(vm *vm) {
 	name := string(s)
 	o := vm.r.globalObject.self
 	if o.hasOwnPropertyStr(name) {
-		o.putStr(name, v, true)
+		o.setOwnStr(name, v, true)
 	} else {
 		vm.r.throwReferenceError(name)
 	}

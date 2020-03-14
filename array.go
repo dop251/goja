@@ -201,20 +201,6 @@ func (a *arrayObject) getStr(name string, receiver Value) Value {
 	return a.getStrWithOwnProp(a.getOwnPropStr(name), name, receiver)
 }
 
-func (a *arrayObject) getProp(n Value) Value {
-	if v := a.getOwnProp(n); v != nil {
-		return v
-	}
-	return a.getProtoProp(n)
-}
-
-func (a *arrayObject) getPropStr(name string) Value {
-	if val := a.getOwnPropStr(name); val != nil {
-		return val
-	}
-	return a.getProtoPropStr(name)
-}
-
 func (a *arrayObject) getLengthProp() Value {
 	a.lengthProp.value = intToValue(a.length)
 	return &a.lengthProp
@@ -222,7 +208,7 @@ func (a *arrayObject) getLengthProp() Value {
 
 func (a *arrayObject) getOwnProp(n Value) Value {
 	if s, ok := n.(*valueSymbol); ok {
-		return a.getPropSym(s)
+		return a.getOwnPropSym(s)
 	}
 	if idx := toIdx(n); idx >= 0 {
 		return a.getIdx(idx)
@@ -247,46 +233,42 @@ func (a *arrayObject) getOwnPropStr(name string) Value {
 	return a.baseObject.getOwnPropStr(name)
 }
 
-func (a *arrayObject) putIdx(idx int64, val Value, throw bool, origNameStr string, origName Value) {
+func (a *arrayObject) setIdx(idx int64, val Value, throw bool, origNameStr string, origName Value) {
 	var prop Value
 	if idx < int64(len(a.values)) {
 		prop = a.values[idx]
 	}
 
 	if prop == nil {
-		if a.prototype != nil {
-			var pprop Value
+		if proto := a.prototype; proto != nil {
+			// we know it's foreign because prototype loops are not allowed
+			var b bool
 			if origName != nil {
-				pprop = a.prototype.self.getProp(origName)
+				b = proto.self.setForeign(origName, val, a.val, throw)
 			} else {
-				pprop = a.prototype.self.getPropStr(origNameStr)
+				b = proto.self.setForeignStr(origNameStr, val, a.val, throw)
 			}
-			if pprop, ok := pprop.(*valueProperty); ok {
-				if !pprop.isWritable() {
-					a.val.runtime.typeErrorResult(throw)
-					return
-				}
-				if pprop.accessor {
-					pprop.set(a.val, val)
-					return
-				}
+			if b {
+				return
 			}
 		}
-
+		// new property
 		if !a.extensible {
-			a.val.runtime.typeErrorResult(throw)
+			a.val.runtime.typeErrorResult(throw, "Cannot add property %d, object is not extensible", idx)
 			return
-		}
-		if idx >= a.length {
-			if !a.setLengthInt(idx+1, throw) {
-				return
+		} else {
+			if idx >= a.length {
+				if !a.setLengthInt(idx+1, throw) {
+					return
+				}
 			}
-		}
-		if idx >= int64(len(a.values)) {
-			if !a.expand(idx) {
-				a.val.self.(*sparseArrayObject).putIdx(idx, val, throw, origNameStr, origName)
-				return
+			if idx >= int64(len(a.values)) {
+				if !a.expand(idx) {
+					a.val.self.(*sparseArrayObject).add(idx, val)
+					return
+				}
 			}
+			a.objCount++
 		}
 	} else {
 		if prop, ok := prop.(*valueProperty); ok {
@@ -298,33 +280,44 @@ func (a *arrayObject) putIdx(idx int64, val Value, throw bool, origNameStr strin
 			return
 		}
 	}
-
 	a.values[idx] = val
-	a.objCount++
 }
 
-func (a *arrayObject) put(n Value, val Value, throw bool) {
+func (a *arrayObject) setOwn(n Value, val Value, throw bool) {
+	if s, ok := n.(*valueSymbol); ok {
+		a.setOwnSym(s, val, throw)
+		return
+	}
 	if idx := toIdx(n); idx >= 0 {
-		a.putIdx(idx, val, throw, "", n)
+		a.setIdx(idx, val, throw, "", n)
 	} else {
-		if n.String() == "length" {
+		name := n.String()
+		if name == "length" {
 			a.setLength(val, throw)
 		} else {
-			a.baseObject.put(n, val, throw)
+			a.baseObject.setOwnStr(name, val, throw)
 		}
 	}
 }
 
-func (a *arrayObject) putStr(name string, val Value, throw bool) {
+func (a *arrayObject) setOwnStr(name string, val Value, throw bool) {
 	if idx := strToIdx(name); idx >= 0 {
-		a.putIdx(idx, val, throw, name, nil)
+		a.setIdx(idx, val, throw, name, nil)
 	} else {
 		if name == "length" {
 			a.setLength(val, throw)
 		} else {
-			a.baseObject.putStr(name, val, throw)
+			a.baseObject.setOwnStr(name, val, throw)
 		}
 	}
+}
+
+func (o *arrayObject) setForeign(name Value, val, receiver Value, throw bool) bool {
+	return o._setForeign(name, o.getOwnProp(name), val, receiver, throw)
+}
+
+func (o *arrayObject) setForeignStr(name string, val, receiver Value, throw bool) bool {
+	return o._setForeignStr(name, o.getOwnPropStr(name), val, receiver, throw)
 }
 
 type arrayPropIter struct {
@@ -362,6 +355,9 @@ func (a *arrayObject) enumerate(all, recursive bool) iterNextFunc {
 }
 
 func (a *arrayObject) hasOwnProperty(n Value) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return a.hasSym(s)
+	}
 	if idx := toIdx(n); idx >= 0 {
 		return idx < int64(len(a.values)) && a.values[idx] != nil
 	} else {
@@ -390,7 +386,7 @@ func (a *arrayObject) expand(idx int64) bool {
 					length:         a.length,
 					propValueCount: a.propValueCount,
 				}
-				sa.setValues(a.values)
+				sa.setValues(a.values, a.objCount+1)
 				sa.val.self = sa
 				sa.init()
 				sa.lengthProp.writable = a.lengthProp.writable
@@ -476,7 +472,7 @@ func (a *arrayObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw
 					a.propValueCount++
 				}
 			} else {
-				a.val.self.(*sparseArrayObject).putIdx(idx, prop, throw, "", nil)
+				a.val.self.(*sparseArrayObject).add(idx, prop)
 			}
 		}
 		return ok
@@ -535,8 +531,8 @@ func (a *arrayObject) exportType() reflect.Type {
 	return reflectTypeArray
 }
 
-func (a *arrayObject) setValuesFromSparse(items []sparseArrayItem) {
-	a.values = make([]Value, int(items[len(items)-1].idx+1))
+func (a *arrayObject) setValuesFromSparse(items []sparseArrayItem, newMaxIdx int64) {
+	a.values = make([]Value, newMaxIdx+1)
 	for _, item := range items {
 		a.values[item.idx] = item.value
 	}

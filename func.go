@@ -53,20 +53,6 @@ func (f *funcObject) getStr(p string, receiver Value) Value {
 	return f.getStrWithOwnProp(f.getOwnPropStr(p), p, receiver)
 }
 
-func (f *funcObject) getProp(n Value) Value {
-	if v := f.getOwnProp(n); v != nil {
-		return v
-	}
-	return f.getProtoProp(n)
-}
-
-func (f *funcObject) getPropStr(name string) Value {
-	if val := f.getOwnPropStr(name); val != nil {
-		return val
-	}
-	return f.getProtoPropStr(name)
-}
-
 func (f *funcObject) getOwnProp(name Value) Value {
 	if s, ok := name.(*valueSymbol); ok {
 		return f.symValues[s]
@@ -83,17 +69,25 @@ func (f *funcObject) getOwnPropStr(name string) Value {
 	return f.baseObject.getOwnPropStr(name)
 }
 
-func (f *funcObject) putStr(name string, val Value, throw bool) {
+func (f *funcObject) setOwnStr(name string, val Value, throw bool) {
 	f._addProto(name)
-	f.baseObject.putStr(name, val, throw)
+	f.baseObject.setOwnStr(name, val, throw)
 }
 
-func (f *funcObject) put(n Value, val Value, throw bool) {
+func (f *funcObject) setOwn(n Value, val Value, throw bool) {
 	if s, ok := n.(*valueSymbol); ok {
-		f.putSym(s, val, throw)
+		f.setOwnSym(s, val, throw)
 	} else {
-		f.putStr(n.String(), val, throw)
+		f.setOwnStr(n.String(), val, throw)
 	}
+}
+
+func (f *funcObject) setForeign(name Value, val, receiver Value, throw bool) bool {
+	return f._setForeign(name, f.getOwnProp(name), val, receiver, throw)
+}
+
+func (f *funcObject) setForeignStr(name string, val, receiver Value, throw bool) bool {
+	return f._setForeignStr(name, f.getOwnPropStr(name), val, receiver, throw)
 }
 
 func (f *funcObject) deleteStr(name string, throw bool) bool {
@@ -271,21 +265,6 @@ func (f *boundFuncObject) getStr(p string, receiver Value) Value {
 	return f.getStrWithOwnProp(f.getOwnPropStr(p), p, receiver)
 }
 
-func (f *boundFuncObject) getProp(n Value) Value {
-	if v := f.getOwnProp(n); v != nil {
-		return v
-	}
-	return f.getProtoProp(n)
-}
-
-func (f *boundFuncObject) getPropStr(name string) Value {
-	if val := f.getOwnPropStr(name); val != nil {
-		return val
-	}
-
-	return f.getProtoPropStr(name)
-}
-
 func (f *boundFuncObject) getOwnProp(name Value) Value {
 	if s, ok := name.(*valueSymbol); ok {
 		return f.getOwnPropSym(s)
@@ -316,19 +295,27 @@ func (f *boundFuncObject) deleteStr(name string, throw bool) bool {
 	return f.nativeFuncObject.deleteStr(name, throw)
 }
 
-func (f *boundFuncObject) putStr(name string, val Value, throw bool) {
+func (f *boundFuncObject) setOwnStr(name string, val Value, throw bool) {
 	if name == "caller" || name == "arguments" {
 		f.val.runtime.typeErrorResult(true, "'caller' and 'arguments' are restricted function properties and cannot be accessed in this context.")
 	}
-	f.nativeFuncObject.putStr(name, val, throw)
+	f.nativeFuncObject.setOwnStr(name, val, throw)
 }
 
-func (f *boundFuncObject) put(n Value, val Value, throw bool) {
+func (f *boundFuncObject) setOwn(n Value, val Value, throw bool) {
 	if s, ok := n.(*valueSymbol); ok {
-		f.putSym(s, val, throw)
+		f.setOwnSym(s, val, throw)
 		return
 	}
-	f.putStr(n.String(), val, throw)
+	f.setOwnStr(n.String(), val, throw)
+}
+
+func (f *boundFuncObject) setForeign(name Value, val, receiver Value, throw bool) bool {
+	return f._setForeign(name, f.getOwnProp(name), val, receiver, throw)
+}
+
+func (f *boundFuncObject) setForeignStr(name string, val, receiver Value, throw bool) bool {
+	return f._setForeignStr(name, f.getOwnPropStr(name), val, receiver, throw)
 }
 
 func (f *boundFuncObject) hasInstance(v Value) bool {

@@ -40,20 +40,6 @@ func (o *objectGoMapSimple) getStr(name string, receiver Value) Value {
 	return o.baseObject.getStr(name, receiver)
 }
 
-func (o *objectGoMapSimple) getProp(n Value) Value {
-	if v := o.getOwnProp(n); v != nil {
-		return v
-	}
-	return o.getProtoProp(n)
-}
-
-func (o *objectGoMapSimple) getPropStr(name string) Value {
-	if val := o.getOwnPropStr(name); val != nil {
-		return val
-	}
-	return o.getProtoPropStr(name)
-}
-
 func (o *objectGoMapSimple) getOwnPropStr(name string) Value {
 	if v := o._getStr(name); v != nil {
 		return v
@@ -63,18 +49,57 @@ func (o *objectGoMapSimple) getOwnPropStr(name string) Value {
 
 func (o *objectGoMapSimple) getOwnProp(n Value) Value {
 	if s, ok := n.(*valueSymbol); ok {
-		return o.getPropSym(s)
+		return o.getOwnPropSym(s)
 	}
 
 	return o.getOwnPropStr(n.String())
 }
 
-func (o *objectGoMapSimple) put(n Value, val Value, throw bool) {
+func (o *objectGoMapSimple) setOwn(n Value, val Value, throw bool) {
 	if s, ok := n.(*valueSymbol); ok {
-		o.putSym(s, val, throw)
+		o.setOwnSym(s, val, throw)
 		return
 	}
-	o.putStr(n.String(), val, throw)
+
+	o.setOwnStr(n.String(), val, throw)
+}
+
+func (o *objectGoMapSimple) setOwnStr(name string, val Value, throw bool) {
+	if _, exists := o.data[name]; exists {
+		o.data[name] = val.Export()
+		return
+	}
+	if name == __proto__ {
+		o._setProto(val)
+		return
+	}
+	if proto := o.prototype; proto != nil {
+		// we know it's foreign because prototype loops are not allowed
+		if proto.self.setForeignStr(name, val, o.val, throw) {
+			return
+		}
+	}
+	// new property
+	if !o.extensible {
+		o.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
+	} else {
+		o.data[name] = val.Export()
+	}
+}
+
+func trueValIfPresent(present bool) Value {
+	if present {
+		return valueTrue
+	}
+	return nil
+}
+
+func (o *objectGoMapSimple) setForeign(name Value, val, receiver Value, throw bool) bool {
+	return o._setForeign(name, o.getOwnProp(name), val, receiver, throw)
+}
+
+func (o *objectGoMapSimple) setForeignStr(name string, val, receiver Value, throw bool) bool {
+	return o._setForeignStr(name, trueValIfPresent(o._hasStr(name)), val, receiver, throw)
 }
 
 func (o *objectGoMapSimple) _hasStr(name string) bool {
@@ -83,26 +108,21 @@ func (o *objectGoMapSimple) _hasStr(name string) bool {
 }
 
 func (o *objectGoMapSimple) _has(n Value) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.hasSym(s)
+	}
 	return o._hasStr(n.String())
 }
 
-func (o *objectGoMapSimple) putStr(name string, val Value, throw bool) {
-	if o._hasStr(name) || !o.protoPut(name, val, throw) {
-		o.data[name] = val.Export()
-	}
-}
-
 func (o *objectGoMapSimple) hasOwnProperty(n Value) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.hasSym(s)
+	}
 	return o._has(n)
 }
 
 func (o *objectGoMapSimple) hasOwnPropertyStr(name string) bool {
 	return o._hasStr(name)
-}
-
-func (o *objectGoMapSimple) _putProp(name string, value Value, writable, enumerable, configurable bool) Value {
-	o.putStr(name, value, false)
-	return value
 }
 
 func (o *objectGoMapSimple) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
@@ -141,7 +161,7 @@ func (o *objectGoMapSimple) assertCallable() (call func(FunctionCall) Value, ok 
 }
 */
 
-func (o *objectGoMapSimple) deleteStr(name string, throw bool) bool {
+func (o *objectGoMapSimple) deleteStr(name string, _ bool) bool {
 	delete(o.data, name)
 	return true
 }
@@ -228,6 +248,6 @@ func (o *objectGoMapSimple) swap(i, j int64) {
 	x := o.getStr(ii, nil)
 	y := o.getStr(jj, nil)
 
-	o.putStr(ii, y, false)
-	o.putStr(jj, x, false)
+	o.setOwnStr(ii, y, false)
+	o.setOwnStr(jj, x, false)
 }

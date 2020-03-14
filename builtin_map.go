@@ -220,7 +220,7 @@ func (r *Runtime) createMapProto(val *Object) objectImpl {
 	o._putProp("forEach", r.newNativeFunc(r.mapProto_forEach, nil, "forEach", nil, 1), true, false, true)
 	o._putProp("has", r.newNativeFunc(r.mapProto_has, nil, "has", nil, 1), true, false, true)
 	o._putProp("get", r.newNativeFunc(r.mapProto_get, nil, "get", nil, 1), true, false, true)
-	o.putStr("size", &valueProperty{
+	o.setOwnStr("size", &valueProperty{
 		getterFunc:   r.newNativeFunc(r.mapProto_getSize, nil, "get size", nil, 0),
 		accessor:     true,
 		writable:     true,
@@ -231,19 +231,19 @@ func (r *Runtime) createMapProto(val *Object) objectImpl {
 
 	entriesFunc := r.newNativeFunc(r.mapProto_entries, nil, "entries", nil, 0)
 	o._putProp("entries", entriesFunc, true, false, true)
-	o.put(symIterator, valueProp(entriesFunc, true, false, true), true)
-	o.put(symToStringTag, valueProp(asciiString(classMap), false, false, true), true)
+	o._putSym(symIterator, valueProp(entriesFunc, true, false, true))
+	o._putSym(symToStringTag, valueProp(asciiString(classMap), false, false, true))
 
 	return o
 }
 
 func (r *Runtime) createMap(val *Object) objectImpl {
 	o := r.newNativeFuncObj(val, r.constructorThrower("Map"), r.builtin_newMap, "Map", r.global.MapPrototype, 0)
-	o.putSym(symSpecies, &valueProperty{
+	o._putSym(symSpecies, &valueProperty{
 		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
 		accessor:     true,
 		configurable: true,
-	}, true)
+	})
 
 	return o
 }
@@ -252,7 +252,7 @@ func (r *Runtime) createMapIterProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.IteratorPrototype, classObject)
 
 	o._putProp("next", r.newNativeFunc(r.mapIterProto_next, nil, "next", nil, 0), true, false, true)
-	o.put(symToStringTag, valueProp(asciiString(classMapIterator), false, false, true), true)
+	o._putSym(symToStringTag, valueProp(asciiString(classMapIterator), false, false, true))
 
 	return o
 }

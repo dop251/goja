@@ -30,7 +30,7 @@ func setArrayValues(a *arrayObject, values []Value) *arrayObject {
 }
 
 func setArrayLength(a *arrayObject, l int64) *arrayObject {
-	a.putStr("length", intToValue(l), true)
+	a.setOwnStr("length", intToValue(l), true)
 	return a
 }
 
@@ -116,10 +116,10 @@ func (r *Runtime) generic_push(obj *Object, call FunctionCall) Value {
 		panic("unreachable")
 	}
 	for i, arg := range call.Arguments {
-		obj.self.put(intToValue(l+int64(i)), arg, true)
+		obj.self.setOwn(intToValue(l+int64(i)), arg, true)
 	}
 	n := intToValue(nl)
-	obj.self.putStr("length", n, true)
+	obj.self.setOwnStr("length", n, true)
 	return n
 }
 
@@ -131,13 +131,13 @@ func (r *Runtime) arrayproto_push(call FunctionCall) Value {
 func (r *Runtime) arrayproto_pop_generic(obj *Object) Value {
 	l := toLength(obj.self.getStr("length", nil))
 	if l == 0 {
-		obj.self.putStr("length", intToValue(0), true)
+		obj.self.setOwnStr("length", intToValue(0), true)
 		return _undefined
 	}
 	idx := intToValue(l - 1)
 	val := obj.self.get(idx, nil)
 	obj.self.delete(idx, true)
-	obj.self.putStr("length", idx, true)
+	obj.self.setOwnStr("length", idx, true)
 	return val
 }
 
@@ -279,7 +279,7 @@ func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 		createDataPropertyOrThrow(a, intToValue(aLength), item)
 		aLength++
 	}
-	a.self.putStr("length", intToValue(aLength), true)
+	a.self.setOwnStr("length", intToValue(aLength), true)
 }
 
 func (r *Runtime) arrayproto_concat(call FunctionCall) Value {
@@ -413,7 +413,7 @@ func (r *Runtime) arrayproto_splice(call FunctionCall) Value {
 				from := intToValue(k + actualDeleteCount)
 				to := intToValue(k + itemCount)
 				if o.self.hasProperty(from) {
-					o.self.put(to, o.self.get(from, nil), true)
+					o.self.setOwn(to, o.self.get(from, nil), true)
 				} else {
 					o.self.delete(to, true)
 				}
@@ -427,7 +427,7 @@ func (r *Runtime) arrayproto_splice(call FunctionCall) Value {
 				from := intToValue(k + actualDeleteCount - 1)
 				to := intToValue(k + itemCount - 1)
 				if o.self.hasProperty(from) {
-					o.self.put(to, o.self.get(from, nil), true)
+					o.self.setOwn(to, o.self.get(from, nil), true)
 				} else {
 					o.self.delete(to, true)
 				}
@@ -436,12 +436,12 @@ func (r *Runtime) arrayproto_splice(call FunctionCall) Value {
 
 		if itemCount > 0 {
 			for i, item := range call.Arguments[2:] {
-				o.self.put(intToValue(actualStart+int64(i)), item, true)
+				o.self.setOwn(intToValue(actualStart+int64(i)), item, true)
 			}
 		}
 	}
 
-	o.self.putStr("length", intToValue(newLength), true)
+	o.self.setOwnStr("length", intToValue(newLength), true)
 
 	return a
 }
@@ -468,18 +468,18 @@ func (r *Runtime) arrayproto_unshift(call FunctionCall) Value {
 			from := intToValue(k)
 			to := intToValue(k + argCount)
 			if o.self.hasProperty(from) {
-				o.self.put(to, o.self.get(from, nil), true)
+				o.self.setOwn(to, o.self.get(from, nil), true)
 			} else {
 				o.self.delete(to, true)
 			}
 		}
 
 		for k, arg := range call.Arguments {
-			o.self.put(intToValue(int64(k)), arg, true)
+			o.self.setOwn(intToValue(int64(k)), arg, true)
 		}
 	}
 
-	o.self.putStr("length", newLen, true)
+	o.self.setOwnStr("length", newLen, true)
 	return newLen
 }
 
@@ -803,14 +803,14 @@ func arrayproto_reverse_generic_step(o *Object, lower, upper int64) {
 	lowerValue := o.self.get(lowerP, nil)
 	upperValue := o.self.get(upperP, nil)
 	if lowerValue != nil && upperValue != nil {
-		o.self.put(lowerP, upperValue, true)
-		o.self.put(upperP, lowerValue, true)
+		o.self.setOwn(lowerP, upperValue, true)
+		o.self.setOwn(upperP, lowerValue, true)
 	} else if lowerValue == nil && upperValue != nil {
-		o.self.put(lowerP, upperValue, true)
+		o.self.setOwn(lowerP, upperValue, true)
 		o.self.delete(upperP, true)
 	} else if lowerValue != nil && upperValue == nil {
 		o.self.delete(lowerP, true)
-		o.self.put(upperP, lowerValue, true)
+		o.self.setOwn(upperP, lowerValue, true)
 	}
 }
 
@@ -842,14 +842,14 @@ func (r *Runtime) arrayproto_shift(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	length := toLength(o.self.getStr("length", nil))
 	if length == 0 {
-		o.self.putStr("length", intToValue(0), true)
+		o.self.setOwnStr("length", intToValue(0), true)
 		return _undefined
 	}
 	first := o.self.get(intToValue(0), nil)
 	for i := int64(1); i < length; i++ {
 		v := o.self.get(intToValue(i), nil)
 		if v != nil {
-			o.self.put(intToValue(i-1), v, true)
+			o.self.setOwn(intToValue(i-1), v, true)
 		} else {
 			o.self.delete(intToValue(i-1), true)
 		}
@@ -857,7 +857,7 @@ func (r *Runtime) arrayproto_shift(call FunctionCall) Value {
 
 	lv := intToValue(length - 1)
 	o.self.delete(lv, true)
-	o.self.putStr("length", lv, true)
+	o.self.setOwnStr("length", lv, true)
 
 	return first
 }
@@ -898,7 +898,7 @@ func (r *Runtime) arrayproto_copyWithin(call FunctionCall) Value {
 	}
 	for count > 0 {
 		if p := o.self.get(intToValue(from), nil); p != nil {
-			o.self.put(intToValue(to), p, true)
+			o.self.setOwn(intToValue(to), p, true)
 		} else {
 			o.self.delete(intToValue(to), true)
 		}
@@ -932,7 +932,7 @@ func (r *Runtime) arrayproto_fill(call FunctionCall) Value {
 		}
 	} else {
 		for ; k < final; k++ {
-			o.self.put(intToValue(k), value, true)
+			o.self.setOwn(intToValue(k), value, true)
 		}
 	}
 	return o
@@ -1064,7 +1064,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 			createDataPropertyOrThrow(arr, intToValue(k), val)
 			k++
 		})
-		arr.self.putStr("length", intToValue(k), true)
+		arr.self.setOwnStr("length", intToValue(k), true)
 	} else {
 		arrayLike := items.ToObject(r)
 		l := toLength(arrayLike.self.getStr("length", nil))
@@ -1093,7 +1093,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 			}
 			createDataPropertyOrThrow(arr, idx, item)
 		}
-		arr.self.putStr("length", intToValue(l), true)
+		arr.self.setOwnStr("length", intToValue(l), true)
 	}
 
 	return arr
@@ -1127,7 +1127,7 @@ func (r *Runtime) array_of(call FunctionCall) Value {
 	for i, val := range call.Arguments {
 		createDataPropertyOrThrow(arr, intToValue(int64(i)), val)
 	}
-	arr.self.putStr("length", l, true)
+	arr.self.setOwnStr("length", l, true)
 	return arr
 }
 
@@ -1182,17 +1182,17 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 	r.global.arrayValues = valuesFunc
 	o._putProp("values", valuesFunc, true, false, true)
 
-	o.put(symIterator, valueProp(valuesFunc, true, false, true), true)
+	o._putSym(symIterator, valueProp(valuesFunc, true, false, true))
 
 	bl := r.NewObject()
-	bl.self.putStr("copyWithin", valueTrue, true)
-	bl.self.putStr("entries", valueTrue, true)
-	bl.self.putStr("fill", valueTrue, true)
-	bl.self.putStr("find", valueTrue, true)
-	bl.self.putStr("findIndex", valueTrue, true)
-	bl.self.putStr("keys", valueTrue, true)
-	bl.self.putStr("values", valueTrue, true)
-	o.put(symUnscopables, valueProp(bl, false, false, true), true)
+	bl.self.setOwnStr("copyWithin", valueTrue, true)
+	bl.self.setOwnStr("entries", valueTrue, true)
+	bl.self.setOwnStr("fill", valueTrue, true)
+	bl.self.setOwnStr("find", valueTrue, true)
+	bl.self.setOwnStr("findIndex", valueTrue, true)
+	bl.self.setOwnStr("keys", valueTrue, true)
+	bl.self.setOwnStr("values", valueTrue, true)
+	o._putSym(symUnscopables, valueProp(bl, false, false, true))
 
 	return o
 }
@@ -1202,11 +1202,11 @@ func (r *Runtime) createArray(val *Object) objectImpl {
 	o._putProp("from", r.newNativeFunc(r.array_from, nil, "from", nil, 1), true, false, true)
 	o._putProp("isArray", r.newNativeFunc(r.array_isArray, nil, "isArray", nil, 1), true, false, true)
 	o._putProp("of", r.newNativeFunc(r.array_of, nil, "of", nil, 0), true, false, true)
-	o.putSym(symSpecies, &valueProperty{
+	o._putSym(symSpecies, &valueProperty{
 		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
 		accessor:     true,
 		configurable: true,
-	}, true)
+	})
 
 	return o
 }
@@ -1215,7 +1215,7 @@ func (r *Runtime) createArrayIterProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.IteratorPrototype, classObject)
 
 	o._putProp("next", r.newNativeFunc(r.arrayIterProto_next, nil, "next", nil, 0), true, false, true)
-	o.put(symToStringTag, valueProp(asciiString(classArrayIterator), false, false, true), true)
+	o._putSym(symToStringTag, valueProp(asciiString(classArrayIterator), false, false, true))
 
 	return o
 }

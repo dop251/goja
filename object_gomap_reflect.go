@@ -71,20 +71,6 @@ func (o *objectGoMapReflect) getStr(name string, receiver Value) Value {
 	return o.objectGoReflect.getStr(name, receiver)
 }
 
-func (o *objectGoMapReflect) getProp(n Value) Value {
-	if v := o._get(n); v != nil {
-		return v
-	}
-	return o.objectGoReflect.getProp(n)
-}
-
-func (o *objectGoMapReflect) getPropStr(name string) Value {
-	if v := o._getStr(name); v != nil {
-		return v
-	}
-	return o.objectGoReflect.getPropStr(name)
-}
-
 func (o *objectGoMapReflect) getOwnPropStr(name string) Value {
 	if v := o._getStr(name); v != nil {
 		return &valueProperty{
@@ -117,49 +103,65 @@ func (o *objectGoMapReflect) toValue(val Value, throw bool) (reflect.Value, bool
 	return v, true
 }
 
-func (o *objectGoMapReflect) _put(key, val Value, throw bool) {
-	k := o.toKey(key, throw)
-	v, ok := o.toValue(val, throw)
-	if !ok {
-		return
-	}
-	o.value.SetMapIndex(k, v)
-}
-
-func (o *objectGoMapReflect) put(key, val Value, throw bool) {
+func (o *objectGoMapReflect) setOwn(key, val Value, throw bool) {
 	if s, ok := key.(*valueSymbol); ok {
-		o.putSym(s, val, throw)
+		o.setOwnSym(s, val, throw)
 		return
 	}
 	if s, ok := key.assertString(); ok {
-		o.putStr(s.String(), val, throw)
-		return
+		o.setOwnStr(s.String(), val, throw)
+	} else {
+		o._put(o.toKey(key, throw), val, throw)
 	}
-	if !o.extensible {
-		o.val.runtime.typeErrorResult(throw, "Cannot set property %s, object is not extensible", key.String())
-		return
+}
+
+func (o *objectGoMapReflect) _put(key reflect.Value, val Value, throw bool) {
+	if key.IsValid() {
+		if o.extensible || o.value.MapIndex(key).IsValid() {
+			v, ok := o.toValue(val, throw)
+			if !ok {
+				return
+			}
+			o.value.SetMapIndex(key, v)
+		} else {
+			o.val.runtime.typeErrorResult(throw, "Cannot set property %s, object is not extensible", key.String())
+		}
+	}
+}
+
+func (o *objectGoMapReflect) setOwnStr(name string, val Value, throw bool) {
+	key := o.strToKey(name, false)
+	if !key.IsValid() || !o.value.MapIndex(key).IsValid() {
+		if name == __proto__ {
+			o._setProto(val)
+			return
+		}
+		if proto := o.prototype; proto != nil {
+			// we know it's foreign because prototype loops are not allowed
+			if proto.self.setForeignStr(name, val, o.val, throw) {
+				return
+			}
+		}
+		// new property
+		if !o.extensible {
+			o.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
+			return
+		} else {
+			if throw && !key.IsValid() {
+				o.strToKey(name, true)
+				return
+			}
+		}
 	}
 	o._put(key, val, throw)
 }
 
-func (o *objectGoMapReflect) putStr(name string, val Value, throw bool) {
-	k := o.strToKey(name, throw)
-	if k.IsValid() && o.value.MapIndex(k).IsValid() || !o.protoPut(name, val, throw) {
-		if !k.IsValid() {
-			o.val.runtime.typeErrorResult(throw, "GoMapReflect: invalid key: '%s'")
-			return
-		}
-		v, ok := o.toValue(val, throw)
-		if !ok {
-			return
-		}
-		o.value.SetMapIndex(k, v)
-	}
+func (o *objectGoMapReflect) setForeign(name Value, val, receiver Value, throw bool) bool {
+	return o._setForeign(name, o.getOwnProp(name), val, receiver, throw)
 }
 
-func (o *objectGoMapReflect) _putProp(name string, value Value, writable, enumerable, configurable bool) Value {
-	o.putStr(name, value, true)
-	return value
+func (o *objectGoMapReflect) setForeignStr(name string, val, receiver Value, throw bool) bool {
+	return o._setForeignStr(name, trueValIfPresent(o.hasOwnPropertyStr(name)), val, receiver, throw)
 }
 
 func (o *objectGoMapReflect) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
@@ -188,16 +190,18 @@ func (o *objectGoMapReflect) defineOwnProperty(n Value, descr PropertyDescriptor
 
 func (o *objectGoMapReflect) hasOwnPropertyStr(name string) bool {
 	key := o.strToKey(name, false)
-	if !key.IsValid() {
-		return false
+	if key.IsValid() && o.value.MapIndex(key).IsValid() {
+		return true
 	}
-	return o.value.MapIndex(key).IsValid()
+	return o.objectGoReflect.hasOwnPropertyStr(name)
 }
 
 func (o *objectGoMapReflect) hasOwnProperty(n Value) bool {
 	if s, ok := n.(*valueSymbol); ok {
-		_, exists := o.symValues[s]
-		return exists
+		return o.hasSym(s)
+	}
+	if s, ok := n.assertString(); ok {
+		return o.hasOwnPropertyStr(s.String())
 	}
 
 	key := o.toKey(n, false)

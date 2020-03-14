@@ -110,20 +110,6 @@ func (s *stringObject) getStr(name string, receiver Value) Value {
 	return s.baseObject.getStr(name, receiver)
 }
 
-func (s *stringObject) getPropStr(name string) Value {
-	if i := strToIdx(name); i >= 0 && i < s.length {
-		return s.getIdx(i)
-	}
-	return s.baseObject.getPropStr(name)
-}
-
-func (s *stringObject) getProp(n Value) Value {
-	if i := toIdx(n); i >= 0 && i < s.length {
-		return s.getIdx(i)
-	}
-	return s.baseObject.getProp(n)
-}
-
 func (s *stringObject) getOwnPropStr(name string) Value {
 	if i := strToIdx(name); i >= 0 && i < s.length {
 		val := s.getIdx(i)
@@ -152,22 +138,34 @@ func (s *stringObject) getIdx(idx int64) Value {
 	return s.value.substring(idx, idx+1)
 }
 
-func (s *stringObject) put(n Value, val Value, throw bool) {
+func (s *stringObject) setOwn(n Value, val Value, throw bool) {
+	if sym, ok := n.(*valueSymbol); ok {
+		s.setOwnSym(sym, val, throw)
+		return
+	}
 	if i := toIdx(n); i >= 0 && i < s.length {
 		s.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%d' of a String", i)
 		return
 	}
 
-	s.baseObject.put(n, val, throw)
+	s.baseObject.setOwnStr(n.String(), val, throw)
 }
 
-func (s *stringObject) putStr(name string, val Value, throw bool) {
+func (s *stringObject) setOwnStr(name string, val Value, throw bool) {
 	if i := strToIdx(name); i >= 0 && i < s.length {
 		s.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%d' of a String", i)
 		return
 	}
 
-	s.baseObject.putStr(name, val, throw)
+	s.baseObject.setOwnStr(name, val, throw)
+}
+
+func (s *stringObject) setForeign(name Value, val, receiver Value, throw bool) bool {
+	return s._setForeign(name, s.getOwnProp(name), val, receiver, throw)
+}
+
+func (s *stringObject) setForeignStr(name string, val, receiver Value, throw bool) bool {
+	return s._setForeignStr(name, s.getOwnPropStr(name), val, receiver, throw)
 }
 
 func (s *stringObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
@@ -232,10 +230,13 @@ func (s *stringObject) delete(n Value, throw bool) bool {
 }
 
 func (s *stringObject) hasOwnProperty(n Value) bool {
+	if sym, ok := n.(*valueSymbol); ok {
+		return s.hasSym(sym)
+	}
 	if i := toIdx(n); i >= 0 && i < s.length {
 		return true
 	}
-	return s.baseObject.hasOwnProperty(n)
+	return s.baseObject.hasOwnPropertyStr(n.String())
 }
 
 func (s *stringObject) hasOwnPropertyStr(name string) bool {

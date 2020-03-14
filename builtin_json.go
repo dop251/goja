@@ -31,7 +31,7 @@ func (r *Runtime) builtinJSON_parse(call FunctionCall) Value {
 
 	if reviver != nil {
 		root := r.NewObject()
-		root.self.putStr("", value, false)
+		root.self.setOwnStr("", value, false)
 		return r.builtinJSON_reviveWalk(reviver, root, stringEmpty)
 	}
 
@@ -94,7 +94,7 @@ func (r *Runtime) builtinJSON_decodeObject(d *json.Decoder) (*Object, error) {
 			}
 			object.self.defineOwnProperty(string__proto__, descr, false)
 		} else {
-			object.self.putStr(key, value, false)
+			object.self.setOwnStr(key, value, false)
 		}
 	}
 	return object, nil
@@ -162,7 +162,7 @@ func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holde
 				if value == _undefined {
 					object.self.delete(name, false)
 				} else {
-					object.self.put(name, value, false)
+					object.self.setOwn(name, value, false)
 				}
 			}
 		} else {
@@ -171,7 +171,7 @@ func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holde
 				if value == _undefined {
 					object.self.deleteStr(item.name, false)
 				} else {
-					object.self.putStr(item.name, value, false)
+					object.self.setOwnStr(item.name, value, false)
 				}
 			}
 		}
@@ -275,7 +275,7 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 
 func (ctx *_builtinJSON_stringifyContext) do(v Value) bool {
 	holder := ctx.r.NewObject()
-	holder.self.putStr("", v, false)
+	holder.self.setOwnStr("", v, false)
 	return ctx.str(stringEmpty, holder)
 }
 

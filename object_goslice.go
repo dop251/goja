@@ -68,20 +68,6 @@ func (o *objectGoSlice) getStr(name string, receiver Value) Value {
 	return o.baseObject.getStr(name, receiver)
 }
 
-func (o *objectGoSlice) getProp(n Value) Value {
-	if v := o._get(n); v != nil {
-		return v
-	}
-	return o.baseObject.getProp(n)
-}
-
-func (o *objectGoSlice) getPropStr(name string) Value {
-	if v := o._getStr(name); v != nil {
-		return v
-	}
-	return o.baseObject.getPropStr(name)
-}
-
 func (o *objectGoSlice) getOwnPropStr(name string) Value {
 	if v := o._getStr(name); v != nil {
 		return &valueProperty{
@@ -173,9 +159,9 @@ func (o *objectGoSlice) putLength(v Value, throw bool) {
 	}
 }
 
-func (o *objectGoSlice) put(n Value, val Value, throw bool) {
+func (o *objectGoSlice) setOwn(n Value, val Value, throw bool) {
 	if s, ok := n.(*valueSymbol); ok {
-		o.putSym(s, val, throw)
+		o.setOwnSym(s, val, throw)
 		return
 	}
 	if idx := toIdx(n); idx >= 0 {
@@ -187,12 +173,12 @@ func (o *objectGoSlice) put(n Value, val Value, throw bool) {
 		o.putLength(val, throw)
 		return
 	}
-	if !o.protoPut(name, val, throw) {
+	if !o._setForeignStr(name, nil, val, o.val, throw) {
 		o.val.runtime.typeErrorResult(throw, "Can't set property '%s' on Go slice", name)
 	}
 }
 
-func (o *objectGoSlice) putStr(name string, val Value, throw bool) {
+func (o *objectGoSlice) setOwnStr(name string, val Value, throw bool) {
 	if idx := strToIdx(name); idx >= 0 {
 		o.putIdx(idx, val, throw)
 		return
@@ -201,9 +187,17 @@ func (o *objectGoSlice) putStr(name string, val Value, throw bool) {
 		o.putLength(val, throw)
 		return
 	}
-	if !o.protoPut(name, val, throw) {
+	if !o._setForeignStr(name, nil, val, o.val, throw) {
 		o.val.runtime.typeErrorResult(throw, "Can't set property '%s' on Go slice", name)
 	}
+}
+
+func (o *objectGoSlice) setForeign(name Value, val, receiver Value, throw bool) bool {
+	return o._setForeign(name, nil, val, receiver, throw)
+}
+
+func (o *objectGoSlice) setForeignStr(name string, val, receiver Value, throw bool) bool {
+	return o._setForeignStr(name, nil, val, receiver, throw)
 }
 
 func (o *objectGoSlice) _has(n Value) bool {
@@ -221,22 +215,14 @@ func (o *objectGoSlice) _hasStr(name string) bool {
 }
 
 func (o *objectGoSlice) hasOwnProperty(n Value) bool {
-	if o._has(n) {
-		return true
+	if s, ok := n.(*valueSymbol); ok {
+		return o.hasSym(s)
 	}
-	return o.baseObject.hasOwnProperty(n)
+	return o._has(n)
 }
 
 func (o *objectGoSlice) hasOwnPropertyStr(name string) bool {
-	if o._hasStr(name) {
-		return true
-	}
-	return o.baseObject.hasOwnPropertyStr(name)
-}
-
-func (o *objectGoSlice) _putProp(name string, value Value, writable, enumerable, configurable bool) Value {
-	o.putStr(name, value, false)
-	return value
+	return o._hasStr(name)
 }
 
 func (o *objectGoSlice) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
@@ -357,6 +343,6 @@ func (o *objectGoSlice) swap(i, j int64) {
 	x := o.get(ii, nil)
 	y := o.get(jj, nil)
 
-	o.put(ii, y, false)
-	o.put(jj, x, false)
+	o.setOwn(ii, y, false)
+	o.setOwn(jj, x, false)
 }

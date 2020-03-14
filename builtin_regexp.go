@@ -321,7 +321,7 @@ func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, arg Value) Value 
 	rx := rxObj.self
 	global := rx.getStr("global", nil)
 	if global != nil && global.ToBoolean() {
-		rx.putStr("lastIndex", intToValue(0), true)
+		rx.setOwnStr("lastIndex", intToValue(0), true)
 		execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
 		if !ok {
 			panic(r.NewTypeError("exec is not a function"))
@@ -336,7 +336,7 @@ func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, arg Value) Value 
 			a = append(a, matchStr)
 			if matchStr.length() == 0 {
 				thisIndex := rx.getStr("lastIndex", nil).ToInteger()
-				rx.putStr("lastIndex", intToValue(thisIndex+1), true) // TODO fullUnicode
+				rx.setOwnStr("lastIndex", intToValue(thisIndex+1), true) // TODO fullUnicode
 			}
 		}
 		if len(a) == 0 {
@@ -358,7 +358,7 @@ func (r *Runtime) checkStdRegexp(rxObj *Object) *regexpObject {
 	if !ok {
 		return nil
 	}
-	execFn := rx.getPropStr("exec")
+	execFn := rx.getStr("exec", nil)
 	if execFn != nil && execFn != r.global.regexpProtoExec {
 		return nil
 	}
@@ -374,7 +374,7 @@ func (r *Runtime) regexpproto_stdMatcher(call FunctionCall) Value {
 		return r.regexpproto_stdMatcherGeneric(thisObj, s)
 	}
 	if rx.global {
-		rx.putStr("lastIndex", intToValue(0), true)
+		rx.setOwnStr("lastIndex", intToValue(0), true)
 		var a []Value
 		var previousLastIndex int64
 		for {
@@ -385,7 +385,7 @@ func (r *Runtime) regexpproto_stdMatcher(call FunctionCall) Value {
 			thisIndex := rx.getStr("lastIndex", nil).ToInteger()
 			if thisIndex == previousLastIndex {
 				previousLastIndex++
-				rx.putStr("lastIndex", intToValue(previousLastIndex), true)
+				rx.setOwnStr("lastIndex", intToValue(previousLastIndex), true)
 			} else {
 				previousLastIndex = thisIndex
 			}
@@ -403,14 +403,14 @@ func (r *Runtime) regexpproto_stdMatcher(call FunctionCall) Value {
 func (r *Runtime) regexpproto_stdSearchGeneric(rxObj *Object, arg valueString) Value {
 	rx := rxObj.self
 	previousLastIndex := rx.getStr("lastIndex", nil)
-	rx.putStr("lastIndex", intToValue(0), true)
+	rx.setOwnStr("lastIndex", intToValue(0), true)
 	execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
 	if !ok {
 		panic(r.NewTypeError("exec is not a function"))
 	}
 
 	result := r.regExpExec(execFn, rxObj, arg)
-	rx.putStr("lastIndex", previousLastIndex, true)
+	rx.setOwnStr("lastIndex", previousLastIndex, true)
 
 	if result == _null {
 		return intToValue(-1)
@@ -428,10 +428,10 @@ func (r *Runtime) regexpproto_stdSearch(call FunctionCall) Value {
 	}
 
 	previousLastIndex := rx.getStr("lastIndex", nil)
-	rx.putStr("lastIndex", intToValue(0), true)
+	rx.setOwnStr("lastIndex", intToValue(0), true)
 
 	match, result := rx.execRegexp(s)
-	rx.putStr("lastIndex", previousLastIndex, true)
+	rx.setOwnStr("lastIndex", previousLastIndex, true)
 
 	if !match {
 		return intToValue(-1)
@@ -463,7 +463,7 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s valueString
 
 	q := p
 	for q < size {
-		splitter.self.putStr("lastIndex", intToValue(q), true)
+		splitter.self.setOwnStr("lastIndex", intToValue(q), true)
 		z := r.regExpExec(execFn, splitter, s)
 		if z == _null {
 			q++
@@ -582,50 +582,50 @@ func (r *Runtime) initRegExp() {
 	r.global.RegExpPrototype = r.NewObject()
 	o := r.global.RegExpPrototype.self
 	r.global.regexpProtoExec = valueProp(r.newNativeFunc(r.regexpproto_exec, nil, "exec", nil, 1), true, false, true)
-	o.putStr("exec", r.global.regexpProtoExec, true)
+	o.setOwnStr("exec", r.global.regexpProtoExec, true)
 	o._putProp("test", r.newNativeFunc(r.regexpproto_test, nil, "test", nil, 1), true, false, true)
 	o._putProp("toString", r.newNativeFunc(r.regexpproto_toString, nil, "toString", nil, 0), true, false, true)
-	o.putStr("source", &valueProperty{
+	o.setOwnStr("source", &valueProperty{
 		configurable: true,
 		getterFunc:   r.newNativeFunc(r.regexpproto_getSource, nil, "get source", nil, 0),
 		accessor:     true,
 	}, false)
-	o.putStr("global", &valueProperty{
+	o.setOwnStr("global", &valueProperty{
 		configurable: true,
 		getterFunc:   r.newNativeFunc(r.regexpproto_getGlobal, nil, "get global", nil, 0),
 		accessor:     true,
 	}, false)
-	o.putStr("multiline", &valueProperty{
+	o.setOwnStr("multiline", &valueProperty{
 		configurable: true,
 		getterFunc:   r.newNativeFunc(r.regexpproto_getMultiline, nil, "get multiline", nil, 0),
 		accessor:     true,
 	}, false)
-	o.putStr("ignoreCase", &valueProperty{
+	o.setOwnStr("ignoreCase", &valueProperty{
 		configurable: true,
 		getterFunc:   r.newNativeFunc(r.regexpproto_getIgnoreCase, nil, "get ignoreCase", nil, 0),
 		accessor:     true,
 	}, false)
-	o.putStr("sticky", &valueProperty{
+	o.setOwnStr("sticky", &valueProperty{
 		configurable: true,
 		getterFunc:   r.newNativeFunc(r.regexpproto_getSticky, nil, "get sticky", nil, 0),
 		accessor:     true,
 	}, false)
-	o.putStr("flags", &valueProperty{
+	o.setOwnStr("flags", &valueProperty{
 		configurable: true,
 		getterFunc:   r.newNativeFunc(r.regexpproto_getFlags, nil, "get flags", nil, 0),
 		accessor:     true,
 	}, false)
 
-	o.put(symMatch, valueProp(r.newNativeFunc(r.regexpproto_stdMatcher, nil, "[Symbol.match]", nil, 1), true, false, true), true)
-	o.put(symSearch, valueProp(r.newNativeFunc(r.regexpproto_stdSearch, nil, "[Symbol.search]", nil, 1), true, false, true), true)
-	o.put(symSplit, valueProp(r.newNativeFunc(r.regexpproto_stdSplitter, nil, "[Symbol.split]", nil, 2), true, false, true), true)
+	o._putSym(symMatch, valueProp(r.newNativeFunc(r.regexpproto_stdMatcher, nil, "[Symbol.match]", nil, 1), true, false, true))
+	o._putSym(symSearch, valueProp(r.newNativeFunc(r.regexpproto_stdSearch, nil, "[Symbol.search]", nil, 1), true, false, true))
+	o._putSym(symSplit, valueProp(r.newNativeFunc(r.regexpproto_stdSplitter, nil, "[Symbol.split]", nil, 2), true, false, true))
 
 	r.global.RegExp = r.newNativeFunc(r.builtin_RegExp, r.builtin_newRegExp, "RegExp", r.global.RegExpPrototype, 2)
 	o = r.global.RegExp.self
-	o.put(symSpecies, &valueProperty{
+	o._putSym(symSpecies, &valueProperty{
 		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
 		accessor:     true,
 		configurable: true,
-	}, true)
+	})
 	r.addToGlobal("RegExp", r.global.RegExp)
 }

@@ -116,23 +116,9 @@ func (a *sparseArrayObject) getStr(name string, receiver Value) Value {
 	return a.getStrWithOwnProp(a.getOwnPropStr(name), name, receiver)
 }
 
-func (a *sparseArrayObject) getProp(n Value) Value {
-	if v := a.getOwnProp(n); v != nil {
-		return v
-	}
-	return a.getProtoProp(n)
-}
-
-func (a *sparseArrayObject) getPropStr(name string) Value {
-	if val := a.getOwnPropStr(name); val != nil {
-		return val
-	}
-	return a.getProtoPropStr(name)
-}
-
 func (a *sparseArrayObject) getOwnProp(n Value) Value {
 	if s, ok := n.(*valueSymbol); ok {
-		return a.getPropSym(s)
+		return a.getOwnPropSym(s)
 	}
 	if idx := toIdx(n); idx >= 0 {
 		return a.getIdx(idx)
@@ -164,7 +150,17 @@ func (a *sparseArrayObject) getOwnPropStr(name string) Value {
 	return a.baseObject.getOwnPropStr(name)
 }
 
-func (a *sparseArrayObject) putIdx(idx int64, val Value, throw bool, origNameStr string, origName Value) {
+func (a *sparseArrayObject) add(idx int64, val Value) {
+	i := a.findIdx(idx)
+	a.items = append(a.items, sparseArrayItem{})
+	copy(a.items[i+1:], a.items[i:])
+	a.items[i] = sparseArrayItem{
+		idx:   idx,
+		value: val,
+	}
+}
+
+func (a *sparseArrayObject) setIdx(idx int64, val Value, throw bool, origNameStr string, origName Value) {
 	var prop Value
 	i := a.findIdx(idx)
 	if i < len(a.items) && a.items[i].idx == idx {
@@ -172,25 +168,20 @@ func (a *sparseArrayObject) putIdx(idx int64, val Value, throw bool, origNameStr
 	}
 
 	if prop == nil {
-		if a.prototype != nil {
-			var pprop Value
+		if proto := a.prototype; proto != nil {
+			// we know it's foreign because prototype loops are not allowed
+			var b bool
 			if origName != nil {
-				pprop = a.prototype.self.getProp(origName)
+				b = proto.self.setForeign(origName, val, a.val, throw)
 			} else {
-				pprop = a.prototype.self.getPropStr(origNameStr)
+				b = proto.self.setForeignStr(origNameStr, val, a.val, throw)
 			}
-			if pprop, ok := pprop.(*valueProperty); ok {
-				if !pprop.isWritable() {
-					a.val.runtime.typeErrorResult(throw)
-					return
-				}
-				if pprop.accessor {
-					pprop.set(a.val, val)
-					return
-				}
+			if b {
+				return
 			}
 		}
 
+		// new property
 		if !a.extensible {
 			a.val.runtime.typeErrorResult(throw)
 			return
@@ -202,7 +193,7 @@ func (a *sparseArrayObject) putIdx(idx int64, val Value, throw bool, origNameStr
 			}
 		}
 
-		if a.expand() {
+		if a.expand(idx) {
 			a.items = append(a.items, sparseArrayItem{})
 			copy(a.items[i+1:], a.items[i:])
 			a.items[i] = sparseArrayItem{
@@ -210,7 +201,9 @@ func (a *sparseArrayObject) putIdx(idx int64, val Value, throw bool, origNameStr
 				value: val,
 			}
 		} else {
-			a.val.self.(*arrayObject).putIdx(idx, val, throw, origNameStr, origName)
+			ar := a.val.self.(*arrayObject)
+			ar.values[idx] = val
+			ar.objCount++
 			return
 		}
 	} else {
@@ -220,36 +213,47 @@ func (a *sparseArrayObject) putIdx(idx int64, val Value, throw bool, origNameStr
 				return
 			}
 			prop.set(a.val, val)
-			return
 		} else {
 			a.items[i].value = val
 		}
 	}
-
 }
 
-func (a *sparseArrayObject) put(n Value, val Value, throw bool) {
+func (a *sparseArrayObject) setOwn(n Value, val Value, throw bool) {
+	if s, ok := n.(*valueSymbol); ok {
+		a.setOwnSym(s, val, throw)
+		return
+	}
 	if idx := toIdx(n); idx >= 0 {
-		a.putIdx(idx, val, throw, "", n)
+		a.setIdx(idx, val, throw, "", n)
 	} else {
-		if n.String() == "length" {
+		name := n.String()
+		if name == "length" {
 			a.setLength(val, throw)
 		} else {
-			a.baseObject.put(n, val, throw)
+			a.baseObject.setOwnStr(name, val, throw)
 		}
 	}
 }
 
-func (a *sparseArrayObject) putStr(name string, val Value, throw bool) {
+func (a *sparseArrayObject) setOwnStr(name string, val Value, throw bool) {
 	if idx := strToIdx(name); idx >= 0 {
-		a.putIdx(idx, val, throw, name, nil)
+		a.setIdx(idx, val, throw, name, nil)
 	} else {
 		if name == "length" {
 			a.setLength(val, throw)
 		} else {
-			a.baseObject.putStr(name, val, throw)
+			a.baseObject.setOwnStr(name, val, throw)
 		}
 	}
+}
+
+func (a *sparseArrayObject) setForeign(name Value, val, receiver Value, throw bool) bool {
+	return a._setForeign(name, a.getOwnProp(name), val, receiver, throw)
+}
+
+func (a *sparseArrayObject) setForeignStr(name string, val, receiver Value, throw bool) bool {
+	return a._setForeignStr(name, a.getOwnPropStr(name), val, receiver, throw)
 }
 
 type sparseArrayPropIter struct {
@@ -286,8 +290,8 @@ func (a *sparseArrayObject) enumerate(all, recursive bool) iterNextFunc {
 	}).next
 }
 
-func (a *sparseArrayObject) setValues(values []Value) {
-	a.items = nil
+func (a *sparseArrayObject) setValues(values []Value, objCount int64) {
+	a.items = make([]sparseArrayItem, 0, objCount)
 	for i, val := range values {
 		if val != nil {
 			a.items = append(a.items, sparseArrayItem{
@@ -299,6 +303,9 @@ func (a *sparseArrayObject) setValues(values []Value) {
 }
 
 func (a *sparseArrayObject) hasOwnProperty(n Value) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return a.hasSym(s)
+	}
 	if idx := toIdx(n); idx >= 0 {
 		i := a.findIdx(idx)
 		if i < len(a.items) && a.items[i].idx == idx {
@@ -322,16 +329,19 @@ func (a *sparseArrayObject) hasOwnPropertyStr(name string) bool {
 	}
 }
 
-func (a *sparseArrayObject) expand() bool {
+func (a *sparseArrayObject) expand(idx int64) bool {
 	if l := len(a.items); l >= 1024 {
-		if int(a.items[l-1].idx)/l < 8 {
+		if ii := a.items[l-1].idx; ii > idx {
+			idx = ii
+		}
+		if int(idx)>>3 < l {
 			//log.Println("Switching sparse->standard")
 			ar := &arrayObject{
 				baseObject:     a.baseObject,
 				length:         a.length,
 				propValueCount: a.propValueCount,
 			}
-			ar.setValuesFromSparse(a.items)
+			ar.setValuesFromSparse(a.items, idx)
 			ar.val.self = ar
 			ar.init()
 			ar.lengthProp.writable = a.lengthProp.writable
@@ -356,7 +366,7 @@ func (a *sparseArrayObject) defineOwnProperty(n Value, descr PropertyDescriptor,
 				}
 			}
 			if i >= len(a.items) || a.items[i].idx != idx {
-				if a.expand() {
+				if a.expand(idx) {
 					a.items = append(a.items, sparseArrayItem{})
 					copy(a.items[i+1:], a.items[i:])
 					a.items[i] = sparseArrayItem{

@@ -75,11 +75,11 @@ func (o *objectGoReflect) init() {
 	}
 }
 
-func (o *objectGoReflect) toStringFunc(call FunctionCall) Value {
+func (o *objectGoReflect) toStringFunc(FunctionCall) Value {
 	return o.toPrimitiveString()
 }
 
-func (o *objectGoReflect) valueOfFunc(call FunctionCall) Value {
+func (o *objectGoReflect) valueOfFunc(FunctionCall) Value {
 	return o.toPrimitive()
 }
 
@@ -99,20 +99,6 @@ func (o *objectGoReflect) getStr(name string, receiver Value) Value {
 		return v
 	}
 	return o.baseObject.getStr(name, receiver)
-}
-
-func (o *objectGoReflect) getPropStr(name string) Value {
-	if v := o.getOwnPropStr(name); v != nil {
-		return v
-	}
-	return o.baseObject.getPropStr(name)
-}
-
-func (o *objectGoReflect) getProp(name Value) Value {
-	if s, ok := name.(*valueSymbol); ok {
-		return o.getPropSym(s)
-	}
-	return o.getPropStr(name.String())
 }
 
 func (o *objectGoReflect) _getField(jsName string) reflect.Value {
@@ -182,41 +168,56 @@ func (o *objectGoReflect) getOwnPropStr(name string) Value {
 	return nil
 }
 
-func (o *objectGoReflect) put(n Value, val Value, throw bool) {
+func (o *objectGoReflect) setOwn(n Value, val Value, throw bool) {
 	if s, ok := n.(*valueSymbol); ok {
-		o.putSym(s, val, throw)
+		o.setOwnSym(s, val, throw)
 		return
 	}
-	o.putStr(n.String(), val, throw)
+	o.setOwnStr(n.String(), val, throw)
 }
 
-func (o *objectGoReflect) putStr(name string, val Value, throw bool) {
-	if !o._put(name, val, throw) && !o.protoPut(name, val, throw) {
-		o.val.runtime.typeErrorResult(throw, "Cannot assign to property %s of a host object", name)
+func (o *objectGoReflect) setOwnStr(name string, val Value, throw bool) {
+	has, _ := o._put(name, val, throw)
+	if !has {
+		if name == __proto__ {
+			o._setProto(val)
+			return
+		}
+		if !o._setForeignStr(name, nil, val, o.val, throw) {
+			o.val.runtime.typeErrorResult(throw, "Cannot assign to property %s of a host object", name)
+		}
 	}
 }
 
-func (o *objectGoReflect) _put(name string, val Value, throw bool) bool {
+func (o *objectGoReflect) setForeign(name Value, val, receiver Value, throw bool) bool {
+	return o._setForeign(name, o.getOwnProp(name), val, receiver, throw)
+}
+
+func (o *objectGoReflect) setForeignStr(name string, val, receiver Value, throw bool) bool {
+	return o._setForeignStr(name, trueValIfPresent(o._has(name)), val, receiver, throw)
+}
+
+func (o *objectGoReflect) _put(name string, val Value, throw bool) (has, ok bool) {
 	if o.value.Kind() == reflect.Struct {
 		if v := o._getField(name); v.IsValid() {
 			if !v.CanSet() {
 				o.val.runtime.typeErrorResult(throw, "Cannot assign to a non-addressable or read-only property %s of a host object", name)
-				return false
+				return true, false
 			}
 			vv, err := o.val.runtime.toReflectValue(val, v.Type())
 			if err != nil {
 				o.val.runtime.typeErrorResult(throw, "Go struct conversion error: %v", err)
-				return false
+				return true, false
 			}
 			v.Set(vv)
-			return true
+			return true, true
 		}
 	}
-	return false
+	return false, false
 }
 
 func (o *objectGoReflect) _putProp(name string, value Value, writable, enumerable, configurable bool) Value {
-	if o._put(name, value, false) {
+	if _, ok := o._put(name, value, false); ok {
 		return value
 	}
 	return o.baseObject._putProp(name, value, writable, enumerable, configurable)
@@ -242,10 +243,14 @@ func (o *objectGoReflect) defineOwnProperty(n Value, descr PropertyDescriptor, t
 	if s, ok := n.(*valueSymbol); ok {
 		return o.defineOwnPropertySym(s, descr, throw)
 	}
-	if o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) && o._put(n.String(), descr.Value, throw) {
-		return true
+	if o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) {
+		if has, ok := o._put(n.String(), descr.Value, throw); !has {
+			o.val.runtime.typeErrorResult(throw, "Cannot define property '%s' on a host object", n.String())
+			return false
+		} else {
+			return ok
+		}
 	}
-	o.val.runtime.typeErrorResult(throw, "Cannot define property '%s' on a host object", n.String())
 	return false
 }
 
@@ -262,6 +267,9 @@ func (o *objectGoReflect) _has(name string) bool {
 }
 
 func (o *objectGoReflect) hasOwnProperty(n Value) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.hasSym(s)
+	}
 	return o._has(n.String())
 }
 

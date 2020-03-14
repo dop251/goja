@@ -81,20 +81,6 @@ func (o *objectGoSliceReflect) getStr(name string, receiver Value) Value {
 	return o.objectGoReflect.getStr(name, receiver)
 }
 
-func (o *objectGoSliceReflect) getProp(n Value) Value {
-	if v := o._get(n); v != nil {
-		return v
-	}
-	return o.objectGoReflect.getProp(n)
-}
-
-func (o *objectGoSliceReflect) getPropStr(name string) Value {
-	if v := o._getStr(name); v != nil {
-		return v
-	}
-	return o.objectGoReflect.getPropStr(name)
-}
-
 func (o *objectGoSliceReflect) getOwnPropStr(name string) Value {
 	if v := o._getStr(name); v != nil {
 		return v
@@ -184,9 +170,9 @@ func (o *objectGoSliceReflect) putLength(v Value, throw bool) {
 	}
 }
 
-func (o *objectGoSliceReflect) put(n Value, val Value, throw bool) {
+func (o *objectGoSliceReflect) setOwn(n Value, val Value, throw bool) {
 	if s, ok := n.(*valueSymbol); ok {
-		o.putSym(s, val, throw)
+		o.setOwnSym(s, val, throw)
 		return
 	}
 	if idx := toIdx(n); idx >= 0 {
@@ -198,10 +184,10 @@ func (o *objectGoSliceReflect) put(n Value, val Value, throw bool) {
 		o.putLength(val, throw)
 		return
 	}
-	o.objectGoReflect.putStr(name, val, throw)
+	o.objectGoReflect.setOwnStr(name, val, throw)
 }
 
-func (o *objectGoSliceReflect) putStr(name string, val Value, throw bool) {
+func (o *objectGoSliceReflect) setOwnStr(name string, val Value, throw bool) {
 	if idx := strToIdx(name); idx >= 0 {
 		o.putIdx(idx, val, throw)
 		return
@@ -210,33 +196,39 @@ func (o *objectGoSliceReflect) putStr(name string, val Value, throw bool) {
 		o.putLength(val, throw)
 		return
 	}
-	o.objectGoReflect.putStr(name, val, throw)
+	o.objectGoReflect.setOwnStr(name, val, throw)
+}
+
+func (o *objectGoSliceReflect) setForeign(name Value, val, receiver Value, throw bool) bool {
+	return o._setForeign(name, o.getOwnProp(name), val, receiver, throw)
+}
+
+func (o *objectGoSliceReflect) setForeignStr(name string, val, receiver Value, throw bool) bool {
+	return o._setForeignStr(name, trueValIfPresent(o._hasStr(name)), val, receiver, throw)
 }
 
 func (o *objectGoSliceReflect) hasOwnProperty(n Value) bool {
+	if s, ok := n.(*valueSymbol); ok {
+		return o.hasSym(s)
+	}
 	if o._has(n) {
 		return true
 	}
-	return o.objectGoReflect.hasOwnProperty(n)
+	return o.objectGoReflect._has(n.String())
 }
 
 func (o *objectGoSliceReflect) hasOwnPropertyStr(name string) bool {
 	if o._hasStr(name) {
 		return true
 	}
-	return o.objectGoReflect.hasOwnPropertyStr(name)
-}
-
-func (o *objectGoSliceReflect) _putProp(name string, value Value, writable, enumerable, configurable bool) Value {
-	o.putStr(name, value, false)
-	return value
+	return o.objectGoReflect._has(name)
 }
 
 func (o *objectGoSliceReflect) defineOwnProperty(name Value, descr PropertyDescriptor, throw bool) bool {
 	if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 		return false
 	}
-	o.put(name, descr.Value, throw)
+	o.setOwn(name, descr.Value, throw)
 	return true
 }
 
@@ -327,6 +319,6 @@ func (o *objectGoSliceReflect) swap(i, j int64) {
 	x := o.get(ii, nil)
 	y := o.get(jj, nil)
 
-	o.put(ii, y, false)
-	o.put(jj, x, false)
+	o.setOwn(ii, y, false)
+	o.setOwn(jj, x, false)
 }

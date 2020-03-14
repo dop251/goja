@@ -821,7 +821,7 @@ func (o *Object) DefineAccessorProperty(name string, getter, setter Value, confi
 
 func (o *Object) Set(name string, value interface{}) error {
 	return tryFunc(func() {
-		o.self.putStr(name, o.runtime.ToValue(value), true)
+		o.self.setOwnStr(name, o.runtime.ToValue(value), true)
 	})
 }
 

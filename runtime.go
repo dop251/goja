@@ -299,7 +299,7 @@ func (r *Runtime) addToGlobal(name string, value Value) {
 func (r *Runtime) createIterProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 
-	o.put(symIterator, valueProp(r.newNativeFunc(r.returnThis, nil, "[Symbol.iterator]", nil, 0), true, false, true), true)
+	o._putSym(symIterator, valueProp(r.newNativeFunc(r.returnThis, nil, "[Symbol.iterator]", nil, 0), true, false, true))
 	return o
 }
 
@@ -368,7 +368,7 @@ func (r *Runtime) throwReferenceError(name string) {
 }
 
 func (r *Runtime) newSyntaxError(msg string, offset int) Value {
-	return r.builtin_new((r.global.SyntaxError), []Value{newStringValue(msg)})
+	return r.builtin_new(r.global.SyntaxError, []Value{newStringValue(msg)})
 }
 
 func newBaseObjectObj(obj, proto *Object, class string) *baseObject {
@@ -1502,7 +1502,7 @@ func (r *Runtime) GlobalObject() *Object {
 // Set the specified value as a property of the global object.
 // The value is first converted using ToValue()
 func (r *Runtime) Set(name string, value interface{}) {
-	r.globalObject.self.putStr(name, r.ToValue(value), false)
+	r.globalObject.self.setOwnStr(name, r.ToValue(value), false)
 }
 
 // Get the specified property of the global object.
@@ -1689,11 +1689,7 @@ func toPropertyKey(key Value) Value {
 
 func (r *Runtime) getVStr(v Value, p string) Value {
 	o := v.ToObject(r)
-	prop := o.self.getPropStr(p)
-	if prop, ok := prop.(*valueProperty); ok {
-		return prop.get(v)
-	}
-	return prop
+	return o.self.getStr(p, v)
 }
 
 func (r *Runtime) getV(v Value, p Value) Value {
@@ -1737,8 +1733,8 @@ func (r *Runtime) iterate(iter *Object, step func(Value)) {
 
 func (r *Runtime) createIterResultObject(value Value, done bool) Value {
 	o := r.NewObject()
-	o.self.putStr("value", value, false)
-	o.self.putStr("done", r.toBoolean(done), false)
+	o.self.setOwnStr("value", value, false)
+	o.self.setOwnStr("done", r.toBoolean(done), false)
 	return o
 }
 

@@ -265,3 +265,44 @@ func TestGoMapProtoProp(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestGoMapProtoPropChain(t *testing.T) {
+	const SCRIPT = `
+	(function() {
+	"use strict";
+	var p1 = Object.create(null);
+	m.__proto__ = p1;
+	
+	Object.defineProperty(p1, "test", {
+		value: 42
+	});
+	
+	Object.defineProperty(m, "test", {
+		value: 43,
+		writable: true,
+	});
+	var o = Object.create(m);
+	o.test = 44;
+	assert.sameValue(o.test, 44);
+
+	var sym = Symbol(true);
+	Object.defineProperty(p1, sym, {
+		value: 42
+	});
+	
+	Object.defineProperty(m, sym, {
+		value: 43,
+		writable: true,
+	});
+	o[sym] = 44;
+	assert.sameValue(o[sym], 44);
+	})();
+	`
+
+	r := New()
+	r.Set("m", map[string]interface{}{})
+	_, err := r.RunString(TESTLIB + SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

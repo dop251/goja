@@ -210,8 +210,8 @@ func TestGoMapReflectWithProto(t *testing.T) {
 	assert.sameValue(m.t, "proto t", "after delete");
 	setterAllowed = true;
 	m.t = true;
-	assert.sameValue(m.t, true);
-	assert.sameValue(tHolder, true);
+	assert.sameValue(m.t, true, "m.t === true");
+	assert.sameValue(tHolder, true, "tHolder === true");
 	Object.preventExtensions(m);
 	assert.throws(TypeError, function() {
 		m.t2 = 1;

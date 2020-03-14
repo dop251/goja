@@ -99,8 +99,8 @@ func (r *Runtime) createSymbolProto(val *Object) objectImpl {
 	o._putProp("constructor", r.global.Symbol, true, false, true)
 	o._putProp("toString", r.newNativeFunc(r.symbolproto_tostring, nil, "toString", nil, 0), true, false, true)
 	o._putProp("valueOf", r.newNativeFunc(r.symbolproto_valueOf, nil, "valueOf", nil, 0), true, false, true)
-	o.putSym(symToPrimitive, valueProp(r.newNativeFunc(r.symbolproto_valueOf, nil, "[Symbol.toPrimitive]", nil, 1), false, false, true), true)
-	o.putSym(symToStringTag, valueProp(newStringValue("Symbol"), false, false, true), true)
+	o._putSym(symToPrimitive, valueProp(r.newNativeFunc(r.symbolproto_valueOf, nil, "[Symbol.toPrimitive]", nil, 1), false, false, true))
+	o._putSym(symToStringTag, valueProp(newStringValue("Symbol"), false, false, true))
 
 	return o
 }

@@ -21,20 +21,6 @@ func (a *argumentsObject) getStr(name string, receiver Value) Value {
 	return a.getStrWithOwnProp(a.getOwnPropStr(name), name, receiver)
 }
 
-func (a *argumentsObject) getProp(n Value) Value {
-	if s, ok := n.(*valueSymbol); ok {
-		return a.getPropSym(s)
-	}
-	return a.getPropStr(n.String())
-}
-
-func (a *argumentsObject) getPropStr(name string) Value {
-	if val := a.getOwnPropStr(name); val != nil {
-		return val
-	}
-	return a.getProtoPropStr(name)
-}
-
 func (a *argumentsObject) getOwnPropStr(name string) Value {
 	if mapped, ok := a.values[name].(*mappedProperty); ok {
 		return *mapped.v
@@ -56,15 +42,35 @@ func (a *argumentsObject) init() {
 	a._putProp("length", intToValue(int64(a.length)), true, false, true)
 }
 
-func (a *argumentsObject) put(n Value, val Value, throw bool) {
+func (a *argumentsObject) setOwn(n Value, val Value, throw bool) {
 	if s, ok := n.(*valueSymbol); ok {
-		a.putSym(s, val, throw)
+		a.setOwnSym(s, val, throw)
 		return
 	}
-	a.putStr(n.String(), val, throw)
+	a.setOwnStr(n.String(), val, throw)
 }
 
-func (a *argumentsObject) putStr(name string, val Value, throw bool) {
+func (a *argumentsObject) setOwnStr(name string, val Value, throw bool) {
+	if prop, ok := a.values[name].(*mappedProperty); ok {
+		if !prop.writable {
+			a.val.runtime.typeErrorResult(throw, "Property is not writable: %s", name)
+			return
+		}
+		*prop.v = val
+		return
+	}
+	a.baseObject.setOwnStr(name, val, throw)
+}
+
+func (a *argumentsObject) setForeign(name Value, val, receiver Value, throw bool) bool {
+	return a._setForeign(name, a.getOwnProp(name), val, receiver, throw)
+}
+
+func (a *argumentsObject) setForeignStr(name string, val, receiver Value, throw bool) bool {
+	return a._setForeignStr(name, a.getOwnPropStr(name), val, receiver, throw)
+}
+
+/*func (a *argumentsObject) putStr(name string, val Value, throw bool) {
 	if prop, ok := a.values[name].(*mappedProperty); ok {
 		if !prop.writable {
 			a.val.runtime.typeErrorResult(throw, "Property is not writable: %s", name)
@@ -74,7 +80,7 @@ func (a *argumentsObject) putStr(name string, val Value, throw bool) {
 		return
 	}
 	a.baseObject.putStr(name, val, throw)
-}
+}*/
 
 func (a *argumentsObject) deleteStr(name string, throw bool) bool {
 	if prop, ok := a.values[name].(*mappedProperty); ok {

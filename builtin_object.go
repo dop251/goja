@@ -51,22 +51,22 @@ func (r *Runtime) object_getOwnPropertyDescriptor(call FunctionCall) Value {
 	ret := r.NewObject()
 	obj := ret.self
 	if !accessor {
-		obj.putStr("value", value, false)
-		obj.putStr("writable", r.toBoolean(writable), false)
+		obj.setOwnStr("value", value, false)
+		obj.setOwnStr("writable", r.toBoolean(writable), false)
 	} else {
 		if get != nil {
-			obj.putStr("get", get, false)
+			obj.setOwnStr("get", get, false)
 		} else {
-			obj.putStr("get", _undefined, false)
+			obj.setOwnStr("get", _undefined, false)
 		}
 		if set != nil {
-			obj.putStr("set", set, false)
+			obj.setOwnStr("set", set, false)
 		} else {
-			obj.putStr("set", _undefined, false)
+			obj.setOwnStr("set", _undefined, false)
 		}
 	}
-	obj.putStr("enumerable", r.toBoolean(enumerable), false)
-	obj.putStr("configurable", r.toBoolean(configurable), false)
+	obj.setOwnStr("enumerable", r.toBoolean(enumerable), false)
+	obj.setOwnStr("configurable", r.toBoolean(configurable), false)
 
 	return ret
 }
@@ -503,7 +503,7 @@ func (r *Runtime) object_assign(call FunctionCall) Value {
 					if v, ok := p.(*valueProperty); ok {
 						p = v.get(source)
 					}
-					to.self.putStr(item.name, p, true)
+					to.self.setOwnStr(item.name, p, true)
 				}
 
 				for _, sym := range source.self.getOwnSymbols() {
@@ -514,7 +514,7 @@ func (r *Runtime) object_assign(call FunctionCall) Value {
 						}
 						p = v.get(source)
 					}
-					to.self.put(sym, p, true)
+					to.self.setOwn(sym, p, true)
 				}
 			}
 		}

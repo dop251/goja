@@ -578,28 +578,6 @@ func (p *proxyObject) proxyGetOwnPropertyDescriptor(name Value) (Value, bool) {
 	return nil, false
 }
 
-func (p *proxyObject) getProp(n Value) Value {
-	if prop := p.getOwnProp(n); prop != nil {
-		return prop
-	}
-	if p.prototype != nil {
-		return p.prototype.self.getProp(n)
-	}
-
-	return nil
-}
-
-func (p *proxyObject) getPropStr(name string) Value {
-	if val := p.getOwnPropStr(name); val != nil {
-		return val
-	}
-	if p.prototype != nil {
-		return p.prototype.self.getPropStr(name)
-	}
-	return nil
-
-}
-
 func (p *proxyObject) get(name Value, receiver Value) Value {
 	if v, ok := p.proxyGet(name, receiver); ok {
 		return v
@@ -641,7 +619,7 @@ func (p *proxyObject) getOwnPropStr(name string) Value {
 	return p.target.self.getOwnPropStr(name)
 }
 
-func (p *proxyObject) getOwnProp(name Value) (ret Value) {
+func (p *proxyObject) getOwnProp(name Value) Value {
 	if v, ok := p.proxyGetOwnPropertyDescriptor(name); ok {
 		return p.val.runtime.toValueProp(v)
 	}
@@ -649,26 +627,63 @@ func (p *proxyObject) getOwnProp(name Value) (ret Value) {
 	return p.target.self.getOwnProp(name)
 }
 
-func (p *proxyObject) put(n Value, val Value, throw bool) {
-	p.handleProxyRequest(proxy_trap_set, func(proxyFunction func(FunctionCall) Value, this Value) {
-		proxyFunction(FunctionCall{
-			This:      this,
-			Arguments: []Value{p.target, n, val, p.val},
-		})
-	}, func(target *Object) {
-		target.self.putStr(n.String(), val, throw)
-	})
+func (p *proxyObject) proxySet(name, value, receiver Value) bool {
+	if v, ok := p.proxyCall(proxy_trap_set, p.target, name, value, receiver); ok {
+		if v.ToBoolean() {
+			if prop, ok := p.target.self.getOwnProp(name).(*valueProperty); ok {
+				if prop.accessor {
+					if !prop.configurable {
+						panic(p.val.runtime.NewTypeError())
+					}
+				} else if !prop.configurable && !prop.writable && !p.__sameValue(prop.value, value) {
+					panic(p.val.runtime.NewTypeError())
+				}
+			}
+		}
+
+		return true
+	}
+
+	return false
 }
 
-func (p *proxyObject) putStr(name string, val Value, throw bool) {
-	p.handleProxyRequest(proxy_trap_set, func(proxyFunction func(FunctionCall) Value, this Value) {
-		proxyFunction(FunctionCall{
-			This:      this,
-			Arguments: []Value{p.target, newStringValue(name), val, p.val},
-		})
-	}, func(target *Object) {
-		target.self.putStr(name, val, throw)
-	})
+func (p *proxyObject) setOwn(n Value, v Value, throw bool) {
+	if !p.proxySet(n, v, p.val) {
+		p.target.set(n, v, p.val, throw)
+	}
+}
+
+func (p *proxyObject) setForeign(n Value, v, receiver Value, throw bool) bool {
+	if !p.proxySet(n, v, receiver) {
+		p.target.set(n, v, receiver, throw)
+	}
+	return true
+}
+
+func (p *proxyObject) setOwnStr(name string, v Value, throw bool) {
+	if !p.proxySet(newStringValue(name), v, p.val) {
+		p.target.setStr(name, v, p.val, throw)
+	}
+}
+
+func (p *proxyObject) setForeignStr(name string, v, receiver Value, throw bool) bool {
+	if !p.proxySet(newStringValue(name), v, receiver) {
+		p.target.setStr(name, v, receiver, throw)
+	}
+	return true
+}
+
+func (p *proxyObject) setOwnSym(s *valueSymbol, v Value, throw bool) {
+	if !p.proxySet(s, v, p.val) {
+		p.target.set(s, v, p.val, throw)
+	}
+}
+
+func (p *proxyObject) setForeignSym(s *valueSymbol, v, receiver Value, throw bool) bool {
+	if !p.proxySet(s, v, receiver) {
+		p.target.set(s, v, receiver, throw)
+	}
+	return true
 }
 
 func (p *proxyObject) deleteStr(name string, throw bool) (ret bool) {
@@ -736,7 +751,7 @@ func (p *proxyObject) ownKeys(symbol bool) (ret []Value) {
 				if !ext {
 					panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap result did not include '%s'", item.name))
 				}
-				prop := p.target.self.getPropStr(item.name)
+				prop := p.target.self.getOwnPropStr(item.name)
 				if prop, ok := prop.(*valueProperty); ok && !prop.configurable {
 					panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap result did not include non-configurable '%s'", item.name))
 				}
@@ -749,7 +764,7 @@ func (p *proxyObject) ownKeys(symbol bool) (ret []Value) {
 				if !ext {
 					panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap result did not include '%s'", sym.String()))
 				}
-				prop := p.target.self.getProp(sym)
+				prop := p.target.self.getOwnProp(sym)
 				if prop, ok := prop.(*valueProperty); ok && !prop.configurable {
 					panic(p.val.runtime.NewTypeError("Missing symbol non-configurable property"))
 				}
