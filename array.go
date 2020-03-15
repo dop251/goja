@@ -312,18 +312,17 @@ func (a *arrayObject) setOwnStr(name string, val Value, throw bool) {
 	}
 }
 
-func (o *arrayObject) setForeign(name Value, val, receiver Value, throw bool) bool {
-	return o._setForeign(name, o.getOwnProp(name), val, receiver, throw)
+func (a *arrayObject) setForeign(name Value, val, receiver Value, throw bool) bool {
+	return a._setForeign(name, a.getOwnProp(name), val, receiver, throw)
 }
 
-func (o *arrayObject) setForeignStr(name string, val, receiver Value, throw bool) bool {
-	return o._setForeignStr(name, o.getOwnPropStr(name), val, receiver, throw)
+func (a *arrayObject) setForeignStr(name string, val, receiver Value, throw bool) bool {
+	return a._setForeignStr(name, a.getOwnPropStr(name), val, receiver, throw)
 }
 
 type arrayPropIter struct {
-	a         *arrayObject
-	recursive bool
-	idx       int
+	a   *arrayObject
+	idx int
 }
 
 func (i *arrayPropIter) next() (propIterItem, iterNextFunc) {
@@ -336,27 +335,33 @@ func (i *arrayPropIter) next() (propIterItem, iterNextFunc) {
 		}
 	}
 
-	return i.a.baseObject._enumerate(i.recursive)()
+	return i.a.baseObject.enumerateUnfiltered()()
 }
 
-func (a *arrayObject) _enumerate(recursive bool) iterNextFunc {
+func (a *arrayObject) enumerateUnfiltered() iterNextFunc {
 	return (&arrayPropIter{
-		a:         a,
-		recursive: recursive,
+		a: a,
 	}).next
 }
 
-func (a *arrayObject) enumerate(all, recursive bool) iterNextFunc {
-	return (&propFilterIter{
-		wrapped: a._enumerate(recursive),
-		all:     all,
-		seen:    make(map[string]bool),
-	}).next
+func (a *arrayObject) ownKeys(all bool, accum []Value) []Value {
+	for i, prop := range a.values {
+		name := strconv.Itoa(i)
+		if prop != nil {
+			if !all {
+				if prop, ok := prop.(*valueProperty); ok && !prop.enumerable {
+					continue
+				}
+			}
+			accum = append(accum, asciiString(name))
+		}
+	}
+	return a.baseObject.ownKeys(all, accum)
 }
 
 func (a *arrayObject) hasOwnProperty(n Value) bool {
 	if s, ok := n.(*valueSymbol); ok {
-		return a.hasSym(s)
+		return a.hasOwnSym(s)
 	}
 	if idx := toIdx(n); idx >= 0 {
 		return idx < int64(len(a.values)) && a.values[idx] != nil

@@ -101,3 +101,37 @@ func TestSparseArraySwitch(t *testing.T) {
 
 	testScript1(SCRIPT, _undefined, t)
 }
+
+func TestSparseArrayOwnKeys(t *testing.T) {
+	const SCRIPT = `
+	var a1 = [];
+	a1[500000] = 1;
+	var seen = false;
+	var count = 0;
+	var keys = Object.keys(a1);
+	keys.length === 1 && keys[0] === "500000"; 
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestSparseArrayEnumerate(t *testing.T) {
+	const SCRIPT = `
+	var a1 = [];
+	a1[500000] = 1;
+	var seen = false;
+	var count = 0;
+	for (var i in a1) {
+		if (i === "500000") {
+			if (seen) {
+				throw new Error("seen twice");
+			}
+			seen = true;
+		}
+		count++;
+	}
+	seen && count === 1;
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}

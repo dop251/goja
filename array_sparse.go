@@ -257,9 +257,8 @@ func (a *sparseArrayObject) setForeignStr(name string, val, receiver Value, thro
 }
 
 type sparseArrayPropIter struct {
-	a         *sparseArrayObject
-	recursive bool
-	idx       int
+	a   *sparseArrayObject
+	idx int
 }
 
 func (i *sparseArrayPropIter) next() (propIterItem, iterNextFunc) {
@@ -272,22 +271,30 @@ func (i *sparseArrayPropIter) next() (propIterItem, iterNextFunc) {
 		}
 	}
 
-	return i.a.baseObject._enumerate(i.recursive)()
+	return i.a.baseObject.enumerateUnfiltered()()
 }
 
-func (a *sparseArrayObject) _enumerate(recursive bool) iterNextFunc {
+func (a *sparseArrayObject) enumerateUnfiltered() iterNextFunc {
 	return (&sparseArrayPropIter{
-		a:         a,
-		recursive: recursive,
+		a: a,
 	}).next
 }
 
-func (a *sparseArrayObject) enumerate(all, recursive bool) iterNextFunc {
-	return (&propFilterIter{
-		wrapped: a._enumerate(recursive),
-		all:     all,
-		seen:    make(map[string]bool),
-	}).next
+func (a *sparseArrayObject) ownKeys(all bool, accum []Value) []Value {
+	if all {
+		for _, item := range a.items {
+			accum = append(accum, asciiString(strconv.FormatInt(item.idx, 10)))
+		}
+	} else {
+		for _, item := range a.items {
+			if prop, ok := item.value.(*valueProperty); ok && !prop.enumerable {
+				continue
+			}
+			accum = append(accum, asciiString(strconv.FormatInt(item.idx, 10)))
+		}
+	}
+
+	return a.baseObject.ownKeys(all, accum)
 }
 
 func (a *sparseArrayObject) setValues(values []Value, objCount int64) {
@@ -304,7 +311,7 @@ func (a *sparseArrayObject) setValues(values []Value, objCount int64) {
 
 func (a *sparseArrayObject) hasOwnProperty(n Value) bool {
 	if s, ok := n.(*valueSymbol); ok {
-		return a.hasSym(s)
+		return a.hasOwnSym(s)
 	}
 	if idx := toIdx(n); idx >= 0 {
 		i := a.findIdx(idx)

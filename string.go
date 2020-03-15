@@ -181,7 +181,6 @@ type stringPropIter struct {
 	str         valueString // separate, because obj can be the singleton
 	obj         *stringObject
 	idx, length int64
-	recursive   bool
 }
 
 func (i *stringPropIter) next() (propIterItem, iterNextFunc) {
@@ -191,24 +190,23 @@ func (i *stringPropIter) next() (propIterItem, iterNextFunc) {
 		return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.next
 	}
 
-	return i.obj.baseObject._enumerate(i.recursive)()
+	return i.obj.baseObject.enumerateUnfiltered()()
 }
 
-func (s *stringObject) _enumerate(recursive bool) iterNextFunc {
+func (s *stringObject) enumerateUnfiltered() iterNextFunc {
 	return (&stringPropIter{
-		str:       s.value,
-		obj:       s,
-		length:    s.length,
-		recursive: recursive,
+		str:    s.value,
+		obj:    s,
+		length: s.length,
 	}).next
 }
 
-func (s *stringObject) enumerate(all, recursive bool) iterNextFunc {
-	return (&propFilterIter{
-		wrapped: s._enumerate(recursive),
-		all:     all,
-		seen:    make(map[string]bool),
-	}).next
+func (s *stringObject) ownKeys(all bool, accum []Value) []Value {
+	for i := int64(0); i < s.length; i++ {
+		accum = append(accum, asciiString(strconv.FormatInt(i, 10)))
+	}
+
+	return s.baseObject.ownKeys(all, accum)
 }
 
 func (s *stringObject) deleteStr(name string, throw bool) bool {
@@ -231,7 +229,7 @@ func (s *stringObject) delete(n Value, throw bool) bool {
 
 func (s *stringObject) hasOwnProperty(n Value) bool {
 	if sym, ok := n.(*valueSymbol); ok {
-		return s.hasSym(sym)
+		return s.hasOwnSym(sym)
 	}
 	if i := toIdx(n); i >= 0 && i < s.length {
 		return true

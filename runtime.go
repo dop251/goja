@@ -1369,31 +1369,29 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 			keyTyp := typ.Key()
 			elemTyp := typ.Elem()
 			needConvertKeys := !reflect.ValueOf("").Type().AssignableTo(keyTyp)
-			for item, f := o.self.enumerate(false, false)(); f != nil; item, f = f() {
+			for _, itemName := range o.self.ownKeys(false, nil) {
 				var kv reflect.Value
 				var err error
 				if needConvertKeys {
-					kv, err = r.toReflectValue(newStringValue(item.name), keyTyp)
+					kv, err = r.toReflectValue(itemName, keyTyp)
 					if err != nil {
-						return reflect.Value{}, fmt.Errorf("Could not convert map key %s to %v", item.name, typ)
+						return reflect.Value{}, fmt.Errorf("Could not convert map key %s to %v", itemName.String(), typ)
 					}
 				} else {
-					kv = reflect.ValueOf(item.name)
+					kv = reflect.ValueOf(itemName.String())
 				}
 
-				ival := item.value
-				if ival == nil {
-					ival = o.self.getStr(item.name, nil)
-				}
+				ival := o.self.get(itemName, nil)
 				if ival != nil {
 					vv, err := r.toReflectValue(ival, elemTyp)
 					if err != nil {
-						return reflect.Value{}, fmt.Errorf("Could not convert map value %v to %v at key %s", ival, typ, item.name)
+						return reflect.Value{}, fmt.Errorf("Could not convert map value %v to %v at key %s", ival, typ, itemName.String())
 					}
 					m.SetMapIndex(kv, vv)
 				} else {
 					m.SetMapIndex(kv, reflect.Zero(elemTyp))
 				}
+
 			}
 			return m, nil
 		}

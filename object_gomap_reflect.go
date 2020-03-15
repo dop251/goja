@@ -198,7 +198,7 @@ func (o *objectGoMapReflect) hasOwnPropertyStr(name string) bool {
 
 func (o *objectGoMapReflect) hasOwnProperty(n Value) bool {
 	if s, ok := n.(*valueSymbol); ok {
-		return o.hasSym(s)
+		return o.hasOwnSym(s)
 	}
 	if s, ok := n.assertString(); ok {
 		return o.hasOwnPropertyStr(s.String())
@@ -235,10 +235,9 @@ func (o *objectGoMapReflect) deleteStr(name string, throw bool) bool {
 }
 
 type gomapReflectPropIter struct {
-	o         *objectGoMapReflect
-	keys      []reflect.Value
-	idx       int
-	recursive bool
+	o    *objectGoMapReflect
+	keys []reflect.Value
+	idx  int
 }
 
 func (i *gomapReflectPropIter) next() (propIterItem, iterNextFunc) {
@@ -251,28 +250,25 @@ func (i *gomapReflectPropIter) next() (propIterItem, iterNextFunc) {
 		}
 	}
 
-	if i.recursive {
-		return i.o.objectGoReflect._enumerate(true)()
-	}
-
-	return propIterItem{}, nil
+	return i.o.objectGoReflect.enumerateUnfiltered()()
 }
 
-func (o *objectGoMapReflect) _enumerate(recursive bool) iterNextFunc {
-	r := &gomapReflectPropIter{
-		o:         o,
-		keys:      o.value.MapKeys(),
-		recursive: recursive,
-	}
-	return r.next
-}
-
-func (o *objectGoMapReflect) enumerate(all, recursive bool) iterNextFunc {
-	return (&propFilterIter{
-		wrapped: o._enumerate(recursive),
-		all:     all,
-		seen:    make(map[string]bool),
+func (o *objectGoMapReflect) enumerateUnfiltered() iterNextFunc {
+	return (&gomapReflectPropIter{
+		o:    o,
+		keys: o.value.MapKeys(),
 	}).next
+}
+
+func (o *objectGoMapReflect) ownKeys(all bool, accum []Value) []Value {
+	// all own keys are enumerable
+	for _, key := range o.value.MapKeys() {
+		accum = append(accum, newStringValue(key.String()))
+	}
+
+	accum = o.objectGoReflect.ownKeys(all, accum)
+
+	return accum
 }
 
 func (o *objectGoMapReflect) equal(other objectImpl) bool {

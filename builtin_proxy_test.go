@@ -594,7 +594,7 @@ func TestProxy_proxy_keys(t *testing.T) {
 	});
 
 	var keys = Object.keys(proxy);
-	if (keys.length != 1) {
+	if (keys.length !== 1) {
 		throw new Error("length is "+keys.length);
 	}
 	if (keys[0] !== "foo") {

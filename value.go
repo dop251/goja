@@ -786,8 +786,10 @@ func (o *Object) Get(name string) Value {
 }
 
 func (o *Object) Keys() (keys []string) {
-	for item, f := o.self.enumerate(false, false)(); f != nil; item, f = f() {
-		keys = append(keys, item.name)
+	names := o.self.ownKeys(false, nil)
+	keys = make([]string, 0, len(names))
+	for _, name := range names {
+		keys = append(keys, name.String())
 	}
 
 	return

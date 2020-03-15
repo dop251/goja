@@ -117,17 +117,10 @@ func (i *argumentsPropIter) next() (propIterItem, iterNextFunc) {
 	return item, i.next
 }
 
-func (a *argumentsObject) _enumerate(recursive bool) iterNextFunc {
-	return (&argumentsPropIter{
-		wrapped: a.baseObject._enumerate(recursive),
-	}).next
-
-}
-
-func (a *argumentsObject) enumerate(all, recursive bool) iterNextFunc {
-	return (&argumentsPropIter{
-		wrapped: a.baseObject.enumerate(all, recursive),
-	}).next
+func (a *argumentsObject) enumerateUnfiltered() iterNextFunc {
+	return a.recursiveIter((&argumentsPropIter{
+		wrapped: a.ownIter(),
+	}).next)
 }
 
 func (a *argumentsObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {

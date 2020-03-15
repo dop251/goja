@@ -216,7 +216,7 @@ func (o *objectGoSlice) _hasStr(name string) bool {
 
 func (o *objectGoSlice) hasOwnProperty(n Value) bool {
 	if s, ok := n.(*valueSymbol); ok {
-		return o.hasSym(s)
+		return o.hasOwnSym(s)
 	}
 	return o._has(n)
 }
@@ -279,7 +279,6 @@ func (o *objectGoSlice) delete(n Value, throw bool) bool {
 
 type goslicePropIter struct {
 	o          *objectGoSlice
-	recursive  bool
 	idx, limit int
 }
 
@@ -290,28 +289,22 @@ func (i *goslicePropIter) next() (propIterItem, iterNextFunc) {
 		return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.next
 	}
 
-	if i.recursive {
-		return i.o.prototype.self._enumerate(i.recursive)()
-	}
-
 	return propIterItem{}, nil
 }
 
-func (o *objectGoSlice) enumerate(all, recursive bool) iterNextFunc {
-	return (&propFilterIter{
-		wrapped: o._enumerate(recursive),
-		all:     all,
-		seen:    make(map[string]bool),
-	}).next
-
+func (o *objectGoSlice) enumerateUnfiltered() iterNextFunc {
+	return o.recursiveIter((&goslicePropIter{
+		o:     o,
+		limit: len(*o.data),
+	}).next)
 }
 
-func (o *objectGoSlice) _enumerate(recursive bool) iterNextFunc {
-	return (&goslicePropIter{
-		o:         o,
-		recursive: recursive,
-		limit:     len(*o.data),
-	}).next
+func (o *objectGoSlice) ownKeys(_ bool, accum []Value) []Value {
+	for i := range *o.data {
+		accum = append(accum, asciiString(strconv.Itoa(i)))
+	}
+
+	return accum
 }
 
 func (o *objectGoSlice) export() interface{} {

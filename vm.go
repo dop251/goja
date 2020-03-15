@@ -2379,7 +2379,7 @@ func (_enumerate) exec(vm *vm) {
 	if v == _undefined || v == _null {
 		vm.iterStack = append(vm.iterStack, iterStackItem{f: emptyIter})
 	} else {
-		vm.iterStack = append(vm.iterStack, iterStackItem{f: v.ToObject(vm.r).self.enumerate(false, true)})
+		vm.iterStack = append(vm.iterStack, iterStackItem{f: v.ToObject(vm.r).self.enumerate()})
 	}
 	vm.sp--
 	vm.pc++

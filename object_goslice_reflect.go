@@ -209,7 +209,7 @@ func (o *objectGoSliceReflect) setForeignStr(name string, val, receiver Value, t
 
 func (o *objectGoSliceReflect) hasOwnProperty(n Value) bool {
 	if s, ok := n.(*valueSymbol); ok {
-		return o.hasSym(s)
+		return o.hasOwnSym(s)
 	}
 	if o._has(n) {
 		return true
@@ -264,7 +264,6 @@ func (o *objectGoSliceReflect) delete(name Value, throw bool) bool {
 
 type gosliceReflectPropIter struct {
 	o          *objectGoSliceReflect
-	recursive  bool
 	idx, limit int
 }
 
@@ -275,26 +274,21 @@ func (i *gosliceReflectPropIter) next() (propIterItem, iterNextFunc) {
 		return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.next
 	}
 
-	if i.recursive {
-		return i.o.prototype.self._enumerate(i.recursive)()
+	return i.o.objectGoReflect.enumerateUnfiltered()()
+}
+
+func (o *objectGoSliceReflect) ownKeys(all bool, accum []Value) []Value {
+	for i := 0; i < o.value.Len(); i++ {
+		accum = append(accum, asciiString(strconv.Itoa(i)))
 	}
 
-	return propIterItem{}, nil
+	return o.objectGoReflect.ownKeys(all, accum)
 }
 
-func (o *objectGoSliceReflect) enumerate(all, recursive bool) iterNextFunc {
-	return (&propFilterIter{
-		wrapped: o._enumerate(recursive),
-		all:     all,
-		seen:    make(map[string]bool),
-	}).next
-}
-
-func (o *objectGoSliceReflect) _enumerate(recursive bool) iterNextFunc {
+func (o *objectGoSliceReflect) enumerateUnfiltered() iterNextFunc {
 	return (&gosliceReflectPropIter{
-		o:         o,
-		recursive: recursive,
-		limit:     o.value.Len(),
+		o:     o,
+		limit: o.value.Len(),
 	}).next
 }
 

@@ -157,12 +157,13 @@ type objectImpl interface {
 	hasInstance(v Value) bool
 	isExtensible() bool
 	preventExtensions(throw bool) bool
-	enumerate(all, recursive bool) iterNextFunc
-	_enumerate(recursive bool) iterNextFunc
+	enumerate() iterNextFunc
+	enumerateUnfiltered() iterNextFunc
 	export() interface{}
 	exportType() reflect.Type
 	equal(objectImpl) bool
-	getOwnSymbols() []Value
+	ownKeys(all bool, accum []Value) []Value
+	ownSymbols() []Value
 }
 
 type baseObject struct {
@@ -637,7 +638,7 @@ func (o *Object) set(name Value, val, receiver Value, throw bool) {
 	}
 }
 
-func (o *baseObject) hasSym(s *valueSymbol) bool {
+func (o *baseObject) hasOwnSym(s *valueSymbol) bool {
 	_, exists := o.symValues[s]
 	return exists
 }
@@ -924,18 +925,16 @@ func (o *baseObject) swap(i, j int64) {
 
 func (o *baseObject) export() interface{} {
 	m := make(map[string]interface{})
-
-	for item, f := o.enumerate(false, false)(); f != nil; item, f = f() {
-		v := item.value
-		if v == nil {
-			v = o.val.self.getStr(item.name, nil)
-		}
+	for _, itemName := range o.ownKeys(false, nil) {
+		itemNameStr := itemName.String()
+		v := o.val.self.getStr(itemNameStr, nil)
 		if v != nil {
-			m[item.name] = v.Export()
+			m[itemNameStr] = v.Export()
 		} else {
-			m[item.name] = nil
+			m[itemNameStr] = nil
 		}
 	}
+
 	return m
 }
 
@@ -960,7 +959,6 @@ type propIterItem struct {
 type objectPropIter struct {
 	o         *baseObject
 	propNames []string
-	recursive bool
 	idx       int
 }
 
@@ -1007,28 +1005,51 @@ func (i *objectPropIter) next() (propIterItem, iterNextFunc) {
 		}
 	}
 
-	if i.recursive && i.o.prototype != nil {
-		return i.o.prototype.self._enumerate(i.recursive)()
-	}
 	return propIterItem{}, nil
 }
 
-func (o *baseObject) _enumerate(recursive bool) iterNextFunc {
+func (o *baseObject) enumerate() iterNextFunc {
+	return (&propFilterIter{
+		wrapped: o.val.self.enumerateUnfiltered(),
+		seen:    make(map[string]bool),
+	}).next
+}
+
+func (o *baseObject) ownIter() iterNextFunc {
 	propNames := make([]string, len(o.propNames))
 	copy(propNames, o.propNames)
 	return (&objectPropIter{
 		o:         o,
 		propNames: propNames,
-		recursive: recursive,
 	}).next
 }
 
-func (o *baseObject) enumerate(all, recursive bool) iterNextFunc {
-	return (&propFilterIter{
-		wrapped: o._enumerate(recursive),
-		all:     all,
-		seen:    make(map[string]bool),
+func (o *baseObject) recursiveIter(iter iterNextFunc) iterNextFunc {
+	return (&recursiveIter{
+		o:       o,
+		wrapped: iter,
 	}).next
+}
+
+func (o *baseObject) enumerateUnfiltered() iterNextFunc {
+	return o.recursiveIter(o.ownIter())
+}
+
+type recursiveIter struct {
+	o       *baseObject
+	wrapped iterNextFunc
+}
+
+func (iter *recursiveIter) next() (propIterItem, iterNextFunc) {
+	item, next := iter.wrapped()
+	if next != nil {
+		iter.wrapped = next
+		return item, iter.next
+	}
+	if proto := iter.o.prototype; proto != nil {
+		return proto.self.enumerateUnfiltered()()
+	}
+	return propIterItem{}, nil
 }
 
 func (o *baseObject) equal(objectImpl) bool {
@@ -1036,7 +1057,24 @@ func (o *baseObject) equal(objectImpl) bool {
 	return false
 }
 
-func (o *baseObject) getOwnSymbols() (res []Value) {
+func (o *baseObject) ownKeys(all bool, keys []Value) []Value {
+	if all {
+		for _, k := range o.propNames {
+			keys = append(keys, newStringValue(k))
+		}
+	} else {
+		for _, k := range o.propNames {
+			prop := o.values[k]
+			if prop, ok := prop.(*valueProperty); ok && !prop.enumerable {
+				continue
+			}
+			keys = append(keys, newStringValue(k))
+		}
+	}
+	return keys
+}
+
+func (o *baseObject) ownSymbols() (res []Value) {
 	for s := range o.symValues {
 		res = append(res, s)
 	}

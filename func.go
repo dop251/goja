@@ -131,6 +131,15 @@ func (f *funcObject) hasOwnPropertyStr(name string) bool {
 	return false
 }
 
+func (f *funcObject) ownKeys(all bool, accum []Value) []Value {
+	if all {
+		if _, exists := f.values["prototype"]; !exists {
+			accum = append(accum, asciiString("prototype"))
+		}
+	}
+	return f.baseFuncObject.ownKeys(all, accum)
+}
+
 func (f *funcObject) construct(args []Value) *Object {
 	proto := f.getStr("prototype", nil)
 	var protoObj *Object

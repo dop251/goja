@@ -109,14 +109,14 @@ func (o *objectGoMapSimple) _hasStr(name string) bool {
 
 func (o *objectGoMapSimple) _has(n Value) bool {
 	if s, ok := n.(*valueSymbol); ok {
-		return o.hasSym(s)
+		return o.hasOwnSym(s)
 	}
 	return o._hasStr(n.String())
 }
 
 func (o *objectGoMapSimple) hasOwnProperty(n Value) bool {
 	if s, ok := n.(*valueSymbol); ok {
-		return o.hasSym(s)
+		return o.hasOwnSym(s)
 	}
 	return o._has(n)
 }
@@ -177,7 +177,6 @@ func (o *objectGoMapSimple) delete(n Value, throw bool) bool {
 type gomapPropIter struct {
 	o         *objectGoMapSimple
 	propNames []string
-	recursive bool
 	idx       int
 }
 
@@ -190,33 +189,29 @@ func (i *gomapPropIter) next() (propIterItem, iterNextFunc) {
 		}
 	}
 
-	if i.recursive {
-		return i.o.prototype.self._enumerate(true)()
-	}
-
 	return propIterItem{}, nil
 }
 
-func (o *objectGoMapSimple) enumerate(all, recursive bool) iterNextFunc {
-	return (&propFilterIter{
-		wrapped: o._enumerate(recursive),
-		all:     all,
-		seen:    make(map[string]bool),
-	}).next
-}
-
-func (o *objectGoMapSimple) _enumerate(recursive bool) iterNextFunc {
+func (o *objectGoMapSimple) enumerateUnfiltered() iterNextFunc {
 	propNames := make([]string, len(o.data))
 	i := 0
 	for key := range o.data {
 		propNames[i] = key
 		i++
 	}
-	return (&gomapPropIter{
+
+	return o.recursiveIter((&gomapPropIter{
 		o:         o,
 		propNames: propNames,
-		recursive: recursive,
-	}).next
+	}).next)
+}
+
+func (o *objectGoMapSimple) ownKeys(_ bool, accum []Value) []Value {
+	// all own keys are enumerable
+	for key := range o.data {
+		accum = append(accum, newStringValue(key))
+	}
+	return accum
 }
 
 func (o *objectGoMapSimple) export() interface{} {

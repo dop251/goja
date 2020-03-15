@@ -139,7 +139,11 @@ func (r *Runtime) builtinJSON_decodeArray(d *json.Decoder) (*Object, error) {
 }
 
 func isArray(object *Object) bool {
-	switch object.self.className() {
+	self := object.self
+	if proxy, ok := self.(*proxyObject); ok {
+		return isArray(proxy.target)
+	}
+	switch self.className() {
 	case classArray:
 		return true
 	default:
@@ -166,12 +170,12 @@ func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holde
 				}
 			}
 		} else {
-			for item, f := object.self.enumerate(false, false)(); f != nil; item, f = f() {
+			for _, itemName := range object.self.ownKeys(false, nil) {
 				value := r.builtinJSON_reviveWalk(reviver, object, name)
 				if value == _undefined {
-					object.self.deleteStr(item.name, false)
+					object.self.deleteStr(itemName.String(), false)
 				} else {
-					object.self.setOwnStr(item.name, value, false)
+					object.self.setOwnStr(itemName.String(), value, false)
 				}
 			}
 		}
@@ -436,8 +440,8 @@ func (ctx *_builtinJSON_stringifyContext) jo(object *Object) {
 
 	var props []Value
 	if ctx.propertyList == nil {
-		for item, f := object.self.enumerate(false, false)(); f != nil; item, f = f() {
-			props = append(props, newStringValue(item.name))
+		for _, itemName := range object.self.ownKeys(false, nil) {
+			props = append(props, itemName)
 		}
 	} else {
 		props = ctx.propertyList

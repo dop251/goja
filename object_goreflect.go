@@ -268,7 +268,7 @@ func (o *objectGoReflect) _has(name string) bool {
 
 func (o *objectGoReflect) hasOwnProperty(n Value) bool {
 	if s, ok := n.(*valueSymbol); ok {
-		return o.hasSym(s)
+		return o.hasOwnSym(s)
 	}
 	return o._has(n.String())
 }
@@ -350,9 +350,8 @@ func (o *objectGoReflect) delete(n Value, throw bool) bool {
 }
 
 type goreflectPropIter struct {
-	o         *objectGoReflect
-	idx       int
-	recursive bool
+	o   *objectGoReflect
+	idx int
 }
 
 func (i *goreflectPropIter) nextField() (propIterItem, iterNextFunc) {
@@ -375,30 +374,34 @@ func (i *goreflectPropIter) nextMethod() (propIterItem, iterNextFunc) {
 		return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.nextMethod
 	}
 
-	if i.recursive {
-		return i.o.baseObject._enumerate(true)()
-	}
-
 	return propIterItem{}, nil
 }
 
-func (o *objectGoReflect) _enumerate(recursive bool) iterNextFunc {
+func (o *objectGoReflect) enumerateUnfiltered() iterNextFunc {
 	r := &goreflectPropIter{
-		o:         o,
-		recursive: recursive,
+		o: o,
 	}
+	var next iterNextFunc
 	if o.value.Kind() == reflect.Struct {
-		return r.nextField
+		next = r.nextField
+	} else {
+		next = r.nextMethod
 	}
-	return r.nextMethod
+
+	return o.recursiveIter(next)
 }
 
-func (o *objectGoReflect) enumerate(all, recursive bool) iterNextFunc {
-	return (&propFilterIter{
-		wrapped: o._enumerate(recursive),
-		all:     all,
-		seen:    make(map[string]bool),
-	}).next
+func (o *objectGoReflect) ownKeys(_ bool, accum []Value) []Value {
+	// all own keys are enumerable
+	for _, name := range o.valueTypeInfo.FieldNames {
+		accum = append(accum, newStringValue(name))
+	}
+
+	for _, name := range o.valueTypeInfo.MethodNames {
+		accum = append(accum, newStringValue(name))
+	}
+
+	return accum
 }
 
 func (o *objectGoReflect) export() interface{} {

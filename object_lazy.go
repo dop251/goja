@@ -171,16 +171,16 @@ func (o *lazyObject) preventExtensions(throw bool) bool {
 	return obj.preventExtensions(throw)
 }
 
-func (o *lazyObject) enumerate(all, recursive bool) iterNextFunc {
+func (o *lazyObject) enumerateUnfiltered() iterNextFunc {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.enumerate(all, recursive)
+	return obj.enumerateUnfiltered()
 }
 
-func (o *lazyObject) _enumerate(recursive bool) iterNextFunc {
+func (o *lazyObject) enumerate() iterNextFunc {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj._enumerate(recursive)
+	return obj.enumerate()
 }
 
 func (o *lazyObject) export() interface{} {
@@ -201,10 +201,16 @@ func (o *lazyObject) equal(other objectImpl) bool {
 	return obj.equal(other)
 }
 
-func (o *lazyObject) getOwnSymbols() []Value {
+func (o *lazyObject) ownKeys(all bool, accum []Value) []Value {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.getOwnSymbols()
+	return obj.ownKeys(all, accum)
+}
+
+func (o *lazyObject) ownSymbols() []Value {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.ownSymbols()
 }
 
 func (o *lazyObject) setProto(proto *Object, throw bool) bool {
