@@ -102,16 +102,19 @@ var (
 		"test/language/statements/for-of/Array.prototype.keys.js":            true,
 		"test/language/statements/for-of/Array.prototype.entries.js":         true,
 		"test/language/statements/for-of/Array.prototype.Symbol.iterator.js": true,
+
+		// arrow-function
+		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
 	}
 
 	featuresBlackList = []string{
-		"Proxy",
 		"arrow-function",
 	}
 
 	es6WhiteList = map[string]bool{}
 
 	es6IdWhiteList = []string{
+		//"9.5",
 		"12.9.3",
 		"12.9.4",
 		"19.1",
@@ -130,6 +133,7 @@ var (
 		"23.3",
 		"23.4",
 		"25.1.2",
+		"26.2",
 		"B.2.1",
 		"B.2.2",
 	}

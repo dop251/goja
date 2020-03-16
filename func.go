@@ -209,9 +209,11 @@ func (f *funcObject) assertCallable() (func(FunctionCall) Value, bool) {
 func (f *baseFuncObject) init(name string, length int) {
 	f.baseObject.init()
 
-	f.nameProp.configurable = true
-	f.nameProp.value = newStringValue(name)
-	f._put("name", &f.nameProp)
+	if name != "" {
+		f.nameProp.configurable = true
+		f.nameProp.value = newStringValue(name)
+		f._put("name", &f.nameProp)
+	}
 
 	f.lenProp.configurable = true
 	f.lenProp.value = valueInt(length)

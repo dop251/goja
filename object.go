@@ -21,7 +21,6 @@ const (
 	classError    = "Error"
 	classRegExp   = "RegExp"
 	classDate     = "Date"
-	classProxy    = "Proxy"
 
 	classArrayIterator = "Array Iterator"
 	classMapIterator   = "Map Iterator"
@@ -164,6 +163,7 @@ type objectImpl interface {
 	equal(objectImpl) bool
 	ownKeys(all bool, accum []Value) []Value
 	ownSymbols() []Value
+	ownPropertyKeys(all bool, accum []Value) []Value
 }
 
 type baseObject struct {
@@ -1080,6 +1080,15 @@ func (o *baseObject) ownSymbols() (res []Value) {
 	}
 
 	return
+}
+
+func (o *baseObject) ownPropertyKeys(all bool, accum []Value) []Value {
+	accum = o.val.self.ownKeys(all, accum)
+	if all {
+		accum = append(accum, o.ownSymbols()...)
+	}
+
+	return accum
 }
 
 func (o *baseObject) hasInstance(Value) bool {

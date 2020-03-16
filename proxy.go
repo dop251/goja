@@ -1,11 +1,7 @@
 package goja
 
-import (
-	"fmt"
-)
-
 type Proxy struct {
-	proxy *Object
+	proxy *proxyObject
 }
 
 type iteratorPropIter struct {
@@ -20,15 +16,14 @@ func (i *iteratorPropIter) next() (propIterItem, iterNextFunc) {
 	return propIterItem{name: nilSafe(res.self.getStr("value", nil)).String()}, i.next
 }
 
-func (r *Runtime) NewProxy(target *Object, nativeHandler *ProxyTrapConfig, revocable, strict bool) *Proxy {
+func (r *Runtime) NewProxy(target *Object, nativeHandler *ProxyTrapConfig) *Proxy {
 	handler := r.newNativeProxyHandler(nativeHandler)
-	proxy := r.newProxyObject(target, handler, revocable, strict)
-	return &Proxy{proxy}
+	proxy := r.newProxyObject(target, handler)
+	return &Proxy{proxy: proxy}
 }
 
 func (p *Proxy) Revoke() {
-	proxy := p.proxy.self.(*proxyObject)
-	proxy.revoked = true
+	p.proxy.revoke()
 }
 
 func (r *Runtime) newNativeProxyHandler(nativeHandler *ProxyTrapConfig) *Object {
@@ -51,21 +46,20 @@ func (r *Runtime) newNativeProxyHandler(nativeHandler *ProxyTrapConfig) *Object 
 
 func (r *Runtime) proxyproto_nativehandler_getPrototypeOf(native func(*Object) *Object, handler *Object) {
 	if native != nil {
-		handler.Set("getPrototypeOf", func(call FunctionCall) Value {
+		handler.self._putProp("getPrototypeOf", r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 1 {
 				if t, ok := call.Argument(0).(*Object); ok {
 					return native(t)
 				}
 			}
-			r.typeErrorResult(true, "getPrototypeOf needs to be called with target as Object")
-			panic("Unreachable")
-		})
+			panic(r.NewTypeError("getPrototypeOf needs to be called with target as Object"))
+		}, nil, "[native getPrototypeOf]", nil, 1), true, true, true)
 	}
 }
 
 func (r *Runtime) proxyproto_nativehandler_setPrototypeOf(native func(*Object, *Object) bool, handler *Object) {
 	if native != nil {
-		handler.Set("setPrototypeOf", func(call FunctionCall) Value {
+		handler.self._putProp("setPrototypeOf", r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 2 {
 				if t, ok := call.Argument(0).(*Object); ok {
 					if p, ok := call.Argument(1).(*Object); ok {
@@ -74,9 +68,8 @@ func (r *Runtime) proxyproto_nativehandler_setPrototypeOf(native func(*Object, *
 					}
 				}
 			}
-			r.typeErrorResult(true, "setPrototypeOf needs to be called with target and prototype as Object")
-			panic("Unreachable")
-		})
+			panic(r.NewTypeError("setPrototypeOf needs to be called with target and prototype as Object"))
+		}, nil, "[native setPrototypeOf]", nil, 2), true, true, true)
 	}
 }
 
@@ -337,35 +330,15 @@ func (p proxyTrap) String() (name string) {
 
 type proxyObject struct {
 	baseObject
-	target        *Object
-	handler       *Object
-	nativeHandler *ProxyTrapConfig
-	revocable     bool
-	revoked       bool
-	strict        bool
-}
-
-func (p *proxyObject) handleProxyRequest(trap proxyTrap, proxyCallback func(proxyFunction func(FunctionCall) Value, this Value), targetCallback func(target *Object)) {
-	runtime := p.val.runtime
-	if p.revocable && p.revoked {
-		panic(runtime.NewTypeError("Proxy already revoked"))
-	}
-
-	prop := p.handler.self.getOwnPropStr(trap.String())
-	if prop == nil {
-		// Redirect to target object
-		targetCallback(p.target)
-	} else {
-		handler := prop.(*Object)
-		f := runtime.toCallable(handler)
-		proxyCallback(f, handler)
-	}
-
+	target  *Object
+	handler *Object
+	call    func(FunctionCall) Value
+	ctor    func(args []Value) *Object
 }
 
 func (p *proxyObject) proxyCall(trap proxyTrap, args ...Value) (Value, bool) {
 	r := p.val.runtime
-	if p.revocable && p.revoked {
+	if p.handler == nil {
 		panic(r.NewTypeError("Proxy already revoked"))
 	}
 
@@ -527,9 +500,9 @@ func (p *proxyObject) hasOwnPropertyStr(name string) bool {
 }
 
 func (p *proxyObject) proxyGetOwnPropertyDescriptor(name Value) (Value, bool) {
-	if v, ok := p.proxyCall(proxy_trap_getOwnPropertyDescriptor, p.target, name); ok {
+	target := p.target
+	if v, ok := p.proxyCall(proxy_trap_getOwnPropertyDescriptor, target, name); ok {
 		runtime := p.val.runtime
-		target := p.target
 
 		targetDesc := propToValueProp(target.self.getOwnProp(name))
 		extensible := target.self.isExtensible()
@@ -589,8 +562,9 @@ func (p *proxyObject) getStr(name string, receiver Value) (ret Value) {
 }
 
 func (p *proxyObject) proxyGet(name, receiver Value) (Value, bool) {
-	if v, ok := p.proxyCall(proxy_trap_get, p.target, name, receiver); ok {
-		if targetDesc, ok := p.target.self.getOwnProp(name).(*valueProperty); ok {
+	target := p.target
+	if v, ok := p.proxyCall(proxy_trap_get, target, name, receiver); ok {
+		if targetDesc, ok := target.self.getOwnProp(name).(*valueProperty); ok {
 			if !targetDesc.accessor {
 				if !targetDesc.writable && !targetDesc.configurable && !v.SameAs(targetDesc.value) {
 					panic(p.val.runtime.NewTypeError("'get' on proxy: property '%s' is a read-only and non-configurable data property on the proxy target but the proxy did not return its actual value (expected '%s' but got '%s')", name.String(), nilSafe(targetDesc.value), ret))
@@ -615,8 +589,15 @@ func (p *proxyObject) getOwnPropStr(name string) Value {
 	return p.target.self.getOwnPropStr(name)
 }
 
+func proxyProp(v Value) Value {
+	if _, ok := v.(*valueSymbol); ok {
+		return v
+	}
+	return v.toString()
+}
+
 func (p *proxyObject) getOwnProp(name Value) Value {
-	if v, ok := p.proxyGetOwnPropertyDescriptor(name); ok {
+	if v, ok := p.proxyGetOwnPropertyDescriptor(proxyProp(name)); ok {
 		return p.val.runtime.toValueProp(v)
 	}
 
@@ -624,9 +605,10 @@ func (p *proxyObject) getOwnProp(name Value) Value {
 }
 
 func (p *proxyObject) proxySet(name, value, receiver Value) bool {
-	if v, ok := p.proxyCall(proxy_trap_set, p.target, name, value, receiver); ok {
+	target := p.target
+	if v, ok := p.proxyCall(proxy_trap_set, target, name, value, receiver); ok {
 		if v.ToBoolean() {
-			if prop, ok := p.target.self.getOwnProp(name).(*valueProperty); ok {
+			if prop, ok := target.self.getOwnProp(name).(*valueProperty); ok {
 				if prop.accessor {
 					if !prop.configurable {
 						panic(p.val.runtime.NewTypeError())
@@ -644,13 +626,13 @@ func (p *proxyObject) proxySet(name, value, receiver Value) bool {
 }
 
 func (p *proxyObject) setOwn(n Value, v Value, throw bool) {
-	if !p.proxySet(n, v, p.val) {
+	if !p.proxySet(n, proxyProp(v), p.val) {
 		p.target.set(n, v, p.val, throw)
 	}
 }
 
 func (p *proxyObject) setForeign(n Value, v, receiver Value, throw bool) bool {
-	if !p.proxySet(n, v, receiver) {
+	if !p.proxySet(n, proxyProp(v), receiver) {
 		p.target.set(n, v, receiver, throw)
 	}
 	return true
@@ -670,7 +652,6 @@ func (p *proxyObject) setForeignStr(name string, v, receiver Value, throw bool) 
 }
 
 func (p *proxyObject) setOwnSym(s *valueSymbol, v Value, throw bool) {
-	p.setOwn(s, v, throw)
 	if !p.proxySet(s, v, p.val) {
 		p.target.set(s, v, p.val, throw)
 	}
@@ -684,9 +665,10 @@ func (p *proxyObject) setForeignSym(s *valueSymbol, v, receiver Value, throw boo
 }
 
 func (p *proxyObject) proxyDelete(n Value) (bool, bool) {
-	if v, ok := p.proxyCall(proxy_trap_deleteProperty, p.target, n); ok {
+	target := p.target
+	if v, ok := p.proxyCall(proxy_trap_deleteProperty, target, n); ok {
 		if v.ToBoolean() {
-			if targetDesc, ok := p.target.self.getOwnProp(n).(*valueProperty); ok {
+			if targetDesc, ok := target.self.getOwnProp(n).(*valueProperty); ok {
 				if !targetDesc.configurable {
 					panic(p.val.runtime.NewTypeError("'deleteProperty' on proxy: property '%s' is a non-configurable property but the trap returned truish", n.String()))
 				}
@@ -707,119 +689,88 @@ func (p *proxyObject) deleteStr(name string, throw bool) bool {
 }
 
 func (p *proxyObject) delete(n Value, throw bool) bool {
-	if ret, ok := p.proxyDelete(n); ok {
+	if ret, ok := p.proxyDelete(proxyProp(n)); ok {
 		return ret
 	}
 
 	return p.target.self.delete(n, throw)
 }
 
-func (p *proxyObject) proxyOwnKeys(symbols bool) ([]Value, bool) {
+func (p *proxyObject) ownPropertyKeys(all bool, _ []Value) []Value {
+	if v, ok := p.proxyOwnKeys(); ok {
+		return v
+	}
+	return p.target.self.ownPropertyKeys(all, nil)
+}
+
+func (p *proxyObject) proxyOwnKeys() ([]Value, bool) {
+	target := p.target
 	if v, ok := p.proxyCall(proxy_trap_ownKeys, p.target); ok {
 		keys := p.val.runtime.toObject(v)
-		var strKeyList []Value
-		strKeySet := make(map[string]struct{})
-		var symKeyList []Value
-		symKeySet := make(map[Value]struct{})
+		var keyList []Value
+		keySet := make(map[Value]struct{})
 		l := toLength(keys.self.getStr("length", nil))
 		for k := int64(0); k < l; k++ {
 			item := keys.self.get(intToValue(k), nil)
-			if s, ok := item.assertString(); ok {
-				strKeyList = append(strKeyList, item)
-				strKeySet[s.String()] = struct{}{}
-			} else if sym, ok := item.(*valueSymbol); ok {
-				symKeyList = append(symKeyList, item)
-				symKeySet[sym] = struct{}{}
-			} else {
-				panic(p.val.runtime.NewTypeError("%s is not a valid property name", item))
+			if _, ok := item.assertString(); !ok {
+				if _, ok := item.(*valueSymbol); !ok {
+					panic(p.val.runtime.NewTypeError("%s is not a valid property name", item.String()))
+				}
 			}
+			keyList = append(keyList, item)
+			keySet[item] = struct{}{}
 		}
-		ext := p.target.self.isExtensible()
-		for _, itemName := range p.target.self.ownKeys(true, nil) {
-			itemNameStr := itemName.String()
-			if _, exists := strKeySet[itemNameStr]; exists {
-				delete(strKeySet, itemNameStr)
+		ext := target.self.isExtensible()
+		for _, itemName := range target.self.ownPropertyKeys(true, nil) {
+			if _, exists := keySet[itemName]; exists {
+				delete(keySet, itemName)
 			} else {
 				if !ext {
-					panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap result did not include '%s'", itemNameStr))
+					panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap result did not include '%s'", itemName.String()))
 				}
-				prop := p.target.self.getOwnPropStr(itemNameStr)
+				prop := target.self.getOwnProp(itemName)
 				if prop, ok := prop.(*valueProperty); ok && !prop.configurable {
-					panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap result did not include non-configurable '%s'", itemNameStr))
+					panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap result did not include non-configurable '%s'", itemName.String()))
 				}
 			}
 		}
-		for _, sym := range p.target.self.ownSymbols() {
-			if _, exists := symKeySet[sym]; exists {
-				delete(symKeySet, sym)
-			} else {
-				if !ext {
-					panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap result did not include '%s'", sym.String()))
-				}
-				prop := p.target.self.getOwnProp(sym)
-				if prop, ok := prop.(*valueProperty); ok && !prop.configurable {
-					panic(p.val.runtime.NewTypeError("Missing symbol non-configurable property"))
-				}
-			}
-		}
-		if !ext && len(strKeyList) > 0 && len(strKeySet) > 0 {
+		if !ext && len(keyList) > 0 && len(keySet) > 0 {
 			panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap returned extra keys but proxy target is non-extensible"))
 		}
 
-		if !ext && len(symKeyList) > 0 && len(symKeySet) > 0 {
-			panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap returned extra keys but proxy target is non-extensible"))
-		}
-
-		if symbols {
-			return symKeyList, true
-		}
-
-		return strKeyList, true
+		return keyList, true
 	}
 
 	return nil, false
 }
 
 func (p *proxyObject) assertCallable() (call func(FunctionCall) Value, ok bool) {
-	return func(call FunctionCall) Value {
-		return p.apply(call.This, call.Arguments)
-	}, true
-}
-
-func (p *proxyObject) apply(this Value, arguments []Value) (ret Value) {
-	if this == _undefined {
-		this = p.target
+	if p.call != nil {
+		return func(call FunctionCall) Value {
+			return p.apply(call)
+		}, true
 	}
-	p.handleProxyRequest(proxy_trap_apply, func(proxyFunction func(FunctionCall) Value, this Value) {
-		ret = proxyFunction(FunctionCall{
-			This:      this,
-			Arguments: []Value{p.target, this, p.val.runtime.newArrayValues(arguments)},
-		})
-	}, func(target *Object) {
-		f := p.val.runtime.toCallable(p.target)
-		ret = f(FunctionCall{
-			This:      this,
-			Arguments: arguments,
-		})
-	})
-	return
+	return nil, false
 }
 
-func (p *proxyObject) construct(args []Value) (ret *Object) {
-	p.handleProxyRequest(proxy_trap_construct, func(proxyFunction func(FunctionCall) Value, this Value) {
-		ret = p.val.runtime.toObject(proxyFunction(FunctionCall{
-			This:      this,
-			Arguments: []Value{p.target, p.val.runtime.newArrayValues(args), p.val},
-		}))
-	}, func(target *Object) {
-		ctor := getConstructor(target)
-		if ctor == nil {
-			p.val.runtime.typeErrorResult(true, "Not a constructor")
-			panic("Unreachable")
-		}
-		ret = ctor(args)
-	})
-	return
+func (p *proxyObject) apply(call FunctionCall) Value {
+	if p.call == nil {
+		p.val.runtime.NewTypeError("proxy target is not a function")
+	}
+	if v, ok := p.proxyCall(proxy_trap_apply, p.target, nilSafe(call.This), p.val.runtime.newArrayValues(call.Arguments)); ok {
+		return v
+	}
+	return p.call(call)
+}
+
+func (p *proxyObject) construct(args []Value) *Object {
+	if p.ctor == nil {
+		panic(p.val.runtime.NewTypeError("proxy target is not a constructor"))
+	}
+	if v, ok := p.proxyCall(proxy_trap_construct, p.target, p.val.runtime.newArrayValues(args), p.val); ok {
+		return p.val.runtime.toObject(v)
+	}
+	return p.ctor(args)
 }
 
 func (p *proxyObject) __isSealed(target *Object, name Value) bool {
@@ -940,34 +891,53 @@ func (p *proxyObject) __sameValue(val1, val2 Value) bool {
 	return false
 }
 
-func (p *proxyObject) ownKeys(all bool, _ []Value) []Value { // we can assume accum is empty
-	if vals, ok := p.proxyOwnKeys(false); ok {
-		if !all {
-			k := 0
-			for i, val := range vals {
-				prop := p.getOwnPropStr(val.String())
-				if prop == nil {
-					continue
-				}
-				if prop, ok := prop.(*valueProperty); ok && !prop.enumerable {
-					continue
-				}
-				if k != i {
-					vals[k] = vals[i]
-				}
-				k++
+func (p *proxyObject) filterKeys(vals []Value, all, symbols bool) []Value {
+	if !all {
+		k := 0
+		for i, val := range vals {
+			if _, ok := val.(*valueSymbol); ok != symbols {
+				continue
 			}
-			vals = vals[:k]
+			prop := p.getOwnProp(val)
+			if prop == nil {
+				continue
+			}
+			if prop, ok := prop.(*valueProperty); ok && !prop.enumerable {
+				continue
+			}
+			if k != i {
+				vals[k] = vals[i]
+			}
+			k++
 		}
-		return vals
+		vals = vals[:k]
+	} else {
+		k := 0
+		for i, val := range vals {
+			if _, ok := val.(*valueSymbol); ok {
+				continue
+			}
+			if k != i {
+				vals[k] = vals[i]
+			}
+			k++
+		}
+		vals = vals[:k]
+	}
+	return vals
+}
+
+func (p *proxyObject) ownKeys(all bool, _ []Value) []Value { // we can assume accum is empty
+	if vals, ok := p.proxyOwnKeys(); ok {
+		return p.filterKeys(vals, all, false)
 	}
 
 	return p.target.self.ownKeys(all, nil)
 }
 
 func (p *proxyObject) ownSymbols() []Value {
-	if vals, ok := p.proxyOwnKeys(true); ok {
-		return vals
+	if vals, ok := p.proxyOwnKeys(); ok {
+		return p.filterKeys(vals, true, true)
 	}
 
 	return p.target.self.ownSymbols()
@@ -981,59 +951,48 @@ func (p *proxyObject) enumerate() iterNextFunc {
 	return p.target.self.enumerate()
 }
 
+func (p *proxyObject) className() string {
+	if p.target == nil {
+		panic(p.val.runtime.NewTypeError("proxy has been revoked"))
+	}
+	if p.call != nil || p.ctor != nil {
+		return classFunction
+	}
+	return classObject
+}
+
+func (p *proxyObject) revoke() {
+	p.handler = nil
+	p.target = nil
+}
+
 func (r *Runtime) newProxy(args []Value) *Object {
 	if len(args) >= 2 {
 		if target, ok := args[0].(*Object); ok {
 			if proxyHandler, ok := args[1].(*Object); ok {
-				return r.newProxyObject(target, proxyHandler, false, true)
+				return r.newProxyObject(target, proxyHandler).val
 			}
 		}
 	}
 	panic(r.NewTypeError("Cannot create proxy with a non-object as target or handler"))
 }
 
-func (r *Runtime) newProxyObject(target *Object, handler *Object, revocable, strict bool) *Object {
+func (r *Runtime) newProxyObject(target *Object, handler *Object) *proxyObject {
 	v := &Object{runtime: r}
-	p := &proxyObject{strict: strict}
+	p := &proxyObject{}
 	v.self = p
 	p.val = v
-	p.class = classProxy
+	p.class = classObject
 	p.prototype = r.global.Proxy
 	p.extensible = false
 	p.init()
 	p.target = target
 	p.handler = handler
-	p.revocable = revocable
-	return v
-}
-
-func (r *Runtime) proxy_revocable(call FunctionCall) Value {
-	if len(call.Arguments) >= 2 {
-		if target, ok := call.Argument(0).(*Object); ok {
-			if proxyHandler, ok := call.Argument(1).(*Object); ok {
-				return r.newProxyObject(target, proxyHandler, true, true)
-			}
-		}
+	if call, ok := target.self.assertCallable(); ok {
+		p.call = call
 	}
-	panic(r.NewTypeError("Cannot create proxy with a non-object as target or handler"))
-}
-
-func (r *Runtime) proxyproto_toString(call FunctionCall) Value {
-	obj := r.toObject(call.This)
-	if d, ok := obj.self.(*proxyObject); ok {
-		return asciiString(fmt.Sprintf("ES6 Proxy[%s]", d.target.String()))
+	if ctor := getConstructor(target); ctor != nil {
+		p.ctor = ctor
 	}
-	panic(r.NewTypeError("Method Proxy.prototype.toString is called on incompatible receiver"))
-}
-
-func (r *Runtime) proxyproto_revoke(call FunctionCall) Value {
-	obj := r.toObject(call.This)
-	if d, ok := obj.self.(*proxyObject); ok {
-		if !d.revocable {
-			panic(r.NewTypeError("Method Proxy.prototype.revoke is called on incompatible receiver"))
-		}
-		d.revoked = true
-		return valueTrue
-	}
-	panic(r.NewTypeError("Method Proxy.prototype.revoke is called on incompatible receiver"))
+	return p
 }

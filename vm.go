@@ -1727,9 +1727,7 @@ repeat:
 		vm.pushCtx()
 		vm.prg = nil
 		vm.funcName = "proxy"
-		arguments := vm.stack[vm.sp-n : vm.sp]
-		this := vm.stack[vm.sp-n-2]
-		ret := f.apply(this, arguments)
+		ret := f.apply(FunctionCall{This: vm.stack[vm.sp-n-2], Arguments: vm.stack[vm.sp-n : vm.sp]})
 		if ret == nil {
 			ret = _undefined
 		}

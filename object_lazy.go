@@ -213,6 +213,12 @@ func (o *lazyObject) ownSymbols() []Value {
 	return obj.ownSymbols()
 }
 
+func (o *lazyObject) ownPropertyKeys(all bool, accum []Value) []Value {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.ownPropertyKeys(all, accum)
+}
+
 func (o *lazyObject) setProto(proto *Object, throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj

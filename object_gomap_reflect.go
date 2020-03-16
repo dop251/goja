@@ -193,7 +193,7 @@ func (o *objectGoMapReflect) hasOwnPropertyStr(name string) bool {
 	if key.IsValid() && o.value.MapIndex(key).IsValid() {
 		return true
 	}
-	return o.objectGoReflect.hasOwnPropertyStr(name)
+	return false
 }
 
 func (o *objectGoMapReflect) hasOwnProperty(n Value) bool {
@@ -250,7 +250,10 @@ func (i *gomapReflectPropIter) next() (propIterItem, iterNextFunc) {
 		}
 	}
 
-	return i.o.objectGoReflect.enumerateUnfiltered()()
+	if i.o.prototype != nil {
+		return i.o.prototype.self.enumerateUnfiltered()()
+	}
+	return propIterItem{}, nil
 }
 
 func (o *objectGoMapReflect) enumerateUnfiltered() iterNextFunc {
@@ -260,13 +263,11 @@ func (o *objectGoMapReflect) enumerateUnfiltered() iterNextFunc {
 	}).next
 }
 
-func (o *objectGoMapReflect) ownKeys(all bool, accum []Value) []Value {
+func (o *objectGoMapReflect) ownKeys(_ bool, accum []Value) []Value {
 	// all own keys are enumerable
 	for _, key := range o.value.MapKeys() {
 		accum = append(accum, newStringValue(key.String()))
 	}
-
-	accum = o.objectGoReflect.ownKeys(all, accum)
 
 	return accum
 }

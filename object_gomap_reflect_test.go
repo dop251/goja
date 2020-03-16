@@ -1,6 +1,8 @@
 package goja
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestGoMapReflectGetSet(t *testing.T) {
 	const SCRIPT = `

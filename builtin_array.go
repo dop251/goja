@@ -897,8 +897,8 @@ func (r *Runtime) arrayproto_copyWithin(call FunctionCall) Value {
 		dir = 1
 	}
 	for count > 0 {
-		if p := o.self.get(intToValue(from), nil); p != nil {
-			o.self.setOwn(intToValue(to), p, true)
+		if o.self.hasProperty(intToValue(from)) {
+			o.self.setOwn(intToValue(to), o.self.get(intToValue(from), nil), true)
 		} else {
 			o.self.delete(intToValue(to), true)
 		}

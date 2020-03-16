@@ -49,7 +49,7 @@ func TestProxy_Object_native_proxy_getPrototypeOf(t *testing.T) {
 		GetPrototypeOf: func(target *Object) *Object {
 			return prototype
 		},
-	}, false, false)
+	})
 	runtime.Set("proxy", proxy)
 
 	_, err := runtime.RunString(TESTLIB + SCRIPT)
@@ -132,7 +132,7 @@ func TestProxy_native_proxy_isExtensible(t *testing.T) {
 		IsExtensible: func(target *Object) (success bool) {
 			return false
 		},
-	}, false, false)
+	})
 	runtime.Set("proxy", proxy)
 
 	val, err := runtime.RunString(SCRIPT)
@@ -194,7 +194,7 @@ func TestProxy_native_proxy_preventExtensions(t *testing.T) {
 			target.Set("canEvolve", false)
 			return false
 		},
-	}, false, false)
+	})
 	runtime.Set("proxy", proxy)
 
 	val, err := runtime.RunString(SCRIPT)
@@ -298,7 +298,7 @@ func TestProxy_native_proxy_getOwnPropertyDescriptor(t *testing.T) {
 			GetOwnPropertyDescriptor: func(target *Object, prop string) PropertyDescriptor {
 				return runtime.toPropertyDescriptor(proxyDesc)
 			},
-		}, false, false).proxy
+		}).proxy.val
 	}
 
 	val, err := runtime.RunString(SCRIPT)
@@ -367,7 +367,7 @@ func TestProxy_native_proxy_defineProperty(t *testing.T) {
 			target.Set("foo", "321tset")
 			return true
 		},
-	}, false, false)
+	})
 	runtime.Set("proxy", proxy)
 
 	val, err := runtime.RunString(SCRIPT)

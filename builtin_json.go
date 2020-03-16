@@ -138,19 +138,6 @@ func (r *Runtime) builtinJSON_decodeArray(d *json.Decoder) (*Object, error) {
 	return r.newArrayValues(arrayValue), nil
 }
 
-func isArray(object *Object) bool {
-	self := object.self
-	if proxy, ok := self.(*proxyObject); ok {
-		return isArray(proxy.target)
-	}
-	switch self.className() {
-	case classArray:
-		return true
-	default:
-		return false
-	}
-}
-
 func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holder *Object, name Value) Value {
 	value := holder.self.get(name, nil)
 	if value == nil {

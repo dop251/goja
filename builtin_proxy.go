@@ -1,34 +1,36 @@
 package goja
 
-func (r *Runtime) builtin_newProxy(args []Value, proto *Object) *Object {
+func (r *Runtime) builtin_newProxy(args []Value) *Object {
 	return r.newProxy(args)
 }
 
+func (r *Runtime) proxy_revocable(call FunctionCall) Value {
+	if len(call.Arguments) >= 2 {
+		if target, ok := call.Argument(0).(*Object); ok {
+			if proxyHandler, ok := call.Argument(1).(*Object); ok {
+				proxy := r.newProxyObject(target, proxyHandler)
+				revoke := r.newNativeFunc(func(FunctionCall) Value {
+					proxy.revoke()
+					return _undefined
+				}, nil, "", nil, 0)
+				ret := r.NewObject()
+				ret.self._putProp("proxy", proxy.val, true, true, true)
+				ret.self._putProp("revoke", revoke, true, true, true)
+				return ret
+			}
+		}
+	}
+	panic(r.NewTypeError("Cannot create proxy with a non-object as target or handler"))
+}
+
 func (r *Runtime) createProxy(val *Object) objectImpl {
-	o := r.newNativeFuncConstructObj(val, r.builtin_newProxy, "Proxy", r.global.ProxyPrototype, 1)
+	o := r.newNativeFuncObj(val, r.constructorThrower("Proxy"), r.builtin_newProxy, "Proxy", nil, 2)
 
-	o._putProp("revocable", r.newNativeFunc(r.proxy_revocable, nil, "revocable", nil, 1), false, false, false)
-
+	o._putProp("revocable", r.newNativeFunc(r.proxy_revocable, nil, "revocable", nil, 2), true, false, true)
 	return o
 }
 
 func (r *Runtime) initProxy() {
 	r.global.Proxy = r.newLazyObject(r.createProxy)
 	r.addToGlobal("Proxy", r.global.Proxy)
-}
-
-func (r *Runtime) createProxyProto(val *Object) objectImpl {
-	o := &baseObject{
-		class:      classProxy,
-		val:        val,
-		extensible: false,
-		prototype:  r.global.ObjectPrototype,
-	}
-	o.init()
-
-	o._putProp("constructor", r.global.Proxy, false, false, false)
-	o._putProp("toString", r.newNativeFunc(r.proxyproto_toString, nil, "toString", nil, 0), true, false, true)
-	o._putProp("revoke", r.newNativeFunc(r.proxyproto_revoke, nil, "revoke", nil, 0), true, false, true)
-
-	return o
 }

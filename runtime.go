@@ -74,7 +74,6 @@ type global struct {
 	DatePrototype     *Object
 	SymbolPrototype   *Object
 	ArrayIterator     *Object
-	ProxyPrototype    *Object
 
 	ArrayBufferPrototype *Object
 	WeakSetPrototype     *Object
@@ -659,7 +658,10 @@ repeat:
 		construct.self = f.create(construct)
 		goto repeat
 	case *proxyObject:
-		return f.construct
+		if f.ctor != nil {
+			return f.construct
+		}
+		return nil
 	}
 
 	return nil
@@ -1034,7 +1036,7 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 		return r.newNativeConstructor(i, name, 0)
 	case *Proxy:
-		proxy := i.proxy
+		proxy := i.proxy.val
 		if proxy.runtime != r {
 			r.typeErrorResult(true, "Illegal runtime transition for proxy")
 		}
@@ -1757,4 +1759,20 @@ func nilSafe(v Value) Value {
 		return v
 	}
 	return _undefined
+}
+
+func isArray(object *Object) bool {
+	self := object.self
+	if proxy, ok := self.(*proxyObject); ok {
+		if proxy.target == nil {
+			panic(typeError("Cannot perform 'IsArray' on a proxy that has been revoked"))
+		}
+		return isArray(proxy.target)
+	}
+	switch self.className() {
+	case classArray:
+		return true
+	default:
+		return false
+	}
 }

@@ -452,13 +452,15 @@ func (r *Runtime) objectproto_toString(call FunctionCall) Value {
 	default:
 		obj := o.ToObject(r)
 		var clsName string
+		if isArray(obj) {
+			clsName = classArray
+		} else {
+			clsName = obj.self.className()
+		}
 		if tag := obj.self.get(symToStringTag, nil); tag != nil {
 			if str, ok := tag.assertString(); ok {
 				clsName = str.String()
 			}
-		}
-		if clsName == "" {
-			clsName = obj.self.className()
 		}
 		return newStringValue(fmt.Sprintf("[object %s]", clsName))
 	}
@@ -479,24 +481,15 @@ func (r *Runtime) object_assign(call FunctionCall) Value {
 		for _, arg := range call.Arguments[1:] {
 			if arg != _undefined && arg != _null {
 				source := arg.ToObject(r)
-				for _, itemName := range source.self.ownKeys(false, nil) {
-					itemNameStr := itemName.String()
-					p := source.self.getOwnPropStr(itemNameStr)
-					if v, ok := p.(*valueProperty); ok {
-						p = v.get(source)
-					}
-					to.self.setOwnStr(itemNameStr, p, true)
-				}
-
-				for _, sym := range source.self.ownSymbols() {
-					p := source.self.getOwnProp(sym)
+				for _, itemName := range source.self.ownPropertyKeys(false, nil) {
+					p := source.self.getOwnProp(itemName)
 					if v, ok := p.(*valueProperty); ok {
 						if !v.enumerable {
 							continue
 						}
 						p = v.get(source)
 					}
-					to.self.setOwn(sym, p, true)
+					to.self.setOwn(itemName, p, true)
 				}
 			}
 		}
