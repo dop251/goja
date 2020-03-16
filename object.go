@@ -111,14 +111,28 @@ func (p PropertyDescriptor) toValue(r *Runtime) Value {
 	o := r.NewObject()
 	s := o.self
 
-	s._putProp("value", p.Value, false, false, false)
+	if p.Value != nil {
+		s._putProp("value", p.Value, true, true, true)
+	}
 
-	s._putProp("writable", valueBool(p.Writable.Bool()), false, false, false)
-	s._putProp("enumerable", valueBool(p.Enumerable.Bool()), false, false, false)
-	s._putProp("configurable", valueBool(p.Configurable.Bool()), false, false, false)
+	if p.Writable != FLAG_NOT_SET {
+		s._putProp("writable", valueBool(p.Writable.Bool()), true, true, true)
+	}
 
-	s._putProp("get", p.Getter, false, false, false)
-	s._putProp("set", p.Setter, false, false, false)
+	if p.Enumerable != FLAG_NOT_SET {
+		s._putProp("enumerable", valueBool(p.Enumerable.Bool()), true, true, true)
+	}
+
+	if p.Configurable != FLAG_NOT_SET {
+		s._putProp("configurable", valueBool(p.Configurable.Bool()), true, true, true)
+	}
+
+	if p.Getter != nil {
+		s._putProp("get", p.Getter, true, true, true)
+	}
+	if p.Setter != nil {
+		s._putProp("set", p.Setter, true, true, true)
+	}
 
 	s.preventExtensions(false)
 

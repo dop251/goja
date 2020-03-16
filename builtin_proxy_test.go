@@ -743,3 +743,40 @@ func TestProxy_proxy_new(t *testing.T) {
 
 	testScript1(SCRIPT, asciiString("caught-test"), t)
 }
+
+func TestProxy_Object_native_proxy_ownKeys(t *testing.T) {
+	headers := map[string][]string{
+		"k0": {},
+	}
+	vm := New()
+	proxy := vm.NewProxy(vm.NewObject(), &ProxyTrapConfig{
+		OwnKeys: func(target *Object) (object *Object) {
+			keys := make([]interface{}, 0, len(headers))
+			for k := range headers {
+				keys = append(keys, k)
+			}
+			return vm.ToValue(keys).ToObject(vm)
+		},
+		GetOwnPropertyDescriptor: func(target *Object, prop string) PropertyDescriptor {
+			v, exists := headers[prop]
+			if exists {
+				return PropertyDescriptor{
+					Value:      vm.ToValue(v),
+					Enumerable: FLAG_TRUE,
+				}
+			}
+			return PropertyDescriptor{}
+		},
+	})
+	vm.Set("headers", proxy)
+	v, err := vm.RunString(`
+		var keys = Object.keys(headers);
+		keys.length === 1 && keys[0] === "k0";
+		`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != valueTrue {
+		t.Fatal("not true", v)
+	}
+}
