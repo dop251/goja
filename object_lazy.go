@@ -135,6 +135,12 @@ func (o *lazyObject) assertCallable() (call func(FunctionCall) Value, ok bool) {
 	return obj.assertCallable()
 }
 
+func (o *lazyObject) assertConstructor() func(args []Value, newTarget Value) *Object {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.assertConstructor()
+}
+
 func (o *lazyObject) deleteStr(name string, throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj

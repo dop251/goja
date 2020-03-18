@@ -107,7 +107,7 @@ func (r *Runtime) newDateTime(args []Value, loc *time.Location) *Object {
 	return r.newDateObject(t, isSet)
 }
 
-func (r *Runtime) builtin_newDate(args []Value) *Object {
+func (r *Runtime) builtin_newDate(args []Value, _ Value) *Object {
 	return r.newDateTime(args, time.Local)
 }
 

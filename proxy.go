@@ -4,305 +4,48 @@ type Proxy struct {
 	proxy *proxyObject
 }
 
-type iteratorPropIter struct {
-	iter *Object
+type proxyPropIter struct {
+	p     *proxyObject
+	names []Value
+	idx   int
 }
 
-func (i *iteratorPropIter) next() (propIterItem, iterNextFunc) {
-	res := i.iter.runtime.toObject(toMethod(i.iter.self.getStr("next", nil))(FunctionCall{This: i.iter}))
-	if nilSafe(res.self.getStr("done", nil)).ToBoolean() {
-		return propIterItem{}, nil
+func (i *proxyPropIter) next() (propIterItem, iterNextFunc) {
+	for i.idx < len(i.names) {
+		name := i.names[i.idx]
+		i.idx++
+		if prop := i.p.getOwnProp(name); prop != nil {
+			return propIterItem{name: name.String(), value: prop}, i.next
+		}
 	}
-	return propIterItem{name: nilSafe(res.self.getStr("value", nil)).String()}, i.next
+	if proto := i.p.proto(); proto != nil {
+		return proto.self.enumerateUnfiltered()()
+	}
+	return propIterItem{}, nil
 }
 
-func (r *Runtime) NewProxy(target *Object, nativeHandler *ProxyTrapConfig) *Proxy {
-	handler := r.newNativeProxyHandler(nativeHandler)
-	proxy := r.newProxyObject(target, handler)
-	return &Proxy{proxy: proxy}
+func (r *Runtime) newProxyObject(target *Object, handler *Object) *proxyObject {
+	v := &Object{runtime: r}
+	p := &proxyObject{}
+	v.self = p
+	p.val = v
+	p.class = classObject
+	p.prototype = r.global.Proxy
+	p.extensible = false
+	p.init()
+	p.target = target
+	p.handler = handler
+	if call, ok := target.self.assertCallable(); ok {
+		p.call = call
+	}
+	if ctor := target.self.assertConstructor(); ctor != nil {
+		p.ctor = ctor
+	}
+	return p
 }
 
 func (p *Proxy) Revoke() {
 	p.proxy.revoke()
-}
-
-func (r *Runtime) newNativeProxyHandler(nativeHandler *ProxyTrapConfig) *Object {
-	handler := r.NewObject()
-	r.proxyproto_nativehandler_getPrototypeOf(nativeHandler.GetPrototypeOf, handler)
-	r.proxyproto_nativehandler_setPrototypeOf(nativeHandler.SetPrototypeOf, handler)
-	r.proxyproto_nativehandler_isExtensible(nativeHandler.IsExtensible, handler)
-	r.proxyproto_nativehandler_preventExtensions(nativeHandler.PreventExtensions, handler)
-	r.proxyproto_nativehandler_getOwnPropertyDescriptor(nativeHandler.GetOwnPropertyDescriptor, handler)
-	r.proxyproto_nativehandler_defineProperty(nativeHandler.DefineProperty, handler)
-	r.proxyproto_nativehandler_has(nativeHandler.Has, handler)
-	r.proxyproto_nativehandler_get(nativeHandler.Get, handler)
-	r.proxyproto_nativehandler_set(nativeHandler.Set, handler)
-	r.proxyproto_nativehandler_deleteProperty(nativeHandler.DeleteProperty, handler)
-	r.proxyproto_nativehandler_ownKeys(nativeHandler.OwnKeys, handler)
-	r.proxyproto_nativehandler_apply(nativeHandler.Apply, handler)
-	r.proxyproto_nativehandler_construct(nativeHandler.Construct, handler)
-	return handler
-}
-
-func (r *Runtime) proxyproto_nativehandler_getPrototypeOf(native func(*Object) *Object, handler *Object) {
-	if native != nil {
-		handler.self._putProp("getPrototypeOf", r.newNativeFunc(func(call FunctionCall) Value {
-			if len(call.Arguments) >= 1 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					return native(t)
-				}
-			}
-			panic(r.NewTypeError("getPrototypeOf needs to be called with target as Object"))
-		}, nil, "[native getPrototypeOf]", nil, 1), true, true, true)
-	}
-}
-
-func (r *Runtime) proxyproto_nativehandler_setPrototypeOf(native func(*Object, *Object) bool, handler *Object) {
-	if native != nil {
-		handler.self._putProp("setPrototypeOf", r.newNativeFunc(func(call FunctionCall) Value {
-			if len(call.Arguments) >= 2 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).(*Object); ok {
-						s := native(t, p)
-						return r.ToValue(s)
-					}
-				}
-			}
-			panic(r.NewTypeError("setPrototypeOf needs to be called with target and prototype as Object"))
-		}, nil, "[native setPrototypeOf]", nil, 2), true, true, true)
-	}
-}
-
-func (r *Runtime) proxyproto_nativehandler_isExtensible(native func(*Object) bool, handler *Object) {
-	if native != nil {
-		handler.Set("isExtensible", func(call FunctionCall) Value {
-			if len(call.Arguments) >= 1 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					s := native(t)
-					return r.ToValue(s)
-				}
-			}
-			r.typeErrorResult(true, "isExtensible needs to be called with target as Object")
-			panic("Unreachable")
-		})
-	}
-}
-
-func (r *Runtime) proxyproto_nativehandler_preventExtensions(native func(*Object) bool, handler *Object) {
-	if native != nil {
-		handler.Set("preventExtensions", func(call FunctionCall) Value {
-			if len(call.Arguments) >= 1 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					s := native(t)
-					return r.ToValue(s)
-				}
-			}
-			r.typeErrorResult(true, "preventExtensions needs to be called with target as Object")
-			panic("Unreachable")
-		})
-	}
-}
-
-func (r *Runtime) proxyproto_nativehandler_getOwnPropertyDescriptor(native func(*Object, string) PropertyDescriptor, handler *Object) {
-	if native != nil {
-		handler.Set("getOwnPropertyDescriptor", func(call FunctionCall) Value {
-			if len(call.Arguments) >= 2 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).assertString(); ok {
-						return native(t, p.String()).toValue(r)
-					}
-				}
-			}
-			r.typeErrorResult(true, "getOwnPropertyDescriptor needs to be called with target as Object and prop as string")
-			panic("Unreachable")
-		})
-	}
-}
-
-func (r *Runtime) proxyproto_nativehandler_defineProperty(native func(*Object, string, PropertyDescriptor) bool, handler *Object) {
-	if native != nil {
-		handler.Set("defineProperty", func(call FunctionCall) Value {
-			if len(call.Arguments) >= 3 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					if k, ok := call.Argument(1).assertString(); ok {
-						propertyDescriptor := r.toPropertyDescriptor(call.Argument(2))
-						s := native(t, k.String(), propertyDescriptor)
-						return r.ToValue(s)
-					}
-				}
-			}
-			r.typeErrorResult(true, "defineProperty needs to be called with target as Object and propertyDescriptor as string and key as string")
-			panic("Unreachable")
-		})
-	}
-}
-
-func (r *Runtime) proxyproto_nativehandler_has(native func(*Object, string) bool, handler *Object) {
-	if native != nil {
-		handler.Set("has", func(call FunctionCall) Value {
-			if len(call.Arguments) >= 2 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).assertString(); ok {
-						o := native(t, p.String())
-						return r.ToValue(o)
-					}
-				}
-			}
-			r.typeErrorResult(true, "has needs to be called with target as Object and property as string")
-			panic("Unreachable")
-		})
-	}
-}
-
-func (r *Runtime) proxyproto_nativehandler_get(native func(*Object, string, *Object) Value, handler *Object) {
-	if native != nil {
-		handler.Set("get", func(call FunctionCall) Value {
-			if len(call.Arguments) >= 2 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).assertString(); ok {
-						if r, ok := call.Argument(2).(*Object); ok {
-							return native(t, p.String(), r)
-						}
-					}
-				}
-			}
-			r.typeErrorResult(true, "get needs to be called with target and receiver as Object and property as string")
-			panic("Unreachable")
-		})
-	}
-}
-
-func (r *Runtime) proxyproto_nativehandler_set(native func(*Object, string, Value, *Object) bool, handler *Object) {
-	if native != nil {
-		handler.Set("set", func(call FunctionCall) Value {
-			if len(call.Arguments) >= 2 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).assertString(); ok {
-						v := call.Argument(2)
-						if re, ok := call.Argument(3).(*Object); ok {
-							s := native(t, p.String(), v, re)
-							return r.ToValue(s)
-						}
-					}
-				}
-			}
-			r.typeErrorResult(true, "set needs to be called with target and receiver as Object, property as string and value as a legal javascript value")
-			panic("Unreachable")
-		})
-	}
-}
-
-func (r *Runtime) proxyproto_nativehandler_deleteProperty(native func(*Object, string) bool, handler *Object) {
-	if native != nil {
-		handler.Set("deleteProperty", func(call FunctionCall) Value {
-			if len(call.Arguments) >= 2 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).assertString(); ok {
-						o := native(t, p.String())
-						return r.ToValue(o)
-					}
-				}
-			}
-			r.typeErrorResult(true, "deleteProperty needs to be called with target as Object and property as string")
-			panic("Unreachable")
-		})
-	}
-}
-
-func (r *Runtime) proxyproto_nativehandler_ownKeys(native func(*Object) *Object, handler *Object) {
-	if native != nil {
-		handler.Set("ownKeys", func(call FunctionCall) Value {
-			if len(call.Arguments) >= 1 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					return native(t)
-				}
-			}
-			r.typeErrorResult(true, "ownKeys needs to be called with target as Object")
-			panic("Unreachable")
-		})
-	}
-}
-
-func (r *Runtime) proxyproto_nativehandler_apply(native func(*Object, *Object, []Value) Value, handler *Object) {
-	if native != nil {
-		handler.Set("apply", func(call FunctionCall) Value {
-			if len(call.Arguments) >= 3 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					if this, ok := call.Argument(1).(*Object); ok {
-						if v, ok := call.Argument(2).(*Object); ok {
-							if a, ok := v.self.(*arrayObject); ok {
-								v := native(t, this, a.values)
-								return r.ToValue(v)
-							}
-						}
-					}
-				}
-			}
-			r.typeErrorResult(true, "apply needs to be called with target and this as Object and argumentsList as an array of legal javascript values")
-			panic("Unreachable")
-		})
-	}
-}
-
-func (r *Runtime) proxyproto_nativehandler_construct(native func(*Object, []Value, *Object) *Object, handler *Object) {
-	if native != nil {
-		handler.Set("construct", func(call FunctionCall) Value {
-			if len(call.Arguments) >= 2 {
-				if t, ok := call.Argument(0).(*Object); ok {
-					if v, ok := call.Argument(1).(*Object); ok {
-						if newTarget, ok := call.Argument(2).(*Object); ok {
-							if a, ok := v.self.(*arrayObject); ok {
-								return native(t, a.values, newTarget)
-							}
-						}
-					}
-				}
-			}
-			r.typeErrorResult(true, "construct needs to be called with target and newTarget as Object and argumentsList as an array of legal javascript values")
-			panic("Unreachable")
-		})
-	}
-}
-
-type ProxyTrapConfig struct {
-	// A trap for Object.getPrototypeOf, Reflect.getPrototypeOf, __proto__, Object.prototype.isPrototypeOf, instanceof
-	GetPrototypeOf func(target *Object) (prototype *Object)
-
-	// A trap for Object.setPrototypeOf, Reflect.setPrototypeOf
-	SetPrototypeOf func(target *Object, prototype *Object) (success bool)
-
-	// A trap for Object.isExtensible, Reflect.isExtensible
-	IsExtensible func(target *Object) (success bool)
-
-	// A trap for Object.preventExtensions, Reflect.preventExtensions
-	PreventExtensions func(target *Object) (success bool)
-
-	// A trap for Object.getOwnPropertyDescriptor, Reflect.getOwnPropertyDescriptor
-	GetOwnPropertyDescriptor func(target *Object, prop string) (propertyDescriptor PropertyDescriptor)
-
-	// A trap for Object.defineProperty, Reflect.defineProperty
-	DefineProperty func(target *Object, key string, propertyDescriptor PropertyDescriptor) (success bool)
-
-	// A trap for the in operator, with operator, Reflect.has
-	Has func(target *Object, property string) (available bool)
-
-	// A trap for getting property values, Reflect.get
-	Get func(target *Object, property string, receiver *Object) (value Value)
-
-	// A trap for setting property values, Reflect.set
-	Set func(target *Object, property string, value Value, receiver *Object) (success bool)
-
-	// A trap for the delete operator, Reflect.deleteProperty
-	DeleteProperty func(target *Object, property string) (success bool)
-
-	// A trap for Object.getOwnPropertyNames, Object.getOwnPropertySymbols, Object.keys, Reflect.ownKeys
-	OwnKeys func(target *Object) (object *Object)
-
-	// A trap for a function call, Function.prototype.apply, Function.prototype.call, Reflect.apply
-	Apply func(target *Object, this *Object, argumentsList []Value) (value Value)
-
-	// A trap for the new operator, Reflect.construct
-	Construct func(target *Object, argumentsList []Value, newTarget *Object) (value *Object)
 }
 
 type proxyTrap string
@@ -321,7 +64,6 @@ const (
 	proxy_trap_ownKeys                  = "ownKeys"
 	proxy_trap_apply                    = "apply"
 	proxy_trap_construct                = "construct"
-	proxy_trap_enumerate                = "enumerate"
 )
 
 func (p proxyTrap) String() (name string) {
@@ -333,7 +75,7 @@ type proxyObject struct {
 	target  *Object
 	handler *Object
 	call    func(FunctionCall) Value
-	ctor    func(args []Value) *Object
+	ctor    func(args []Value, newTarget Value) *Object
 }
 
 func (p *proxyObject) proxyCall(trap proxyTrap, args ...Value) (Value, bool) {
@@ -442,7 +184,7 @@ func (p *proxyObject) defineOwnProperty(name Value, descr PropertyDescriptor, th
 				panic(p.val.runtime.NewTypeError())
 			}
 		} else {
-			if !p.__isCompatibleDescriptor(extensibleTarget, descr, targetDesc) {
+			if !p.__isCompatibleDescriptor(extensibleTarget, &descr, targetDesc) {
 				panic(p.val.runtime.NewTypeError())
 			}
 			if settingConfigFalse && targetDesc.configurable {
@@ -502,49 +244,71 @@ func (p *proxyObject) hasOwnPropertyStr(name string) bool {
 func (p *proxyObject) proxyGetOwnPropertyDescriptor(name Value) (Value, bool) {
 	target := p.target
 	if v, ok := p.proxyCall(proxy_trap_getOwnPropertyDescriptor, target, name); ok {
-		runtime := p.val.runtime
+		r := p.val.runtime
 
 		targetDesc := propToValueProp(target.self.getOwnProp(name))
-		extensible := target.self.isExtensible()
 
-		if v == nil || v == _undefined {
-			if targetDesc != nil && !targetDesc.configurable {
-				panic(runtime.NewTypeError("cannot report non-configurable property as non-existing"))
+		var trapResultObj *Object
+		if v != nil && v != _undefined {
+			if obj, ok := v.(*Object); ok {
+				trapResultObj = obj
+			} else {
+				panic(r.NewTypeError("'getOwnPropertyDescriptor' on proxy: trap returned neither object nor undefined for property '%s'", name.String()))
 			}
-
-			if !extensible && targetDesc != nil {
-				panic(runtime.NewTypeError("cannot report existing property on non-extensible object as non-existing"))
-			}
-			return _undefined, true
 		}
-
-		if !extensible && targetDesc == nil {
-			panic(runtime.NewTypeError("cannot report a new property on a non-extensible object"))
-		}
-
-		current := runtime.toPropertyDescriptor(v)
-		if !p.__isCompatibleDescriptor(extensible, current, targetDesc) {
-			panic(runtime.NewTypeError("cannot report incompatible property descriptor"))
-		}
-
-		if current.Configurable == FLAG_FALSE {
+		if trapResultObj == nil {
 			if targetDesc == nil {
-				panic(runtime.NewTypeError("cannot report non-configurable descriptor for non-existing property"))
+				return nil, true
+			}
+			if !targetDesc.configurable {
+				panic(r.NewTypeError())
+			}
+			if !target.self.isExtensible() {
+				panic(r.NewTypeError())
+			}
+			return nil, true
+		}
+		extensibleTarget := target.self.isExtensible()
+		resultDesc := r.toPropertyDescriptor(trapResultObj)
+		resultDesc.complete()
+		if !p.__isCompatibleDescriptor(extensibleTarget, &resultDesc, targetDesc) {
+			panic(r.NewTypeError("'getOwnPropertyDescriptor' on proxy: trap returned descriptor for property '%s' that is incompatible with the existing property in the proxy target", name.String()))
+		}
+
+		if resultDesc.Configurable == FLAG_FALSE {
+			if targetDesc == nil {
+				panic(r.NewTypeError("'getOwnPropertyDescriptor' on proxy: trap reported non-configurability for property '%s' which is non-existent in the proxy target", name.String()))
 			}
 
 			if targetDesc.configurable {
-				panic(runtime.NewTypeError("cannot report non-configurable descriptor for configurable property"))
-			}
-
-			if current.Writable == FLAG_FALSE && targetDesc.writable {
-				panic(runtime.NewTypeError("cannot report non-configurable, writable property as non-configurable, non-writable"))
+				panic(r.NewTypeError("'getOwnPropertyDescriptor' on proxy: trap reported non-configurability for property '%s' which is configurable in the proxy target", name.String()))
 			}
 		}
 
-		return v, true
+		if resultDesc.Writable == FLAG_TRUE && resultDesc.Configurable == FLAG_TRUE &&
+			resultDesc.Enumerable == FLAG_TRUE {
+			return resultDesc.Value, true
+		}
+		return r.toValueProp(trapResultObj), true
 	}
 
 	return nil, false
+}
+
+func (p *proxyObject) getOwnProp(name Value) Value {
+	if v, ok := p.proxyGetOwnPropertyDescriptor(proxyProp(name)); ok {
+		return v
+	}
+
+	return p.target.self.getOwnProp(name)
+}
+
+func (p *proxyObject) getOwnPropStr(name string) Value {
+	if v, ok := p.proxyGetOwnPropertyDescriptor(newStringValue(name)); ok {
+		return v
+	}
+
+	return p.target.self.getOwnPropStr(name)
 }
 
 func (p *proxyObject) get(name Value, receiver Value) Value {
@@ -581,27 +345,11 @@ func (p *proxyObject) proxyGet(name, receiver Value) (Value, bool) {
 	return nil, false
 }
 
-func (p *proxyObject) getOwnPropStr(name string) Value {
-	if v, ok := p.proxyGetOwnPropertyDescriptor(newStringValue(name)); ok {
-		return p.val.runtime.toValueProp(v)
-	}
-
-	return p.target.self.getOwnPropStr(name)
-}
-
 func proxyProp(v Value) Value {
 	if _, ok := v.(*valueSymbol); ok {
 		return v
 	}
 	return v.toString()
-}
-
-func (p *proxyObject) getOwnProp(name Value) Value {
-	if v, ok := p.proxyGetOwnPropertyDescriptor(proxyProp(name)); ok {
-		return p.val.runtime.toValueProp(v)
-	}
-
-	return p.target.self.getOwnProp(name)
 }
 
 func (p *proxyObject) proxySet(name, value, receiver Value) bool {
@@ -744,6 +492,13 @@ func (p *proxyObject) proxyOwnKeys() ([]Value, bool) {
 	return nil, false
 }
 
+func (p *proxyObject) enumerateUnfiltered() iterNextFunc {
+	return (&proxyPropIter{
+		p:     p,
+		names: p.ownKeys(true, nil),
+	}).next
+}
+
 func (p *proxyObject) assertCallable() (call func(FunctionCall) Value, ok bool) {
 	if p.call != nil {
 		return func(call FunctionCall) Value {
@@ -751,6 +506,13 @@ func (p *proxyObject) assertCallable() (call func(FunctionCall) Value, ok bool) 
 		}, true
 	}
 	return nil, false
+}
+
+func (p *proxyObject) assertConstructor() func(args []Value, newTarget Value) *Object {
+	if p.ctor != nil {
+		return p.construct
+	}
+	return nil
 }
 
 func (p *proxyObject) apply(call FunctionCall) Value {
@@ -763,14 +525,14 @@ func (p *proxyObject) apply(call FunctionCall) Value {
 	return p.call(call)
 }
 
-func (p *proxyObject) construct(args []Value) *Object {
+func (p *proxyObject) construct(args []Value, newTarget Value) *Object {
 	if p.ctor == nil {
 		panic(p.val.runtime.NewTypeError("proxy target is not a constructor"))
 	}
-	if v, ok := p.proxyCall(proxy_trap_construct, p.target, p.val.runtime.newArrayValues(args), p.val); ok {
+	if v, ok := p.proxyCall(proxy_trap_construct, p.target, p.val.runtime.newArrayValues(args), newTarget); ok {
 		return p.val.runtime.toObject(v)
 	}
-	return p.ctor(args)
+	return p.ctor(args, newTarget)
 }
 
 func (p *proxyObject) __isSealed(target *Object, name Value) bool {
@@ -784,55 +546,55 @@ func (p *proxyObject) __isSealed(target *Object, name Value) bool {
 	return false
 }
 
-func (p *proxyObject) __isCompatibleDescriptor(extensible bool, current PropertyDescriptor, target *valueProperty) bool {
-	if p.__isEmptyDescriptor(current) {
+func (p *proxyObject) __isCompatibleDescriptor(extensible bool, desc *PropertyDescriptor, current *valueProperty) bool {
+	if current == nil {
 		return extensible
 	}
 
-	if target == nil {
+	/*if desc.Empty() {
 		return true
-	}
+	}*/
 
-	if p.__isEquivalentDescriptor(current, target) {
+	/*if p.__isEquivalentDescriptor(desc, current) {
 		return true
-	}
+	}*/
 
-	if current.Configurable == FLAG_FALSE {
-		if target.configurable {
+	if !current.configurable {
+		if desc.Configurable == FLAG_TRUE {
 			return false
 		}
 
-		if current.Enumerable != FLAG_NOT_SET && current.Enumerable.Bool() != target.enumerable {
+		if desc.Enumerable != FLAG_NOT_SET && desc.Enumerable.Bool() != current.enumerable {
 			return false
 		}
 
-		if p.__isGenericDescriptor(current) {
+		if p.__isGenericDescriptor(desc) {
 			return true
 		}
 
-		if p.__isDataDescriptor(current) != !target.accessor {
-			return current.Configurable != FLAG_FALSE
+		if p.__isDataDescriptor(desc) != !current.accessor {
+			return desc.Configurable != FLAG_FALSE
 		}
 
-		if p.__isDataDescriptor(current) && !target.accessor {
-			if current.Configurable == FLAG_FALSE {
-				if current.Writable == FLAG_FALSE && target.writable {
+		if p.__isDataDescriptor(desc) && !current.accessor {
+			if desc.Configurable == FLAG_FALSE {
+				if desc.Writable == FLAG_FALSE && current.writable {
 					return false
 				}
-				if current.Writable == FLAG_FALSE {
-					if current.Value != nil && !p.__sameValue(current.Value, target.value) {
+				if desc.Writable == FLAG_FALSE {
+					if desc.Value != nil && !desc.Value.SameAs(current.value) {
 						return false
 					}
 				}
 			}
 			return true
 		}
-		if p.__isAccessorDescriptor(current) && target.accessor {
-			if current.Configurable == FLAG_FALSE {
-				if current.Setter != nil && current.Setter.SameAs(target.setterFunc) {
+		if p.__isAccessorDescriptor(desc) && current.accessor {
+			if desc.Configurable == FLAG_FALSE {
+				if desc.Setter != nil && desc.Setter.SameAs(current.setterFunc) {
 					return false
 				}
-				if current.Getter != nil && current.Getter.SameAs(target.getterFunc) {
+				if desc.Getter != nil && desc.Getter.SameAs(current.getterFunc) {
 					return false
 				}
 			}
@@ -841,19 +603,19 @@ func (p *proxyObject) __isCompatibleDescriptor(extensible bool, current Property
 	return true
 }
 
-func (p *proxyObject) __isAccessorDescriptor(desc PropertyDescriptor) bool {
+func (p *proxyObject) __isAccessorDescriptor(desc *PropertyDescriptor) bool {
 	return desc.Setter != nil || desc.Getter != nil
 }
 
-func (p *proxyObject) __isDataDescriptor(desc PropertyDescriptor) bool {
+func (p *proxyObject) __isDataDescriptor(desc *PropertyDescriptor) bool {
 	return desc.Value != nil || desc.Writable != FLAG_NOT_SET
 }
 
-func (p *proxyObject) __isGenericDescriptor(desc PropertyDescriptor) bool {
+func (p *proxyObject) __isGenericDescriptor(desc *PropertyDescriptor) bool {
 	return !p.__isAccessorDescriptor(desc) && !p.__isDataDescriptor(desc)
 }
 
-func (p *proxyObject) __isEmptyDescriptor(desc PropertyDescriptor) bool {
+func (p *proxyObject) __isEmptyDescriptor(desc *PropertyDescriptor) bool {
 	return desc.Configurable == FLAG_NOT_SET &&
 		desc.Enumerable == FLAG_NOT_SET &&
 		desc.Writable == FLAG_NOT_SET &&
@@ -943,14 +705,6 @@ func (p *proxyObject) ownSymbols() []Value {
 	return p.target.self.ownSymbols()
 }
 
-func (p *proxyObject) enumerate() iterNextFunc {
-	if v, ok := p.proxyCall(proxy_trap_enumerate, p.target); ok {
-		return (&iteratorPropIter{iter: p.val.runtime.toObject(v)}).next
-	}
-
-	return p.target.self.enumerate()
-}
-
 func (p *proxyObject) className() string {
 	if p.target == nil {
 		panic(p.val.runtime.NewTypeError("proxy has been revoked"))
@@ -964,35 +718,4 @@ func (p *proxyObject) className() string {
 func (p *proxyObject) revoke() {
 	p.handler = nil
 	p.target = nil
-}
-
-func (r *Runtime) newProxy(args []Value) *Object {
-	if len(args) >= 2 {
-		if target, ok := args[0].(*Object); ok {
-			if proxyHandler, ok := args[1].(*Object); ok {
-				return r.newProxyObject(target, proxyHandler).val
-			}
-		}
-	}
-	panic(r.NewTypeError("Cannot create proxy with a non-object as target or handler"))
-}
-
-func (r *Runtime) newProxyObject(target *Object, handler *Object) *proxyObject {
-	v := &Object{runtime: r}
-	p := &proxyObject{}
-	v.self = p
-	p.val = v
-	p.class = classObject
-	p.prototype = r.global.Proxy
-	p.extensible = false
-	p.init()
-	p.target = target
-	p.handler = handler
-	if call, ok := target.self.assertCallable(); ok {
-		p.call = call
-	}
-	if ctor := getConstructor(target); ctor != nil {
-		p.ctor = ctor
-	}
-	return p
 }

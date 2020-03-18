@@ -103,7 +103,12 @@ type PropertyDescriptor struct {
 	Getter, Setter Value
 }
 
-func (p PropertyDescriptor) toValue(r *Runtime) Value {
+func (p *PropertyDescriptor) Empty() bool {
+	var empty PropertyDescriptor
+	return *p == empty
+}
+
+func (p *PropertyDescriptor) toValue(r *Runtime) Value {
 	if p.jsDescriptor != nil {
 		return p.jsDescriptor
 	}
@@ -134,9 +139,31 @@ func (p PropertyDescriptor) toValue(r *Runtime) Value {
 		s._putProp("set", p.Setter, true, true, true)
 	}
 
-	s.preventExtensions(false)
-
 	return o
+}
+
+func (p *PropertyDescriptor) complete() {
+	if p.Getter == nil && p.Setter == nil {
+		if p.Value == nil {
+			p.Value = _undefined
+		}
+		if p.Writable == FLAG_NOT_SET {
+			p.Writable = FLAG_FALSE
+		}
+	} else {
+		if p.Getter == nil {
+			p.Getter = _undefined
+		}
+		if p.Setter == nil {
+			p.Setter = _undefined
+		}
+	}
+	if p.Enumerable == FLAG_NOT_SET {
+		p.Enumerable = FLAG_FALSE
+	}
+	if p.Configurable == FLAG_NOT_SET {
+		p.Configurable = FLAG_FALSE
+	}
 }
 
 type objectImpl interface {
@@ -158,11 +185,12 @@ type objectImpl interface {
 	hasOwnPropertyStr(string) bool
 	_putProp(name string, value Value, writable, enumerable, configurable bool) Value
 	_putSym(s *valueSymbol, prop Value)
-	defineOwnProperty(name Value, descr PropertyDescriptor, throw bool) bool
+	defineOwnProperty(name Value, desc PropertyDescriptor, throw bool) bool
 	toPrimitiveNumber() Value
 	toPrimitiveString() Value
 	toPrimitive() Value
 	assertCallable() (call func(FunctionCall) Value, ok bool)
+	assertConstructor() func(args []Value, newTarget Value) *Object
 	deleteStr(name string, throw bool) bool
 	delete(name Value, throw bool) bool
 	proto() *Object
@@ -903,6 +931,10 @@ func (o *baseObject) toPrimitive() Value {
 
 func (o *baseObject) assertCallable() (func(FunctionCall) Value, bool) {
 	return nil, false
+}
+
+func (o *baseObject) assertConstructor() func(args []Value, newTarget Value) *Object {
+	return nil
 }
 
 func (o *baseObject) proto() *Object {

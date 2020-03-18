@@ -47,9 +47,8 @@ func arraySpeciesCreate(obj *Object, size int64) *Object {
 		if v != nil && v != _undefined {
 			constructObj, _ := v.(*Object)
 			if constructObj != nil {
-				constructor := getConstructor(constructObj)
-				if constructor != nil {
-					return constructor([]Value{intToValue(size)})
+				if constructor := constructObj.self.assertConstructor(); constructor != nil {
+					return constructor([]Value{intToValue(size)}, constructObj)
 				}
 			}
 			panic(obj.runtime.NewTypeError("Species is not a constructor"))
@@ -1030,10 +1029,10 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		}
 	}
 
-	var ctor func(args []Value) *Object
+	var ctor func(args []Value, newTarget Value) *Object
 	if call.This != r.global.Array {
 		if o, ok := call.This.(*Object); ok {
-			if c := getConstructor(o); c != nil {
+			if c := o.self.assertConstructor(); c != nil {
 				ctor = c
 			}
 		}
@@ -1041,7 +1040,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 	var arr *Object
 	if usingIterator := toMethod(r.getV(items, symIterator)); usingIterator != nil {
 		if ctor != nil {
-			arr = ctor([]Value{})
+			arr = ctor([]Value{}, call.This)
 		} else {
 			arr = r.newArrayValues(nil)
 		}
@@ -1069,7 +1068,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		arrayLike := items.ToObject(r)
 		l := toLength(arrayLike.self.getStr("length", nil))
 		if ctor != nil {
-			arr = ctor([]Value{intToValue(l)})
+			arr = ctor([]Value{intToValue(l)}, call.This)
 		} else {
 			arr = r.newArrayValues(nil)
 		}
@@ -1109,10 +1108,10 @@ func (r *Runtime) array_isArray(call FunctionCall) Value {
 }
 
 func (r *Runtime) array_of(call FunctionCall) Value {
-	var ctor func(args []Value) *Object
+	var ctor func(args []Value, newTarget Value) *Object
 	if call.This != r.global.Array {
 		if o, ok := call.This.(*Object); ok {
-			if c := getConstructor(o); c != nil {
+			if c := o.self.assertConstructor(); c != nil {
 				ctor = c
 			}
 		}
@@ -1123,7 +1122,7 @@ func (r *Runtime) array_of(call FunctionCall) Value {
 		return r.newArrayValues(values)
 	}
 	l := intToValue(int64(len(call.Arguments)))
-	arr := ctor([]Value{l})
+	arr := ctor([]Value{l}, call.This)
 	for i, val := range call.Arguments {
 		createDataPropertyOrThrow(arr, intToValue(int64(i)), val)
 	}

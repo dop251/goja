@@ -121,7 +121,7 @@ func (r *Runtime) setProto_values(call FunctionCall) Value {
 	return r.createSetIterator(call.This, iterationKindValue)
 }
 
-func (r *Runtime) builtin_newSet(args []Value) *Object {
+func (r *Runtime) builtin_newSet(args []Value, _ Value) *Object {
 	o := &Object{runtime: r}
 
 	so := &setObject{}

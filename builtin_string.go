@@ -642,7 +642,7 @@ func (r *Runtime) initString() {
 	// Annex B
 	o._putProp("substr", r.newNativeFunc(r.stringproto_substr, nil, "substr", nil, 2), true, false, true)
 
-	r.global.String = r.newNativeFunc(r.builtin_String, r.builtin_newString, "String", r.global.StringPrototype, 1)
+	r.global.String = r.newNativeFunc(r.builtin_String, wrapNativeConstructor(r.builtin_newString), "String", r.global.StringPrototype, 1)
 	o = r.global.String.self
 	o._putProp("fromCharCode", r.newNativeFunc(r.string_fromcharcode, nil, "fromCharCode", nil, 1), true, false, true)
 

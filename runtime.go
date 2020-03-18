@@ -47,6 +47,7 @@ type global struct {
 	Date     *Object
 	Symbol   *Object
 	Proxy    *Object
+	Reflect  *Object
 
 	ArrayBuffer *Object
 	WeakSet     *Object
@@ -428,7 +429,7 @@ func (r *Runtime) newFunc(name string, len int, strict bool) (f *funcObject) {
 	return
 }
 
-func (r *Runtime) newNativeFuncObj(v *Object, call func(FunctionCall) Value, construct func(args []Value) *Object, name string, proto *Object, length int) *nativeFuncObject {
+func (r *Runtime) newNativeFuncObj(v *Object, call func(FunctionCall) Value, construct func(args []Value, newTarget Value) *Object, name string, proto *Object, length int) *nativeFuncObject {
 	f := &nativeFuncObject{
 		baseFuncObject: baseFuncObject{
 			baseObject: baseObject{
@@ -467,7 +468,8 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 		return f.defaultConstruct(call, c.Arguments)
 	}
 
-	f.construct = func(args []Value) *Object {
+	f.construct = func(args []Value, newTarget Value) *Object {
+		_ = newTarget
 		return f.defaultConstruct(call, args)
 	}
 
@@ -481,7 +483,7 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 	return v
 }
 
-func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(args []Value) *Object, name string, proto *Object, length int) *Object {
+func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(args []Value, newTarget Value) *Object, name string, proto *Object, length int) *Object {
 	v := &Object{runtime: r}
 
 	f := &nativeFuncObject{
@@ -516,7 +518,8 @@ func (r *Runtime) newNativeFuncConstructObj(v *Object, construct func(args []Val
 			},
 		},
 		f: r.constructWrap(construct, proto),
-		construct: func(args []Value) *Object {
+		construct: func(args []Value, newTarget Value) *Object {
+			_ = newTarget
 			return construct(args, proto)
 		},
 	}
@@ -542,7 +545,8 @@ func (r *Runtime) newNativeFuncConstructProto(construct func(args []Value, proto
 	v.self = f
 	f.prototype = proto
 	f.f = r.constructWrap(construct, prototype)
-	f.construct = func(args []Value) *Object {
+	f.construct = func(args []Value, newTarget Value) *Object {
+		_ = newTarget
 		return construct(args, prototype)
 	}
 	f.init(name, length)
@@ -641,38 +645,8 @@ func (r *Runtime) builtin_Error(args []Value, proto *Object) *Object {
 	return obj.val
 }
 
-func getConstructor(construct *Object) func(args []Value) *Object {
-repeat:
-	switch f := construct.self.(type) {
-	case *nativeFuncObject:
-		if f.construct != nil {
-			return f.construct
-		}
-	case *boundFuncObject:
-		if f.construct != nil {
-			return f.construct
-		}
-	case *funcObject:
-		return f.construct
-	case *lazyObject:
-		construct.self = f.create(construct)
-		goto repeat
-	case *proxyObject:
-		if f.ctor != nil {
-			return f.construct
-		}
-		return nil
-	}
-
-	return nil
-}
-
 func (r *Runtime) builtin_new(construct *Object, args []Value) *Object {
-	f := getConstructor(construct)
-	if f == nil {
-		panic("Not a constructor")
-	}
-	return f(args)
+	return r.toConstructor(construct)(args, construct)
 }
 
 func (r *Runtime) throw(e Value) {
@@ -1659,7 +1633,7 @@ func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
 	}
 }
 
-func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value) *Object {
+func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value, newTarget Value) *Object {
 	c := o.self.getStr("constructor", nil)
 	if c != nil && c != _undefined {
 		c = r.toObject(c).self.get(symSpecies, nil)
@@ -1667,7 +1641,7 @@ func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []
 	if c == nil || c == _undefined {
 		c = defaultConstructor
 	}
-	return getConstructor(r.toObject(c))
+	return r.toConstructor(c)
 }
 
 func (r *Runtime) returnThis(call FunctionCall) Value {
@@ -1774,5 +1748,11 @@ func isArray(object *Object) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func wrapNativeConstructor(ctor func(args []Value) *Object) func([]Value, Value) *Object {
+	return func(args []Value, _ Value) *Object {
+		return ctor(args)
 	}
 }

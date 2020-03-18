@@ -138,7 +138,7 @@ func (r *Runtime) mapProto_getSize(call FunctionCall) Value {
 	return intToValue(int64(mo.m.size))
 }
 
-func (r *Runtime) builtin_newMap(args []Value) *Object {
+func (r *Runtime) builtin_newMap(args []Value, _ Value) *Object {
 	o := &Object{runtime: r}
 
 	mo := &mapObject{}

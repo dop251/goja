@@ -57,20 +57,23 @@ repeat:
 	return nil
 }
 
-func (r *Runtime) toValueArray(a Value) []Value {
-	obj := r.toObject(a)
-	l := toUInt32(obj.self.getStr("length", nil))
-	ret := make([]Value, l)
-	for i := uint32(0); i < l; i++ {
-		ret[i] = obj.self.get(valueInt(i), nil)
+func (r *Runtime) createListFromArrayLike(a Value) []Value {
+	o := r.toObject(a)
+	if arr := r.checkStdArrayObj(o); arr != nil {
+		return arr.values
 	}
-	return ret
+	l := toLength(o.self.getStr("length", nil))
+	res := make([]Value, 0, l)
+	for k := int64(0); k < l; k++ {
+		res = append(res, o.self.get(intToValue(k), nil))
+	}
+	return res
 }
 
 func (r *Runtime) functionproto_apply(call FunctionCall) Value {
 	var args []Value
 	if len(call.Arguments) >= 2 {
-		args = r.toValueArray(call.Arguments[1])
+		args = r.createListFromArrayLike(call.Arguments[1])
 	}
 
 	f := r.toCallable(call.This)
@@ -112,7 +115,7 @@ func (r *Runtime) boundCallable(target func(FunctionCall) Value, boundArgs []Val
 	}
 }
 
-func (r *Runtime) boundConstruct(target func([]Value) *Object, boundArgs []Value) func([]Value) *Object {
+func (r *Runtime) boundConstruct(target func([]Value, Value) *Object, boundArgs []Value) func([]Value, Value) *Object {
 	if target == nil {
 		return nil
 	}
@@ -121,35 +124,18 @@ func (r *Runtime) boundConstruct(target func([]Value) *Object, boundArgs []Value
 		args = make([]Value, len(boundArgs)-1)
 		copy(args, boundArgs[1:])
 	}
-	return func(fargs []Value) *Object {
+	return func(fargs []Value, newTarget Value) *Object {
 		a := append(args, fargs...)
 		copy(a, args)
-		return target(a)
+		return target(a, newTarget)
 	}
 }
 
 func (r *Runtime) functionproto_bind(call FunctionCall) Value {
 	obj := r.toObject(call.This)
-	f := obj.self
-	var fcall func(FunctionCall) Value
-	var construct func([]Value) *Object
-repeat:
-	switch ff := f.(type) {
-	case *funcObject:
-		fcall = ff.Call
-		construct = ff.construct
-	case *nativeFuncObject:
-		fcall = ff.f
-		construct = ff.construct
-	case *boundFuncObject:
-		f = &ff.nativeFuncObject
-		goto repeat
-	case *lazyObject:
-		f = ff.create(obj)
-		goto repeat
-	default:
-		r.typeErrorResult(true, "Value is not callable: %s", obj.toString())
-	}
+
+	fcall := r.toCallable(call.This)
+	construct := obj.self.assertConstructor()
 
 	l := int(toUInt32(obj.self.getStr("length", nil)))
 	l -= len(call.Arguments) - 1

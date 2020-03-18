@@ -82,7 +82,7 @@ func (r *Runtime) object_getOwnPropertySymbols(call FunctionCall) Value {
 	return r.newArrayValues(obj.self.ownSymbols())
 }
 
-func (r *Runtime) toValueProp(v Value) Value {
+func (r *Runtime) toValueProp(v Value) *valueProperty {
 	if v == nil || v == _undefined {
 		return nil
 	}
@@ -125,10 +125,6 @@ func (r *Runtime) toValueProp(v Value) Value {
 
 	if ret.getterFunc != nil || ret.setterFunc != nil {
 		ret.accessor = true
-	} else {
-		if ret.writable && ret.configurable && ret.enumerable {
-			return value
-		}
 	}
 
 	return ret

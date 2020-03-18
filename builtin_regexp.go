@@ -502,7 +502,7 @@ func (r *Runtime) regexpproto_stdSplitter(call FunctionCall) Value {
 	if flagsStr := flags.String(); !strings.Contains(flagsStr, "y") {
 		flags = newStringValue(flagsStr + "y")
 	}
-	splitter := c([]Value{rxObj, flags})
+	splitter := c([]Value{rxObj, flags}, call.This)
 
 	s := call.Argument(0).toString()
 	limitValue := call.Argument(1)
@@ -620,7 +620,7 @@ func (r *Runtime) initRegExp() {
 	o._putSym(symSearch, valueProp(r.newNativeFunc(r.regexpproto_stdSearch, nil, "[Symbol.search]", nil, 1), true, false, true))
 	o._putSym(symSplit, valueProp(r.newNativeFunc(r.regexpproto_stdSplitter, nil, "[Symbol.split]", nil, 2), true, false, true))
 
-	r.global.RegExp = r.newNativeFunc(r.builtin_RegExp, r.builtin_newRegExp, "RegExp", r.global.RegExpPrototype, 2)
+	r.global.RegExp = r.newNativeFunc(r.builtin_RegExp, wrapNativeConstructor(r.builtin_newRegExp), "RegExp", r.global.RegExpPrototype, 2)
 	o = r.global.RegExp.self
 	o._putSym(symSpecies, &valueProperty{
 		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),

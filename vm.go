@@ -2233,13 +2233,10 @@ type _new uint32
 
 func (n _new) exec(vm *vm) {
 	sp := vm.sp - int(n)
-	obj := vm.r.toObject(vm.stack[sp-1])
-	if ctor := getConstructor(obj); ctor != nil {
-		vm.stack[sp-1] = ctor(vm.stack[sp:vm.sp])
-		vm.sp = sp
-	} else {
-		panic(vm.r.NewTypeError("Not a constructor"))
-	}
+	obj := vm.stack[sp-1]
+	ctor := vm.r.toConstructor(obj)
+	vm.stack[sp-1] = ctor(vm.stack[sp:vm.sp], obj)
+	vm.sp = sp
 	vm.pc++
 }
 

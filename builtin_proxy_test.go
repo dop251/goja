@@ -761,8 +761,9 @@ func TestProxy_Object_native_proxy_ownKeys(t *testing.T) {
 			v, exists := headers[prop]
 			if exists {
 				return PropertyDescriptor{
-					Value:      vm.ToValue(v),
-					Enumerable: FLAG_TRUE,
+					Value:        vm.ToValue(v),
+					Enumerable:   FLAG_TRUE,
+					Configurable: FLAG_TRUE,
 				}
 			}
 			return PropertyDescriptor{}
@@ -779,4 +780,46 @@ func TestProxy_Object_native_proxy_ownKeys(t *testing.T) {
 	if v != valueTrue {
 		t.Fatal("not true", v)
 	}
+}
+
+func TestProxy_proxy_forIn(t *testing.T) {
+	const SCRIPT = `
+	var proto = {
+		a: 2,
+		protoProp: 1
+	}
+	Object.defineProperty(proto, "protoNonEnum", {
+		value: 2,
+		writable: true,
+		configurable: true
+	});
+	var target = Object.create(proto);
+	var proxy = new Proxy(target, {
+		ownKeys: function() {
+			return ["a", "b"];
+		},
+		getOwnPropertyDescriptor: function(target, p) {
+			switch (p) {
+			case "a":
+			case "b":
+				return {
+					value: 42,
+					enumerable: true,
+					configurable: true
+				}
+			}
+		},
+	});
+
+	var forInResult = [];
+	for (var key in proxy) {
+		if (forInResult.indexOf(key) !== -1) {
+			throw new Error("Duplicate property "+key);
+		}
+		forInResult.push(key);
+	}
+	forInResult.length === 3 && forInResult[0] === "a" && forInResult[1] === "b" && forInResult[2] === "protoProp";
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
 }

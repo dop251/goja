@@ -20,7 +20,7 @@ type nativeFuncObject struct {
 	baseFuncObject
 
 	f         func(FunctionCall) Value
-	construct func(args []Value) *Object
+	construct func(args []Value, newTarget Value) *Object
 }
 
 type boundFuncObject struct {
@@ -140,7 +140,8 @@ func (f *funcObject) ownKeys(all bool, accum []Value) []Value {
 	return f.baseFuncObject.ownKeys(all, accum)
 }
 
-func (f *funcObject) construct(args []Value) *Object {
+func (f *funcObject) construct(args []Value, newTarget Value) *Object {
+	_ = newTarget
 	proto := f.getStr("prototype", nil)
 	var protoObj *Object
 	if p, ok := proto.(*Object); ok {
@@ -206,6 +207,10 @@ func (f *funcObject) assertCallable() (func(FunctionCall) Value, bool) {
 	return f.Call, true
 }
 
+func (f *funcObject) assertConstructor() func(args []Value, newTarget Value) *Object {
+	return f.construct
+}
+
 func (f *baseFuncObject) init(name string, length int) {
 	f.baseObject.init()
 
@@ -266,6 +271,10 @@ func (f *nativeFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
 		return f.f, true
 	}
 	return nil, false
+}
+
+func (f *nativeFuncObject) assertConstructor() func(args []Value, newTarget Value) *Object {
+	return f.construct
 }
 
 func (f *boundFuncObject) get(p, receiver Value) Value {

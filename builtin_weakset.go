@@ -113,7 +113,7 @@ func (r *Runtime) populateWeakSetGeneric(s *Object, adderValue Value, iterable V
 	})
 }
 
-func (r *Runtime) builtin_newWeakSet(args []Value) *Object {
+func (r *Runtime) builtin_newWeakSet(args []Value, _ Value) *Object {
 	o := &Object{runtime: r}
 
 	wso := &weakSetObject{}

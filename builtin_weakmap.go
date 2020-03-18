@@ -133,7 +133,7 @@ func (r *Runtime) weakMapProto_set(call FunctionCall) Value {
 	return call.This
 }
 
-func (r *Runtime) builtin_newWeakMap(args []Value) *Object {
+func (r *Runtime) builtin_newWeakMap(args []Value, _ Value) *Object {
 	o := &Object{runtime: r}
 
 	wmo := &weakMapObject{}
