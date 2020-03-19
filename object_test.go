@@ -5,7 +5,7 @@ import "testing"
 func TestArray1(t *testing.T) {
 	r := &Runtime{}
 	a := r.newArray(nil)
-	a.setOwn(valueInt(0), asciiString("test"), true)
+	a.setOwnIdx(valueInt(0), asciiString("test"), true)
 	if l := a.getStr("length", nil).ToInteger(); l != 1 {
 		t.Fatalf("Unexpected length: %d", l)
 	}
@@ -82,7 +82,7 @@ func BenchmarkPut(b *testing.B) {
 	var val Value = valueInt(123)
 
 	for i := 0; i < b.N; i++ {
-		o.setOwn(key, val, false)
+		v.setOwn(key, val, false)
 	}
 }
 
@@ -119,7 +119,7 @@ func BenchmarkGet(b *testing.B) {
 	var n Value = asciiString("test")
 
 	for i := 0; i < b.N; i++ {
-		o.get(n, nil)
+		v.get(n, nil)
 	}
 
 }
@@ -190,7 +190,7 @@ func BenchmarkArrayGetStr(b *testing.B) {
 
 	a.init()
 
-	a.setOwn(valueInt(0), asciiString("test"), false)
+	v.setOwn(valueInt(0), asciiString("test"), false)
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -216,12 +216,12 @@ func BenchmarkArrayGet(b *testing.B) {
 
 	var idx Value = valueInt(0)
 
-	a.setOwn(idx, asciiString("test"), false)
+	v.setOwn(idx, asciiString("test"), false)
 
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		a.get(idx, nil)
+		v.get(idx, nil)
 	}
 
 }
@@ -249,7 +249,7 @@ func BenchmarkArrayPut(b *testing.B) {
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		a.setOwn(idx, val, false)
+		v.setOwn(idx, val, false)
 	}
 
 }

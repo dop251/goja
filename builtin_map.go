@@ -138,7 +138,7 @@ func (r *Runtime) mapProto_getSize(call FunctionCall) Value {
 	return intToValue(int64(mo.m.size))
 }
 
-func (r *Runtime) builtin_newMap(args []Value, _ Value) *Object {
+func (r *Runtime) builtin_newMap(args []Value) *Object {
 	o := &Object{runtime: r}
 
 	mo := &mapObject{}
@@ -152,13 +152,13 @@ func (r *Runtime) builtin_newMap(args []Value, _ Value) *Object {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
 			adder := mo.getStr("set", nil)
 			iter := r.getIterator(arg, nil)
-			i0 := intToValue(0)
-			i1 := intToValue(1)
+			i0 := valueInt(0)
+			i1 := valueInt(1)
 			if adder == r.global.mapAdder {
 				r.iterate(iter, func(item Value) {
 					itemObj := r.toObject(item)
-					k := nilSafe(itemObj.self.get(i0, nil))
-					v := nilSafe(itemObj.self.get(i1, nil))
+					k := nilSafe(itemObj.self.getIdx(i0, nil))
+					v := nilSafe(itemObj.self.getIdx(i1, nil))
 					mo.m.set(k, v)
 				})
 			} else {
@@ -168,8 +168,8 @@ func (r *Runtime) builtin_newMap(args []Value, _ Value) *Object {
 				}
 				r.iterate(iter, func(item Value) {
 					itemObj := r.toObject(item)
-					k := itemObj.self.get(i0, nil)
-					v := itemObj.self.get(i1, nil)
+					k := itemObj.self.getIdx(i0, nil)
+					v := itemObj.self.getIdx(i1, nil)
 					adderFn(FunctionCall{This: o, Arguments: []Value{k, v}})
 				})
 			}
@@ -238,7 +238,7 @@ func (r *Runtime) createMapProto(val *Object) objectImpl {
 }
 
 func (r *Runtime) createMap(val *Object) objectImpl {
-	o := r.newNativeFuncObj(val, r.constructorThrower("Map"), r.builtin_newMap, "Map", r.global.MapPrototype, 0)
+	o := r.newNativeFuncObj(val, r.constructorThrower("Map"), wrapNativeConstructor(r.builtin_newMap), "Map", r.global.MapPrototype, 0)
 	o._putSym(symSpecies, &valueProperty{
 		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
 		accessor:     true,

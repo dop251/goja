@@ -1329,7 +1329,7 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 				s := reflect.MakeSlice(typ, l, l)
 				elemTyp := typ.Elem()
 				for i := 0; i < l; i++ {
-					item := o.self.get(intToValue(int64(i)), nil)
+					item := o.self.getIdx(valueInt(int64(i)), nil)
 					itemval, err := r.toReflectValue(item, elemTyp)
 					if err != nil {
 						return reflect.Value{}, fmt.Errorf("Could not convert array element %v to %v at %d: %s", v, typ, i, err)
@@ -1357,7 +1357,7 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 					kv = reflect.ValueOf(itemName.String())
 				}
 
-				ival := o.self.get(itemName, nil)
+				ival := o.get(itemName, nil)
 				if ival != nil {
 					vv, err := r.toReflectValue(ival, elemTyp)
 					if err != nil {
@@ -1636,7 +1636,7 @@ func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
 func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value, newTarget Value) *Object {
 	c := o.self.getStr("constructor", nil)
 	if c != nil && c != _undefined {
-		c = r.toObject(c).self.get(symSpecies, nil)
+		c = r.toObject(c).self.getSym(symSpecies, nil)
 	}
 	if c == nil || c == _undefined {
 		c = defaultConstructor
@@ -1649,7 +1649,7 @@ func (r *Runtime) returnThis(call FunctionCall) Value {
 }
 
 func createDataPropertyOrThrow(o *Object, p Value, v Value) {
-	o.self.defineOwnProperty(p, PropertyDescriptor{
+	o.defineOwnProperty(p, PropertyDescriptor{
 		Writable:     FLAG_TRUE,
 		Enumerable:   FLAG_TRUE,
 		Configurable: FLAG_TRUE,
@@ -1668,7 +1668,7 @@ func (r *Runtime) getVStr(v Value, p string) Value {
 
 func (r *Runtime) getV(v Value, p Value) Value {
 	o := v.ToObject(r)
-	return o.self.get(p, v)
+	return o.get(p, v)
 }
 
 func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *Object {

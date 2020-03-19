@@ -124,11 +124,11 @@ func (r *Runtime) builtin_newRegExp(args []Value) *Object {
 	var flags string
 	if len(args) > 0 {
 		if obj, ok := args[0].(*Object); ok {
-			if regexp, ok := obj.self.(*regexpObject); ok {
+			if rx, ok := obj.self.(*regexpObject); ok {
 				if len(args) < 2 || args[1] == _undefined {
-					return regexp.clone()
+					return rx.clone()
 				} else {
-					return r.newRegExp(regexp.source, args[1].String(), r.global.RegExpPrototype)
+					return r.newRegExp(rx.source, args[1].String(), r.global.RegExpPrototype)
 				}
 			}
 		}
@@ -332,7 +332,7 @@ func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, arg Value) Value 
 			if res == _null {
 				break
 			}
-			matchStr := nilSafe(r.toObject(res).self.get(intToValue(0), nil)).toString()
+			matchStr := nilSafe(r.toObject(res).self.getIdx(valueInt(0), nil)).toString()
 			a = append(a, matchStr)
 			if matchStr.length() == 0 {
 				thisIndex := rx.getStr("lastIndex", nil).ToInteger()
@@ -480,7 +480,7 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s valueString
 				p = e
 				numberOfCaptures := max(toLength(z.self.getStr("length", nil))-1, 0)
 				for i := int64(1); i <= numberOfCaptures; i++ {
-					a = append(a, z.self.get(intToValue(i), nil))
+					a = append(a, z.self.getIdx(valueInt(i), nil))
 					if int64(len(a)) == lim {
 						return r.newArrayValues(a)
 					}

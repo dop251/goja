@@ -10,13 +10,6 @@ type mappedProperty struct {
 	v *Value
 }
 
-func (a *argumentsObject) get(p Value, receiver Value) Value {
-	if s, ok := p.(*valueSymbol); ok {
-		return a.getSym(s, receiver)
-	}
-	return a.getStr(p.String(), receiver)
-}
-
 func (a *argumentsObject) getStr(name string, receiver Value) Value {
 	return a.getStrWithOwnProp(a.getOwnPropStr(name), name, receiver)
 }
@@ -29,44 +22,24 @@ func (a *argumentsObject) getOwnPropStr(name string) Value {
 	return a.baseObject.getOwnPropStr(name)
 }
 
-func (a *argumentsObject) getOwnProp(name Value) Value {
-	if s, ok := name.(*valueSymbol); ok {
-		return a.getOwnPropSym(s)
-	}
-
-	return a.getOwnPropStr(name.String())
-}
-
 func (a *argumentsObject) init() {
 	a.baseObject.init()
 	a._putProp("length", intToValue(int64(a.length)), true, false, true)
 }
 
-func (a *argumentsObject) setOwn(n Value, val Value, throw bool) {
-	if s, ok := n.(*valueSymbol); ok {
-		a.setOwnSym(s, val, throw)
-		return
-	}
-	a.setOwnStr(n.String(), val, throw)
-}
-
-func (a *argumentsObject) setOwnStr(name string, val Value, throw bool) {
+func (a *argumentsObject) setOwnStr(name string, val Value, throw bool) bool {
 	if prop, ok := a.values[name].(*mappedProperty); ok {
 		if !prop.writable {
 			a.val.runtime.typeErrorResult(throw, "Property is not writable: %s", name)
-			return
+			return false
 		}
 		*prop.v = val
-		return
+		return true
 	}
-	a.baseObject.setOwnStr(name, val, throw)
+	return a.baseObject.setOwnStr(name, val, throw)
 }
 
-func (a *argumentsObject) setForeign(name Value, val, receiver Value, throw bool) bool {
-	return a._setForeign(name, a.getOwnProp(name), val, receiver, throw)
-}
-
-func (a *argumentsObject) setForeignStr(name string, val, receiver Value, throw bool) bool {
+func (a *argumentsObject) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
 	return a._setForeignStr(name, a.getOwnPropStr(name), val, receiver, throw)
 }
 
@@ -94,13 +67,6 @@ func (a *argumentsObject) deleteStr(name string, throw bool) bool {
 	return a.baseObject.deleteStr(name, throw)
 }
 
-func (a *argumentsObject) delete(n Value, throw bool) bool {
-	if s, ok := n.(*valueSymbol); ok {
-		return a.deleteSym(s, throw)
-	}
-	return a.deleteStr(n.String(), throw)
-}
-
 type argumentsPropIter struct {
 	wrapped iterNextFunc
 }
@@ -123,11 +89,7 @@ func (a *argumentsObject) enumerateUnfiltered() iterNextFunc {
 	}).next)
 }
 
-func (a *argumentsObject) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
-	if s, ok := n.(*valueSymbol); ok {
-		return a.defineOwnPropertySym(s, descr, throw)
-	}
-	name := n.String()
+func (a *argumentsObject) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
 	if mapped, ok := a.values[name].(*mappedProperty); ok {
 		existing := &valueProperty{
 			configurable: mapped.configurable,
@@ -136,7 +98,7 @@ func (a *argumentsObject) defineOwnProperty(n Value, descr PropertyDescriptor, t
 			value:        mapped.get(a.val),
 		}
 
-		val, ok := a.baseObject._defineOwnProperty(n.String(), existing, descr, throw)
+		val, ok := a.baseObject._defineOwnProperty(name, existing, descr, throw)
 		if !ok {
 			return false
 		}
@@ -160,13 +122,13 @@ func (a *argumentsObject) defineOwnProperty(n Value, descr PropertyDescriptor, t
 		return true
 	}
 
-	return a.baseObject.defineOwnProperty(n, descr, throw)
+	return a.baseObject.defineOwnPropertyStr(name, descr, throw)
 }
 
 func (a *argumentsObject) export() interface{} {
 	arr := make([]interface{}, a.length)
 	for i := range arr {
-		v := a.get(intToValue(int64(i)), nil)
+		v := a.getIdx(valueInt(int64(i)), nil)
 		if v != nil {
 			arr[i] = v.Export()
 		}

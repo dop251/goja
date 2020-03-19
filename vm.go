@@ -123,9 +123,6 @@ type instruction interface {
 
 func intToValue(i int64) Value {
 	if i >= -maxInt && i <= maxInt {
-		if i >= -128 && i <= 127 {
-			return intCache[i+128]
-		}
 		return valueInt(i)
 	}
 	return valueFloat(float64(i))
@@ -955,7 +952,7 @@ func (_setElem) exec(vm *vm) {
 	propName := toPropertyKey(vm.stack[vm.sp-2])
 	val := vm.stack[vm.sp-1]
 
-	obj.self.setOwn(propName, val, false)
+	obj.setOwn(propName, val, false)
 
 	vm.sp -= 2
 	vm.stack[vm.sp-1] = val
@@ -971,7 +968,7 @@ func (_setElemStrict) exec(vm *vm) {
 	propName := toPropertyKey(vm.stack[vm.sp-2])
 	val := vm.stack[vm.sp-1]
 
-	obj.self.setOwn(propName, val, true)
+	obj.setOwn(propName, val, true)
 
 	vm.sp -= 2
 	vm.stack[vm.sp-1] = val
@@ -985,7 +982,7 @@ var deleteElem _deleteElem
 func (_deleteElem) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
 	propName := toPropertyKey(vm.stack[vm.sp-1])
-	if !obj.self.hasProperty(propName) || obj.self.delete(propName, false) {
+	if !obj.hasProperty(propName) || obj.delete(propName, false) {
 		vm.stack[vm.sp-2] = valueTrue
 	} else {
 		vm.stack[vm.sp-2] = valueFalse
@@ -1001,7 +998,7 @@ var deleteElemStrict _deleteElemStrict
 func (_deleteElemStrict) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
 	propName := toPropertyKey(vm.stack[vm.sp-1])
-	obj.self.delete(propName, true)
+	obj.delete(propName, true)
 	vm.stack[vm.sp-2] = valueTrue
 	vm.sp--
 	vm.pc++
@@ -1083,7 +1080,7 @@ func (s setPropGetter) exec(vm *vm) {
 		Enumerable:   FLAG_TRUE,
 	}
 
-	obj.self.defineOwnProperty(newStringValue(string(s)), descr, false)
+	obj.self.defineOwnPropertyStr(string(s), descr, false)
 
 	vm.sp--
 	vm.pc++
@@ -1101,7 +1098,7 @@ func (s setPropSetter) exec(vm *vm) {
 		Enumerable:   FLAG_TRUE,
 	}
 
-	obj.self.defineOwnProperty(newStringValue(string(s)), descr, false)
+	obj.self.defineOwnPropertyStr(string(s), descr, false)
 
 	vm.sp--
 	vm.pc++
@@ -1149,7 +1146,7 @@ func (_getElem) exec(vm *vm) {
 		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
 	}
 
-	vm.stack[vm.sp-2] = nilSafe(obj.self.get(propName, v))
+	vm.stack[vm.sp-2] = nilSafe(obj.get(propName, v))
 
 	vm.sp--
 	vm.pc++
@@ -1167,7 +1164,7 @@ func (_getElemCallee) exec(vm *vm) {
 		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
 	}
 
-	prop := obj.self.get(propName, v)
+	prop := obj.get(propName, v)
 	if prop == nil {
 		prop = memberUnresolved{valueUnresolved{r: vm.r, ref: propName.String()}}
 	}
@@ -1227,7 +1224,7 @@ func (l newArray) exec(vm *vm) {
 }
 
 type newArraySparse struct {
-	l, objCount uint32
+	l, objCount int
 }
 
 func (n *newArraySparse) exec(vm *vm) {
@@ -1235,7 +1232,7 @@ func (n *newArraySparse) exec(vm *vm) {
 	copy(values, vm.stack[vm.sp-int(n.l):vm.sp])
 	arr := vm.r.newArrayObject()
 	setArrayValues(arr, values)
-	arr.objCount = int64(n.objCount)
+	arr.objCount = n.objCount
 	vm.sp -= int(n.l) - 1
 	vm.stack[vm.sp-1] = arr.val
 	vm.pc++
@@ -2148,7 +2145,7 @@ func (_op_in) exec(vm *vm) {
 	left := vm.stack[vm.sp-2]
 	right := vm.r.toObject(vm.stack[vm.sp-1])
 
-	if right.self.hasProperty(left) {
+	if right.hasProperty(left) {
 		vm.stack[vm.sp-2] = valueTrue
 	} else {
 		vm.stack[vm.sp-2] = valueFalse

@@ -13,10 +13,82 @@ func (o *lazyObject) className() string {
 	return obj.className()
 }
 
-func (o *lazyObject) get(n Value, receiver Value) Value {
+func (o *lazyObject) getIdx(p valueInt, receiver Value) Value {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.get(n, receiver)
+	return obj.getIdx(p, receiver)
+}
+
+func (o *lazyObject) getSym(p *valueSymbol, receiver Value) Value {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.getSym(p, receiver)
+}
+
+func (o *lazyObject) getOwnPropIdx(idx valueInt) Value {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.getOwnPropIdx(idx)
+}
+
+func (o *lazyObject) getOwnPropSym(s *valueSymbol) Value {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.getOwnPropSym(s)
+}
+
+func (o *lazyObject) hasPropertyIdx(idx valueInt) bool {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.hasPropertyIdx(idx)
+}
+
+func (o *lazyObject) hasPropertySym(s *valueSymbol) bool {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.hasPropertySym(s)
+}
+
+func (o *lazyObject) hasOwnPropertyIdx(idx valueInt) bool {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.hasOwnPropertyIdx(idx)
+}
+
+func (o *lazyObject) hasOwnPropertySym(s *valueSymbol) bool {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.hasOwnPropertySym(s)
+}
+
+func (o *lazyObject) defineOwnPropertyStr(name string, desc PropertyDescriptor, throw bool) bool {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.defineOwnPropertyStr(name, desc, throw)
+}
+
+func (o *lazyObject) defineOwnPropertyIdx(name valueInt, desc PropertyDescriptor, throw bool) bool {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.defineOwnPropertyIdx(name, desc, throw)
+}
+
+func (o *lazyObject) defineOwnPropertySym(name *valueSymbol, desc PropertyDescriptor, throw bool) bool {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.defineOwnPropertySym(name, desc, throw)
+}
+
+func (o *lazyObject) deleteIdx(idx valueInt, throw bool) bool {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.deleteIdx(idx, throw)
+}
+
+func (o *lazyObject) deleteSym(s *valueSymbol, throw bool) bool {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.deleteSym(s, throw)
 }
 
 func (o *lazyObject) getStr(name string, receiver Value) Value {
@@ -31,64 +103,46 @@ func (o *lazyObject) getOwnPropStr(name string) Value {
 	return obj.getOwnPropStr(name)
 }
 
-func (o *lazyObject) getOwnProp(name Value) Value {
+func (o *lazyObject) setOwnStr(p string, v Value, throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.getOwnProp(name)
+	return obj.setOwnStr(p, v, throw)
 }
 
-func (o *lazyObject) setOwn(p Value, v Value, throw bool) {
+func (o *lazyObject) setOwnIdx(p valueInt, v Value, throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
-	obj.setOwn(p, v, throw)
+	return obj.setOwnIdx(p, v, throw)
 }
 
-func (o *lazyObject) setForeign(p Value, v, receiver Value, throw bool) bool {
+func (o *lazyObject) setOwnSym(p *valueSymbol, v Value, throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.setForeign(p, v, receiver, throw)
+	return obj.setOwnSym(p, v, throw)
 }
 
-func (o *lazyObject) setOwnStr(p string, v Value, throw bool) {
-	obj := o.create(o.val)
-	o.val.self = obj
-	obj.setOwnStr(p, v, throw)
-}
-
-func (o *lazyObject) setForeignStr(p string, v, receiver Value, throw bool) bool {
+func (o *lazyObject) setForeignStr(p string, v, receiver Value, throw bool) (bool, bool) {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.setForeignStr(p, v, receiver, throw)
 }
 
-func (o *lazyObject) setOwnSym(p *valueSymbol, v Value, throw bool) {
+func (o *lazyObject) setForeignIdx(p valueInt, v, receiver Value, throw bool) (bool, bool) {
 	obj := o.create(o.val)
 	o.val.self = obj
-	obj.setOwnSym(p, v, throw)
+	return obj.setForeignIdx(p, v, receiver, throw)
 }
 
-func (o *lazyObject) setForeignSym(p *valueSymbol, v, receiver Value, throw bool) bool {
+func (o *lazyObject) setForeignSym(p *valueSymbol, v, receiver Value, throw bool) (bool, bool) {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.setForeignSym(p, v, receiver, throw)
-}
-
-func (o *lazyObject) hasProperty(n Value) bool {
-	obj := o.create(o.val)
-	o.val.self = obj
-	return obj.hasProperty(n)
 }
 
 func (o *lazyObject) hasPropertyStr(name string) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.hasPropertyStr(name)
-}
-
-func (o *lazyObject) hasOwnProperty(n Value) bool {
-	obj := o.create(o.val)
-	o.val.self = obj
-	return obj.hasOwnProperty(n)
 }
 
 func (o *lazyObject) hasOwnPropertyStr(name string) bool {
@@ -103,12 +157,6 @@ func (o *lazyObject) _putProp(string, Value, bool, bool, bool) Value {
 
 func (o *lazyObject) _putSym(*valueSymbol, Value) {
 	panic("cannot use _putSym() in lazy object")
-}
-
-func (o *lazyObject) defineOwnProperty(name Value, descr PropertyDescriptor, throw bool) bool {
-	obj := o.create(o.val)
-	o.val.self = obj
-	return obj.defineOwnProperty(name, descr, throw)
 }
 
 func (o *lazyObject) toPrimitiveNumber() Value {
@@ -145,12 +193,6 @@ func (o *lazyObject) deleteStr(name string, throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.deleteStr(name, throw)
-}
-
-func (o *lazyObject) delete(name Value, throw bool) bool {
-	obj := o.create(o.val)
-	o.val.self = obj
-	return obj.delete(name, throw)
 }
 
 func (o *lazyObject) proto() *Object {

@@ -246,7 +246,7 @@ func (e *baseCompiledExpr) init(c *compiler, idx file.Idx) {
 	e.offset = int(idx) - 1
 }
 
-func (e *baseCompiledExpr) emitSetter(valueExpr compiledExpr) {
+func (e *baseCompiledExpr) emitSetter(compiledExpr) {
 	e.c.throwSyntaxError(e.offset, "Not a valid left-value expression")
 }
 
@@ -258,7 +258,7 @@ func (e *baseCompiledExpr) deleteExpr() compiledExpr {
 	return r
 }
 
-func (e *baseCompiledExpr) emitUnary(prepare, body func(), postfix bool, putOnStack bool) {
+func (e *baseCompiledExpr) emitUnary(func(), func(), bool, bool) {
 	e.c.throwSyntaxError(e.offset, "Not a valid left-value expression")
 }
 
@@ -1365,7 +1365,7 @@ func (c *compiler) compileObjectLiteral(v *ast.ObjectLiteral) compiledExpr {
 
 func (e *compiledArrayLiteral) emitGetter(putOnStack bool) {
 	e.addSrcMap()
-	objCount := uint32(0)
+	objCount := 0
 	for _, v := range e.expr.Value {
 		if v != nil {
 			e.c.compileExpression(v).emitGetter(true)
@@ -1374,11 +1374,11 @@ func (e *compiledArrayLiteral) emitGetter(putOnStack bool) {
 			e.c.emit(loadNil)
 		}
 	}
-	if objCount == uint32(len(e.expr.Value)) {
+	if objCount == len(e.expr.Value) {
 		e.c.emit(newArray(objCount))
 	} else {
 		e.c.emit(&newArraySparse{
-			l:        uint32(len(e.expr.Value)),
+			l:        len(e.expr.Value),
 			objCount: objCount,
 		})
 	}

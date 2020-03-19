@@ -92,7 +92,7 @@ func (r *Runtime) builtinJSON_decodeObject(d *json.Decoder) (*Object, error) {
 				Enumerable:   FLAG_TRUE,
 				Configurable: FLAG_TRUE,
 			}
-			object.self.defineOwnProperty(string__proto__, descr, false)
+			object.self.defineOwnPropertyStr(__proto__, descr, false)
 		} else {
 			object.self.setOwnStr(key, value, false)
 		}
@@ -139,7 +139,7 @@ func (r *Runtime) builtinJSON_decodeArray(d *json.Decoder) (*Object, error) {
 }
 
 func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holder *Object, name Value) Value {
-	value := holder.self.get(name, nil)
+	value := holder.get(name, nil)
 	if value == nil {
 		value = _undefined
 	}
@@ -151,9 +151,9 @@ func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holde
 				name := intToValue(index)
 				value := r.builtinJSON_reviveWalk(reviver, object, name)
 				if value == _undefined {
-					object.self.delete(name, false)
+					object.delete(name, false)
 				} else {
-					object.self.setOwn(name, value, false)
+					object.setOwn(name, value, false)
 				}
 			}
 		} else {
@@ -196,7 +196,7 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 			length = 0
 			for index := range propertyList {
 				var name string
-				value := replacer.self.get(intToValue(int64(index)), nil)
+				value := replacer.self.getIdx(valueInt(int64(index)), nil)
 				if s, ok := value.assertString(); ok {
 					name = s.String()
 				} else if _, ok := value.assertInt(); ok {
@@ -271,7 +271,7 @@ func (ctx *_builtinJSON_stringifyContext) do(v Value) bool {
 }
 
 func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
-	value := holder.self.get(key, nil)
+	value := holder.get(key, nil)
 	if value == nil {
 		value = _undefined
 	}
@@ -427,9 +427,7 @@ func (ctx *_builtinJSON_stringifyContext) jo(object *Object) {
 
 	var props []Value
 	if ctx.propertyList == nil {
-		for _, itemName := range object.self.ownKeys(false, nil) {
-			props = append(props, itemName)
-		}
+		props = append(props, object.self.ownKeys(false, nil)...)
 	} else {
 		props = ctx.propertyList
 	}

@@ -26,69 +26,65 @@ func (o *objectGoSlice) updateLen() {
 	o.lengthProp.value = intToValue(int64(len(*o.data)))
 }
 
-func (o *objectGoSlice) getIdx(idx int64) Value {
-	if idx < int64(len(*o.data)) {
+func (o *objectGoSlice) getStr(name string, receiver Value) Value {
+	return o.getStrWithOwnProp(o.getOwnPropStr(name), name, receiver)
+}
+
+func (o *objectGoSlice) getIdx(idx valueInt, receiver Value) Value {
+	if idx := int64(idx); idx >= 0 && idx < int64(len(*o.data)) {
 		v := (*o.data)[idx]
 		if v == nil {
 			return nil
 		}
 		return o.val.runtime.ToValue(v)
 	}
-	return nil
-}
-
-func (o *objectGoSlice) _get(n Value) Value {
-	if idx := toIdx(n); idx >= 0 {
-		return o.getIdx(idx)
+	if o.prototype != nil {
+		if receiver == nil {
+			return o.prototype.self.getIdx(idx, o.val)
+		}
+		return o.prototype.self.getIdx(idx, receiver)
 	}
 	return nil
-}
-
-func (o *objectGoSlice) _getStr(name string) Value {
-	if idx := strToIdx(name); idx >= 0 {
-		return o.getIdx(idx)
-	}
-	return nil
-}
-
-func (o *objectGoSlice) get(n Value, receiver Value) Value {
-	if s, ok := n.(*valueSymbol); ok {
-		return o.getSym(s, receiver)
-	}
-	if v := o._get(n); v != nil {
-		return v
-	}
-	return o.baseObject.get(n, receiver)
-}
-
-func (o *objectGoSlice) getStr(name string, receiver Value) Value {
-	if v := o._getStr(name); v != nil {
-		return v
-	}
-	return o.baseObject.getStr(name, receiver)
 }
 
 func (o *objectGoSlice) getOwnPropStr(name string) Value {
-	if v := o._getStr(name); v != nil {
-		return &valueProperty{
-			value:      v,
-			writable:   true,
-			enumerable: true,
+	if idx := strToIdx(name); idx >= 0 {
+		if idx < len(*o.data) {
+			var v Value
+			if vv := (*o.data)[idx]; vv != nil {
+				v = o.val.runtime.ToValue(vv)
+			} else {
+				v = _undefined
+			}
+			return &valueProperty{
+				value:      v,
+				writable:   true,
+				enumerable: true,
+			}
 		}
+		return nil
 	}
-	return o.baseObject.getOwnPropStr(name)
+	if name == "length" {
+		return &o.lengthProp
+	}
+	return nil
 }
 
-func (o *objectGoSlice) getOwnProp(name Value) Value {
-	if v := o._get(name); v != nil {
+func (o *objectGoSlice) getOwnPropIdx(idx valueInt) Value {
+	if idx := int64(idx); idx >= 0 && idx < int64(len(*o.data)) {
+		var v Value
+		if vv := (*o.data)[idx]; vv != nil {
+			v = o.val.runtime.ToValue(vv)
+		} else {
+			v = _undefined
+		}
 		return &valueProperty{
 			value:      v,
 			writable:   true,
 			enumerable: true,
 		}
 	}
-
-	return o.baseObject.getOwnProp(name)
+	return nil
 }
 
 func (o *objectGoSlice) grow(size int64) {
@@ -141,96 +137,115 @@ func (o *objectGoSlice) putIdx(idx int64, v Value, throw bool) {
 	(*o.data)[idx] = v.Export()
 }
 
-func (o *objectGoSlice) putLength(v Value, throw bool) {
+func (o *objectGoSlice) putLength(v Value, throw bool) bool {
 	newLen := toLength(v)
 	curLen := int64(len(*o.data))
 	if newLen > curLen {
 		if !o.sliceExtensible {
 			o.val.runtime.typeErrorResult(throw, "Cannot extend Go slice")
-			return
+			return false
 		}
 		o.grow(newLen)
 	} else if newLen < curLen {
 		if !o.sliceExtensible {
 			o.val.runtime.typeErrorResult(throw, "Cannot shrink Go slice")
-			return
+			return false
 		}
 		o.shrink(newLen)
 	}
+	return true
 }
 
-func (o *objectGoSlice) setOwn(n Value, val Value, throw bool) {
-	if s, ok := n.(*valueSymbol); ok {
-		o.setOwnSym(s, val, throw)
-		return
+func (o *objectGoSlice) setOwnIdx(idx valueInt, val Value, throw bool) bool {
+	if i := int64(idx); i >= 0 {
+		if i >= int64(len(*o.data)) {
+			if res, ok := o._setForeignIdx(idx, nil, val, o.val, throw); ok {
+				return res
+			}
+		}
+		o.putIdx(i, val, throw)
+	} else {
+		name := idx.String()
+		if res, ok := o._setForeignStr(name, nil, val, o.val, throw); !ok {
+			o.val.runtime.typeErrorResult(throw, "Can't set property '%s' on Go slice", name)
+			return false
+		} else {
+			return res
+		}
 	}
-	if idx := toIdx(n); idx >= 0 {
+	return true
+}
+
+func strToIdx64(s string) int64 {
+	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return i
+	}
+	return -1
+}
+
+func (o *objectGoSlice) setOwnStr(name string, val Value, throw bool) bool {
+	if idx := strToIdx64(name); idx >= 0 {
+		if idx >= int64(len(*o.data)) {
+			if res, ok := o._setForeignStr(name, nil, val, o.val, throw); ok {
+				return res
+			}
+		}
 		o.putIdx(idx, val, throw)
-		return
+	} else {
+		if name == "length" {
+			return o.putLength(val, throw)
+		}
+		if res, ok := o._setForeignStr(name, nil, val, o.val, throw); !ok {
+			o.val.runtime.typeErrorResult(throw, "Can't set property '%s' on Go slice", name)
+			return false
+		} else {
+			return res
+		}
 	}
-	name := n.String()
-	if name == "length" {
-		o.putLength(val, throw)
-		return
-	}
-	if !o._setForeignStr(name, nil, val, o.val, throw) {
-		o.val.runtime.typeErrorResult(throw, "Can't set property '%s' on Go slice", name)
-	}
+	return true
 }
 
-func (o *objectGoSlice) setOwnStr(name string, val Value, throw bool) {
-	if idx := strToIdx(name); idx >= 0 {
-		o.putIdx(idx, val, throw)
-		return
-	}
-	if name == "length" {
-		o.putLength(val, throw)
-		return
-	}
-	if !o._setForeignStr(name, nil, val, o.val, throw) {
-		o.val.runtime.typeErrorResult(throw, "Can't set property '%s' on Go slice", name)
-	}
+func (o *objectGoSlice) setForeignIdx(idx valueInt, val, receiver Value, throw bool) (bool, bool) {
+	return o._setForeignIdx(idx, trueValIfPresent(o.hasOwnPropertyIdx(idx)), val, receiver, throw)
 }
 
-func (o *objectGoSlice) setForeign(name Value, val, receiver Value, throw bool) bool {
-	return o._setForeign(name, nil, val, receiver, throw)
+func (o *objectGoSlice) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
+	return o._setForeignStr(name, trueValIfPresent(o.hasOwnPropertyStr(name)), val, receiver, throw)
 }
 
-func (o *objectGoSlice) setForeignStr(name string, val, receiver Value, throw bool) bool {
-	return o._setForeignStr(name, nil, val, receiver, throw)
-}
-
-func (o *objectGoSlice) _has(n Value) bool {
-	if idx := toIdx(n); idx >= 0 {
+func (o *objectGoSlice) hasOwnPropertyIdx(idx valueInt) bool {
+	if idx := int64(idx); idx >= 0 {
 		return idx < int64(len(*o.data))
 	}
 	return false
-}
-
-func (o *objectGoSlice) _hasStr(name string) bool {
-	if idx := strToIdx(name); idx >= 0 {
-		return idx < int64(len(*o.data))
-	}
-	return false
-}
-
-func (o *objectGoSlice) hasOwnProperty(n Value) bool {
-	if s, ok := n.(*valueSymbol); ok {
-		return o.hasOwnSym(s)
-	}
-	return o._has(n)
 }
 
 func (o *objectGoSlice) hasOwnPropertyStr(name string) bool {
-	return o._hasStr(name)
+	if idx := strToIdx64(name); idx >= 0 {
+		return idx < int64(len(*o.data))
+	}
+	return false
 }
 
-func (o *objectGoSlice) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
-	if s, ok := n.(*valueSymbol); ok {
-		return o.defineOwnPropertySym(s, descr, throw)
+func (o *objectGoSlice) defineOwnPropertyIdx(idx valueInt, descr PropertyDescriptor, throw bool) bool {
+	if idx >= 0 {
+		if !o.val.runtime.checkHostObjectPropertyDescr(idx.String(), descr, throw) {
+			return false
+		}
+		val := descr.Value
+		if val == nil {
+			val = _undefined
+		}
+		o.putIdx(int64(idx), val, throw)
+		return true
 	}
-	if idx := toIdx(n); idx >= 0 {
-		if !o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) {
+	o.val.runtime.typeErrorResult(throw, "Cannot define property '%d' on a Go slice", idx)
+	return false
+}
+
+func (o *objectGoSlice) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
+	if idx := strToIdx64(name); idx >= 0 {
+		if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 			return false
 		}
 		val := descr.Value
@@ -240,7 +255,7 @@ func (o *objectGoSlice) defineOwnProperty(n Value, descr PropertyDescriptor, thr
 		o.putIdx(idx, val, throw)
 		return true
 	}
-	o.val.runtime.typeErrorResult(throw, "Cannot define property '%s' on a Go slice", n.String())
+	o.val.runtime.typeErrorResult(throw, "Cannot define property '%s' on a Go slice", name)
 	return false
 }
 
@@ -259,22 +274,23 @@ func (o *objectGoSlice) toPrimitive() Value {
 }
 
 func (o *objectGoSlice) deleteStr(name string, throw bool) bool {
-	if idx := strToIdx(name); idx >= 0 && idx < int64(len(*o.data)) {
-		(*o.data)[idx] = nil
+	if idx := strToIdx64(name); idx >= 0 {
+		if idx < int64(len(*o.data)) {
+			(*o.data)[idx] = nil
+		}
 		return true
 	}
 	return o.baseObject.deleteStr(name, throw)
 }
 
-func (o *objectGoSlice) delete(n Value, throw bool) bool {
-	if s, ok := n.(*valueSymbol); ok {
-		return o.deleteSym(s, throw)
+func (o *objectGoSlice) deleteIdx(i valueInt, throw bool) bool {
+	idx := int64(i)
+	if idx >= 0 {
+		if idx < int64(len(*o.data)) {
+			(*o.data)[idx] = nil
+		}
 	}
-	if idx := toIdx(n); idx >= 0 && idx < int64(len(*o.data)) {
-		(*o.data)[idx] = nil
-		return true
-	}
-	return o.baseObject.deleteStr(n.String(), throw)
+	return true
 }
 
 type goslicePropIter struct {
@@ -327,15 +343,15 @@ func (o *objectGoSlice) sortLen() int64 {
 }
 
 func (o *objectGoSlice) sortGet(i int64) Value {
-	return o.get(intToValue(i), nil)
+	return o.getIdx(valueInt(i), nil)
 }
 
 func (o *objectGoSlice) swap(i, j int64) {
-	ii := intToValue(i)
-	jj := intToValue(j)
-	x := o.get(ii, nil)
-	y := o.get(jj, nil)
+	ii := valueInt(i)
+	jj := valueInt(j)
+	x := o.getIdx(ii, nil)
+	y := o.getIdx(jj, nil)
 
-	o.setOwn(ii, y, false)
-	o.setOwn(jj, x, false)
+	o.setOwnIdx(ii, y, false)
+	o.setOwnIdx(jj, x, false)
 }

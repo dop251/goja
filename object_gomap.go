@@ -2,7 +2,6 @@ package goja
 
 import (
 	"reflect"
-	"strconv"
 )
 
 type objectGoMapSimple struct {
@@ -17,20 +16,12 @@ func (o *objectGoMapSimple) init() {
 	o.extensible = true
 }
 
-func (o *objectGoMapSimple) _get(n Value) Value {
-	return o._getStr(n.String())
-}
-
 func (o *objectGoMapSimple) _getStr(name string) Value {
 	v, exists := o.data[name]
 	if !exists {
 		return nil
 	}
 	return o.val.runtime.ToValue(v)
-}
-
-func (o *objectGoMapSimple) get(p Value, receiver Value) Value {
-	return o.getWithOwnProp(o.getOwnProp(p), p, receiver)
 }
 
 func (o *objectGoMapSimple) getStr(name string, receiver Value) Value {
@@ -44,47 +35,32 @@ func (o *objectGoMapSimple) getOwnPropStr(name string) Value {
 	if v := o._getStr(name); v != nil {
 		return v
 	}
-	return o.baseObject.getOwnPropStr(name)
+	return nil
 }
 
-func (o *objectGoMapSimple) getOwnProp(n Value) Value {
-	if s, ok := n.(*valueSymbol); ok {
-		return o.getOwnPropSym(s)
-	}
-
-	return o.getOwnPropStr(n.String())
-}
-
-func (o *objectGoMapSimple) setOwn(n Value, val Value, throw bool) {
-	if s, ok := n.(*valueSymbol); ok {
-		o.setOwnSym(s, val, throw)
-		return
-	}
-
-	o.setOwnStr(n.String(), val, throw)
-}
-
-func (o *objectGoMapSimple) setOwnStr(name string, val Value, throw bool) {
+func (o *objectGoMapSimple) setOwnStr(name string, val Value, throw bool) bool {
 	if _, exists := o.data[name]; exists {
 		o.data[name] = val.Export()
-		return
+		return true
 	}
 	if name == __proto__ {
 		o._setProto(val)
-		return
+		return true
 	}
 	if proto := o.prototype; proto != nil {
 		// we know it's foreign because prototype loops are not allowed
-		if proto.self.setForeignStr(name, val, o.val, throw) {
-			return
+		if res, ok := proto.self.setForeignStr(name, val, o.val, throw); ok {
+			return res
 		}
 	}
 	// new property
 	if !o.extensible {
 		o.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
+		return false
 	} else {
 		o.data[name] = val.Export()
 	}
+	return true
 }
 
 func trueValIfPresent(present bool) Value {
@@ -94,11 +70,7 @@ func trueValIfPresent(present bool) Value {
 	return nil
 }
 
-func (o *objectGoMapSimple) setForeign(name Value, val, receiver Value, throw bool) bool {
-	return o._setForeign(name, o.getOwnProp(name), val, receiver, throw)
-}
-
-func (o *objectGoMapSimple) setForeignStr(name string, val, receiver Value, throw bool) bool {
+func (o *objectGoMapSimple) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
 	return o._setForeignStr(name, trueValIfPresent(o._hasStr(name)), val, receiver, throw)
 }
 
@@ -107,33 +79,15 @@ func (o *objectGoMapSimple) _hasStr(name string) bool {
 	return exists
 }
 
-func (o *objectGoMapSimple) _has(n Value) bool {
-	if s, ok := n.(*valueSymbol); ok {
-		return o.hasOwnSym(s)
-	}
-	return o._hasStr(n.String())
-}
-
-func (o *objectGoMapSimple) hasOwnProperty(n Value) bool {
-	if s, ok := n.(*valueSymbol); ok {
-		return o.hasOwnSym(s)
-	}
-	return o._has(n)
-}
-
 func (o *objectGoMapSimple) hasOwnPropertyStr(name string) bool {
 	return o._hasStr(name)
 }
 
-func (o *objectGoMapSimple) defineOwnProperty(n Value, descr PropertyDescriptor, throw bool) bool {
-	if s, ok := n.(*valueSymbol); ok {
-		return o.defineOwnPropertySym(s, descr, throw)
-	}
-	if !o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) {
+func (o *objectGoMapSimple) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
+	if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 		return false
 	}
 
-	name := n.String()
 	if o.extensible || o._hasStr(name) {
 		o.data[name] = descr.Value.Export()
 		return true
@@ -164,14 +118,6 @@ func (o *objectGoMapSimple) assertCallable() (call func(FunctionCall) Value, ok 
 func (o *objectGoMapSimple) deleteStr(name string, _ bool) bool {
 	delete(o.data, name)
 	return true
-}
-
-func (o *objectGoMapSimple) delete(n Value, throw bool) bool {
-	if s, ok := n.(*valueSymbol); ok {
-		return o.deleteSym(s, throw)
-	}
-
-	return o.deleteStr(n.String(), throw)
 }
 
 type gomapPropIter struct {
@@ -227,22 +173,4 @@ func (o *objectGoMapSimple) equal(other objectImpl) bool {
 		return o == other
 	}
 	return false
-}
-
-func (o *objectGoMapSimple) sortLen() int64 {
-	return int64(len(o.data))
-}
-
-func (o *objectGoMapSimple) sortGet(i int64) Value {
-	return o.getStr(strconv.FormatInt(i, 10), nil)
-}
-
-func (o *objectGoMapSimple) swap(i, j int64) {
-	ii := strconv.FormatInt(i, 10)
-	jj := strconv.FormatInt(j, 10)
-	x := o.getStr(ii, nil)
-	y := o.getStr(jj, nil)
-
-	o.setOwnStr(ii, y, false)
-	o.setOwnStr(jj, x, false)
 }

@@ -17,7 +17,7 @@ var (
 	_NaN          Value = valueFloat(math.NaN())
 	_positiveInf  Value = valueFloat(math.Inf(+1))
 	_negativeInf  Value = valueFloat(math.Inf(-1))
-	_positiveZero Value
+	_positiveZero Value = valueInt(0)
 	_negativeZero Value = valueFloat(math.Float64frombits(0 | (1 << 63)))
 	_epsilon            = valueFloat(2.2204460492503130808472633361816e-16)
 	_undefined    Value = valueUndefined{}
@@ -32,8 +32,6 @@ var (
 	reflectTypeArray  = reflect.TypeOf([]interface{}{})
 	reflectTypeString = reflect.TypeOf("")
 )
-
-var intCache [256]Value
 
 var (
 	mapHasher maphash.Hash
@@ -799,7 +797,7 @@ func (o *Object) Keys() (keys []string) {
 // configurable: configurable, enumerable: enumerable})
 func (o *Object) DefineDataProperty(name string, value Value, writable, configurable, enumerable Flag) error {
 	return tryFunc(func() {
-		o.self.defineOwnProperty(newStringValue(name), PropertyDescriptor{
+		o.self.defineOwnPropertyStr(name, PropertyDescriptor{
 			Value:        value,
 			Writable:     writable,
 			Configurable: configurable,
@@ -812,7 +810,7 @@ func (o *Object) DefineDataProperty(name string, value Value, writable, configur
 // configurable: configurable, enumerable: enumerable})
 func (o *Object) DefineAccessorProperty(name string, getter, setter Value, configurable, enumerable Flag) error {
 	return tryFunc(func() {
-		o.self.defineOwnProperty(newStringValue(name), PropertyDescriptor{
+		o.self.defineOwnPropertyStr(name, PropertyDescriptor{
 			Getter:       getter,
 			Setter:       setter,
 			Configurable: configurable,
@@ -1020,11 +1018,4 @@ func (s *valueSymbol) hash() uint64 {
 
 func (s *valueSymbol) descString() string {
 	return fmt.Sprintf("Symbol(%s)", s.desc)
-}
-
-func init() {
-	for i := 0; i < 256; i++ {
-		intCache[i] = valueInt(i - 128)
-	}
-	_positiveZero = intToValue(0)
 }

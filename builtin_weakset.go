@@ -113,7 +113,7 @@ func (r *Runtime) populateWeakSetGeneric(s *Object, adderValue Value, iterable V
 	})
 }
 
-func (r *Runtime) builtin_newWeakSet(args []Value, _ Value) *Object {
+func (r *Runtime) builtin_newWeakSet(args []Value) *Object {
 	o := &Object{runtime: r}
 
 	wso := &weakSetObject{}
@@ -155,7 +155,7 @@ func (r *Runtime) createWeakSetProto(val *Object) objectImpl {
 }
 
 func (r *Runtime) createWeakSet(val *Object) objectImpl {
-	o := r.newNativeFuncObj(val, r.constructorThrower("WeakSet"), r.builtin_newWeakSet, "WeakSet", r.global.WeakSetPrototype, 0)
+	o := r.newNativeFuncObj(val, r.constructorThrower("WeakSet"), wrapNativeConstructor(r.builtin_newWeakSet), "WeakSet", r.global.WeakSetPrototype, 0)
 
 	return o
 }
