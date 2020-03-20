@@ -435,19 +435,22 @@ func TestProxy_proxy_has_with(t *testing.T) {
 		}
 	});
 	
-	with(proxy) {
-		try {
+	var thrown = false;
+	try {
+		with(proxy) {
 			(secret);
-			throw new Error("Expected ReferenceError");
-		} catch (e) {
-			if (!(e instanceof ReferenceError)) {
-				throw e;
-			}
+		}
+	} catch (e) {
+		if (e instanceof ReferenceError) {
+			thrown = true;
+		} else {
+			throw e;
 		}
 	}
+	thrown;
 	`
 
-	testScript1(SCRIPT, _undefined, t)
+	testScript1(SCRIPT, valueTrue, t)
 }
 
 func TestProxy_target_get(t *testing.T) {

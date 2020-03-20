@@ -25,6 +25,7 @@ const (
 var (
 	typeCallable = reflect.TypeOf(Callable(nil))
 	typeValue    = reflect.TypeOf((*Value)(nil)).Elem()
+	typeObject   = reflect.TypeOf((*Object)(nil))
 	typeTime     = reflect.TypeOf(time.Time{})
 )
 
@@ -47,7 +48,6 @@ type global struct {
 	Date     *Object
 	Symbol   *Object
 	Proxy    *Object
-	Reflect  *Object
 
 	ArrayBuffer *Object
 	WeakSet     *Object
@@ -326,6 +326,7 @@ func (r *Runtime) init() {
 	r.initDate()
 	r.initBoolean()
 	r.initProxy()
+	r.initReflect()
 
 	r.initErrors()
 
@@ -992,8 +993,15 @@ func (r *Runtime) ToValue(i interface{}) Value {
 	switch i := i.(type) {
 	case nil:
 		return _null
+	case *Object:
+		if i == nil || i.runtime == nil {
+			return _null
+		}
+		if i.runtime != r {
+			panic(r.NewTypeError("Illegal runtime transition of an Object"))
+		}
+		return i
 	case Value:
-		// TODO: prevent importing Objects from a different runtime
 		return i
 	case string:
 		return newStringValue(i)
@@ -1010,9 +1018,12 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 		return r.newNativeConstructor(i, name, 0)
 	case *Proxy:
+		if i == nil {
+			return _null
+		}
 		proxy := i.proxy.val
 		if proxy.runtime != r {
-			r.typeErrorResult(true, "Illegal runtime transition for proxy")
+			panic(r.NewTypeError("Illegal runtime transition of a Proxy"))
 		}
 		return proxy
 	case int:
@@ -1299,12 +1310,18 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 		}
 	}
 
-	if typ.Implements(typeValue) {
+	if typeValue.AssignableTo(typ) {
 		return reflect.ValueOf(v), nil
 	}
 
+	if typeObject.AssignableTo(typ) {
+		if obj, ok := v.(*Object); ok {
+			return reflect.ValueOf(obj), nil
+		}
+	}
+
 	et := v.ExportType()
-	if et == nil {
+	if et == nil || et == reflectTypeNil {
 		return reflect.Zero(typ), nil
 	}
 	if et.AssignableTo(typ) {
@@ -1417,7 +1434,7 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 		return ptrVal, nil
 	}
 
-	return reflect.Value{}, fmt.Errorf("Could not convert %v to %v", v, typ)
+	return reflect.Value{}, fmt.Errorf("could not convert %v to %v", v, typ)
 }
 
 func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.Value) (results []reflect.Value) {

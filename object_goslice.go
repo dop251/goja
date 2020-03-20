@@ -27,15 +27,20 @@ func (o *objectGoSlice) updateLen() {
 }
 
 func (o *objectGoSlice) getStr(name string, receiver Value) Value {
-	return o.getStrWithOwnProp(o.getOwnPropStr(name), name, receiver)
+	var ownProp Value
+	if idx := strToIdx64(name); idx >= 0 && idx < int64(len(*o.data)) {
+		v := (*o.data)[idx]
+		ownProp = o.val.runtime.ToValue(v)
+	} else if name == "length" {
+		ownProp = &o.lengthProp
+	}
+
+	return o.getStrWithOwnProp(ownProp, name, receiver)
 }
 
 func (o *objectGoSlice) getIdx(idx valueInt, receiver Value) Value {
 	if idx := int64(idx); idx >= 0 && idx < int64(len(*o.data)) {
 		v := (*o.data)[idx]
-		if v == nil {
-			return nil
-		}
 		return o.val.runtime.ToValue(v)
 	}
 	if o.prototype != nil {
@@ -50,12 +55,7 @@ func (o *objectGoSlice) getIdx(idx valueInt, receiver Value) Value {
 func (o *objectGoSlice) getOwnPropStr(name string) Value {
 	if idx := strToIdx(name); idx >= 0 {
 		if idx < len(*o.data) {
-			var v Value
-			if vv := (*o.data)[idx]; vv != nil {
-				v = o.val.runtime.ToValue(vv)
-			} else {
-				v = _undefined
-			}
+			v := o.val.runtime.ToValue((*o.data)[idx])
 			return &valueProperty{
 				value:      v,
 				writable:   true,
@@ -72,12 +72,7 @@ func (o *objectGoSlice) getOwnPropStr(name string) Value {
 
 func (o *objectGoSlice) getOwnPropIdx(idx valueInt) Value {
 	if idx := int64(idx); idx >= 0 && idx < int64(len(*o.data)) {
-		var v Value
-		if vv := (*o.data)[idx]; vv != nil {
-			v = o.val.runtime.ToValue(vv)
-		} else {
-			v = _undefined
-		}
+		v := o.val.runtime.ToValue((*o.data)[idx])
 		return &valueProperty{
 			value:      v,
 			writable:   true,
@@ -276,7 +271,8 @@ func (o *objectGoSlice) toPrimitive() Value {
 func (o *objectGoSlice) deleteStr(name string, throw bool) bool {
 	if idx := strToIdx64(name); idx >= 0 {
 		if idx < int64(len(*o.data)) {
-			(*o.data)[idx] = nil
+			o.val.runtime.typeErrorResult(throw, "Can't delete from Go slice")
+			return false
 		}
 		return true
 	}
@@ -287,7 +283,8 @@ func (o *objectGoSlice) deleteIdx(i valueInt, throw bool) bool {
 	idx := int64(i)
 	if idx >= 0 {
 		if idx < int64(len(*o.data)) {
-			(*o.data)[idx] = nil
+			o.val.runtime.typeErrorResult(throw, "Can't delete from Go slice")
+			return false
 		}
 	}
 	return true

@@ -25,6 +25,16 @@ func (i *proxyPropIter) next() (propIterItem, iterNextFunc) {
 }
 
 func (r *Runtime) newProxyObject(target *Object, handler *Object) *proxyObject {
+	if p, ok := target.self.(*proxyObject); ok {
+		if p.handler == nil {
+			panic(r.NewTypeError("Cannot create proxy with a revoked proxy as target"))
+		}
+	}
+	if p, ok := handler.self.(*proxyObject); ok {
+		if p.handler == nil {
+			panic(r.NewTypeError("Cannot create proxy with a revoked proxy as handler"))
+		}
+	}
 	v := &Object{runtime: r}
 	p := &proxyObject{}
 	v.self = p
@@ -399,11 +409,11 @@ func (p *proxyObject) proxySet(name, value, receiver Value, throw bool) (bool, b
 		if v.ToBoolean() {
 			if prop, ok := target.getOwnProp(name).(*valueProperty); ok {
 				if prop.accessor {
-					if !prop.configurable {
-						panic(p.val.runtime.NewTypeError())
+					if !prop.configurable && prop.setterFunc == nil {
+						panic(p.val.runtime.NewTypeError("'set' on proxy: trap returned truish for property '%s' which exists in the proxy target as a non-configurable and non-writable accessor property without a setter", name.String()))
 					}
 				} else if !prop.configurable && !prop.writable && !p.__sameValue(prop.value, value) {
-					panic(p.val.runtime.NewTypeError())
+					panic(p.val.runtime.NewTypeError("'set' on proxy: trap returned truish for property '%s' which exists in the proxy target as a non-configurable and non-writable data property with a different value", name.String()))
 				}
 			}
 			return true, true
@@ -702,7 +712,7 @@ func (p *proxyObject) filterKeys(vals []Value, all, symbols bool) []Value {
 	} else {
 		k := 0
 		for i, val := range vals {
-			if _, ok := val.(*valueSymbol); ok {
+			if _, ok := val.(*valueSymbol); ok != symbols {
 				continue
 			}
 			if k != i {

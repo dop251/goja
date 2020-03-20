@@ -230,7 +230,7 @@ func (s *stash) getByIdx(idx uint32) Value {
 func (s *stash) getByName(name string, _ *vm) (v Value, exists bool) {
 	if s.obj != nil {
 		if s.obj.hasPropertyStr(name) {
-			return s.obj.getStr(name, nil), true
+			return nilSafe(s.obj.getStr(name, nil)), true
 		}
 		return nil, false
 	}
@@ -982,7 +982,7 @@ var deleteElem _deleteElem
 func (_deleteElem) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
 	propName := toPropertyKey(vm.stack[vm.sp-1])
-	if !obj.hasProperty(propName) || obj.delete(propName, false) {
+	if obj.delete(propName, false) {
 		vm.stack[vm.sp-2] = valueTrue
 	} else {
 		vm.stack[vm.sp-2] = valueFalse
@@ -1008,7 +1008,7 @@ type deleteProp string
 
 func (d deleteProp) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-1])
-	if !obj.self.hasPropertyStr(string(d)) || obj.self.deleteStr(string(d), false) {
+	if obj.self.deleteStr(string(d), false) {
 		vm.stack[vm.sp-1] = valueTrue
 	} else {
 		vm.stack[vm.sp-1] = valueFalse
@@ -1123,7 +1123,7 @@ func (g getPropCallee) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
 	obj := v.baseObject(vm.r)
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
+		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined or null", g))
 	}
 	prop := obj.self.getStr(string(g), v)
 	if prop == nil {
@@ -1284,7 +1284,7 @@ func (s setVar) exec(vm *vm) {
 	v := vm.peek()
 
 	level := int(s.idx >> 24)
-	idx := uint32(s.idx & 0x00FFFFFF)
+	idx := s.idx & 0x00FFFFFF
 	stash := vm.stash
 	name := s.name
 	for i := 0; i < level; i++ {

@@ -1399,6 +1399,21 @@ func TestObjSet(t *testing.T) {
 	testScript1(SCRIPT, intToValue(44), t)
 }
 
+func TestToValueNilValue(t *testing.T) {
+	r := New()
+	var a Value
+	r.Set("a", a)
+	ret, err := r.RunString(`
+	""+a;
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !asciiString("null").SameAs(ret) {
+		t.Fatalf("ret: %v", ret)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

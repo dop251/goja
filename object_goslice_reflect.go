@@ -40,14 +40,11 @@ func (o *objectGoSliceReflect) _hasStr(name string) bool {
 }
 
 func (o *objectGoSliceReflect) _getIdx(idx int64) Value {
-	if idx < int64(o.value.Len()) {
-		v := o.value.Index(int(idx))
-		if (v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface) && v.IsNil() {
-			return nil
-		}
-		return o.val.runtime.ToValue(v.Interface())
+	v := o.value.Index(int(idx))
+	if (v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface) && v.IsNil() {
+		return _null
 	}
-	return nil
+	return o.val.runtime.ToValue(v.Interface())
 }
 
 func (o *objectGoSliceReflect) getIdx(idx valueInt, receiver Value) Value {
@@ -58,13 +55,25 @@ func (o *objectGoSliceReflect) getIdx(idx valueInt, receiver Value) Value {
 }
 
 func (o *objectGoSliceReflect) getStr(name string, receiver Value) Value {
-	return o.getStrWithOwnProp(o.getOwnPropStr(name), name, receiver)
+	var ownProp Value
+	if idx := strToIdx64(name); idx >= 0 && idx < int64(o.value.Len()) {
+		ownProp = o._getIdx(idx)
+	} else if name == "length" {
+		ownProp = &o.lengthProp
+	} else {
+		ownProp = o.objectGoReflect.getOwnPropStr(name)
+	}
+	return o.getStrWithOwnProp(ownProp, name, receiver)
 }
 
 func (o *objectGoSliceReflect) getOwnPropStr(name string) Value {
 	if idx := strToIdx64(name); idx >= 0 {
 		if idx < int64(o.value.Len()) {
-			return o._getIdx(idx)
+			return &valueProperty{
+				value:      o._getIdx(idx),
+				writable:   true,
+				enumerable: true,
+			}
 		}
 		return nil
 	}
@@ -76,7 +85,11 @@ func (o *objectGoSliceReflect) getOwnPropStr(name string) Value {
 
 func (o *objectGoSliceReflect) getOwnPropIdx(idx valueInt) Value {
 	if idx := int64(idx); idx >= 0 && idx < int64(o.value.Len()) {
-		return o._getIdx(idx)
+		return &valueProperty{
+			value:      o._getIdx(idx),
+			writable:   true,
+			enumerable: true,
+		}
 	}
 	return nil
 }
@@ -268,7 +281,8 @@ func (o *objectGoSliceReflect) toPrimitive() Value {
 func (o *objectGoSliceReflect) deleteStr(name string, throw bool) bool {
 	if idx := strToIdx64(name); idx >= 0 {
 		if idx < int64(o.value.Len()) {
-			o.value.Index(int(idx)).Set(reflect.Zero(o.value.Type().Elem()))
+			o.val.runtime.typeErrorResult(throw, "Can't delete from Go slice")
+			return false
 		}
 		return true
 	}
@@ -280,7 +294,8 @@ func (o *objectGoSliceReflect) deleteIdx(i valueInt, throw bool) bool {
 	idx := int64(i)
 	if idx >= 0 {
 		if idx < int64(o.value.Len()) {
-			o.value.Index(int(idx)).Set(reflect.Zero(o.value.Type().Elem()))
+			o.val.runtime.typeErrorResult(throw, "Can't delete from Go slice")
+			return false
 		}
 	}
 	return true

@@ -92,6 +92,15 @@ func (r *Runtime) builtin_reflect_set(call FunctionCall) Value {
 	return r.toBoolean(target.set(call.Argument(1), call.Argument(2), receiver, false))
 }
 
+func (r *Runtime) builtin_reflect_setPrototypeOf(call FunctionCall) Value {
+	target := r.toObject(call.Argument(0))
+	var proto *Object
+	if arg := call.Argument(1); arg != _null {
+		proto = r.toObject(arg)
+	}
+	return r.toBoolean(target.self.setProto(proto, false))
+}
+
 func (r *Runtime) createReflect(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 
@@ -100,17 +109,18 @@ func (r *Runtime) createReflect(val *Object) objectImpl {
 	o._putProp("defineProperty", r.newNativeFunc(r.builtin_reflect_defineProperty, nil, "defineProperty", nil, 3), true, false, true)
 	o._putProp("deleteProperty", r.newNativeFunc(r.builtin_reflect_deleteProperty, nil, "deleteProperty", nil, 2), true, false, true)
 	o._putProp("get", r.newNativeFunc(r.builtin_reflect_get, nil, "get", nil, 2), true, false, true)
+	o._putProp("getOwnPropertyDescriptor", r.newNativeFunc(r.builtin_reflect_getOwnPropertyDescriptor, nil, "getOwnPropertyDescriptor", nil, 2), true, false, true)
 	o._putProp("getPrototypeOf", r.newNativeFunc(r.builtin_reflect_getPrototypeOf, nil, "getPrototypeOf", nil, 1), true, false, true)
 	o._putProp("has", r.newNativeFunc(r.builtin_reflect_has, nil, "has", nil, 2), true, false, true)
 	o._putProp("isExtensible", r.newNativeFunc(r.builtin_reflect_isExtensible, nil, "isExtensible", nil, 1), true, false, true)
 	o._putProp("ownKeys", r.newNativeFunc(r.builtin_reflect_ownKeys, nil, "ownKeys", nil, 1), true, false, true)
 	o._putProp("preventExtensions", r.newNativeFunc(r.builtin_reflect_preventExtensions, nil, "preventExtensions", nil, 1), true, false, true)
 	o._putProp("set", r.newNativeFunc(r.builtin_reflect_set, nil, "set", nil, 3), true, false, true)
+	o._putProp("setPrototypeOf", r.newNativeFunc(r.builtin_reflect_setPrototypeOf, nil, "setPrototypeOf", nil, 2), true, false, true)
 
 	return o
 }
 
 func (r *Runtime) initReflect() {
-	r.global.Proxy = r.newLazyObject(r.createReflect)
-	r.addToGlobal("Reflect", r.global.Reflect)
+	r.addToGlobal("Reflect", r.newLazyObject(r.createReflect))
 }

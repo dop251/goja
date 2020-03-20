@@ -233,7 +233,7 @@ type baseObject struct {
 	values    map[string]Value
 	propNames []string
 
-	symValues map[*valueSymbol]Value
+	symValues *orderedMap
 }
 
 type primitiveValueObject struct {
@@ -342,7 +342,7 @@ func (o *baseObject) getIdx(idx valueInt, receiver Value) Value {
 }
 
 func (o *baseObject) getSym(s *valueSymbol, receiver Value) Value {
-	return o.getWithOwnProp(o.symValues[s], s, receiver)
+	return o.getWithOwnProp(o.getOwnPropSym(s), s, receiver)
 }
 
 func (o *baseObject) getStr(name string, receiver Value) Value {
@@ -372,7 +372,10 @@ func (o *baseObject) getOwnPropIdx(idx valueInt) Value {
 }
 
 func (o *baseObject) getOwnPropSym(s *valueSymbol) Value {
-	return o.symValues[s]
+	if o.symValues != nil {
+		return o.symValues.get(s)
+	}
+	return nil
 }
 
 func (o *baseObject) getOwnPropStr(name string) Value {
@@ -414,11 +417,13 @@ func (o *baseObject) deleteIdx(idx valueInt, throw bool) bool {
 }
 
 func (o *baseObject) deleteSym(s *valueSymbol, throw bool) bool {
-	if val, exists := o.symValues[s]; exists {
-		if !o.checkDelete(s.String(), val, throw) {
-			return false
+	if o.symValues != nil {
+		if val := o.symValues.get(s); val != nil {
+			if !o.checkDelete(s.String(), val, throw) {
+				return false
+			}
+			o.symValues.remove(s)
 		}
-		delete(o.symValues, s)
 	}
 	return true
 }
@@ -506,7 +511,10 @@ func (o *baseObject) setOwnIdx(idx valueInt, val Value, throw bool) bool {
 }
 
 func (o *baseObject) setOwnSym(name *valueSymbol, val Value, throw bool) bool {
-	ownDesc := o.symValues[name]
+	var ownDesc Value
+	if o.symValues != nil {
+		ownDesc = o.symValues.get(name)
+	}
 	if ownDesc == nil {
 		if proto := o.prototype; proto != nil {
 			// we know it's foreign because prototype loops are not allowed
@@ -520,9 +528,9 @@ func (o *baseObject) setOwnSym(name *valueSymbol, val Value, throw bool) bool {
 			return false
 		} else {
 			if o.symValues == nil {
-				o.symValues = make(map[*valueSymbol]Value, 1)
+				o.symValues = newOrderedMap()
 			}
-			o.symValues[name] = val
+			o.symValues.set(name, val)
 		}
 		return true
 	}
@@ -534,7 +542,7 @@ func (o *baseObject) setOwnSym(name *valueSymbol, val Value, throw bool) bool {
 			prop.set(o.val, val)
 		}
 	} else {
-		o.symValues[name] = val
+		o.symValues.set(name, val)
 	}
 	return true
 }
@@ -594,7 +602,10 @@ func (o *baseObject) setForeignIdx(name valueInt, val, receiver Value, throw boo
 }
 
 func (o *baseObject) setForeignSym(name *valueSymbol, val, receiver Value, throw bool) (bool, bool) {
-	prop := o.symValues[name]
+	var prop Value
+	if o.symValues != nil {
+		prop = o.symValues.get(name)
+	}
 	if prop != nil {
 		if prop, ok := prop.(*valueProperty); ok {
 			if !prop.isWritable() {
@@ -618,8 +629,10 @@ func (o *baseObject) setForeignSym(name *valueSymbol, val, receiver Value, throw
 }
 
 func (o *baseObject) hasOwnPropertySym(s *valueSymbol) bool {
-	_, exists := o.symValues[s]
-	return exists
+	if o.symValues != nil {
+		return o.symValues.has(s)
+	}
+	return false
 }
 
 func (o *baseObject) hasOwnPropertyStr(name string) bool {
@@ -751,12 +764,15 @@ func (o *baseObject) defineOwnPropertyIdx(idx valueInt, desc PropertyDescriptor,
 }
 
 func (o *baseObject) defineOwnPropertySym(s *valueSymbol, descr PropertyDescriptor, throw bool) bool {
-	existingVal := o.symValues[s]
+	var existingVal Value
+	if o.symValues != nil {
+		existingVal = o.symValues.get(s)
+	}
 	if v, ok := o._defineOwnProperty(s.String(), existingVal, descr, throw); ok {
 		if o.symValues == nil {
-			o.symValues = make(map[*valueSymbol]Value, 1)
+			o.symValues = newOrderedMap()
 		}
-		o.symValues[s] = v
+		o.symValues.set(s, v)
 		return true
 	}
 	return false
@@ -790,9 +806,9 @@ func (o *baseObject) _putProp(name string, value Value, writable, enumerable, co
 
 func (o *baseObject) _putSym(s *valueSymbol, prop Value) {
 	if o.symValues == nil {
-		o.symValues = make(map[*valueSymbol]Value, 1)
+		o.symValues = newOrderedMap()
 	}
-	o.symValues[s] = prop
+	o.symValues.set(s, prop)
 }
 
 func (o *baseObject) tryExoticToPrimitive(hint string) Value {
@@ -1050,8 +1066,15 @@ func (o *baseObject) ownKeys(all bool, keys []Value) []Value {
 }
 
 func (o *baseObject) ownSymbols() (res []Value) {
-	for s := range o.symValues {
-		res = append(res, s)
+	if o.symValues != nil {
+		iter := o.symValues.newIter()
+		for {
+			entry := iter.next()
+			if entry == nil {
+				break
+			}
+			res = append(res, entry.key)
+		}
 	}
 
 	return
