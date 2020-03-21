@@ -98,8 +98,13 @@ func (f *funcObject) ownKeys(all bool, accum []Value) []Value {
 }
 
 func (f *funcObject) construct(args []Value, newTarget Value) *Object {
-	_ = newTarget
-	proto := f.getStr("prototype", nil)
+	var newTargetObj *Object
+	if newTarget == nil {
+		newTargetObj = f.val
+	} else {
+		newTargetObj = f.val.runtime.toObject(newTarget)
+	}
+	proto := newTargetObj.self.getStr("prototype", nil)
 	var protoObj *Object
 	if p, ok := proto.(*Object); ok {
 		protoObj = p

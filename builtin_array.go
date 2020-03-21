@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"math"
 	"sort"
 	"strings"
 )
@@ -24,8 +25,8 @@ func (r *Runtime) newArrayObject() *arrayObject {
 
 func setArrayValues(a *arrayObject, values []Value) *arrayObject {
 	a.values = values
-	a.length = len(values)
-	a.objCount = a.length
+	a.length = uint32(len(values))
+	a.objCount = len(values)
 	return a
 }
 
@@ -147,7 +148,7 @@ func (r *Runtime) arrayproto_pop(call FunctionCall) Value {
 		if l > 0 {
 			var val Value
 			l--
-			if l < len(a.values) {
+			if l < uint32(len(a.values)) {
 				val = a.values[l]
 			}
 			if val == nil {
@@ -450,8 +451,8 @@ func (r *Runtime) arrayproto_unshift(call FunctionCall) Value {
 	length := toLength(o.self.getStr("length", nil))
 	argCount := int64(len(call.Arguments))
 	newLen := intToValue(length + argCount)
-	if arr := r.checkStdArrayObj(o); arr != nil {
-		newSize := length + argCount
+	newSize := length + argCount
+	if arr := r.checkStdArrayObj(o); arr != nil && newSize < math.MaxUint32 {
 		if int64(cap(arr.values)) >= newSize {
 			arr.values = arr.values[:newSize]
 			copy(arr.values[argCount:], arr.values[:length])
@@ -461,7 +462,7 @@ func (r *Runtime) arrayproto_unshift(call FunctionCall) Value {
 			arr.values = values
 		}
 		copy(arr.values, call.Arguments)
-		arr.objCount = arr.length
+		arr.objCount = int(arr.length)
 	} else {
 		for k := length - 1; k >= 0; k-- {
 			from := valueInt(k)
@@ -824,7 +825,7 @@ func (r *Runtime) arrayproto_reverse_generic(o *Object, start int64) {
 func (r *Runtime) arrayproto_reverse(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	if a := r.checkStdArrayObj(o); a != nil {
-		l := a.length
+		l := len(a.values)
 		middle := l / 2
 		for lower := 0; lower != middle; lower++ {
 			upper := l - lower - 1
@@ -980,8 +981,8 @@ func (r *Runtime) arrayproto_findIndex(call FunctionCall) Value {
 func (r *Runtime) checkStdArrayObj(obj *Object) *arrayObject {
 	if arr, ok := obj.self.(*arrayObject); ok &&
 		arr.propValueCount == 0 &&
-		arr.length == len(arr.values) &&
-		arr.objCount == arr.length {
+		arr.length == uint32(len(arr.values)) &&
+		uint32(arr.objCount) == arr.length {
 
 		return arr
 	}
@@ -1040,7 +1041,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 	var arr *Object
 	if usingIterator := toMethod(r.getV(items, symIterator)); usingIterator != nil {
 		if ctor != nil {
-			arr = ctor([]Value{}, call.This)
+			arr = ctor([]Value{}, nil)
 		} else {
 			arr = r.newArrayValues(nil)
 		}
@@ -1068,7 +1069,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		arrayLike := items.ToObject(r)
 		l := toLength(arrayLike.self.getStr("length", nil))
 		if ctor != nil {
-			arr = ctor([]Value{intToValue(l)}, call.This)
+			arr = ctor([]Value{intToValue(l)}, nil)
 		} else {
 			arr = r.newArrayValues(nil)
 		}
@@ -1122,7 +1123,7 @@ func (r *Runtime) array_of(call FunctionCall) Value {
 		return r.newArrayValues(values)
 	}
 	l := intToValue(int64(len(call.Arguments)))
-	arr := ctor([]Value{l}, call.This)
+	arr := ctor([]Value{l}, nil)
 	for i, val := range call.Arguments {
 		createDataPropertyOrThrow(arr, intToValue(int64(i)), val)
 	}

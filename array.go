@@ -2,6 +2,7 @@ package goja
 
 import (
 	"math"
+	"math/bits"
 	"reflect"
 	"strconv"
 )
@@ -58,7 +59,7 @@ func (r *Runtime) createArrayIterator(iterObj *Object, kind iterationKind) Value
 type arrayObject struct {
 	baseObject
 	values         []Value
-	length         int
+	length         uint32
 	objCount       int
 	propValueCount int
 	lengthProp     valueProperty
@@ -73,21 +74,15 @@ func (a *arrayObject) init() {
 
 func (a *arrayObject) _setLengthInt(l int64, throw bool) bool {
 	if l >= 0 && l <= math.MaxUint32 {
-		l := int(l)
+		l := uint32(l)
 		ret := true
 		if l <= a.length {
 			if a.propValueCount > 0 {
 				// Slow path
-				var s int
-				if a.length < len(a.values) {
-					s = a.length - 1
-				} else {
-					s = len(a.values) - 1
-				}
-				for i := s; i >= l; i-- {
+				for i := len(a.values) - 1; i >= int(l); i-- {
 					if prop, ok := a.values[i].(*valueProperty); ok {
 						if !prop.configurable {
-							l = i + 1
+							l = uint32(i) + 1
 							ret = false
 							break
 						}
@@ -96,8 +91,8 @@ func (a *arrayObject) _setLengthInt(l int64, throw bool) bool {
 				}
 			}
 		}
-		if l <= len(a.values) {
-			if l >= 16 && l < cap(a.values)>>2 {
+		if l <= uint32(len(a.values)) {
+			if l >= 16 && l < uint32(cap(a.values))>>2 {
 				ar := make([]Value, l)
 				copy(ar, a.values)
 				a.values = ar
@@ -164,8 +159,8 @@ func (a *arrayObject) getIdx(idx valueInt, receiver Value) Value {
 }
 
 func (a *arrayObject) getOwnPropStr(name string) Value {
-	if i := strToIdx(name); i >= 0 {
-		if i >= 0 && i < len(a.values) {
+	if i := strToIdx(name); i != math.MaxUint32 {
+		if i < uint32(len(a.values)) {
 			return a.values[i]
 		}
 	}
@@ -176,8 +171,8 @@ func (a *arrayObject) getOwnPropStr(name string) Value {
 }
 
 func (a *arrayObject) getOwnPropIdx(idx valueInt) Value {
-	if i := toIdx(idx); i >= 0 {
-		if i < len(a.values) {
+	if i := toIdx(idx); i != math.MaxUint32 {
+		if i < uint32(len(a.values)) {
 			return a.values[i]
 		}
 		return nil
@@ -202,20 +197,133 @@ func (a *arrayObject) swap(i, j int64) {
 	a.values[i], a.values[j] = a.values[j], a.values[i]
 }
 
-func toIdx(v valueInt) int {
+func toIdx(v valueInt) uint32 {
 	if v >= 0 && v < math.MaxUint32 {
-		return int(v)
+		return uint32(v)
 	}
-	return -1
+	return math.MaxUint32
 }
 
-func strToIdx(s string) int {
-	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
-		if i >= 0 && i < math.MaxUint32 {
-			return int(i)
+func strToIdx64(s string) int64 {
+	if s == "" {
+		return -1
+	}
+	l := len(s)
+	if s[0] == '0' {
+		if l == 1 {
+			return 0
+		}
+		return -1
+	}
+	var n int64
+	if l < 19 {
+		// guaranteed not to overflow
+		for i := 0; i < len(s); i++ {
+			c := s[i]
+			if c < '0' || c > '9' {
+				return -1
+			}
+			n = n*10 + int64(c-'0')
+		}
+		return n
+	}
+	if l > 19 {
+		// guaranteed to overflow
+		return -1
+	}
+	c18 := s[18]
+	if c18 < '0' || c18 > '9' {
+		return -1
+	}
+	for i := 0; i < 18; i++ {
+		c := s[i]
+		if c < '0' || c > '9' {
+			return -1
+		}
+		n = n*10 + int64(c-'0')
+	}
+	if n >= math.MaxInt64/10+1 {
+		return -1
+	}
+	n *= 10
+	n1 := n + int64(c18-'0')
+	if n1 < n {
+		return -1
+	}
+	return n1
+}
+
+func strToIdx(s string) uint32 {
+	if i := strToIdx64(s); i >= 0 {
+		if i < math.MaxUint32 {
+			return uint32(i)
 		}
 	}
-	return -1
+	return math.MaxUint32
+}
+
+func parseIdx32(s string) uint32 {
+	if s == "" {
+		return math.MaxUint32
+	}
+	l := len(s)
+	if s[0] == '0' {
+		if l == 1 {
+			return 0
+		}
+		return math.MaxUint32
+	}
+	var n uint32
+	if l < 10 {
+		// guaranteed not to overflow
+		for i := 0; i < len(s); i++ {
+			c := s[i]
+			if c < '0' || c > '9' {
+				return math.MaxUint32
+			}
+			n = n*10 + uint32(c-'0')
+		}
+		return n
+	}
+	if l > 10 {
+		// guaranteed to overflow
+		return math.MaxUint32
+	}
+	c9 := s[9]
+	if c9 < '0' || c9 > '9' {
+		return math.MaxUint32
+	}
+	for i := 0; i < 9; i++ {
+		c := s[i]
+		if c < '0' || c > '9' {
+			return math.MaxUint32
+		}
+		n = n*10 + uint32(c-'0')
+	}
+	if n >= math.MaxUint32/10+1 {
+		return math.MaxUint32
+	}
+	n *= 10
+	n1 := n + uint32(c9-'0')
+	if n1 < n {
+		return math.MaxUint32
+	}
+
+	return n1
+}
+
+func strToGoIdx(s string) int {
+	if bits.UintSize == 64 {
+		return int(strToIdx64(s))
+	}
+	i := parseIdx32(s)
+	if i == math.MaxUint32 {
+		return -1
+	}
+	if i >= math.MaxInt32 {
+		return -1
+	}
+	return int(i)
 }
 
 func (a *arrayObject) getStr(name string, receiver Value) Value {
@@ -228,16 +336,16 @@ func (a *arrayObject) getLengthProp() Value {
 }
 
 func (a *arrayObject) setOwnIdx(idx valueInt, val Value, throw bool) bool {
-	if i := toIdx(idx); i >= 0 {
+	if i := toIdx(idx); i != math.MaxUint32 {
 		return a._setOwnIdx(i, val, throw)
 	} else {
 		return a.baseObject.setOwnStr(idx.String(), val, throw)
 	}
 }
 
-func (a *arrayObject) _setOwnIdx(idx int, val Value, throw bool) bool {
+func (a *arrayObject) _setOwnIdx(idx uint32, val Value, throw bool) bool {
 	var prop Value
-	if idx < len(a.values) {
+	if idx < uint32(len(a.values)) {
 		prop = a.values[idx]
 	}
 
@@ -258,7 +366,7 @@ func (a *arrayObject) _setOwnIdx(idx int, val Value, throw bool) bool {
 					return false
 				}
 			}
-			if idx >= len(a.values) {
+			if idx >= uint32(len(a.values)) {
 				if !a.expand(idx) {
 					a.val.self.(*sparseArrayObject).add(idx, val)
 					return true
@@ -281,7 +389,7 @@ func (a *arrayObject) _setOwnIdx(idx int, val Value, throw bool) bool {
 }
 
 func (a *arrayObject) setOwnStr(name string, val Value, throw bool) bool {
-	if idx := strToIdx(name); idx >= 0 {
+	if idx := strToIdx(name); idx != math.MaxUint32 {
 		return a._setOwnIdx(idx, val, throw)
 	} else {
 		if name == "length" {
@@ -340,31 +448,31 @@ func (a *arrayObject) ownKeys(all bool, accum []Value) []Value {
 }
 
 func (a *arrayObject) hasOwnPropertyStr(name string) bool {
-	if idx := strToIdx(name); idx >= 0 {
-		return idx < len(a.values) && a.values[idx] != nil
+	if idx := strToIdx(name); idx != math.MaxUint32 {
+		return idx < uint32(len(a.values)) && a.values[idx] != nil
 	} else {
 		return a.baseObject.hasOwnPropertyStr(name)
 	}
 }
 
 func (a *arrayObject) hasOwnPropertyIdx(idx valueInt) bool {
-	if idx := toIdx(idx); idx >= 0 {
-		return idx < len(a.values) && a.values[idx] != nil
+	if idx := toIdx(idx); idx != math.MaxUint32 {
+		return idx < uint32(len(a.values)) && a.values[idx] != nil
 	}
 	return a.baseObject.hasOwnPropertyStr(idx.String())
 }
 
-func (a *arrayObject) expand(idx int) bool {
+func (a *arrayObject) expand(idx uint32) bool {
 	targetLen := idx + 1
-	if targetLen > len(a.values) {
-		if targetLen < cap(a.values) {
+	if targetLen > uint32(len(a.values)) {
+		if targetLen < uint32(cap(a.values)) {
 			a.values = a.values[:targetLen]
 		} else {
-			if idx > 4096 && (a.objCount == 0 || idx/a.objCount > 10) {
+			if idx > 4096 && (a.objCount == 0 || idx/uint32(a.objCount) > 10) {
 				//log.Println("Switching standard->sparse")
 				sa := &sparseArrayObject{
 					baseObject:     a.baseObject,
-					length:         a.length,
+					length:         uint32(a.length),
 					propValueCount: a.propValueCount,
 				}
 				sa.setValues(a.values, a.objCount+1)
@@ -373,21 +481,27 @@ func (a *arrayObject) expand(idx int) bool {
 				sa.lengthProp.writable = a.lengthProp.writable
 				return false
 			} else {
+				if bits.UintSize == 32 {
+					if targetLen >= math.MaxInt32 {
+						panic(a.val.runtime.NewTypeError("Array index overflows int"))
+					}
+				}
+				tl := int(targetLen)
 				// Use the same algorithm as in runtime.growSlice
 				newcap := cap(a.values)
 				doublecap := newcap + newcap
-				if targetLen > doublecap {
-					newcap = targetLen
+				if tl > doublecap {
+					newcap = tl
 				} else {
 					if len(a.values) < 1024 {
 						newcap = doublecap
 					} else {
-						for newcap < targetLen {
+						for newcap < tl {
 							newcap += newcap / 4
 						}
 					}
 				}
-				newValues := make([]Value, targetLen, newcap)
+				newValues := make([]Value, tl, newcap)
 				copy(newValues, a.values)
 				a.values = newValues
 			}
@@ -430,14 +544,14 @@ Reject:
 	return ret
 }
 
-func (a *arrayObject) _defineIdxProperty(idx int, desc PropertyDescriptor, throw bool) bool {
+func (a *arrayObject) _defineIdxProperty(idx uint32, desc PropertyDescriptor, throw bool) bool {
 	var existing Value
-	if idx < len(a.values) {
+	if idx < uint32(len(a.values)) {
 		existing = a.values[idx]
 	}
-	prop, ok := a.baseObject._defineOwnProperty(strconv.Itoa(idx), existing, desc, throw)
+	prop, ok := a.baseObject._defineOwnProperty(strconv.FormatUint(uint64(idx), 10), existing, desc, throw)
 	if ok {
-		if idx >= a.length {
+		if idx >= uint32(a.length) {
 			if !a.setLengthInt(int64(idx)+1, throw) {
 				return false
 			}
@@ -449,14 +563,14 @@ func (a *arrayObject) _defineIdxProperty(idx int, desc PropertyDescriptor, throw
 				a.propValueCount++
 			}
 		} else {
-			a.val.self.(*sparseArrayObject).add(idx, prop)
+			a.val.self.(*sparseArrayObject).add(uint32(idx), prop)
 		}
 	}
 	return ok
 }
 
 func (a *arrayObject) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
-	if idx := strToIdx(name); idx >= 0 {
+	if idx := strToIdx(name); idx != math.MaxUint32 {
 		return a._defineIdxProperty(idx, descr, throw)
 	}
 	if name == "length" {
@@ -466,14 +580,14 @@ func (a *arrayObject) defineOwnPropertyStr(name string, descr PropertyDescriptor
 }
 
 func (a *arrayObject) defineOwnPropertyIdx(idx valueInt, descr PropertyDescriptor, throw bool) bool {
-	if idx := toIdx(idx); idx >= 0 {
+	if idx := toIdx(idx); idx != math.MaxUint32 {
 		return a._defineIdxProperty(idx, descr, throw)
 	}
 	return a.baseObject.defineOwnPropertyStr(idx.String(), descr, throw)
 }
 
-func (a *arrayObject) _deleteIdxProp(idx int, throw bool) bool {
-	if idx < len(a.values) {
+func (a *arrayObject) _deleteIdxProp(idx uint32, throw bool) bool {
+	if idx < uint32(len(a.values)) {
 		if v := a.values[idx]; v != nil {
 			if p, ok := v.(*valueProperty); ok {
 				if !p.configurable {
@@ -490,14 +604,14 @@ func (a *arrayObject) _deleteIdxProp(idx int, throw bool) bool {
 }
 
 func (a *arrayObject) deleteStr(name string, throw bool) bool {
-	if idx := strToIdx(name); idx >= 0 {
+	if idx := strToIdx(name); idx != math.MaxUint32 {
 		return a._deleteIdxProp(idx, throw)
 	}
 	return a.baseObject.deleteStr(name, throw)
 }
 
 func (a *arrayObject) deleteIdx(idx valueInt, throw bool) bool {
-	if idx := toIdx(idx); idx >= 0 {
+	if idx := toIdx(idx); idx != math.MaxUint32 {
 		return a._deleteIdxProp(idx, throw)
 	}
 	return a.baseObject.deleteStr(idx.String(), throw)

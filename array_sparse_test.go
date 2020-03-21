@@ -1,6 +1,8 @@
 package goja
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestSparseArraySetLengthWithPropItems(t *testing.T) {
 	const SCRIPT = `
@@ -131,6 +133,16 @@ func TestSparseArrayEnumerate(t *testing.T) {
 		count++;
 	}
 	seen && count === 1;
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestArraySparseMaxLength(t *testing.T) {
+	const SCRIPT = `
+	var a = [];
+	a[4294967294]=1;
+	a.length === 4294967295 && a[4294967294] === 1;
 	`
 
 	testScript1(SCRIPT, valueTrue, t)

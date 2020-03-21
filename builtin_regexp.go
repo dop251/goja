@@ -502,7 +502,7 @@ func (r *Runtime) regexpproto_stdSplitter(call FunctionCall) Value {
 	if flagsStr := flags.String(); !strings.Contains(flagsStr, "y") {
 		flags = newStringValue(flagsStr + "y")
 	}
-	splitter := c([]Value{rxObj, flags}, call.This)
+	splitter := c([]Value{rxObj, flags}, nil)
 
 	s := call.Argument(0).toString()
 	limitValue := call.Argument(1)

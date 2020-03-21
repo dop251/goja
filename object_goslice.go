@@ -1,6 +1,8 @@
 package goja
 
 import (
+	"math"
+	"math/bits"
 	"reflect"
 	"strconv"
 )
@@ -28,7 +30,7 @@ func (o *objectGoSlice) updateLen() {
 
 func (o *objectGoSlice) getStr(name string, receiver Value) Value {
 	var ownProp Value
-	if idx := strToIdx64(name); idx >= 0 && idx < int64(len(*o.data)) {
+	if idx := strToGoIdx(name); idx >= 0 && idx < len(*o.data) {
 		v := (*o.data)[idx]
 		ownProp = o.val.runtime.ToValue(v)
 	} else if name == "length" {
@@ -53,7 +55,7 @@ func (o *objectGoSlice) getIdx(idx valueInt, receiver Value) Value {
 }
 
 func (o *objectGoSlice) getOwnPropStr(name string) Value {
-	if idx := strToIdx(name); idx >= 0 {
+	if idx := strToGoIdx(name); idx >= 0 {
 		if idx < len(*o.data) {
 			v := o.val.runtime.ToValue((*o.data)[idx])
 			return &valueProperty{
@@ -82,8 +84,8 @@ func (o *objectGoSlice) getOwnPropIdx(idx valueInt) Value {
 	return nil
 }
 
-func (o *objectGoSlice) grow(size int64) {
-	newcap := int64(cap(*o.data))
+func (o *objectGoSlice) grow(size int) {
+	newcap := cap(*o.data)
 	if newcap < size {
 		// Use the same algorithm as in runtime.growSlice
 		doublecap := newcap + newcap
@@ -112,7 +114,7 @@ func (o *objectGoSlice) grow(size int64) {
 	o.updateLen()
 }
 
-func (o *objectGoSlice) shrink(size int64) {
+func (o *objectGoSlice) shrink(size int) {
 	tail := (*o.data)[size:]
 	for k := range tail {
 		tail[k] = nil
@@ -121,8 +123,8 @@ func (o *objectGoSlice) shrink(size int64) {
 	o.updateLen()
 }
 
-func (o *objectGoSlice) putIdx(idx int64, v Value, throw bool) {
-	if idx >= int64(len(*o.data)) {
+func (o *objectGoSlice) putIdx(idx int, v Value, throw bool) {
+	if idx >= len(*o.data) {
 		if !o.sliceExtensible {
 			o.val.runtime.typeErrorResult(throw, "Cannot extend Go slice")
 			return
@@ -132,9 +134,19 @@ func (o *objectGoSlice) putIdx(idx int64, v Value, throw bool) {
 	(*o.data)[idx] = v.Export()
 }
 
+func toInt(i int64) int {
+	if bits.UintSize == 64 {
+		return int(i)
+	}
+	if i >= math.MaxInt32 {
+		panic(typeError("Integer value overflows 32-bit int"))
+	}
+	return int(i)
+}
+
 func (o *objectGoSlice) putLength(v Value, throw bool) bool {
-	newLen := toLength(v)
-	curLen := int64(len(*o.data))
+	newLen := toInt(toLength(v))
+	curLen := len(*o.data)
 	if newLen > curLen {
 		if !o.sliceExtensible {
 			o.val.runtime.typeErrorResult(throw, "Cannot extend Go slice")
@@ -152,8 +164,8 @@ func (o *objectGoSlice) putLength(v Value, throw bool) bool {
 }
 
 func (o *objectGoSlice) setOwnIdx(idx valueInt, val Value, throw bool) bool {
-	if i := int64(idx); i >= 0 {
-		if i >= int64(len(*o.data)) {
+	if i := toInt(int64(idx)); i >= 0 {
+		if i >= len(*o.data) {
 			if res, ok := o._setForeignIdx(idx, nil, val, o.val, throw); ok {
 				return res
 			}
@@ -171,16 +183,9 @@ func (o *objectGoSlice) setOwnIdx(idx valueInt, val Value, throw bool) bool {
 	return true
 }
 
-func strToIdx64(s string) int64 {
-	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
-		return i
-	}
-	return -1
-}
-
 func (o *objectGoSlice) setOwnStr(name string, val Value, throw bool) bool {
-	if idx := strToIdx64(name); idx >= 0 {
-		if idx >= int64(len(*o.data)) {
+	if idx := strToGoIdx(name); idx >= 0 {
+		if idx >= len(*o.data) {
 			if res, ok := o._setForeignStr(name, nil, val, o.val, throw); ok {
 				return res
 			}
@@ -223,7 +228,7 @@ func (o *objectGoSlice) hasOwnPropertyStr(name string) bool {
 }
 
 func (o *objectGoSlice) defineOwnPropertyIdx(idx valueInt, descr PropertyDescriptor, throw bool) bool {
-	if idx >= 0 {
+	if i := toInt(int64(idx)); i >= 0 {
 		if !o.val.runtime.checkHostObjectPropertyDescr(idx.String(), descr, throw) {
 			return false
 		}
@@ -231,7 +236,7 @@ func (o *objectGoSlice) defineOwnPropertyIdx(idx valueInt, descr PropertyDescrip
 		if val == nil {
 			val = _undefined
 		}
-		o.putIdx(int64(idx), val, throw)
+		o.putIdx(i, val, throw)
 		return true
 	}
 	o.val.runtime.typeErrorResult(throw, "Cannot define property '%d' on a Go slice", idx)
@@ -239,7 +244,7 @@ func (o *objectGoSlice) defineOwnPropertyIdx(idx valueInt, descr PropertyDescrip
 }
 
 func (o *objectGoSlice) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
-	if idx := strToIdx64(name); idx >= 0 {
+	if idx := strToGoIdx(name); idx >= 0 {
 		if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 			return false
 		}
@@ -249,6 +254,9 @@ func (o *objectGoSlice) defineOwnPropertyStr(name string, descr PropertyDescript
 		}
 		o.putIdx(idx, val, throw)
 		return true
+	}
+	if name == "length" {
+		return o.val.runtime.defineArrayLength(&o.lengthProp, descr, o.putLength, throw)
 	}
 	o.val.runtime.typeErrorResult(throw, "Cannot define property '%s' on a Go slice", name)
 	return false

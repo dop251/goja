@@ -2,8 +2,10 @@ package goja
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"runtime"
+	"sort"
 	"unsafe"
 )
 
@@ -233,6 +235,8 @@ type baseObject struct {
 	values    map[string]Value
 	propNames []string
 
+	lastSortedPropLen, idxPropCount int
+
 	symValues *orderedMap
 }
 
@@ -407,6 +411,12 @@ func (o *baseObject) _delete(name string) {
 		if n == name {
 			copy(o.propNames[i:], o.propNames[i+1:])
 			o.propNames = o.propNames[:len(o.propNames)-1]
+			if i < o.lastSortedPropLen {
+				o.lastSortedPropLen--
+				if i < o.idxPropCount {
+					o.idxPropCount--
+				}
+			}
 			break
 		}
 	}
@@ -1007,6 +1017,9 @@ func (o *baseObject) enumerate() iterNextFunc {
 }
 
 func (o *baseObject) ownIter() iterNextFunc {
+	if len(o.propNames) > o.lastSortedPropLen {
+		o.fixPropOrder()
+	}
 	propNames := make([]string, len(o.propNames))
 	copy(propNames, o.propNames)
 	return (&objectPropIter{
@@ -1048,7 +1061,35 @@ func (o *baseObject) equal(objectImpl) bool {
 	return false
 }
 
+// Reorder property names so that any integer properties are shifted to the beginning of the list
+// in ascending order. This is to conform to ES6 9.1.12.
+// Personally I think this requirement is strange. I can sort of understand where they are coming from,
+// this way arrays can be specified just as objects with a 'magic' length property. However, I think
+// it's safe to assume most devs don't use Objects to store integer properties. Therefore, performing
+// property type checks when adding (and potentially looking up) properties would be unreasonable.
+// Instead, we keep insertion order and only change it when (if) the properties get enumerated.
+func (o *baseObject) fixPropOrder() {
+	names := o.propNames
+	for i := o.lastSortedPropLen; i < len(names); i++ {
+		name := names[i]
+		if idx := strToIdx(name); idx != math.MaxUint32 {
+			k := sort.Search(o.idxPropCount, func(j int) bool {
+				return strToIdx(names[j]) >= idx
+			})
+			if k != i {
+				copy(names[k+1:i+1], names[k:i])
+				names[k] = name
+			}
+			o.idxPropCount++
+		}
+	}
+	o.lastSortedPropLen = len(names)
+}
+
 func (o *baseObject) ownKeys(all bool, keys []Value) []Value {
+	if len(o.propNames) > o.lastSortedPropLen {
+		o.fixPropOrder()
+	}
 	if all {
 		for _, k := range o.propNames {
 			keys = append(keys, newStringValue(k))

@@ -67,6 +67,36 @@ func TestDefineProperty(t *testing.T) {
 	}
 }
 
+func TestPropertyOrder(t *testing.T) {
+	const SCRIPT = `
+	var o = {};
+	var sym1 = Symbol(1);
+	var sym2 = Symbol(2);
+	o[sym2] = 1;
+	o[4294967294] = 1;
+	o[2] = 1;
+	o[1] = 1;
+	o[0] = 1;
+	o["02"] = 1;
+	o[4294967295] = 1;
+	o["01"] = 1;
+	o["00"] = 1;
+	o[sym1] = 1;
+	var expected = ["0", "1", "2", "4294967294", "02", "4294967295", "01", "00", sym2, sym1];
+	var actual = Reflect.ownKeys(o);
+	if (actual.length !== expected.length) {
+		throw new Error("Unexpected length: "+actual.length);
+	}
+	for (var i = 0; i < actual.length; i++) {
+		if (actual[i] !== expected[i]) {
+			throw new Error("Unexpected list: " + actual);
+		}
+	}
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
 func BenchmarkPut(b *testing.B) {
 	v := &Object{}
 

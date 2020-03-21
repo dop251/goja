@@ -26,7 +26,6 @@ var (
 		"test/language/literals/regexp/S7.8.5_A1.4_T2.js":             true, // UTF-16
 		"test/language/literals/regexp/S7.8.5_A2.1_T2.js":             true, // UTF-16
 		"test/language/literals/regexp/S7.8.5_A2.4_T2.js":             true, // UTF-16
-		"test/built-ins/Object/getOwnPropertyNames/15.2.3.4-4-44.js":  true, // property order
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
@@ -131,6 +130,10 @@ var (
 
 		// arrow-function
 		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
+
+		// new.target
+		"test/language/expressions/new.target/value-via-reflect-construct.js": true,
+		"test/language/expressions/new.target/value-via-reflect-apply.js":     true,
 	}
 
 	featuresBlackList = []string{
@@ -159,6 +162,7 @@ var (
 		"23.3",
 		"23.4",
 		"25.1.2",
+		"26.1",
 		"26.2",
 		"B.2.1",
 		"B.2.2",

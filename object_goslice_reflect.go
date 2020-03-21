@@ -39,8 +39,8 @@ func (o *objectGoSliceReflect) _hasStr(name string) bool {
 	return false
 }
 
-func (o *objectGoSliceReflect) _getIdx(idx int64) Value {
-	v := o.value.Index(int(idx))
+func (o *objectGoSliceReflect) _getIdx(idx int) Value {
+	v := o.value.Index(idx)
 	if (v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface) && v.IsNil() {
 		return _null
 	}
@@ -48,7 +48,7 @@ func (o *objectGoSliceReflect) _getIdx(idx int64) Value {
 }
 
 func (o *objectGoSliceReflect) getIdx(idx valueInt, receiver Value) Value {
-	if idx := int64(idx); idx >= 0 && idx < int64(o.value.Len()) {
+	if idx := toInt(int64(idx)); idx >= 0 && idx < o.value.Len() {
 		return o._getIdx(idx)
 	}
 	return o.objectGoReflect.getStr(idx.String(), receiver)
@@ -56,7 +56,7 @@ func (o *objectGoSliceReflect) getIdx(idx valueInt, receiver Value) Value {
 
 func (o *objectGoSliceReflect) getStr(name string, receiver Value) Value {
 	var ownProp Value
-	if idx := strToIdx64(name); idx >= 0 && idx < int64(o.value.Len()) {
+	if idx := strToGoIdx(name); idx >= 0 && idx < o.value.Len() {
 		ownProp = o._getIdx(idx)
 	} else if name == "length" {
 		ownProp = &o.lengthProp
@@ -67,8 +67,8 @@ func (o *objectGoSliceReflect) getStr(name string, receiver Value) Value {
 }
 
 func (o *objectGoSliceReflect) getOwnPropStr(name string) Value {
-	if idx := strToIdx64(name); idx >= 0 {
-		if idx < int64(o.value.Len()) {
+	if idx := strToGoIdx(name); idx >= 0 {
+		if idx < o.value.Len() {
 			return &valueProperty{
 				value:      o._getIdx(idx),
 				writable:   true,
@@ -84,7 +84,7 @@ func (o *objectGoSliceReflect) getOwnPropStr(name string) Value {
 }
 
 func (o *objectGoSliceReflect) getOwnPropIdx(idx valueInt) Value {
-	if idx := int64(idx); idx >= 0 && idx < int64(o.value.Len()) {
+	if idx := toInt(int64(idx)); idx >= 0 && idx < o.value.Len() {
 		return &valueProperty{
 			value:      o._getIdx(idx),
 			writable:   true,
@@ -94,20 +94,20 @@ func (o *objectGoSliceReflect) getOwnPropIdx(idx valueInt) Value {
 	return nil
 }
 
-func (o *objectGoSliceReflect) putIdx(idx int64, v Value, throw bool) bool {
-	if idx >= int64(o.value.Len()) {
+func (o *objectGoSliceReflect) putIdx(idx int, v Value, throw bool) bool {
+	if idx >= o.value.Len() {
 		if !o.sliceExtensible {
 			o.val.runtime.typeErrorResult(throw, "Cannot extend a Go unaddressable reflect slice")
 			return false
 		}
-		o.grow(int(idx + 1))
+		o.grow(idx + 1)
 	}
 	val, err := o.val.runtime.toReflectValue(v, o.value.Type().Elem())
 	if err != nil {
 		o.val.runtime.typeErrorResult(throw, "Go type conversion error: %v", err)
 		return false
 	}
-	o.value.Index(int(idx)).Set(val)
+	o.value.Index(idx).Set(val)
 	return true
 }
 
@@ -153,7 +153,7 @@ func (o *objectGoSliceReflect) shrink(size int) {
 }
 
 func (o *objectGoSliceReflect) putLength(v Value, throw bool) bool {
-	newLen := int(toLength(v))
+	newLen := toInt(toLength(v))
 	curLen := o.value.Len()
 	if newLen > curLen {
 		if !o.sliceExtensible {
@@ -172,8 +172,8 @@ func (o *objectGoSliceReflect) putLength(v Value, throw bool) bool {
 }
 
 func (o *objectGoSliceReflect) setOwnIdx(idx valueInt, val Value, throw bool) bool {
-	if i := int64(idx); i >= 0 {
-		if i >= int64(o.value.Len()) {
+	if i := toInt(int64(idx)); i >= 0 {
+		if i >= o.value.Len() {
 			if res, ok := o._setForeignIdx(idx, nil, val, o.val, throw); ok {
 				return res
 			}
@@ -192,8 +192,8 @@ func (o *objectGoSliceReflect) setOwnIdx(idx valueInt, val Value, throw bool) bo
 }
 
 func (o *objectGoSliceReflect) setOwnStr(name string, val Value, throw bool) bool {
-	if idx := strToIdx64(name); idx >= 0 {
-		if idx >= int64(o.value.Len()) {
+	if idx := strToGoIdx(name); idx >= 0 {
+		if idx >= o.value.Len() {
 			if res, ok := o._setForeignStr(name, nil, val, o.val, throw); ok {
 				return res
 			}
@@ -233,7 +233,7 @@ func (o *objectGoSliceReflect) hasOwnPropertyStr(name string) bool {
 }
 
 func (o *objectGoSliceReflect) defineOwnPropertyIdx(idx valueInt, descr PropertyDescriptor, throw bool) bool {
-	if idx >= 0 {
+	if i := toInt(int64(idx)); i >= 0 {
 		if !o.val.runtime.checkHostObjectPropertyDescr(idx.String(), descr, throw) {
 			return false
 		}
@@ -241,7 +241,7 @@ func (o *objectGoSliceReflect) defineOwnPropertyIdx(idx valueInt, descr Property
 		if val == nil {
 			val = _undefined
 		}
-		o.putIdx(int64(idx), val, throw)
+		o.putIdx(i, val, throw)
 		return true
 	}
 	o.val.runtime.typeErrorResult(throw, "Cannot define property '%d' on a Go slice", idx)
@@ -249,7 +249,7 @@ func (o *objectGoSliceReflect) defineOwnPropertyIdx(idx valueInt, descr Property
 }
 
 func (o *objectGoSliceReflect) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
-	if idx := strToIdx64(name); idx >= 0 {
+	if idx := strToGoIdx(name); idx >= 0 {
 		if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 			return false
 		}
