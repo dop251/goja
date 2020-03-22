@@ -175,7 +175,7 @@ type (
 
 	MetaProperty struct {
 		Meta, Property *Identifier
-		Idx file.Idx
+		Idx            file.Idx
 	}
 )
 
