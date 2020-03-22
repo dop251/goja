@@ -383,7 +383,7 @@ func (self *_parser) parseNewExpression() ast.Expression {
 			return &ast.MetaProperty{
 				Meta: &ast.Identifier{
 					Name: token.NEW.String(),
-					Idx: idx,
+					Idx:  idx,
 				},
 				Property: prop,
 			}
