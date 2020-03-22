@@ -1414,6 +1414,17 @@ func TestToValueNilValue(t *testing.T) {
 	}
 }
 
+func TestNativeCtorNewTarget(t *testing.T) {
+	const SCRIPT = `
+	function NewTarget() {
+	}
+
+	var o = Reflect.construct(Number, [1], NewTarget);
+	o.__proto__ === NewTarget.prototype && o.toString() === "[object Number]";
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

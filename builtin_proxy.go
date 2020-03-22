@@ -228,24 +228,24 @@ type ProxyTrapConfig struct {
 	Construct func(target *Object, argumentsList []Value, newTarget *Object) (value *Object)
 }
 
-func (r *Runtime) newProxy(args []Value) *Object {
+func (r *Runtime) newProxy(args []Value, proto *Object) *Object {
 	if len(args) >= 2 {
 		if target, ok := args[0].(*Object); ok {
 			if proxyHandler, ok := args[1].(*Object); ok {
-				return r.newProxyObject(target, proxyHandler).val
+				return r.newProxyObject(target, proxyHandler, proto).val
 			}
 		}
 	}
 	panic(r.NewTypeError("Cannot create proxy with a non-object as target or handler"))
 }
 
-func (r *Runtime) builtin_newProxy(args []Value) *Object {
-	return r.newProxy(args)
+func (r *Runtime) builtin_newProxy(args []Value, proto *Object) *Object {
+	return r.newProxy(args, proto)
 }
 
 func (r *Runtime) NewProxy(target *Object, nativeHandler *ProxyTrapConfig) *Proxy {
 	handler := r.newNativeProxyHandler(nativeHandler)
-	proxy := r.newProxyObject(target, handler)
+	proxy := r.newProxyObject(target, handler, r.global.Proxy)
 	return &Proxy{proxy: proxy}
 }
 
@@ -253,7 +253,7 @@ func (r *Runtime) builtin_proxy_revocable(call FunctionCall) Value {
 	if len(call.Arguments) >= 2 {
 		if target, ok := call.Argument(0).(*Object); ok {
 			if proxyHandler, ok := call.Argument(1).(*Object); ok {
-				proxy := r.newProxyObject(target, proxyHandler)
+				proxy := r.newProxyObject(target, proxyHandler, nil)
 				revoke := r.newNativeFunc(func(FunctionCall) Value {
 					proxy.revoke()
 					return _undefined
@@ -269,7 +269,7 @@ func (r *Runtime) builtin_proxy_revocable(call FunctionCall) Value {
 }
 
 func (r *Runtime) createProxy(val *Object) objectImpl {
-	o := r.newNativeFuncObj(val, r.constructorThrower("Proxy"), wrapNativeConstructor(r.builtin_newProxy), "Proxy", nil, 2)
+	o := r.newNativeFuncObj(val, r.constructorThrower("Proxy"), r.builtin_newProxy, "Proxy", nil, 2)
 
 	o._putProp("revocable", r.newNativeFunc(r.builtin_proxy_revocable, nil, "revocable", nil, 2), true, false, true)
 	return o

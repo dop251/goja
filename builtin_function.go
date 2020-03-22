@@ -18,7 +18,9 @@ func (r *Runtime) builtin_Function(args []Value, proto *Object) *Object {
 	}
 	src += "){" + body + "})"
 
-	return r.toObject(r.eval(src, false, false, _undefined))
+	ret := r.toObject(r.eval(src, false, false, _undefined))
+	ret.self.setProto(proto, true)
+	return ret
 }
 
 func (r *Runtime) functionproto_toString(call FunctionCall) Value {
@@ -115,7 +117,7 @@ func (r *Runtime) boundCallable(target func(FunctionCall) Value, boundArgs []Val
 	}
 }
 
-func (r *Runtime) boundConstruct(target func([]Value, Value) *Object, boundArgs []Value) func([]Value, Value) *Object {
+func (r *Runtime) boundConstruct(target func([]Value, *Object) *Object, boundArgs []Value) func([]Value, *Object) *Object {
 	if target == nil {
 		return nil
 	}
@@ -124,7 +126,7 @@ func (r *Runtime) boundConstruct(target func([]Value, Value) *Object, boundArgs 
 		args = make([]Value, len(boundArgs)-1)
 		copy(args, boundArgs[1:])
 	}
-	return func(fargs []Value, newTarget Value) *Object {
+	return func(fargs []Value, newTarget *Object) *Object {
 		a := append(args, fargs...)
 		copy(a, args)
 		return target(a, newTarget)

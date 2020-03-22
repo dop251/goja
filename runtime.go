@@ -430,7 +430,7 @@ func (r *Runtime) newFunc(name string, len int, strict bool) (f *funcObject) {
 	return
 }
 
-func (r *Runtime) newNativeFuncObj(v *Object, call func(FunctionCall) Value, construct func(args []Value, newTarget Value) *Object, name string, proto *Object, length int) *nativeFuncObject {
+func (r *Runtime) newNativeFuncObj(v *Object, call func(FunctionCall) Value, construct func(args []Value, proto *Object) *Object, name string, proto *Object, length int) *nativeFuncObject {
 	f := &nativeFuncObject{
 		baseFuncObject: baseFuncObject{
 			baseObject: baseObject{
@@ -441,7 +441,7 @@ func (r *Runtime) newNativeFuncObj(v *Object, call func(FunctionCall) Value, con
 			},
 		},
 		f:         call,
-		construct: construct,
+		construct: r.wrapNativeConstruct(construct, proto),
 	}
 	v.self = f
 	f.init(name, length)
@@ -469,8 +469,7 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 		return f.defaultConstruct(call, c.Arguments)
 	}
 
-	f.construct = func(args []Value, newTarget Value) *Object {
-		_ = newTarget
+	f.construct = func(args []Value, proto *Object) *Object {
 		return f.defaultConstruct(call, args)
 	}
 
@@ -484,7 +483,7 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 	return v
 }
 
-func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(args []Value, newTarget Value) *Object, name string, proto *Object, length int) *Object {
+func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(args []Value, proto *Object) *Object, name string, proto *Object, length int) *Object {
 	v := &Object{runtime: r}
 
 	f := &nativeFuncObject{
@@ -497,7 +496,7 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(ar
 			},
 		},
 		f:         call,
-		construct: construct,
+		construct: r.wrapNativeConstruct(construct, proto),
 	}
 	v.self = f
 	f.init(name, length)
@@ -518,11 +517,8 @@ func (r *Runtime) newNativeFuncConstructObj(v *Object, construct func(args []Val
 				prototype:  r.global.FunctionPrototype,
 			},
 		},
-		f: r.constructWrap(construct, proto),
-		construct: func(args []Value, newTarget Value) *Object {
-			_ = newTarget
-			return construct(args, proto)
-		},
+		f:         r.constructToCall(construct, proto),
+		construct: r.wrapNativeConstruct(construct, proto),
 	}
 
 	f.init(name, length)
@@ -545,11 +541,8 @@ func (r *Runtime) newNativeFuncConstructProto(construct func(args []Value, proto
 	f.extensible = true
 	v.self = f
 	f.prototype = proto
-	f.f = r.constructWrap(construct, prototype)
-	f.construct = func(args []Value, newTarget Value) *Object {
-		_ = newTarget
-		return construct(args, prototype)
-	}
+	f.f = r.constructToCall(construct, prototype)
+	f.construct = r.wrapNativeConstruct(construct, prototype)
 	f.init(name, length)
 	if prototype != nil {
 		f._putProp("prototype", prototype, false, false, false)
@@ -576,18 +569,18 @@ func (r *Runtime) builtin_Number(call FunctionCall) Value {
 	if len(call.Arguments) > 0 {
 		return call.Arguments[0].ToNumber()
 	} else {
-		return intToValue(0)
+		return valueInt(0)
 	}
 }
 
-func (r *Runtime) builtin_newNumber(args []Value) *Object {
+func (r *Runtime) builtin_newNumber(args []Value, proto *Object) *Object {
 	var v Value
 	if len(args) > 0 {
 		v = args[0].ToNumber()
 	} else {
 		v = intToValue(0)
 	}
-	return r.newPrimitiveObject(v, r.global.NumberPrototype, classNumber)
+	return r.newPrimitiveObject(v, proto, classNumber)
 }
 
 func (r *Runtime) builtin_Boolean(call FunctionCall) Value {
@@ -602,7 +595,7 @@ func (r *Runtime) builtin_Boolean(call FunctionCall) Value {
 	}
 }
 
-func (r *Runtime) builtin_newBoolean(args []Value) *Object {
+func (r *Runtime) builtin_newBoolean(args []Value, proto *Object) *Object {
 	var v Value
 	if len(args) > 0 {
 		if args[0].ToBoolean() {
@@ -613,7 +606,7 @@ func (r *Runtime) builtin_newBoolean(args []Value) *Object {
 	} else {
 		v = valueFalse
 	}
-	return r.newPrimitiveObject(v, r.global.BooleanPrototype, classBoolean)
+	return r.newPrimitiveObject(v, proto, classBoolean)
 }
 
 func (r *Runtime) error_toString(call FunctionCall) Value {
@@ -647,7 +640,7 @@ func (r *Runtime) builtin_Error(args []Value, proto *Object) *Object {
 }
 
 func (r *Runtime) builtin_new(construct *Object, args []Value) *Object {
-	return r.toConstructor(construct)(args, construct)
+	return r.toConstructor(construct)(args, nil)
 }
 
 func (r *Runtime) throw(e Value) {
@@ -699,9 +692,24 @@ func (r *Runtime) builtin_eval(call FunctionCall) Value {
 	return call.Arguments[0]
 }
 
-func (r *Runtime) constructWrap(construct func(args []Value, proto *Object) *Object, proto *Object) func(call FunctionCall) Value {
+func (r *Runtime) constructToCall(construct func(args []Value, proto *Object) *Object, proto *Object) func(call FunctionCall) Value {
 	return func(call FunctionCall) Value {
 		return construct(call.Arguments, proto)
+	}
+}
+
+func (r *Runtime) wrapNativeConstruct(c func(args []Value, proto *Object) *Object, proto *Object) func(args []Value, newTarget *Object) *Object {
+	if c == nil {
+		return nil
+	}
+	return func(args []Value, newTarget *Object) *Object {
+		var p *Object
+		if newTarget != nil {
+			p = r.toObject(newTarget.self.getStr("prototype", nil))
+		} else {
+			p = proto
+		}
+		return c(args, p)
 	}
 }
 
@@ -1650,7 +1658,7 @@ func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
 	}
 }
 
-func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value, newTarget Value) *Object {
+func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value, newTarget *Object) *Object {
 	c := o.self.getStr("constructor", nil)
 	if c != nil && c != _undefined {
 		c = r.toObject(c).self.getSym(symSpecies, nil)
@@ -1765,11 +1773,5 @@ func isArray(object *Object) bool {
 		return true
 	default:
 		return false
-	}
-}
-
-func wrapNativeConstructor(ctor func(args []Value) *Object) func([]Value, Value) *Object {
-	return func(args []Value, _ Value) *Object {
-		return ctor(args)
 	}
 }

@@ -68,13 +68,13 @@ func dateParse(date string) (time.Time, bool) {
 	return t, err == nil && unix >= -8640000000000000 && unix <= 8640000000000000
 }
 
-func (r *Runtime) newDateObject(t time.Time, isSet bool) *Object {
+func (r *Runtime) newDateObject(t time.Time, isSet bool, proto *Object) *Object {
 	v := &Object{runtime: r}
 	d := &dateObject{}
 	v.self = d
 	d.val = v
 	d.class = classDate
-	d.prototype = r.global.DatePrototype
+	d.prototype = proto
 	d.extensible = true
 	d.init()
 	d.time = t.In(time.Local)

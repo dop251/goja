@@ -197,135 +197,6 @@ func (a *arrayObject) swap(i, j int64) {
 	a.values[i], a.values[j] = a.values[j], a.values[i]
 }
 
-func toIdx(v valueInt) uint32 {
-	if v >= 0 && v < math.MaxUint32 {
-		return uint32(v)
-	}
-	return math.MaxUint32
-}
-
-func strToIdx64(s string) int64 {
-	if s == "" {
-		return -1
-	}
-	l := len(s)
-	if s[0] == '0' {
-		if l == 1 {
-			return 0
-		}
-		return -1
-	}
-	var n int64
-	if l < 19 {
-		// guaranteed not to overflow
-		for i := 0; i < len(s); i++ {
-			c := s[i]
-			if c < '0' || c > '9' {
-				return -1
-			}
-			n = n*10 + int64(c-'0')
-		}
-		return n
-	}
-	if l > 19 {
-		// guaranteed to overflow
-		return -1
-	}
-	c18 := s[18]
-	if c18 < '0' || c18 > '9' {
-		return -1
-	}
-	for i := 0; i < 18; i++ {
-		c := s[i]
-		if c < '0' || c > '9' {
-			return -1
-		}
-		n = n*10 + int64(c-'0')
-	}
-	if n >= math.MaxInt64/10+1 {
-		return -1
-	}
-	n *= 10
-	n1 := n + int64(c18-'0')
-	if n1 < n {
-		return -1
-	}
-	return n1
-}
-
-func strToIdx(s string) uint32 {
-	if i := strToIdx64(s); i >= 0 {
-		if i < math.MaxUint32 {
-			return uint32(i)
-		}
-	}
-	return math.MaxUint32
-}
-
-func parseIdx32(s string) uint32 {
-	if s == "" {
-		return math.MaxUint32
-	}
-	l := len(s)
-	if s[0] == '0' {
-		if l == 1 {
-			return 0
-		}
-		return math.MaxUint32
-	}
-	var n uint32
-	if l < 10 {
-		// guaranteed not to overflow
-		for i := 0; i < len(s); i++ {
-			c := s[i]
-			if c < '0' || c > '9' {
-				return math.MaxUint32
-			}
-			n = n*10 + uint32(c-'0')
-		}
-		return n
-	}
-	if l > 10 {
-		// guaranteed to overflow
-		return math.MaxUint32
-	}
-	c9 := s[9]
-	if c9 < '0' || c9 > '9' {
-		return math.MaxUint32
-	}
-	for i := 0; i < 9; i++ {
-		c := s[i]
-		if c < '0' || c > '9' {
-			return math.MaxUint32
-		}
-		n = n*10 + uint32(c-'0')
-	}
-	if n >= math.MaxUint32/10+1 {
-		return math.MaxUint32
-	}
-	n *= 10
-	n1 := n + uint32(c9-'0')
-	if n1 < n {
-		return math.MaxUint32
-	}
-
-	return n1
-}
-
-func strToGoIdx(s string) int {
-	if bits.UintSize == 64 {
-		return int(strToIdx64(s))
-	}
-	i := parseIdx32(s)
-	if i == math.MaxUint32 {
-		return -1
-	}
-	if i >= math.MaxInt32 {
-		return -1
-	}
-	return int(i)
-}
-
 func (a *arrayObject) getStr(name string, receiver Value) Value {
 	return a.getStrWithOwnProp(a.getOwnPropStr(name), name, receiver)
 }
@@ -638,4 +509,124 @@ func (a *arrayObject) setValuesFromSparse(items []sparseArrayItem, newMaxIdx int
 		a.values[item.idx] = item.value
 	}
 	a.objCount = len(items)
+}
+
+func toIdx(v valueInt) uint32 {
+	if v >= 0 && v < math.MaxUint32 {
+		return uint32(v)
+	}
+	return math.MaxUint32
+}
+
+func strToIdx64(s string) int64 {
+	if s == "" {
+		return -1
+	}
+	l := len(s)
+	if s[0] == '0' {
+		if l == 1 {
+			return 0
+		}
+		return -1
+	}
+	var n int64
+	if l < 19 {
+		// guaranteed not to overflow
+		for i := 0; i < len(s); i++ {
+			c := s[i]
+			if c < '0' || c > '9' {
+				return -1
+			}
+			n = n*10 + int64(c-'0')
+		}
+		return n
+	}
+	if l > 19 {
+		// guaranteed to overflow
+		return -1
+	}
+	c18 := s[18]
+	if c18 < '0' || c18 > '9' {
+		return -1
+	}
+	for i := 0; i < 18; i++ {
+		c := s[i]
+		if c < '0' || c > '9' {
+			return -1
+		}
+		n = n*10 + int64(c-'0')
+	}
+	if n >= math.MaxInt64/10+1 {
+		return -1
+	}
+	n *= 10
+	n1 := n + int64(c18-'0')
+	if n1 < n {
+		return -1
+	}
+	return n1
+}
+
+func strToIdx(s string) uint32 {
+	if s == "" {
+		return math.MaxUint32
+	}
+	l := len(s)
+	if s[0] == '0' {
+		if l == 1 {
+			return 0
+		}
+		return math.MaxUint32
+	}
+	var n uint32
+	if l < 10 {
+		// guaranteed not to overflow
+		for i := 0; i < len(s); i++ {
+			c := s[i]
+			if c < '0' || c > '9' {
+				return math.MaxUint32
+			}
+			n = n*10 + uint32(c-'0')
+		}
+		return n
+	}
+	if l > 10 {
+		// guaranteed to overflow
+		return math.MaxUint32
+	}
+	c9 := s[9]
+	if c9 < '0' || c9 > '9' {
+		return math.MaxUint32
+	}
+	for i := 0; i < 9; i++ {
+		c := s[i]
+		if c < '0' || c > '9' {
+			return math.MaxUint32
+		}
+		n = n*10 + uint32(c-'0')
+	}
+	if n >= math.MaxUint32/10+1 {
+		return math.MaxUint32
+	}
+	n *= 10
+	n1 := n + uint32(c9-'0')
+	if n1 < n {
+		return math.MaxUint32
+	}
+
+	return n1
+}
+
+func strToGoIdx(s string) int {
+	if bits.UintSize == 64 {
+		return int(strToIdx64(s))
+	}
+	i := strToIdx(s)
+	if i == math.MaxUint32 {
+		return -1
+	}
+	if i >= math.MaxInt32 {
+		return -1
+	}
+	return int(i)
 }

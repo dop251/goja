@@ -207,7 +207,7 @@ type objectImpl interface {
 	toPrimitiveString() Value
 	toPrimitive() Value
 	assertCallable() (call func(FunctionCall) Value, ok bool)
-	assertConstructor() func(args []Value, newTarget Value) *Object
+	assertConstructor() func(args []Value, newTarget *Object) *Object
 	proto() *Object
 	setProto(proto *Object, throw bool) bool
 	hasInstance(v Value) bool
@@ -888,7 +888,7 @@ func (o *baseObject) assertCallable() (func(FunctionCall) Value, bool) {
 	return nil, false
 }
 
-func (o *baseObject) assertConstructor() func(args []Value, newTarget Value) *Object {
+func (o *baseObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
 	return nil
 }
 

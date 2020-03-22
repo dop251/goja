@@ -25,11 +25,12 @@ type stash struct {
 }
 
 type context struct {
-	prg      *Program
-	funcName string
-	stash    *stash
-	pc, sb   int
-	args     int
+	prg       *Program
+	funcName  string
+	stash     *stash
+	newTarget Value
+	pc, sb    int
+	args      int
 }
 
 type iterStackItem struct {
@@ -108,6 +109,7 @@ type vm struct {
 	callStack []context
 	iterStack []iterStackItem
 	refStack  []ref
+	newTarget Value
 
 	stashAllocs int
 	halt        bool
@@ -410,6 +412,7 @@ func (vm *vm) saveCtx(ctx *context) {
 		ctx.funcName = ctx.prg.funcName
 	}
 	ctx.stash = vm.stash
+	ctx.newTarget = vm.newTarget
 	ctx.pc = vm.pc
 	ctx.sb = vm.sb
 	ctx.args = vm.args
@@ -435,6 +438,7 @@ func (vm *vm) restoreCtx(ctx *context) {
 	vm.stash = ctx.stash
 	vm.sb = ctx.sb
 	vm.args = ctx.args
+	vm.newTarget = ctx.newTarget
 }
 
 func (vm *vm) popCtx() {
@@ -2232,8 +2236,21 @@ func (n _new) exec(vm *vm) {
 	sp := vm.sp - int(n)
 	obj := vm.stack[sp-1]
 	ctor := vm.r.toConstructor(obj)
-	vm.stack[sp-1] = ctor(vm.stack[sp:vm.sp], obj)
+	vm.stack[sp-1] = ctor(vm.stack[sp:vm.sp], nil)
 	vm.sp = sp
+	vm.pc++
+}
+
+type _loadNewTarget struct{}
+
+var loadNewTarget _loadNewTarget
+
+func (_loadNewTarget) exec(vm *vm) {
+	if t := vm.newTarget; t != nil {
+		vm.push(t)
+	} else {
+		vm.push(_undefined)
+	}
 	vm.pc++
 }
 

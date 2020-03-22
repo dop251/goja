@@ -38,7 +38,7 @@ func (r *Runtime) builtin_String(call FunctionCall) Value {
 	}
 }
 
-func (r *Runtime) _newString(s valueString) *Object {
+func (r *Runtime) _newString(s valueString, proto *Object) *Object {
 	v := &Object{runtime: r}
 
 	o := &stringObject{}
@@ -46,7 +46,7 @@ func (r *Runtime) _newString(s valueString) *Object {
 	o.val = v
 	o.extensible = true
 	v.self = o
-	o.prototype = r.global.StringPrototype
+	o.prototype = proto
 	if s != nil {
 		o.value = s
 	}
@@ -54,14 +54,14 @@ func (r *Runtime) _newString(s valueString) *Object {
 	return v
 }
 
-func (r *Runtime) builtin_newString(args []Value) *Object {
+func (r *Runtime) builtin_newString(args []Value, proto *Object) *Object {
 	var s valueString
 	if len(args) > 0 {
 		s = toString(args[0])
 	} else {
 		s = stringEmpty
 	}
-	return r._newString(s)
+	return r._newString(s, proto)
 }
 
 func searchSubstringUTF8(str, search string) (ret [][]int) {
@@ -248,7 +248,7 @@ func (r *Runtime) stringproto_match(call FunctionCall) Value {
 	}
 
 	if rx == nil {
-		rx = r.builtin_newRegExp([]Value{regexp}).self.(*regexpObject)
+		rx = r.builtin_newRegExp([]Value{regexp}, r.global.RegExpPrototype).self.(*regexpObject)
 	}
 
 	if matcher, ok := r.toObject(rx.getSym(symMatch, nil)).self.assertCallable(); ok {
@@ -431,7 +431,7 @@ func (r *Runtime) stringproto_search(call FunctionCall) Value {
 	}
 
 	if rx == nil {
-		rx = r.builtin_newRegExp([]Value{regexp}).self.(*regexpObject)
+		rx = r.builtin_newRegExp([]Value{regexp}, r.global.RegExpPrototype).self.(*regexpObject)
 	}
 
 	if searcher, ok := r.toObject(rx.getSym(symSearch, nil)).self.assertCallable(); ok {
@@ -615,10 +615,9 @@ func (r *Runtime) stringproto_substr(call FunctionCall) Value {
 }
 
 func (r *Runtime) initString() {
-	r.global.StringPrototype = r.builtin_newString([]Value{stringEmpty})
+	r.global.StringPrototype = r.builtin_newString([]Value{stringEmpty}, r.global.ObjectPrototype)
 
 	o := r.global.StringPrototype.self
-	o.(*stringObject).prototype = r.global.ObjectPrototype
 	o._putProp("toString", r.newNativeFunc(r.stringproto_toString, nil, "toString", nil, 0), true, false, true)
 	o._putProp("valueOf", r.newNativeFunc(r.stringproto_valueOf, nil, "valueOf", nil, 0), true, false, true)
 	o._putProp("charAt", r.newNativeFunc(r.stringproto_charAt, nil, "charAt", nil, 1), true, false, true)
@@ -642,7 +641,7 @@ func (r *Runtime) initString() {
 	// Annex B
 	o._putProp("substr", r.newNativeFunc(r.stringproto_substr, nil, "substr", nil, 2), true, false, true)
 
-	r.global.String = r.newNativeFunc(r.builtin_String, wrapNativeConstructor(r.builtin_newString), "String", r.global.StringPrototype, 1)
+	r.global.String = r.newNativeFunc(r.builtin_String, r.builtin_newString, "String", r.global.StringPrototype, 1)
 	o = r.global.String.self
 	o._putProp("fromCharCode", r.newNativeFunc(r.string_fromcharcode, nil, "fromCharCode", nil, 1), true, false, true)
 

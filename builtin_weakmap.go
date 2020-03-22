@@ -133,7 +133,7 @@ func (r *Runtime) weakMapProto_set(call FunctionCall) Value {
 	return call.This
 }
 
-func (r *Runtime) builtin_newWeakMap(args []Value) *Object {
+func (r *Runtime) builtin_newWeakMap(args []Value, proto *Object) *Object {
 	o := &Object{runtime: r}
 
 	wmo := &weakMapObject{}
@@ -141,7 +141,7 @@ func (r *Runtime) builtin_newWeakMap(args []Value) *Object {
 	wmo.val = o
 	wmo.extensible = true
 	o.self = wmo
-	wmo.prototype = r.global.WeakMapPrototype
+	wmo.prototype = proto
 	wmo.init()
 	if len(args) > 0 {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
@@ -189,7 +189,7 @@ func (r *Runtime) createWeakMapProto(val *Object) objectImpl {
 }
 
 func (r *Runtime) createWeakMap(val *Object) objectImpl {
-	o := r.newNativeFuncObj(val, r.constructorThrower("WeakMap"), wrapNativeConstructor(r.builtin_newWeakMap), "WeakMap", r.global.WeakMapPrototype, 0)
+	o := r.newNativeFuncObj(val, r.constructorThrower("WeakMap"), r.builtin_newWeakMap, "WeakMap", r.global.WeakMapPrototype, 0)
 
 	return o
 }

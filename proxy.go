@@ -24,7 +24,7 @@ func (i *proxyPropIter) next() (propIterItem, iterNextFunc) {
 	return propIterItem{}, nil
 }
 
-func (r *Runtime) newProxyObject(target *Object, handler *Object) *proxyObject {
+func (r *Runtime) newProxyObject(target *Object, handler *Object, proto *Object) *proxyObject {
 	if p, ok := target.self.(*proxyObject); ok {
 		if p.handler == nil {
 			panic(r.NewTypeError("Cannot create proxy with a revoked proxy as target"))
@@ -40,7 +40,11 @@ func (r *Runtime) newProxyObject(target *Object, handler *Object) *proxyObject {
 	v.self = p
 	p.val = v
 	p.class = classObject
-	p.prototype = r.global.Proxy
+	if proto == nil {
+		p.prototype = r.global.ObjectPrototype
+	} else {
+		p.prototype = proto
+	}
 	p.extensible = false
 	p.init()
 	p.target = target
@@ -85,7 +89,7 @@ type proxyObject struct {
 	target  *Object
 	handler *Object
 	call    func(FunctionCall) Value
-	ctor    func(args []Value, newTarget Value) *Object
+	ctor    func(args []Value, newTarget *Object) *Object
 }
 
 func (p *proxyObject) proxyCall(trap proxyTrap, args ...Value) (Value, bool) {
@@ -573,7 +577,7 @@ func (p *proxyObject) assertCallable() (call func(FunctionCall) Value, ok bool) 
 	return nil, false
 }
 
-func (p *proxyObject) assertConstructor() func(args []Value, newTarget Value) *Object {
+func (p *proxyObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
 	if p.ctor != nil {
 		return p.construct
 	}
@@ -590,9 +594,12 @@ func (p *proxyObject) apply(call FunctionCall) Value {
 	return p.call(call)
 }
 
-func (p *proxyObject) construct(args []Value, newTarget Value) *Object {
+func (p *proxyObject) construct(args []Value, newTarget *Object) *Object {
 	if p.ctor == nil {
 		panic(p.val.runtime.NewTypeError("proxy target is not a constructor"))
+	}
+	if newTarget == nil {
+		newTarget = p.val
 	}
 	if v, ok := p.proxyCall(proxy_trap_construct, p.target, p.val.runtime.newArrayValues(args), newTarget); ok {
 		return p.val.runtime.toObject(v)

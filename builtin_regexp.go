@@ -119,7 +119,7 @@ func (r *Runtime) newRegExp(patternStr valueString, flags string, proto *Object)
 	return r.newRegExpp(pattern, patternStr, global, ignoreCase, multiline, sticky, proto)
 }
 
-func (r *Runtime) builtin_newRegExp(args []Value) *Object {
+func (r *Runtime) builtin_newRegExp(args []Value, proto *Object) *Object {
 	var pattern valueString
 	var flags string
 	if len(args) > 0 {
@@ -128,7 +128,7 @@ func (r *Runtime) builtin_newRegExp(args []Value) *Object {
 				if len(args) < 2 || args[1] == _undefined {
 					return rx.clone()
 				} else {
-					return r.newRegExp(rx.source, args[1].String(), r.global.RegExpPrototype)
+					return r.newRegExp(rx.source, args[1].String(), proto)
 				}
 			}
 		}
@@ -144,7 +144,7 @@ func (r *Runtime) builtin_newRegExp(args []Value) *Object {
 	if pattern == nil {
 		pattern = stringEmpty
 	}
-	return r.newRegExp(pattern, flags, r.global.RegExpPrototype)
+	return r.newRegExp(pattern, flags, proto)
 }
 
 func (r *Runtime) builtin_RegExp(call FunctionCall) Value {
@@ -156,7 +156,7 @@ func (r *Runtime) builtin_RegExp(call FunctionCall) Value {
 			}
 		}
 	}
-	return r.builtin_newRegExp(call.Arguments)
+	return r.builtin_newRegExp(call.Arguments, r.global.RegExpPrototype)
 }
 
 func (r *Runtime) regexpproto_exec(call FunctionCall) Value {
@@ -620,7 +620,7 @@ func (r *Runtime) initRegExp() {
 	o._putSym(symSearch, valueProp(r.newNativeFunc(r.regexpproto_stdSearch, nil, "[Symbol.search]", nil, 1), true, false, true))
 	o._putSym(symSplit, valueProp(r.newNativeFunc(r.regexpproto_stdSplitter, nil, "[Symbol.split]", nil, 2), true, false, true))
 
-	r.global.RegExp = r.newNativeFunc(r.builtin_RegExp, wrapNativeConstructor(r.builtin_newRegExp), "RegExp", r.global.RegExpPrototype, 2)
+	r.global.RegExp = r.newNativeFunc(r.builtin_RegExp, r.builtin_newRegExp, "RegExp", r.global.RegExpPrototype, 2)
 	o = r.global.RegExp.self
 	o._putSym(symSpecies, &valueProperty{
 		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),

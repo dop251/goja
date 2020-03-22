@@ -6,7 +6,7 @@ func (r *Runtime) builtin_reflect_apply(call FunctionCall) Value {
 		Arguments: r.createListFromArrayLike(call.Argument(2))})
 }
 
-func (r *Runtime) toConstructor(v Value) func(args []Value, newTarget Value) *Object {
+func (r *Runtime) toConstructor(v Value) func(args []Value, newTarget *Object) *Object {
 	if ctor := r.toObject(v).self.assertConstructor(); ctor != nil {
 		return ctor
 	}
@@ -23,7 +23,7 @@ func (r *Runtime) builtin_reflect_construct(call FunctionCall) Value {
 	} else {
 		newTarget = target
 	}
-	return ctor(r.createListFromArrayLike(call.Argument(1)), newTarget)
+	return ctor(r.createListFromArrayLike(call.Argument(1)), r.toObject(newTarget))
 }
 
 func (r *Runtime) builtin_reflect_defineProperty(call FunctionCall) Value {

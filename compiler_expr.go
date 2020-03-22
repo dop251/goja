@@ -115,6 +115,10 @@ type compiledNewExpr struct {
 	args   []compiledExpr
 }
 
+type compiledNewTarget struct {
+	baseCompiledExpr
+}
+
 type compiledSequenceExpr struct {
 	baseCompiledExpr
 	sequence []compiledExpr
@@ -232,6 +236,8 @@ func (c *compiler) compileExpression(v ast.Expression) compiledExpr {
 		return c.compileSequenceExpression(v)
 	case *ast.NewExpression:
 		return c.compileNewExpression(v)
+	case *ast.MetaProperty:
+		return c.compileMetaProperty(v)
 	default:
 		panic(fmt.Errorf("Unknown expression type: %T", v))
 	}
@@ -921,6 +927,23 @@ func (c *compiler) compileNewExpression(v *ast.NewExpression) compiledExpr {
 	}
 	r.init(c, v.Idx0())
 	return r
+}
+
+func (e *compiledNewTarget) emitGetter(putOnStack bool) {
+	if putOnStack {
+		e.addSrcMap()
+		e.c.emit(loadNewTarget)
+	}
+}
+
+func (c *compiler) compileMetaProperty(v *ast.MetaProperty) compiledExpr {
+	if v.Meta.Name == "new" || v.Property.Name != "target" {
+		r := &compiledNewTarget{}
+		r.init(c, v.Idx0())
+		return r
+	}
+	c.throwSyntaxError(int(v.Idx)-1, "Unsupported meta property: %s.%s", v.Meta.Name, v.Property.Name)
+	return nil
 }
 
 func (e *compiledSequenceExpr) emitGetter(putOnStack bool) {

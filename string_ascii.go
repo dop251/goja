@@ -164,7 +164,7 @@ func (s asciiString) ToNumber() Value {
 }
 
 func (s asciiString) ToObject(r *Runtime) *Object {
-	return r._newString(s)
+	return r._newString(s, r.global.StringPrototype)
 }
 
 func (s asciiString) SameAs(other Value) bool {

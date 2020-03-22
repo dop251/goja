@@ -45,6 +45,6 @@ func (r *Runtime) initBoolean() {
 	o._putProp("toString", r.newNativeFunc(r.booleanproto_toString, nil, "toString", nil, 0), true, false, true)
 	o._putProp("valueOf", r.newNativeFunc(r.booleanproto_valueOf, nil, "valueOf", nil, 0), true, false, true)
 
-	r.global.Boolean = r.newNativeFunc(r.builtin_Boolean, wrapNativeConstructor(r.builtin_newBoolean), "Boolean", r.global.BooleanPrototype, 1)
+	r.global.Boolean = r.newNativeFunc(r.builtin_Boolean, r.builtin_newBoolean, "Boolean", r.global.BooleanPrototype, 1)
 	r.addToGlobal("Boolean", r.global.Boolean)
 }

@@ -138,7 +138,7 @@ func (r *Runtime) mapProto_getSize(call FunctionCall) Value {
 	return intToValue(int64(mo.m.size))
 }
 
-func (r *Runtime) builtin_newMap(args []Value) *Object {
+func (r *Runtime) builtin_newMap(args []Value, proto *Object) *Object {
 	o := &Object{runtime: r}
 
 	mo := &mapObject{}
@@ -146,7 +146,7 @@ func (r *Runtime) builtin_newMap(args []Value) *Object {
 	mo.val = o
 	mo.extensible = true
 	o.self = mo
-	mo.prototype = r.global.MapPrototype
+	mo.prototype = proto
 	mo.init()
 	if len(args) > 0 {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
@@ -238,7 +238,7 @@ func (r *Runtime) createMapProto(val *Object) objectImpl {
 }
 
 func (r *Runtime) createMap(val *Object) objectImpl {
-	o := r.newNativeFuncObj(val, r.constructorThrower("Map"), wrapNativeConstructor(r.builtin_newMap), "Map", r.global.MapPrototype, 0)
+	o := r.newNativeFuncObj(val, r.constructorThrower("Map"), r.builtin_newMap, "Map", r.global.MapPrototype, 0)
 	o._putSym(symSpecies, &valueProperty{
 		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
 		accessor:     true,

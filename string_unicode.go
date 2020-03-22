@@ -109,7 +109,7 @@ func (s unicodeString) ToNumber() Value {
 }
 
 func (s unicodeString) ToObject(r *Runtime) *Object {
-	return r._newString(s)
+	return r._newString(s, r.global.StringPrototype)
 }
 
 func (s unicodeString) equals(other unicodeString) bool {

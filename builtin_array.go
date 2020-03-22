@@ -1030,7 +1030,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		}
 	}
 
-	var ctor func(args []Value, newTarget Value) *Object
+	var ctor func(args []Value, newTarget *Object) *Object
 	if call.This != r.global.Array {
 		if o, ok := call.This.(*Object); ok {
 			if c := o.self.assertConstructor(); c != nil {
@@ -1109,7 +1109,7 @@ func (r *Runtime) array_isArray(call FunctionCall) Value {
 }
 
 func (r *Runtime) array_of(call FunctionCall) Value {
-	var ctor func(args []Value, newTarget Value) *Object
+	var ctor func(args []Value, newTarget *Object) *Object
 	if call.This != r.global.Array {
 		if o, ok := call.This.(*Object); ok {
 			if c := o.self.assertConstructor(); c != nil {

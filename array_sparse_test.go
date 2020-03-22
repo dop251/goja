@@ -23,9 +23,18 @@ func TestSparseArraySetLengthWithPropItems(t *testing.T) {
 }
 
 func TestSparseArraySwitch(t *testing.T) {
-	const SCRIPT = `
+	vm := New()
+	_, err := vm.RunString(`
 	var a = [];
-	a[20470] = 5; // switch to sparse
+	a[20470] = 5; // switch to sparse`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := vm.Get("a").(*Object)
+	if _, ok := a.self.(*sparseArrayObject); !ok {
+		t.Fatal("1: array is not sparse")
+	}
+	_, err = vm.RunString(`
 	var cutoffIdx = Math.round(20470 - 20470/8);
 	for (var i = a.length - 1; i >= cutoffIdx; i--) {
 		a[i] = i;
@@ -46,8 +55,14 @@ func TestSparseArraySwitch(t *testing.T) {
 		if (a[i] !== i) {
 			throw new Error("Invalid value at " + i + ": " + a[i]);
 		}
+	}`)
+	if err != nil {
+		t.Fatal(err)
 	}
-
+	if _, ok := a.self.(*arrayObject); !ok {
+		t.Fatal("2: array is not normal")
+	}
+	_, err = vm.RunString(`
 	// Now try to expand. Should stay a normal array
 	a[20471] = 20471;
 	if (a.length != 20472) {
@@ -64,8 +79,14 @@ func TestSparseArraySwitch(t *testing.T) {
 		if (a[i] !== i) {
 			throw new Error("Invalid value at " + i + ": " + a[i]);
 		}
+	}`)
+	if err != nil {
+		t.Fatal(err)
 	}
-
+	if _, ok := a.self.(*arrayObject); !ok {
+		t.Fatal("3: array is not normal")
+	}
+	_, err = vm.RunString(`
 	// Delete enough elements for it to become sparse again.
 	var cutoffIdx1 = Math.round(20472 - 20472/10);
 	for (var i = cutoffIdx; i < cutoffIdx1; i++) {
@@ -99,9 +120,13 @@ func TestSparseArraySwitch(t *testing.T) {
 	if (a[25590] !== 25590) {
 		throw new Error("Invalid value at 25590: " + a[25590]);
 	}
-	`
-
-	testScript1(SCRIPT, _undefined, t)
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := a.self.(*sparseArrayObject); !ok {
+		t.Fatal("4: array is not sparse")
+	}
 }
 
 func TestSparseArrayOwnKeys(t *testing.T) {

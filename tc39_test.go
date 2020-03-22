@@ -130,10 +130,6 @@ var (
 
 		// arrow-function
 		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
-
-		// new.target
-		"test/language/expressions/new.target/value-via-reflect-construct.js": true,
-		"test/language/expressions/new.target/value-via-reflect-apply.js":     true,
 	}
 
 	featuresBlackList = []string{

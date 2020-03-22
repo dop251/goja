@@ -20,7 +20,7 @@ type nativeFuncObject struct {
 	baseFuncObject
 
 	f         func(FunctionCall) Value
-	construct func(args []Value, newTarget Value) *Object
+	construct func(args []Value, newTarget *Object) *Object
 }
 
 type boundFuncObject struct {
@@ -97,25 +97,23 @@ func (f *funcObject) ownKeys(all bool, accum []Value) []Value {
 	return f.baseFuncObject.ownKeys(all, accum)
 }
 
-func (f *funcObject) construct(args []Value, newTarget Value) *Object {
-	var newTargetObj *Object
+func (f *funcObject) construct(args []Value, newTarget *Object) *Object {
 	if newTarget == nil {
-		newTargetObj = f.val
-	} else {
-		newTargetObj = f.val.runtime.toObject(newTarget)
+		newTarget = f.val
 	}
-	proto := newTargetObj.self.getStr("prototype", nil)
+	proto := newTarget.self.getStr("prototype", nil)
 	var protoObj *Object
 	if p, ok := proto.(*Object); ok {
 		protoObj = p
 	} else {
 		protoObj = f.val.runtime.global.ObjectPrototype
 	}
+
 	obj := f.val.runtime.newBaseObject(protoObj, classObject).val
-	ret := f.Call(FunctionCall{
+	ret := f.call(FunctionCall{
 		This:      obj,
 		Arguments: args,
-	})
+	}, newTarget)
 
 	if ret, ok := ret.(*Object); ok {
 		return ret
@@ -124,6 +122,10 @@ func (f *funcObject) construct(args []Value, newTarget Value) *Object {
 }
 
 func (f *funcObject) Call(call FunctionCall) Value {
+	return f.call(call, nil)
+}
+
+func (f *funcObject) call(call FunctionCall, newTarget Value) Value {
 	vm := f.val.runtime.vm
 	pc := vm.pc
 
@@ -150,6 +152,7 @@ func (f *funcObject) Call(call FunctionCall) Value {
 	vm.args = len(call.Arguments)
 	vm.prg = f.prg
 	vm.stash = f.stash
+	vm.newTarget = newTarget
 	vm.pc = 0
 	vm.run()
 	vm.pc = pc
@@ -169,7 +172,7 @@ func (f *funcObject) assertCallable() (func(FunctionCall) Value, bool) {
 	return f.Call, true
 }
 
-func (f *funcObject) assertConstructor() func(args []Value, newTarget Value) *Object {
+func (f *funcObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
 	return f.construct
 }
 
@@ -235,7 +238,7 @@ func (f *nativeFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
 	return nil, false
 }
 
-func (f *nativeFuncObject) assertConstructor() func(args []Value, newTarget Value) *Object {
+func (f *nativeFuncObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
 	return f.construct
 }
 

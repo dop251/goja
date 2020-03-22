@@ -141,7 +141,7 @@ func (r *Runtime) initNumber() {
 	o._putProp("toExponential", r.newNativeFunc(r.numberproto_toExponential, nil, "toExponential", nil, 1), true, false, true)
 	o._putProp("toPrecision", r.newNativeFunc(r.numberproto_toPrecision, nil, "toPrecision", nil, 1), true, false, true)
 
-	r.global.Number = r.newNativeFunc(r.builtin_Number, wrapNativeConstructor(r.builtin_newNumber), "Number", r.global.NumberPrototype, 1)
+	r.global.Number = r.newNativeFunc(r.builtin_Number, r.builtin_newNumber, "Number", r.global.NumberPrototype, 1)
 	o = r.global.Number.self
 	o._putProp("MAX_VALUE", valueFloat(math.MaxFloat64), false, false, false)
 	o._putProp("MIN_VALUE", valueFloat(math.SmallestNonzeroFloat64), false, false, false)
