@@ -352,9 +352,6 @@ func (o *baseObject) getSym(s *valueSymbol, receiver Value) Value {
 func (o *baseObject) getStr(name string, receiver Value) Value {
 	prop := o.values[name]
 	if prop == nil {
-		if name == __proto__ {
-			return o.prototype
-		}
 		if o.prototype != nil {
 			if receiver == nil {
 				return o.prototype.self.getStr(name, o.val)
@@ -383,11 +380,7 @@ func (o *baseObject) getOwnPropSym(s *valueSymbol) Value {
 }
 
 func (o *baseObject) getOwnPropStr(name string) Value {
-	v := o.values[name]
-	if v == nil && name == __proto__ {
-		return o.prototype
-	}
-	return v
+	return o.values[name]
 }
 
 func (o *baseObject) checkDeleteProp(name string, prop *valueProperty, throw bool) bool {
@@ -483,10 +476,6 @@ func (o *baseObject) _setProto(val Value) {
 func (o *baseObject) setOwnStr(name string, val Value, throw bool) bool {
 	ownDesc := o.values[name]
 	if ownDesc == nil {
-		if name == __proto__ {
-			o._setProto(val)
-			return true
-		}
 		if proto := o.prototype; proto != nil {
 			// we know it's foreign because prototype loops are not allowed
 			if res, handled := proto.self.setForeignStr(name, val, o.val, throw); handled {
@@ -1076,7 +1065,7 @@ func (o *baseObject) fixPropOrder() {
 			k := sort.Search(o.idxPropCount, func(j int) bool {
 				return strToIdx(names[j]) >= idx
 			})
-			if k != i {
+			if k < i {
 				copy(names[k+1:i+1], names[k:i])
 				names[k] = name
 			}

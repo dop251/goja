@@ -1012,3 +1012,38 @@ func TestGoReflectSymbols(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestGoObj__Proto__(t *testing.T) {
+	type S struct {
+		Field int
+	}
+	vm := New()
+	vm.Set("s", S{})
+	vm.Set("m", map[string]interface{}{})
+	vm.Set("mr", map[int]string{})
+	vm.Set("a", []interface{}{})
+	vm.Set("ar", []string{})
+	_, err := vm.RunString(`
+	function f(s, expectedCtor, prefix) {
+		if (s.__proto__ !== expectedCtor.prototype) {
+			throw new Error(prefix + ": __proto__: " + s.__proto__);
+		}
+		s.__proto__ = null;
+		if (s.__proto__ !== undefined) { // as there is no longer a prototype, there is no longer the __proto__ property
+			throw new Error(prefix + ": __proto__ is not undefined: " + s.__proto__);
+		}
+		var proto = Object.getPrototypeOf(s);
+		if (proto !== null) {
+			throw new Error(prefix + ": proto is not null: " + proto);
+		}
+	}
+	f(s, Object, "struct");
+	f(m, Object, "simple map");
+	f(mr, Object, "reflect map");
+	f(a, Array, "slice");
+	f(ar, Array, "reflect slice");
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

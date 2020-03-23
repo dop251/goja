@@ -425,6 +425,25 @@ func (r *Runtime) objectproto_toLocaleString(call FunctionCall) Value {
 	return toString(FunctionCall{This: call.This})
 }
 
+func (r *Runtime) objectproto_getProto(call FunctionCall) Value {
+	proto := call.This.ToObject(r).self.proto()
+	if proto != nil {
+		return proto
+	}
+	return _null
+}
+
+func (r *Runtime) objectproto_setProto(call FunctionCall) Value {
+	o := call.This
+	r.checkObjectCoercible(o)
+	proto := r.toProto(call.Argument(0))
+	if o, ok := o.(*Object); ok {
+		o.self.setProto(proto, true)
+	}
+
+	return _undefined
+}
+
 func (r *Runtime) objectproto_valueOf(call FunctionCall) Value {
 	return call.This.ToObject(r)
 }
@@ -456,20 +475,23 @@ func (r *Runtime) object_is(call FunctionCall) Value {
 	return r.toBoolean(call.Argument(0).SameAs(call.Argument(1)))
 }
 
-func (r *Runtime) object_setPrototypeOf(call FunctionCall) Value {
-	o := call.Argument(0)
-	r.checkObjectCoercible(o)
-	proto := call.Argument(1)
-	var protoObj *Object
+func (r *Runtime) toProto(proto Value) *Object {
 	if proto != _null {
 		if obj, ok := proto.(*Object); ok {
-			protoObj = obj
+			return obj
 		} else {
 			panic(r.NewTypeError("Object prototype may only be an Object or null: %s", proto))
 		}
 	}
+	return nil
+}
+
+func (r *Runtime) object_setPrototypeOf(call FunctionCall) Value {
+	o := call.Argument(0)
+	r.checkObjectCoercible(o)
+	proto := r.toProto(call.Argument(1))
 	if o, ok := o.(*Object); ok {
-		o.self.setProto(protoObj, true)
+		o.self.setProto(proto, true)
 	}
 
 	return o
@@ -483,6 +505,11 @@ func (r *Runtime) initObject() {
 	o._putProp("hasOwnProperty", r.newNativeFunc(r.objectproto_hasOwnProperty, nil, "hasOwnProperty", nil, 1), true, false, true)
 	o._putProp("isPrototypeOf", r.newNativeFunc(r.objectproto_isPrototypeOf, nil, "isPrototypeOf", nil, 1), true, false, true)
 	o._putProp("propertyIsEnumerable", r.newNativeFunc(r.objectproto_propertyIsEnumerable, nil, "propertyIsEnumerable", nil, 1), true, false, true)
+	o.defineOwnPropertyStr(__proto__, PropertyDescriptor{
+		Getter:       r.newNativeFunc(r.objectproto_getProto, nil, "get __proto__", nil, 0),
+		Setter:       r.newNativeFunc(r.objectproto_setProto, nil, "set __proto__", nil, 1),
+		Configurable: FLAG_TRUE,
+	}, true)
 
 	r.global.Object = r.newNativeFuncConstruct(r.builtin_Object, classObject, r.global.ObjectPrototype, 1)
 	o = r.global.Object.self

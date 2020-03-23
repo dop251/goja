@@ -152,10 +152,6 @@ func (o *objectGoReflect) getOwnPropStr(name string) Value {
 func (o *objectGoReflect) setOwnStr(name string, val Value, throw bool) bool {
 	has, ok := o._put(name, val, throw)
 	if !has {
-		if name == __proto__ {
-			o._setProto(val)
-			return true
-		}
 		if res, ok := o._setForeignStr(name, nil, val, o.val, throw); !ok {
 			o.val.runtime.typeErrorResult(throw, "Cannot assign to property %s of a host object", name)
 			return false

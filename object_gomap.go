@@ -43,10 +43,6 @@ func (o *objectGoMapSimple) setOwnStr(name string, val Value, throw bool) bool {
 		o.data[name] = val.Export()
 		return true
 	}
-	if name == __proto__ {
-		o._setProto(val)
-		return true
-	}
 	if proto := o.prototype; proto != nil {
 		// we know it's foreign because prototype loops are not allowed
 		if res, ok := proto.self.setForeignStr(name, val, o.val, throw); ok {

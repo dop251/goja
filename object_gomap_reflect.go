@@ -120,10 +120,6 @@ func (o *objectGoMapReflect) _put(key reflect.Value, val Value, throw bool) bool
 func (o *objectGoMapReflect) setOwnStr(name string, val Value, throw bool) bool {
 	key := o.strToKey(name, false)
 	if !key.IsValid() || !o.value.MapIndex(key).IsValid() {
-		if name == __proto__ {
-			o._setProto(val)
-			return true
-		}
 		if proto := o.prototype; proto != nil {
 			// we know it's foreign because prototype loops are not allowed
 			if res, ok := proto.self.setForeignStr(name, val, o.val, throw); ok {

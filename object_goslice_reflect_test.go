@@ -289,3 +289,18 @@ func TestGoSliceReflectProtoProto(t *testing.T) {
 	}
 
 }
+
+func TestGoSliceReflectDelete(t *testing.T) {
+	r := New()
+	a := []*Object{{}, nil, {}}
+	r.Set("a", a)
+	v, err := r.RunString(`
+	!delete a[0] && !delete a[1] && delete a[3];
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != valueTrue {
+		t.Fatalf("not true: %v", v)
+	}
+}

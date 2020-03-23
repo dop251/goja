@@ -1066,7 +1066,7 @@ type _setProto struct{}
 var setProto _setProto
 
 func (_setProto) exec(vm *vm) {
-	vm.r.toObject(vm.stack[vm.sp-2]).self.setOwnStr(__proto__, vm.stack[vm.sp-1], true)
+	vm.r.toObject(vm.stack[vm.sp-2]).self.setProto(vm.r.toProto(vm.stack[vm.sp-1]), true)
 
 	vm.sp--
 	vm.pc++
