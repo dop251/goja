@@ -21,7 +21,7 @@ func (r *Runtime) collator() *collate.Collator {
 }
 
 func toString(arg Value) valueString {
-	if s, ok := arg.assertString(); ok {
+	if s, ok := arg.(valueString); ok {
 		return s
 	}
 	if s, ok := arg.(*valueSymbol); ok {
@@ -79,7 +79,7 @@ func searchSubstringUTF8(str, search string) (ret [][]int) {
 }
 
 func (r *Runtime) stringproto_toStringValueOf(this Value, funcName string) Value {
-	if str, ok := this.assertString(); ok {
+	if str, ok := this.(valueString); ok {
 		return str
 	}
 	if obj, ok := this.(*Object); ok {
@@ -206,7 +206,7 @@ func (r *Runtime) stringproto_lastIndexOf(call FunctionCall) Value {
 	numPos := call.Argument(1).ToNumber()
 
 	var pos int64
-	if f, ok := numPos.assertFloat(); ok && math.IsNaN(f) {
+	if f, ok := numPos.(valueFloat); ok && math.IsNaN(float64(f)) {
 		pos = value.length()
 	} else {
 		pos = numPos.ToInteger()

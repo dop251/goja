@@ -68,7 +68,7 @@ func (r *Runtime) proxyproto_nativehandler_getOwnPropertyDescriptor(native func(
 		handler.self._putProp("getOwnPropertyDescriptor", r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 2 {
 				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).assertString(); ok {
+					if p, ok := call.Argument(1).(valueString); ok {
 						desc := native(t, p.String())
 						return desc.toValue(r)
 					}
@@ -84,7 +84,7 @@ func (r *Runtime) proxyproto_nativehandler_defineProperty(native func(*Object, s
 		handler.self._putProp("defineProperty", r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 3 {
 				if t, ok := call.Argument(0).(*Object); ok {
-					if k, ok := call.Argument(1).assertString(); ok {
+					if k, ok := call.Argument(1).(valueString); ok {
 						propertyDescriptor := r.toPropertyDescriptor(call.Argument(2))
 						s := native(t, k.String(), propertyDescriptor)
 						return r.ToValue(s)
@@ -101,7 +101,7 @@ func (r *Runtime) proxyproto_nativehandler_gen_obj_string_bool(name proxyTrap, n
 		handler.self._putProp(string(name), r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 2 {
 				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).assertString(); ok {
+					if p, ok := call.Argument(1).(valueString); ok {
 						o := native(t, p.String())
 						return r.ToValue(o)
 					}
@@ -117,7 +117,7 @@ func (r *Runtime) proxyproto_nativehandler_get(native func(*Object, string, *Obj
 		handler.self._putProp("get", r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 3 {
 				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).assertString(); ok {
+					if p, ok := call.Argument(1).(valueString); ok {
 						if r, ok := call.Argument(2).(*Object); ok {
 							return native(t, p.String(), r)
 						}
@@ -134,7 +134,7 @@ func (r *Runtime) proxyproto_nativehandler_set(native func(*Object, string, Valu
 		handler.self._putProp("set", r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 4 {
 				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).assertString(); ok {
+					if p, ok := call.Argument(1).(valueString); ok {
 						v := call.Argument(2)
 						if re, ok := call.Argument(3).(*Object); ok {
 							s := native(t, p.String(), v, re)

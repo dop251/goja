@@ -297,9 +297,9 @@ func BenchmarkAdd(b *testing.B) {
 	y = valueInt(2)
 
 	for i := 0; i < b.N; i++ {
-		if xi, ok := x.assertInt(); ok {
-			if yi, ok := y.assertInt(); ok {
-				x = valueInt(xi + yi)
+		if xi, ok := x.(valueInt); ok {
+			if yi, ok := y.(valueInt); ok {
+				x = xi + yi
 			}
 		}
 	}
@@ -314,8 +314,8 @@ func BenchmarkAddString(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		var z Value
-		if xi, ok := x.assertString(); ok {
-			if yi, ok := y.assertString(); ok {
+		if xi, ok := x.(valueString); ok {
+			if yi, ok := y.(valueString); ok {
 				z = xi.concat(yi)
 			}
 		}

@@ -686,7 +686,7 @@ func (r *Runtime) builtin_eval(call FunctionCall) Value {
 	if len(call.Arguments) == 0 {
 		return _undefined
 	}
-	if str, ok := call.Arguments[0].assertString(); ok {
+	if str, ok := call.Arguments[0].(valueString); ok {
 		return r.eval(str.String(), false, false, r.globalObject)
 	}
 	return call.Arguments[0]
@@ -730,11 +730,12 @@ func (r *Runtime) checkObjectCoercible(v Value) {
 
 func toUInt32(v Value) uint32 {
 	v = v.ToNumber()
-	if i, ok := v.assertInt(); ok {
+	if i, ok := v.(valueInt); ok {
 		return uint32(i)
 	}
 
-	if f, ok := v.assertFloat(); ok {
+	if f, ok := v.(valueFloat); ok {
+		f := float64(f)
 		if !math.IsNaN(f) && !math.IsInf(f, 0) {
 			return uint32(int64(f))
 		}
@@ -744,11 +745,12 @@ func toUInt32(v Value) uint32 {
 
 func toUInt16(v Value) uint16 {
 	v = v.ToNumber()
-	if i, ok := v.assertInt(); ok {
+	if i, ok := v.(valueInt); ok {
 		return uint16(i)
 	}
 
-	if f, ok := v.assertFloat(); ok {
+	if f, ok := v.(valueFloat); ok {
+		f := float64(f)
 		if !math.IsNaN(f) && !math.IsInf(f, 0) {
 			return uint16(int64(f))
 		}
@@ -772,11 +774,12 @@ func toLength(v Value) int64 {
 
 func toInt32(v Value) int32 {
 	v = v.ToNumber()
-	if i, ok := v.assertInt(); ok {
+	if i, ok := v.(valueInt); ok {
 		return int32(i)
 	}
 
-	if f, ok := v.assertFloat(); ok {
+	if f, ok := v.(valueFloat); ok {
+		f := float64(f)
 		if !math.IsNaN(f) && !math.IsInf(f, 0) {
 			return int32(int64(f))
 		}
@@ -1584,8 +1587,8 @@ func IsNull(v Value) bool {
 
 // IsNaN returns true if the supplied value is NaN.
 func IsNaN(v Value) bool {
-	f, ok := v.assertFloat()
-	return ok && math.IsNaN(f)
+	f, ok := v.(valueFloat)
+	return ok && math.IsNaN(float64(f))
 }
 
 // IsInfinity returns true if the supplied is (+/-)Infinity

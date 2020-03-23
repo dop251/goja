@@ -23,7 +23,7 @@ func TestGoReflectGet(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if s, ok := v.assertString(); ok {
+	if s, ok := v.(valueString); ok {
 		if s.String() != "42" {
 			t.Fatalf("Unexpected string: %s", s)
 		}

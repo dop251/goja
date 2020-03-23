@@ -187,14 +187,11 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 			for index := range propertyList {
 				var name string
 				value := replacer.self.getIdx(valueInt(int64(index)), nil)
-				if s, ok := value.assertString(); ok {
-					name = s.String()
-				} else if _, ok := value.assertInt(); ok {
+				switch v := value.(type) {
+				case valueFloat, valueInt, valueString:
 					name = value.String()
-				} else if _, ok := value.assertFloat(); ok {
-					name = value.String()
-				} else if o, ok := value.(*Object); ok {
-					switch o.self.className() {
+				case *Object:
+					switch v.self.className() {
 					case classNumber, classString:
 						name = value.String()
 					}
@@ -222,12 +219,12 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 		}
 		isNum := false
 		var num int64
-		num, isNum = spaceValue.assertInt()
-		if !isNum {
-			if f, ok := spaceValue.assertFloat(); ok {
-				num = int64(f)
-				isNum = true
-			}
+		if i, ok := spaceValue.(valueInt); ok {
+			num = int64(i)
+			isNum = true
+		} else if f, ok := spaceValue.(valueFloat); ok {
+			num = int64(f)
+			isNum = true
 		}
 		if isNum {
 			if num > 0 {
@@ -237,7 +234,7 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 				ctx.gap = strings.Repeat(" ", int(num))
 			}
 		} else {
-			if s, ok := spaceValue.assertString(); ok {
+			if s, ok := spaceValue.(valueString); ok {
 				str := s.String()
 				if len(str) > 10 {
 					ctx.gap = str[:10]

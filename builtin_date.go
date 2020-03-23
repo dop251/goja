@@ -26,8 +26,8 @@ func (r *Runtime) makeDate(args []Value, loc *time.Location) (t time.Time, valid
 			return default_, true
 		}
 		value := args[index]
-		if valueInt, ok := value.assertInt(); ok {
-			return valueInt, true
+		if valueInt, ok := value.(valueInt); ok {
+			return int64(valueInt), true
 		}
 		valueFloat := value.ToFloat()
 		if math.IsNaN(valueFloat) || math.IsInf(valueFloat, 0) {
@@ -71,14 +71,15 @@ func (r *Runtime) makeDate(args []Value, loc *time.Location) (t time.Time, valid
 		valid = true
 	default: // one argument
 		pv := toPrimitiveNumber(args[0])
-		if val, ok := pv.assertString(); ok {
+		if val, ok := pv.(valueString); ok {
 			return dateParse(val.String())
 		}
 
 		var n int64
-		if i, ok := pv.assertInt(); ok {
-			n = i
-		} else if f, ok := pv.assertFloat(); ok {
+		if i, ok := pv.(valueInt); ok {
+			n = int64(i)
+		} else if f, ok := pv.(valueFloat); ok {
+			f := float64(f)
 			if math.IsNaN(f) || math.IsInf(f, 0) {
 				return
 			}
@@ -183,11 +184,12 @@ func (r *Runtime) dateproto_toISOString(call FunctionCall) Value {
 func (r *Runtime) dateproto_toJSON(call FunctionCall) Value {
 	obj := r.toObject(call.This)
 	tv := obj.self.toPrimitiveNumber()
-	if f, ok := tv.assertFloat(); ok {
+	if f, ok := tv.(valueFloat); ok {
+		f := float64(f)
 		if math.IsNaN(f) || math.IsInf(f, 0) {
 			return _null
 		}
-	} else if _, ok := tv.assertInt(); !ok {
+	} else if _, ok := tv.(valueInt); !ok {
 		return _null
 	}
 

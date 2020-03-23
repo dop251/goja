@@ -159,11 +159,11 @@ func floatToValue(f float64) (result Value) {
 
 func toInt64(v Value) (int64, bool) {
 	num := v.ToNumber()
-	if i, ok := num.assertInt(); ok {
-		return i, true
+	if i, ok := num.(valueInt); ok {
+		return int64(i), true
 	}
-	if f, ok := num.assertFloat(); ok {
-		if i, ok := floatToInt(f); ok {
+	if f, ok := num.(valueFloat); ok {
+		if i, ok := floatToInt(float64(f)); ok {
 			return i, true
 		}
 	}
@@ -172,14 +172,14 @@ func toInt64(v Value) (int64, bool) {
 
 func toIntIgnoreNegZero(v Value) (int64, bool) {
 	num := v.ToNumber()
-	if i, ok := num.assertInt(); ok {
-		return i, true
+	if i, ok := num.(valueInt); ok {
+		return int64(i), true
 	}
-	if f, ok := num.assertFloat(); ok {
+	if f, ok := num.(valueFloat); ok {
 		if v == _negativeZero {
 			return 0, true
 		}
-		if i, ok := floatToInt(f); ok {
+		if i, ok := floatToInt(float64(f)); ok {
 			return i, true
 		}
 	}
@@ -601,8 +601,8 @@ func (_add) exec(vm *vm) {
 
 	var ret Value
 
-	leftString, isLeftString := left.assertString()
-	rightString, isRightString := right.assertString()
+	leftString, isLeftString := left.(valueString)
+	rightString, isRightString := right.(valueString)
 
 	if isLeftString || isRightString {
 		if !isLeftString {
@@ -613,8 +613,8 @@ func (_add) exec(vm *vm) {
 		}
 		ret = leftString.concat(rightString)
 	} else {
-		if leftInt, ok := left.assertInt(); ok {
-			if rightInt, ok := right.assertInt(); ok {
+		if leftInt, ok := left.(valueInt); ok {
+			if rightInt, ok := right.(valueInt); ok {
 				ret = intToValue(int64(leftInt) + int64(rightInt))
 			} else {
 				ret = floatToValue(float64(leftInt) + right.ToFloat())
@@ -639,9 +639,9 @@ func (_sub) exec(vm *vm) {
 
 	var result Value
 
-	if left, ok := left.assertInt(); ok {
-		if right, ok := right.assertInt(); ok {
-			result = intToValue(left - right)
+	if left, ok := left.(valueInt); ok {
+		if right, ok := right.(valueInt); ok {
+			result = intToValue(int64(left) - int64(right))
 			goto end
 		}
 	}
@@ -1652,7 +1652,7 @@ func (vm *vm) callEval(n int, strict bool) {
 	if vm.r.toObject(vm.stack[vm.sp-n-1]) == vm.r.global.Eval {
 		if n > 0 {
 			srcVal := vm.stack[vm.sp-n]
-			if src, ok := srcVal.assertString(); ok {
+			if src, ok := srcVal.(valueString); ok {
 				var this Value
 				if vm.sb != 0 {
 					this = vm.stack[vm.sb]
@@ -1965,15 +1965,15 @@ func cmp(px, py Value) Value {
 	var ret bool
 	var nx, ny float64
 
-	if xs, ok := px.assertString(); ok {
-		if ys, ok := py.assertString(); ok {
+	if xs, ok := px.(valueString); ok {
+		if ys, ok := py.(valueString); ok {
 			ret = xs.compareTo(ys) < 0
 			goto end
 		}
 	}
 
-	if xi, ok := px.assertInt(); ok {
-		if yi, ok := py.assertInt(); ok {
+	if xi, ok := px.(valueInt); ok {
+		if yi, ok := py.(valueInt); ok {
 			ret = xi < yi
 			goto end
 		}

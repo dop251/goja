@@ -529,7 +529,7 @@ func (p *proxyObject) proxyOwnKeys() ([]Value, bool) {
 		l := toLength(keys.self.getStr("length", nil))
 		for k := int64(0); k < l; k++ {
 			item := keys.self.getIdx(valueInt(k), nil)
-			if _, ok := item.assertString(); !ok {
+			if _, ok := item.(valueString); !ok {
 				if _, ok := item.(*valueSymbol); !ok {
 					panic(p.val.runtime.NewTypeError("%s is not a valid property name", item.String()))
 				}

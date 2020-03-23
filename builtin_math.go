@@ -88,15 +88,15 @@ func (r *Runtime) math_min(call FunctionCall) Value {
 func (r *Runtime) math_pow(call FunctionCall) Value {
 	x := call.Argument(0)
 	y := call.Argument(1)
-	if x, ok := x.assertInt(); ok {
-		if y, ok := y.assertInt(); ok && y >= 0 && y < 64 {
+	if x, ok := x.(valueInt); ok {
+		if y, ok := y.(valueInt); ok && y >= 0 && y < 64 {
 			if y == 0 {
 				return intToValue(1)
 			}
 			if x == 0 {
 				return intToValue(0)
 			}
-			ip := ipow(x, y)
+			ip := ipow(int64(x), int64(y))
 			if ip != 0 {
 				return intToValue(ip)
 			}

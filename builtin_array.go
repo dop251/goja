@@ -90,11 +90,11 @@ func (r *Runtime) newArrayLength(l int64) *Object {
 func (r *Runtime) builtin_newArray(args []Value, proto *Object) *Object {
 	l := len(args)
 	if l == 1 {
-		if al, ok := args[0].assertInt(); ok {
-			return setArrayLength(r.newArray(proto), al).val
-		} else if f, ok := args[0].assertFloat(); ok {
+		if al, ok := args[0].(valueInt); ok {
+			return setArrayLength(r.newArray(proto), int64(al)).val
+		} else if f, ok := args[0].(valueFloat); ok {
 			al := int64(f)
-			if float64(al) == f {
+			if float64(al) == float64(f) {
 				return r.newArrayLength(al)
 			} else {
 				panic(r.newError(r.global.RangeError, "Invalid array length"))

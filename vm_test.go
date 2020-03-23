@@ -72,48 +72,6 @@ func f_loadVal(vm *vm, i *instr) {
 	vm.pc++
 }
 
-func f_add(vm *vm) {
-	right := vm.stack[vm.sp-1]
-	left := vm.stack[vm.sp-2]
-
-	if o, ok := left.(*Object); ok {
-		left = o.self.toPrimitive()
-	}
-
-	if o, ok := right.(*Object); ok {
-		right = o.self.toPrimitive()
-	}
-
-	var ret Value
-
-	leftString, isLeftString := left.assertString()
-	rightString, isRightString := right.assertString()
-
-	if isLeftString || isRightString {
-		if !isLeftString {
-			leftString = left.toString()
-		}
-		if !isRightString {
-			rightString = right.toString()
-		}
-		ret = leftString.concat(rightString)
-	} else {
-		if leftInt, ok := left.assertInt(); ok {
-			if rightInt, ok := right.assertInt(); ok {
-				ret = intToValue(int64(leftInt) + int64(rightInt))
-			} else {
-				ret = floatToValue(float64(leftInt) + right.ToFloat())
-			}
-		} else {
-			ret = floatToValue(left.ToFloat() + right.ToFloat())
-		}
-	}
-
-	vm.stack[vm.sp-2] = ret
-	vm.sp--
-	vm.pc++
-}
-
 type instr struct {
 	code int
 	prim int
@@ -221,8 +179,6 @@ func BenchmarkVmNOP1(b *testing.B) {
 				break L
 			case 2:
 				f_loadVal(vm, instr)
-			case 3:
-				f_add(vm)
 			default:
 				jumptable[instr.code](vm, instr)
 			}
@@ -386,5 +342,15 @@ func BenchmarkFuncCall(b *testing.B) {
 		}
 	} else {
 		b.Fatal("f is not a function")
+	}
+}
+
+func BenchmarkAssertInt(b *testing.B) {
+	var v Value
+	v = intToValue(42)
+	for i := 0; i < b.N; i++ {
+		if i, ok := v.(valueInt); !ok || int64(i) != 42 {
+			b.Fatal()
+		}
 	}
 }
