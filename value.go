@@ -37,6 +37,8 @@ var (
 	mapHasher maphash.Hash
 )
 
+var intCache [256]Value
+
 type Value interface {
 	ToInteger() int64
 	toString() valueString
@@ -1018,4 +1020,11 @@ func (s *valueSymbol) hash() uint64 {
 
 func (s *valueSymbol) descString() string {
 	return fmt.Sprintf("Symbol(%s)", s.desc)
+}
+
+func init() {
+	for i := 0; i < 256; i++ {
+		intCache[i] = valueInt(i - 128)
+	}
+	_positiveZero = intToValue(0)
 }

@@ -125,6 +125,9 @@ type instruction interface {
 
 func intToValue(i int64) Value {
 	if i >= -maxInt && i <= maxInt {
+		if i >= -128 && i <= 127 {
+			return intCache[i+128]
+		}
 		return valueInt(i)
 	}
 	return valueFloat(float64(i))
