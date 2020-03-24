@@ -17,7 +17,7 @@ var (
 	_NaN          Value = valueFloat(math.NaN())
 	_positiveInf  Value = valueFloat(math.Inf(+1))
 	_negativeInf  Value = valueFloat(math.Inf(-1))
-	_positiveZero Value
+	_positiveZero Value = valueInt(0)
 	_negativeZero Value = valueFloat(math.Float64frombits(0 | (1 << 63)))
 	_epsilon            = valueFloat(2.2204460492503130808472633361816e-16)
 	_undefined    Value = valueUndefined{}
@@ -33,11 +33,11 @@ var (
 	reflectTypeString = reflect.TypeOf("")
 )
 
-var intCache [256]Value
-
 var (
 	mapHasher maphash.Hash
 )
+
+var intCache [256]Value
 
 type Value interface {
 	ToInteger() int64
@@ -53,10 +53,6 @@ type Value interface {
 	StrictEquals(Value) bool
 	Export() interface{}
 	ExportType() reflect.Type
-
-	assertInt() (int64, bool)
-	assertString() (valueString, bool)
-	assertFloat() (float64, bool)
 
 	baseObject(r *Runtime) *Object
 
@@ -154,50 +150,35 @@ func (i valueInt) ToNumber() Value {
 }
 
 func (i valueInt) SameAs(other Value) bool {
-	if otherInt, ok := other.assertInt(); ok {
-		return int64(i) == otherInt
-	}
-	return false
+	return i == other
 }
 
 func (i valueInt) Equals(other Value) bool {
-	if o, ok := other.assertInt(); ok {
-		return int64(i) == o
-	}
-	if o, ok := other.assertFloat(); ok {
-		return float64(i) == o
-	}
-	if o, ok := other.assertString(); ok {
+	switch o := other.(type) {
+	case valueInt:
+		return i == o
+	case valueFloat:
+		return float64(i) == float64(o)
+	case valueString:
 		return o.ToNumber().Equals(i)
-	}
-	if o, ok := other.(valueBool); ok {
+	case valueBool:
 		return int64(i) == o.ToInteger()
-	}
-	if o, ok := other.(*Object); ok {
+	case *Object:
 		return i.Equals(o.self.toPrimitiveNumber())
 	}
+
 	return false
 }
 
 func (i valueInt) StrictEquals(other Value) bool {
-	if otherInt, ok := other.assertInt(); ok {
-		return int64(i) == otherInt
-	} else if otherFloat, ok := other.assertFloat(); ok {
-		return float64(i) == otherFloat
+	switch o := other.(type) {
+	case valueInt:
+		return i == o
+	case valueFloat:
+		return float64(i) == float64(o)
 	}
+
 	return false
-}
-
-func (i valueInt) assertInt() (int64, bool) {
-	return int64(i), true
-}
-
-func (i valueInt) assertFloat() (float64, bool) {
-	return 0, false
-}
-
-func (i valueInt) assertString() (valueString, bool) {
-	return nil, false
 }
 
 func (i valueInt) baseObject(r *Runtime) *Object {
@@ -288,18 +269,6 @@ func (o valueBool) StrictEquals(other Value) bool {
 		return o == other
 	}
 	return false
-}
-
-func (o valueBool) assertInt() (int64, bool) {
-	return 0, false
-}
-
-func (o valueBool) assertFloat() (float64, bool) {
-	return 0, false
-}
-
-func (o valueBool) assertString() (valueString, bool) {
-	return nil, false
 }
 
 func (o valueBool) baseObject(r *Runtime) *Object {
@@ -407,18 +376,6 @@ func (n valueNull) StrictEquals(other Value) bool {
 	return same
 }
 
-func (n valueNull) assertInt() (int64, bool) {
-	return 0, false
-}
-
-func (n valueNull) assertFloat() (float64, bool) {
-	return 0, false
-}
-
-func (n valueNull) assertString() (valueString, bool) {
-	return nil, false
-}
-
 func (n valueNull) baseObject(*Runtime) *Object {
 	return nil
 }
@@ -465,18 +422,6 @@ func (p *valueProperty) ToObject(*Runtime) *Object {
 
 func (p *valueProperty) ToNumber() Value {
 	return nil
-}
-
-func (p *valueProperty) assertInt() (int64, bool) {
-	return 0, false
-}
-
-func (p *valueProperty) assertFloat() (float64, bool) {
-	return 0, false
-}
-
-func (p *valueProperty) assertString() (valueString, bool) {
-	return nil, false
 }
 
 func (p *valueProperty) isWritable() bool {
@@ -598,18 +543,20 @@ func (f valueFloat) ToNumber() Value {
 }
 
 func (f valueFloat) SameAs(other Value) bool {
-	if o, ok := other.assertFloat(); ok {
+	switch o := other.(type) {
+	case valueFloat:
 		this := float64(f)
-		if math.IsNaN(this) && math.IsNaN(o) {
+		o1 := float64(o)
+		if math.IsNaN(this) && math.IsNaN(o1) {
 			return true
 		} else {
-			ret := this == o
+			ret := this == o1
 			if ret && this == 0 {
-				ret = math.Signbit(this) == math.Signbit(o)
+				ret = math.Signbit(this) == math.Signbit(o1)
 			}
 			return ret
 		}
-	} else if o, ok := other.assertInt(); ok {
+	case valueInt:
 		this := float64(f)
 		ret := this == float64(o)
 		if ret && this == 0 {
@@ -617,27 +564,19 @@ func (f valueFloat) SameAs(other Value) bool {
 		}
 		return ret
 	}
+
 	return false
 }
 
 func (f valueFloat) Equals(other Value) bool {
-	if o, ok := other.assertFloat(); ok {
-		return float64(f) == o
-	}
-
-	if o, ok := other.assertInt(); ok {
+	switch o := other.(type) {
+	case valueFloat:
+		return f == o
+	case valueInt:
 		return float64(f) == float64(o)
-	}
-
-	if _, ok := other.assertString(); ok {
-		return float64(f) == other.ToFloat()
-	}
-
-	if o, ok := other.(valueBool); ok {
+	case valueString, valueBool:
 		return float64(f) == o.ToFloat()
-	}
-
-	if o, ok := other.(*Object); ok {
+	case *Object:
 		return f.Equals(o.self.toPrimitiveNumber())
 	}
 
@@ -645,24 +584,14 @@ func (f valueFloat) Equals(other Value) bool {
 }
 
 func (f valueFloat) StrictEquals(other Value) bool {
-	if o, ok := other.assertFloat(); ok {
-		return float64(f) == o
-	} else if o, ok := other.assertInt(); ok {
+	switch o := other.(type) {
+	case valueFloat:
+		return f == o
+	case valueInt:
 		return float64(f) == float64(o)
 	}
+
 	return false
-}
-
-func (f valueFloat) assertInt() (int64, bool) {
-	return 0, false
-}
-
-func (f valueFloat) assertFloat() (float64, bool) {
-	return float64(f), true
-}
-
-func (f valueFloat) assertString() (valueString, bool) {
-	return nil, false
 }
 
 func (f valueFloat) baseObject(r *Runtime) *Object {
@@ -728,21 +657,13 @@ func (o *Object) Equals(other Value) bool {
 		return o == other || o.self.equal(other.self)
 	}
 
-	if _, ok := other.assertInt(); ok {
+	switch o1 := other.(type) {
+	case valueInt, valueFloat, valueString:
 		return o.self.toPrimitive().Equals(other)
+	case valueBool:
+		return o.Equals(o1.ToNumber())
 	}
 
-	if _, ok := other.assertFloat(); ok {
-		return o.self.toPrimitive().Equals(other)
-	}
-
-	if other, ok := other.(valueBool); ok {
-		return o.Equals(other.ToNumber())
-	}
-
-	if _, ok := other.assertString(); ok {
-		return o.self.toPrimitive().Equals(other)
-	}
 	return false
 }
 
@@ -751,18 +672,6 @@ func (o *Object) StrictEquals(other Value) bool {
 		return o == other || o.self.equal(other.self)
 	}
 	return false
-}
-
-func (o *Object) assertInt() (int64, bool) {
-	return 0, false
-}
-
-func (o *Object) assertFloat() (float64, bool) {
-	return 0, false
-}
-
-func (o *Object) assertString() (valueString, bool) {
-	return nil, false
 }
 
 func (o *Object) baseObject(*Runtime) *Object {
@@ -782,12 +691,14 @@ func (o *Object) hash() uint64 {
 }
 
 func (o *Object) Get(name string) Value {
-	return o.self.getStr(name)
+	return o.self.getStr(name, nil)
 }
 
 func (o *Object) Keys() (keys []string) {
-	for item, f := o.self.enumerate(false, false)(); f != nil; item, f = f() {
-		keys = append(keys, item.name)
+	names := o.self.ownKeys(false, nil)
+	keys = make([]string, 0, len(names))
+	for _, name := range names {
+		keys = append(keys, name.String())
 	}
 
 	return
@@ -797,7 +708,7 @@ func (o *Object) Keys() (keys []string) {
 // configurable: configurable, enumerable: enumerable})
 func (o *Object) DefineDataProperty(name string, value Value, writable, configurable, enumerable Flag) error {
 	return tryFunc(func() {
-		o.self.defineOwnProperty(newStringValue(name), propertyDescr{
+		o.self.defineOwnPropertyStr(name, PropertyDescriptor{
 			Value:        value,
 			Writable:     writable,
 			Configurable: configurable,
@@ -810,7 +721,7 @@ func (o *Object) DefineDataProperty(name string, value Value, writable, configur
 // configurable: configurable, enumerable: enumerable})
 func (o *Object) DefineAccessorProperty(name string, getter, setter Value, configurable, enumerable Flag) error {
 	return tryFunc(func() {
-		o.self.defineOwnProperty(newStringValue(name), propertyDescr{
+		o.self.defineOwnPropertyStr(name, PropertyDescriptor{
 			Getter:       getter,
 			Setter:       setter,
 			Configurable: configurable,
@@ -821,7 +732,7 @@ func (o *Object) DefineAccessorProperty(name string, getter, setter Value, confi
 
 func (o *Object) Set(name string, value interface{}) error {
 	return tryFunc(func() {
-		o.self.putStr(name, o.runtime.ToValue(value), true)
+		o.self.setOwnStr(name, o.runtime.ToValue(value), true)
 	})
 }
 
@@ -906,21 +817,6 @@ func (o valueUnresolved) StrictEquals(Value) bool {
 	return false
 }
 
-func (o valueUnresolved) assertInt() (int64, bool) {
-	o.throw()
-	return 0, false
-}
-
-func (o valueUnresolved) assertFloat() (float64, bool) {
-	o.throw()
-	return 0, false
-}
-
-func (o valueUnresolved) assertString() (valueString, bool) {
-	o.throw()
-	return nil, false
-}
-
 func (o valueUnresolved) baseObject(*Runtime) *Object {
 	o.throw()
 	return nil
@@ -994,18 +890,6 @@ func (s *valueSymbol) Export() interface{} {
 
 func (s *valueSymbol) ExportType() reflect.Type {
 	return reflectTypeString
-}
-
-func (s *valueSymbol) assertInt() (int64, bool) {
-	return 0, false
-}
-
-func (s *valueSymbol) assertString() (valueString, bool) {
-	return nil, false
-}
-
-func (s *valueSymbol) assertFloat() (float64, bool) {
-	return 0, false
 }
 
 func (s *valueSymbol) baseObject(r *Runtime) *Object {

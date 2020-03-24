@@ -109,7 +109,7 @@ func (s unicodeString) ToNumber() Value {
 }
 
 func (s unicodeString) ToObject(r *Runtime) *Object {
-	return r._newString(s)
+	return r._newString(s, r.global.StringPrototype)
 }
 
 func (s unicodeString) equals(other unicodeString) bool {
@@ -137,18 +137,6 @@ func (s unicodeString) Equals(other Value) bool {
 		return true
 	}
 
-	if _, ok := other.assertInt(); ok {
-		return false
-	}
-
-	if _, ok := other.assertFloat(); ok {
-		return false
-	}
-
-	if _, ok := other.(valueBool); ok {
-		return false
-	}
-
 	if o, ok := other.(*Object); ok {
 		return s.Equals(o.self.toPrimitive())
 	}
@@ -157,18 +145,6 @@ func (s unicodeString) Equals(other Value) bool {
 
 func (s unicodeString) StrictEquals(other Value) bool {
 	return s.SameAs(other)
-}
-
-func (s unicodeString) assertInt() (int64, bool) {
-	return 0, false
-}
-
-func (s unicodeString) assertFloat() (float64, bool) {
-	return 0, false
-}
-
-func (s unicodeString) assertString() (valueString, bool) {
-	return s, true
 }
 
 func (s unicodeString) baseObject(r *Runtime) *Object {

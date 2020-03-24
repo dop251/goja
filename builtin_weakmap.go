@@ -133,7 +133,7 @@ func (r *Runtime) weakMapProto_set(call FunctionCall) Value {
 	return call.This
 }
 
-func (r *Runtime) builtin_newWeakMap(args []Value) *Object {
+func (r *Runtime) builtin_newWeakMap(args []Value, proto *Object) *Object {
 	o := &Object{runtime: r}
 
 	wmo := &weakMapObject{}
@@ -141,19 +141,19 @@ func (r *Runtime) builtin_newWeakMap(args []Value) *Object {
 	wmo.val = o
 	wmo.extensible = true
 	o.self = wmo
-	wmo.prototype = r.global.WeakMapPrototype
+	wmo.prototype = proto
 	wmo.init()
 	if len(args) > 0 {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
-			adder := wmo.getStr("set")
+			adder := wmo.getStr("set", nil)
 			iter := r.getIterator(arg, nil)
-			i0 := intToValue(0)
-			i1 := intToValue(1)
+			i0 := valueInt(0)
+			i1 := valueInt(1)
 			if adder == r.global.weakMapAdder {
 				r.iterate(iter, func(item Value) {
 					itemObj := r.toObject(item)
-					k := itemObj.self.get(i0)
-					v := nilSafe(itemObj.self.get(i1))
+					k := itemObj.self.getIdx(i0, nil)
+					v := nilSafe(itemObj.self.getIdx(i1, nil))
 					wmo.m.set(r.toObject(k), v)
 				})
 			} else {
@@ -163,8 +163,8 @@ func (r *Runtime) builtin_newWeakMap(args []Value) *Object {
 				}
 				r.iterate(iter, func(item Value) {
 					itemObj := r.toObject(item)
-					k := itemObj.self.get(i0)
-					v := itemObj.self.get(i1)
+					k := itemObj.self.getIdx(i0, nil)
+					v := itemObj.self.getIdx(i1, nil)
 					adderFn(FunctionCall{This: o, Arguments: []Value{k, v}})
 				})
 			}
@@ -183,7 +183,7 @@ func (r *Runtime) createWeakMapProto(val *Object) objectImpl {
 	o._putProp("has", r.newNativeFunc(r.weakMapProto_has, nil, "has", nil, 1), true, false, true)
 	o._putProp("get", r.newNativeFunc(r.weakMapProto_get, nil, "get", nil, 1), true, false, true)
 
-	o.put(symToStringTag, valueProp(asciiString(classWeakMap), false, false, true), true)
+	o._putSym(symToStringTag, valueProp(asciiString(classWeakMap), false, false, true))
 
 	return o
 }

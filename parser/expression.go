@@ -373,6 +373,23 @@ func (self *_parser) parseBracketMember(left ast.Expression) ast.Expression {
 
 func (self *_parser) parseNewExpression() ast.Expression {
 	idx := self.expect(token.NEW)
+	if self.token == token.PERIOD {
+		self.next()
+		prop := self.parseIdentifier()
+		if prop.Name == "target" {
+			if !self.scope.inFunction {
+				self.error(idx, "new.target expression is not allowed here")
+			}
+			return &ast.MetaProperty{
+				Meta: &ast.Identifier{
+					Name: token.NEW.String(),
+					Idx:  idx,
+				},
+				Property: prop,
+			}
+		}
+		self.errorUnexpectedToken(token.IDENTIFIER)
+	}
 	callee := self.parseLeftHandSideExpression()
 	node := &ast.NewExpression{
 		New:    idx,

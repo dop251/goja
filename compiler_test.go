@@ -27,7 +27,7 @@ func testScript(script string, expectedResult Value, t *testing.T) {
 	t.Logf("stack size: %d", len(vm.stack))
 	t.Logf("stashAllocs: %d", vm.stashAllocs)
 
-	v := vm.r.globalObject.self.getStr("rv")
+	v := vm.r.globalObject.self.getStr("rv", nil)
 	if v == nil {
 		v = _undefined
 	}

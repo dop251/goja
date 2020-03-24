@@ -8,7 +8,6 @@ func (r *Runtime) initErrors() {
 	o._putProp("toString", r.newNativeFunc(r.error_toString, nil, "toString", nil, 0), true, false, true)
 
 	r.global.Error = r.newNativeFuncConstruct(r.builtin_Error, "Error", r.global.ErrorPrototype, 1)
-	o = r.global.Error.self
 	r.addToGlobal("Error", r.global.Error)
 
 	r.global.TypeErrorPrototype = r.builtin_new(r.global.Error, []Value{})

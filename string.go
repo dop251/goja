@@ -27,7 +27,6 @@ var (
 	stringPlusInfinity             = asciiString("+Infinity")
 	stringNegInfinity              = asciiString("-Infinity")
 	stringEmpty        valueString = asciiString("")
-	string__proto__    valueString = asciiString(__proto__)
 
 	stringError          valueString = asciiString("Error")
 	stringTypeError      valueString = asciiString("TypeError")
@@ -93,37 +92,27 @@ func (s *stringObject) setLength() {
 	s._put("length", &s.lengthProp)
 }
 
-func (s *stringObject) get(n Value) Value {
-	if idx := toIdx(n); idx >= 0 && idx < s.length {
-		return s.getIdx(idx)
+func (s *stringObject) getStr(name string, receiver Value) Value {
+	if i := strToIdx64(name); i >= 0 && i < s.length {
+		return s._getIdx(i)
 	}
-	return s.baseObject.get(n)
+	return s.baseObject.getStr(name, receiver)
 }
 
-func (s *stringObject) getStr(name string) Value {
-	if i := strToIdx(name); i >= 0 && i < s.length {
-		return s.getIdx(i)
+func (s *stringObject) getIdx(idx valueInt, receiver Value) Value {
+	i := int64(idx)
+	if i >= 0 {
+		if i < s.length {
+			return s._getIdx(i)
+		}
+		return nil
 	}
-	return s.baseObject.getStr(name)
-}
-
-func (s *stringObject) getPropStr(name string) Value {
-	if i := strToIdx(name); i >= 0 && i < s.length {
-		return s.getIdx(i)
-	}
-	return s.baseObject.getPropStr(name)
-}
-
-func (s *stringObject) getProp(n Value) Value {
-	if i := toIdx(n); i >= 0 && i < s.length {
-		return s.getIdx(i)
-	}
-	return s.baseObject.getProp(n)
+	return s.baseObject.getStr(idx.String(), receiver)
 }
 
 func (s *stringObject) getOwnPropStr(name string) Value {
-	if i := strToIdx(name); i >= 0 && i < s.length {
-		val := s.getIdx(i)
+	if i := strToIdx64(name); i >= 0 && i < s.length {
+		val := s._getIdx(i)
 		return &valueProperty{
 			value:      val,
 			enumerable: true,
@@ -133,42 +122,76 @@ func (s *stringObject) getOwnPropStr(name string) Value {
 	return s.baseObject.getOwnPropStr(name)
 }
 
-func (s *stringObject) getIdx(idx int64) Value {
+func (s *stringObject) getOwnPropIdx(idx valueInt) Value {
+	i := int64(idx)
+	if i >= 0 {
+		if i < s.length {
+			val := s._getIdx(i)
+			return &valueProperty{
+				value:      val,
+				enumerable: true,
+			}
+		}
+		return nil
+	}
+
+	return s.baseObject.getOwnPropStr(idx.String())
+}
+
+func (s *stringObject) _getIdx(idx int64) Value {
 	return s.value.substring(idx, idx+1)
 }
 
-func (s *stringObject) put(n Value, val Value, throw bool) {
-	if i := toIdx(n); i >= 0 && i < s.length {
+func (s *stringObject) setOwnStr(name string, val Value, throw bool) bool {
+	if i := strToIdx64(name); i >= 0 && i < s.length {
 		s.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%d' of a String", i)
-		return
+		return false
 	}
 
-	s.baseObject.put(n, val, throw)
+	return s.baseObject.setOwnStr(name, val, throw)
 }
 
-func (s *stringObject) putStr(name string, val Value, throw bool) {
-	if i := strToIdx(name); i >= 0 && i < s.length {
+func (s *stringObject) setOwnIdx(idx valueInt, val Value, throw bool) bool {
+	i := int64(idx)
+	if i >= 0 && i < s.length {
 		s.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%d' of a String", i)
-		return
+		return false
 	}
 
-	s.baseObject.putStr(name, val, throw)
+	return s.baseObject.setOwnStr(idx.String(), val, throw)
 }
 
-func (s *stringObject) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
-	if i := toIdx(n); i >= 0 && i < s.length {
+func (s *stringObject) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
+	return s._setForeignStr(name, s.getOwnPropStr(name), val, receiver, throw)
+}
+
+func (s *stringObject) setForeignIdx(idx valueInt, val, receiver Value, throw bool) (bool, bool) {
+	return s._setForeignIdx(idx, s.getOwnPropIdx(idx), val, receiver, throw)
+}
+
+func (s *stringObject) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
+	if i := strToIdx64(name); i >= 0 && i < s.length {
 		s.val.runtime.typeErrorResult(throw, "Cannot redefine property: %d", i)
 		return false
 	}
 
-	return s.baseObject.defineOwnProperty(n, descr, throw)
+	return s.baseObject.defineOwnPropertyStr(name, descr, throw)
+}
+
+func (s *stringObject) defineOwnPropertyIdx(idx valueInt, descr PropertyDescriptor, throw bool) bool {
+	i := int64(idx)
+	if i >= 0 && i < s.length {
+		s.val.runtime.typeErrorResult(throw, "Cannot redefine property: %d", i)
+		return false
+	}
+
+	return s.baseObject.defineOwnPropertyStr(idx.String(), descr, throw)
 }
 
 type stringPropIter struct {
 	str         valueString // separate, because obj can be the singleton
 	obj         *stringObject
 	idx, length int64
-	recursive   bool
 }
 
 func (i *stringPropIter) next() (propIterItem, iterNextFunc) {
@@ -178,28 +201,27 @@ func (i *stringPropIter) next() (propIterItem, iterNextFunc) {
 		return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.next
 	}
 
-	return i.obj.baseObject._enumerate(i.recursive)()
+	return i.obj.baseObject.enumerateUnfiltered()()
 }
 
-func (s *stringObject) _enumerate(recursive bool) iterNextFunc {
+func (s *stringObject) enumerateUnfiltered() iterNextFunc {
 	return (&stringPropIter{
-		str:       s.value,
-		obj:       s,
-		length:    s.length,
-		recursive: recursive,
+		str:    s.value,
+		obj:    s,
+		length: s.length,
 	}).next
 }
 
-func (s *stringObject) enumerate(all, recursive bool) iterNextFunc {
-	return (&propFilterIter{
-		wrapped: s._enumerate(recursive),
-		all:     all,
-		seen:    make(map[string]bool),
-	}).next
+func (s *stringObject) ownKeys(all bool, accum []Value) []Value {
+	for i := int64(0); i < s.length; i++ {
+		accum = append(accum, asciiString(strconv.FormatInt(i, 10)))
+	}
+
+	return s.baseObject.ownKeys(all, accum)
 }
 
 func (s *stringObject) deleteStr(name string, throw bool) bool {
-	if i := strToIdx(name); i >= 0 && i < s.length {
+	if i := strToIdx64(name); i >= 0 && i < s.length {
 		s.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of a String", i)
 		return false
 	}
@@ -207,25 +229,27 @@ func (s *stringObject) deleteStr(name string, throw bool) bool {
 	return s.baseObject.deleteStr(name, throw)
 }
 
-func (s *stringObject) delete(n Value, throw bool) bool {
-	if i := toIdx(n); i >= 0 && i < s.length {
+func (s *stringObject) deleteIdx(idx valueInt, throw bool) bool {
+	i := int64(idx)
+	if i >= 0 && i < s.length {
 		s.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of a String", i)
 		return false
 	}
 
-	return s.baseObject.delete(n, throw)
-}
-
-func (s *stringObject) hasOwnProperty(n Value) bool {
-	if i := toIdx(n); i >= 0 && i < s.length {
-		return true
-	}
-	return s.baseObject.hasOwnProperty(n)
+	return s.baseObject.deleteStr(idx.String(), throw)
 }
 
 func (s *stringObject) hasOwnPropertyStr(name string) bool {
-	if i := strToIdx(name); i >= 0 && i < s.length {
+	if i := strToIdx64(name); i >= 0 && i < s.length {
 		return true
 	}
 	return s.baseObject.hasOwnPropertyStr(name)
+}
+
+func (s *stringObject) hasOwnPropertyIdx(idx valueInt) bool {
+	i := int64(idx)
+	if i >= 0 && i < s.length {
+		return true
+	}
+	return s.baseObject.hasOwnPropertyStr(idx.String())
 }

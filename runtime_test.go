@@ -1356,6 +1356,75 @@ func TestPrimThisValueGetter(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestObjSetSym(t *testing.T) {
+	const SCRIPT = `
+	'use strict';
+	var sym = Symbol(true);
+	var p1 = Object.create(null);
+	var p2 = Object.create(p1);
+	
+	Object.defineProperty(p1, sym, {
+	value: 42
+	});
+	
+	Object.defineProperty(p2, sym, {
+	value: 43,
+	writable: true,
+	});
+	var o = Object.create(p2);
+	o[sym] = 44;
+	o[sym];
+	`
+	testScript1(SCRIPT, intToValue(44), t)
+}
+
+func TestObjSet(t *testing.T) {
+	const SCRIPT = `
+	'use strict';
+	var p1 = Object.create(null);
+	var p2 = Object.create(p1);
+	
+	Object.defineProperty(p1, "test", {
+	value: 42
+	});
+	
+	Object.defineProperty(p2, "test", {
+	value: 43,
+	writable: true,
+	});
+	var o = Object.create(p2);
+	o.test = 44;
+	o.test;
+	`
+	testScript1(SCRIPT, intToValue(44), t)
+}
+
+func TestToValueNilValue(t *testing.T) {
+	r := New()
+	var a Value
+	r.Set("a", a)
+	ret, err := r.RunString(`
+	""+a;
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !asciiString("null").SameAs(ret) {
+		t.Fatalf("ret: %v", ret)
+	}
+}
+
+func TestNativeCtorNewTarget(t *testing.T) {
+	const SCRIPT = `
+	function NewTarget() {
+	}
+
+	var o = Reflect.construct(Number, [1], NewTarget);
+	o.__proto__ === NewTarget.prototype && o.toString() === "[object Number]";
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

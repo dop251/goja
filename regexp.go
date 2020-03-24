@@ -294,14 +294,14 @@ func (r *regexpObject) execResultToArray(target valueString, result []int) Value
 		}
 	}
 	match := r.val.runtime.newArrayValues(valueArray)
-	match.self.putStr("input", target, false)
-	match.self.putStr("index", intToValue(int64(matchIndex)), false)
+	match.self.setOwnStr("input", target, false)
+	match.self.setOwnStr("index", intToValue(int64(matchIndex)), false)
 	return match
 }
 
 func (r *regexpObject) execRegexp(target valueString) (match bool, result []int) {
 	lastIndex := int64(0)
-	if p := r.getStr("lastIndex"); p != nil {
+	if p := r.getStr("lastIndex", nil); p != nil {
 		lastIndex = p.ToInteger()
 		if lastIndex < 0 {
 			lastIndex = 0
@@ -315,7 +315,7 @@ func (r *regexpObject) execRegexp(target valueString) (match bool, result []int)
 		result = r.pattern.FindSubmatchIndex(target, int(index))
 	}
 	if result == nil || r.sticky && result[0] != 0 {
-		r.putStr("lastIndex", intToValue(0), true)
+		r.setOwnStr("lastIndex", intToValue(0), true)
 		return
 	}
 	match = true
@@ -325,7 +325,7 @@ func (r *regexpObject) execRegexp(target valueString) (match bool, result []int)
 		result[i] += int(index)
 	}
 	if r.global || r.sticky {
-		r.putStr("lastIndex", intToValue(int64(result[1])), true)
+		r.setOwnStr("lastIndex", intToValue(int64(result[1])), true)
 	}
 	return
 }

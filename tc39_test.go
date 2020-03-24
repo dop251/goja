@@ -26,7 +26,6 @@ var (
 		"test/language/literals/regexp/S7.8.5_A1.4_T2.js":             true, // UTF-16
 		"test/language/literals/regexp/S7.8.5_A2.1_T2.js":             true, // UTF-16
 		"test/language/literals/regexp/S7.8.5_A2.4_T2.js":             true, // UTF-16
-		"test/built-ins/Object/getOwnPropertyNames/15.2.3.4-4-44.js":  true, // property order
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
@@ -36,36 +35,62 @@ var (
 		"test/built-ins/Array/prototype/concat/Array.prototype.concat_spreadable-string-wrapper.js": true,
 
 		// cross-realm
-		"test/built-ins/Symbol/unscopables/cross-realm.js":                                true,
-		"test/built-ins/Symbol/toStringTag/cross-realm.js":                                true,
-		"test/built-ins/Symbol/toPrimitive/cross-realm.js":                                true,
-		"test/built-ins/Symbol/split/cross-realm.js":                                      true,
-		"test/built-ins/Symbol/species/cross-realm.js":                                    true,
-		"test/built-ins/Symbol/search/cross-realm.js":                                     true,
-		"test/built-ins/Symbol/replace/cross-realm.js":                                    true,
-		"test/built-ins/Symbol/match/cross-realm.js":                                      true,
-		"test/built-ins/Symbol/keyFor/cross-realm.js":                                     true,
-		"test/built-ins/Symbol/iterator/cross-realm.js":                                   true,
-		"test/built-ins/Symbol/isConcatSpreadable/cross-realm.js":                         true,
-		"test/built-ins/Symbol/hasInstance/cross-realm.js":                                true,
-		"test/built-ins/Symbol/for/cross-realm.js":                                        true,
-		"test/built-ins/WeakSet/proto-from-ctor-realm.js":                                 true,
-		"test/built-ins/WeakMap/proto-from-ctor-realm.js":                                 true,
-		"test/built-ins/Map/proto-from-ctor-realm.js":                                     true,
-		"test/built-ins/Set/proto-from-ctor-realm.js":                                     true,
-		"test/built-ins/Object/proto-from-ctor.js":                                        true,
-		"test/built-ins/Array/from/proto-from-ctor-realm.js":                              true,
-		"test/built-ins/Array/of/proto-from-ctor-realm.js":                                true,
-		"test/built-ins/Array/prototype/concat/create-proto-from-ctor-realm-non-array.js": true,
-		"test/built-ins/Array/prototype/concat/create-proto-from-ctor-realm-array.js":     true,
-		"test/built-ins/Array/prototype/filter/create-proto-from-ctor-realm-non-array.js": true,
-		"test/built-ins/Array/prototype/filter/create-proto-from-ctor-realm-array.js":     true,
-		"test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-non-array.js":    true,
-		"test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js":        true,
-		"test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-non-array.js":  true,
-		"test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js":      true,
-		"test/built-ins/Array/prototype/splice/create-proto-from-ctor-realm-non-array.js": true,
-		"test/built-ins/Array/prototype/splice/create-proto-from-ctor-realm-array.js":     true,
+		"test/built-ins/Symbol/unscopables/cross-realm.js":                                                          true,
+		"test/built-ins/Symbol/toStringTag/cross-realm.js":                                                          true,
+		"test/built-ins/Symbol/toPrimitive/cross-realm.js":                                                          true,
+		"test/built-ins/Symbol/split/cross-realm.js":                                                                true,
+		"test/built-ins/Symbol/species/cross-realm.js":                                                              true,
+		"test/built-ins/Symbol/search/cross-realm.js":                                                               true,
+		"test/built-ins/Symbol/replace/cross-realm.js":                                                              true,
+		"test/built-ins/Symbol/match/cross-realm.js":                                                                true,
+		"test/built-ins/Symbol/keyFor/cross-realm.js":                                                               true,
+		"test/built-ins/Symbol/iterator/cross-realm.js":                                                             true,
+		"test/built-ins/Symbol/isConcatSpreadable/cross-realm.js":                                                   true,
+		"test/built-ins/Symbol/hasInstance/cross-realm.js":                                                          true,
+		"test/built-ins/Symbol/for/cross-realm.js":                                                                  true,
+		"test/built-ins/WeakSet/proto-from-ctor-realm.js":                                                           true,
+		"test/built-ins/WeakMap/proto-from-ctor-realm.js":                                                           true,
+		"test/built-ins/Map/proto-from-ctor-realm.js":                                                               true,
+		"test/built-ins/Set/proto-from-ctor-realm.js":                                                               true,
+		"test/built-ins/Object/proto-from-ctor.js":                                                                  true,
+		"test/built-ins/Array/from/proto-from-ctor-realm.js":                                                        true,
+		"test/built-ins/Array/of/proto-from-ctor-realm.js":                                                          true,
+		"test/built-ins/Array/prototype/concat/create-proto-from-ctor-realm-non-array.js":                           true,
+		"test/built-ins/Array/prototype/concat/create-proto-from-ctor-realm-array.js":                               true,
+		"test/built-ins/Array/prototype/filter/create-proto-from-ctor-realm-non-array.js":                           true,
+		"test/built-ins/Array/prototype/filter/create-proto-from-ctor-realm-array.js":                               true,
+		"test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-non-array.js":                              true,
+		"test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js":                                  true,
+		"test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-non-array.js":                            true,
+		"test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js":                                true,
+		"test/built-ins/Array/prototype/splice/create-proto-from-ctor-realm-non-array.js":                           true,
+		"test/built-ins/Array/prototype/splice/create-proto-from-ctor-realm-array.js":                               true,
+		"test/built-ins/Proxy/construct/arguments-realm.js":                                                         true,
+		"test/built-ins/Proxy/setPrototypeOf/trap-is-not-callable-realm.js":                                         true,
+		"test/built-ins/Proxy/getPrototypeOf/trap-is-not-callable-realm.js":                                         true,
+		"test/built-ins/Proxy/set/trap-is-not-callable-realm.js":                                                    true,
+		"test/built-ins/Proxy/getOwnPropertyDescriptor/trap-is-not-callable-realm.js":                               true,
+		"test/built-ins/Proxy/getOwnPropertyDescriptor/result-type-is-not-object-nor-undefined-realm.js":            true,
+		"test/built-ins/Proxy/get/trap-is-not-callable-realm.js":                                                    true,
+		"test/built-ins/Proxy/preventExtensions/trap-is-not-callable-realm.js":                                      true,
+		"test/built-ins/Proxy/defineProperty/null-handler-realm.js":                                                 true,
+		"test/built-ins/Proxy/ownKeys/trap-is-not-callable-realm.js":                                                true,
+		"test/built-ins/Proxy/ownKeys/return-not-list-object-throws-realm.js":                                       true,
+		"test/built-ins/Proxy/deleteProperty/trap-is-not-callable-realm.js":                                         true,
+		"test/built-ins/Proxy/isExtensible/trap-is-not-callable-realm.js":                                           true,
+		"test/built-ins/Proxy/defineProperty/trap-is-not-callable-realm.js":                                         true,
+		"test/built-ins/Proxy/defineProperty/targetdesc-undefined-target-is-not-extensible-realm.js":                true,
+		"test/built-ins/Proxy/defineProperty/targetdesc-undefined-not-configurable-descriptor-realm.js":             true,
+		"test/built-ins/Proxy/defineProperty/targetdesc-not-compatible-descriptor.js":                               true,
+		"test/built-ins/Proxy/defineProperty/targetdesc-not-compatible-descriptor-realm.js":                         true,
+		"test/built-ins/Proxy/defineProperty/targetdesc-not-compatible-descriptor-not-configurable-target-realm.js": true,
+		"test/built-ins/Proxy/defineProperty/targetdesc-configurable-desc-not-configurable-realm.js":                true,
+		"test/built-ins/Proxy/has/trap-is-not-callable-realm.js":                                                    true,
+		"test/built-ins/Proxy/defineProperty/desc-realm.js":                                                         true,
+		"test/built-ins/Proxy/apply/trap-is-not-callable-realm.js":                                                  true,
+		"test/built-ins/Proxy/apply/arguments-realm.js":                                                             true,
+		"test/built-ins/Proxy/construct/trap-is-undefined-proto-from-ctor-realm.js":                                 true,
+		"test/built-ins/Proxy/construct/trap-is-not-callable-realm.js":                                              true,
 
 		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
@@ -102,16 +127,19 @@ var (
 		"test/language/statements/for-of/Array.prototype.keys.js":            true,
 		"test/language/statements/for-of/Array.prototype.entries.js":         true,
 		"test/language/statements/for-of/Array.prototype.Symbol.iterator.js": true,
+
+		// arrow-function
+		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
 	}
 
 	featuresBlackList = []string{
-		"Proxy",
 		"arrow-function",
 	}
 
 	es6WhiteList = map[string]bool{}
 
 	es6IdWhiteList = []string{
+		"9.5",
 		"12.9.3",
 		"12.9.4",
 		"19.1",
@@ -130,6 +158,8 @@ var (
 		"23.3",
 		"23.4",
 		"25.1.2",
+		"26.1",
+		"26.2",
 		"B.2.1",
 		"B.2.2",
 	}

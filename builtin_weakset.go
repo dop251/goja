@@ -11,7 +11,7 @@ type weakSet struct {
 
 type weakSetObject struct {
 	baseObject
-	set *weakSet
+	s *weakSet
 }
 
 func newWeakSet() *weakSet {
@@ -22,7 +22,7 @@ func newWeakSet() *weakSet {
 
 func (ws *weakSetObject) init() {
 	ws.baseObject.init()
-	ws.set = newWeakSet()
+	ws.s = newWeakSet()
 }
 
 func (ws *weakSet) removePtr(ptr uintptr) {
@@ -72,7 +72,7 @@ func (r *Runtime) weakSetProto_add(call FunctionCall) Value {
 	if !ok {
 		panic(r.NewTypeError("Method WeakSet.prototype.add called on incompatible receiver %s", thisObj.String()))
 	}
-	wso.set.add(r.toObject(call.Argument(0)))
+	wso.s.add(r.toObject(call.Argument(0)))
 	return call.This
 }
 
@@ -83,7 +83,7 @@ func (r *Runtime) weakSetProto_delete(call FunctionCall) Value {
 		panic(r.NewTypeError("Method WeakSet.prototype.delete called on incompatible receiver %s", thisObj.String()))
 	}
 	obj, ok := call.Argument(0).(*Object)
-	if ok && wso.set.remove(obj) {
+	if ok && wso.s.remove(obj) {
 		return valueTrue
 	}
 	return valueFalse
@@ -96,7 +96,7 @@ func (r *Runtime) weakSetProto_has(call FunctionCall) Value {
 		panic(r.NewTypeError("Method WeakSet.prototype.has called on incompatible receiver %s", thisObj.String()))
 	}
 	obj, ok := call.Argument(0).(*Object)
-	if ok && wso.set.has(obj) {
+	if ok && wso.s.has(obj) {
 		return valueTrue
 	}
 	return valueFalse
@@ -113,7 +113,7 @@ func (r *Runtime) populateWeakSetGeneric(s *Object, adderValue Value, iterable V
 	})
 }
 
-func (r *Runtime) builtin_newWeakSet(args []Value) *Object {
+func (r *Runtime) builtin_newWeakSet(args []Value, proto *Object) *Object {
 	o := &Object{runtime: r}
 
 	wso := &weakSetObject{}
@@ -121,15 +121,15 @@ func (r *Runtime) builtin_newWeakSet(args []Value) *Object {
 	wso.val = o
 	wso.extensible = true
 	o.self = wso
-	wso.prototype = r.global.WeakSetPrototype
+	wso.prototype = proto
 	wso.init()
 	if len(args) > 0 {
 		if arg := args[0]; arg != nil && arg != _undefined && arg != _null {
-			adder := wso.getStr("add")
+			adder := wso.getStr("add", nil)
 			if adder == r.global.weakSetAdder {
 				if arr := r.checkStdArrayIter(arg); arr != nil {
 					for _, v := range arr.values {
-						wso.set.add(r.toObject(v))
+						wso.s.add(r.toObject(v))
 					}
 					return o
 				}
@@ -149,7 +149,7 @@ func (r *Runtime) createWeakSetProto(val *Object) objectImpl {
 	o._putProp("delete", r.newNativeFunc(r.weakSetProto_delete, nil, "delete", nil, 1), true, false, true)
 	o._putProp("has", r.newNativeFunc(r.weakSetProto_has, nil, "has", nil, 1), true, false, true)
 
-	o.put(symToStringTag, valueProp(asciiString(classWeakSet), false, false, true), true)
+	o._putSym(symToStringTag, valueProp(asciiString(classWeakSet), false, false, true))
 
 	return o
 }

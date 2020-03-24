@@ -10,22 +10,16 @@ func (r *Runtime) numberproto_valueOf(call FunctionCall) Value {
 	if !isNumber(this) {
 		r.typeErrorResult(true, "Value is not a number")
 	}
-	if _, ok := this.assertInt(); ok {
+	switch t := this.(type) {
+	case valueInt, valueFloat:
 		return this
-	}
-
-	if _, ok := this.assertFloat(); ok {
-		return this
-	}
-
-	if obj, ok := this.(*Object); ok {
-		if v, ok := obj.self.(*primitiveValueObject); ok {
+	case *Object:
+		if v, ok := t.self.(*primitiveValueObject); ok {
 			return v.pValue
 		}
 	}
 
-	r.typeErrorResult(true, "Number.prototype.valueOf is not generic")
-	return nil
+	panic(r.NewTypeError("Number.prototype.valueOf is not generic"))
 }
 
 func isNumber(v Value) bool {

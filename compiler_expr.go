@@ -115,6 +115,10 @@ type compiledNewExpr struct {
 	args   []compiledExpr
 }
 
+type compiledNewTarget struct {
+	baseCompiledExpr
+}
+
 type compiledSequenceExpr struct {
 	baseCompiledExpr
 	sequence []compiledExpr
@@ -232,6 +236,8 @@ func (c *compiler) compileExpression(v ast.Expression) compiledExpr {
 		return c.compileSequenceExpression(v)
 	case *ast.NewExpression:
 		return c.compileNewExpression(v)
+	case *ast.MetaProperty:
+		return c.compileMetaProperty(v)
 	default:
 		panic(fmt.Errorf("Unknown expression type: %T", v))
 	}
@@ -246,7 +252,7 @@ func (e *baseCompiledExpr) init(c *compiler, idx file.Idx) {
 	e.offset = int(idx) - 1
 }
 
-func (e *baseCompiledExpr) emitSetter(valueExpr compiledExpr) {
+func (e *baseCompiledExpr) emitSetter(compiledExpr) {
 	e.c.throwSyntaxError(e.offset, "Not a valid left-value expression")
 }
 
@@ -258,7 +264,7 @@ func (e *baseCompiledExpr) deleteExpr() compiledExpr {
 	return r
 }
 
-func (e *baseCompiledExpr) emitUnary(prepare, body func(), postfix bool, putOnStack bool) {
+func (e *baseCompiledExpr) emitUnary(func(), func(), bool, bool) {
 	e.c.throwSyntaxError(e.offset, "Not a valid left-value expression")
 }
 
@@ -923,6 +929,23 @@ func (c *compiler) compileNewExpression(v *ast.NewExpression) compiledExpr {
 	return r
 }
 
+func (e *compiledNewTarget) emitGetter(putOnStack bool) {
+	if putOnStack {
+		e.addSrcMap()
+		e.c.emit(loadNewTarget)
+	}
+}
+
+func (c *compiler) compileMetaProperty(v *ast.MetaProperty) compiledExpr {
+	if v.Meta.Name == "new" || v.Property.Name != "target" {
+		r := &compiledNewTarget{}
+		r.init(c, v.Idx0())
+		return r
+	}
+	c.throwSyntaxError(int(v.Idx)-1, "Unsupported meta property: %s.%s", v.Meta.Name, v.Property.Name)
+	return nil
+}
+
 func (e *compiledSequenceExpr) emitGetter(putOnStack bool) {
 	if len(e.sequence) > 0 {
 		for i := 0; i < len(e.sequence)-1; i++ {
@@ -950,11 +973,11 @@ func (c *compiler) compileSequenceExpression(v *ast.SequenceExpression) compiled
 
 func (c *compiler) emitThrow(v Value) {
 	if o, ok := v.(*Object); ok {
-		t := o.self.getStr("name").String()
+		t := o.self.getStr("name", nil).String()
 		switch t {
 		case "TypeError":
 			c.emit(getVar1(t))
-			msg := o.self.getStr("message")
+			msg := o.self.getStr("message", nil)
 			if msg != nil {
 				c.emit(loadVal(c.p.defineLiteralValue(msg)))
 				c.emit(_new(1))
@@ -1365,7 +1388,7 @@ func (c *compiler) compileObjectLiteral(v *ast.ObjectLiteral) compiledExpr {
 
 func (e *compiledArrayLiteral) emitGetter(putOnStack bool) {
 	e.addSrcMap()
-	objCount := uint32(0)
+	objCount := 0
 	for _, v := range e.expr.Value {
 		if v != nil {
 			e.c.compileExpression(v).emitGetter(true)
@@ -1374,11 +1397,11 @@ func (e *compiledArrayLiteral) emitGetter(putOnStack bool) {
 			e.c.emit(loadNil)
 		}
 	}
-	if objCount == uint32(len(e.expr.Value)) {
+	if objCount == len(e.expr.Value) {
 		e.c.emit(newArray(objCount))
 	} else {
 		e.c.emit(&newArraySparse{
-			l:        uint32(len(e.expr.Value)),
+			l:        len(e.expr.Value),
 			objCount: objCount,
 		})
 	}

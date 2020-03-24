@@ -21,7 +21,7 @@ func (r *Runtime) collator() *collate.Collator {
 }
 
 func toString(arg Value) valueString {
-	if s, ok := arg.assertString(); ok {
+	if s, ok := arg.(valueString); ok {
 		return s
 	}
 	if s, ok := arg.(*valueSymbol); ok {
@@ -38,7 +38,7 @@ func (r *Runtime) builtin_String(call FunctionCall) Value {
 	}
 }
 
-func (r *Runtime) _newString(s valueString) *Object {
+func (r *Runtime) _newString(s valueString, proto *Object) *Object {
 	v := &Object{runtime: r}
 
 	o := &stringObject{}
@@ -46,7 +46,7 @@ func (r *Runtime) _newString(s valueString) *Object {
 	o.val = v
 	o.extensible = true
 	v.self = o
-	o.prototype = r.global.StringPrototype
+	o.prototype = proto
 	if s != nil {
 		o.value = s
 	}
@@ -54,14 +54,14 @@ func (r *Runtime) _newString(s valueString) *Object {
 	return v
 }
 
-func (r *Runtime) builtin_newString(args []Value) *Object {
+func (r *Runtime) builtin_newString(args []Value, proto *Object) *Object {
 	var s valueString
 	if len(args) > 0 {
 		s = toString(args[0])
 	} else {
 		s = stringEmpty
 	}
-	return r._newString(s)
+	return r._newString(s, proto)
 }
 
 func searchSubstringUTF8(str, search string) (ret [][]int) {
@@ -79,7 +79,7 @@ func searchSubstringUTF8(str, search string) (ret [][]int) {
 }
 
 func (r *Runtime) stringproto_toStringValueOf(this Value, funcName string) Value {
-	if str, ok := this.assertString(); ok {
+	if str, ok := this.(valueString); ok {
 		return str
 	}
 	if obj, ok := this.(*Object); ok {
@@ -206,7 +206,7 @@ func (r *Runtime) stringproto_lastIndexOf(call FunctionCall) Value {
 	numPos := call.Argument(1).ToNumber()
 
 	var pos int64
-	if f, ok := numPos.assertFloat(); ok && math.IsNaN(f) {
+	if f, ok := numPos.(valueFloat); ok && math.IsNaN(float64(f)) {
 		pos = value.length()
 	} else {
 		pos = numPos.ToInteger()
@@ -248,10 +248,10 @@ func (r *Runtime) stringproto_match(call FunctionCall) Value {
 	}
 
 	if rx == nil {
-		rx = r.builtin_newRegExp([]Value{regexp}).self.(*regexpObject)
+		rx = r.builtin_newRegExp([]Value{regexp}, r.global.RegExpPrototype).self.(*regexpObject)
 	}
 
-	if matcher, ok := r.toObject(rx.getSym(symMatch)).self.assertCallable(); ok {
+	if matcher, ok := r.toObject(rx.getSym(symMatch, nil)).self.assertCallable(); ok {
 		return matcher(FunctionCall{
 			This:      rx.val,
 			Arguments: []Value{call.This.toString()},
@@ -431,10 +431,10 @@ func (r *Runtime) stringproto_search(call FunctionCall) Value {
 	}
 
 	if rx == nil {
-		rx = r.builtin_newRegExp([]Value{regexp}).self.(*regexpObject)
+		rx = r.builtin_newRegExp([]Value{regexp}, r.global.RegExpPrototype).self.(*regexpObject)
 	}
 
-	if searcher, ok := r.toObject(rx.getSym(symSearch)).self.assertCallable(); ok {
+	if searcher, ok := r.toObject(rx.getSym(symSearch, nil)).self.assertCallable(); ok {
 		return searcher(FunctionCall{
 			This:      rx.val,
 			Arguments: []Value{call.This.toString()},
@@ -615,10 +615,9 @@ func (r *Runtime) stringproto_substr(call FunctionCall) Value {
 }
 
 func (r *Runtime) initString() {
-	r.global.StringPrototype = r.builtin_newString([]Value{stringEmpty})
+	r.global.StringPrototype = r.builtin_newString([]Value{stringEmpty}, r.global.ObjectPrototype)
 
 	o := r.global.StringPrototype.self
-	o.(*stringObject).prototype = r.global.ObjectPrototype
 	o._putProp("toString", r.newNativeFunc(r.stringproto_toString, nil, "toString", nil, 0), true, false, true)
 	o._putProp("valueOf", r.newNativeFunc(r.stringproto_valueOf, nil, "valueOf", nil, 0), true, false, true)
 	o._putProp("charAt", r.newNativeFunc(r.stringproto_charAt, nil, "charAt", nil, 1), true, false, true)

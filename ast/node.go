@@ -172,6 +172,11 @@ type (
 		Idx         file.Idx
 		Initializer Expression
 	}
+
+	MetaProperty struct {
+		Meta, Property *Identifier
+		Idx            file.Idx
+	}
 )
 
 // _expressionNode
@@ -197,6 +202,7 @@ func (*StringLiteral) _expressionNode()         {}
 func (*ThisExpression) _expressionNode()        {}
 func (*UnaryExpression) _expressionNode()       {}
 func (*VariableExpression) _expressionNode()    {}
+func (*MetaProperty) _expressionNode()          {}
 
 // ========= //
 // Statement //
@@ -413,6 +419,7 @@ func (self *StringLiteral) Idx0() file.Idx         { return self.Idx }
 func (self *ThisExpression) Idx0() file.Idx        { return self.Idx }
 func (self *UnaryExpression) Idx0() file.Idx       { return self.Idx }
 func (self *VariableExpression) Idx0() file.Idx    { return self.Idx }
+func (self *MetaProperty) Idx0() file.Idx          { return self.Idx }
 
 func (self *BadStatement) Idx0() file.Idx        { return self.From }
 func (self *BlockStatement) Idx0() file.Idx      { return self.LeftBrace }
@@ -470,6 +477,9 @@ func (self *VariableExpression) Idx1() file.Idx {
 		return file.Idx(int(self.Idx) + len(self.Name) + 1)
 	}
 	return self.Initializer.Idx1()
+}
+func (self *MetaProperty) Idx1() file.Idx {
+	return self.Property.Idx1()
 }
 
 func (self *BadStatement) Idx1() file.Idx        { return self.To }

@@ -15,10 +15,6 @@ func (o *objectGoMapReflect) init() {
 }
 
 func (o *objectGoMapReflect) toKey(n Value, throw bool) reflect.Value {
-	if _, ok := n.(*valueSymbol); ok {
-		o.val.runtime.typeErrorResult(throw, "Cannot set Symbol properties on Go maps")
-		return reflect.Value{}
-	}
 	key, err := o.val.runtime.toReflectValue(n, o.keyType)
 	if err != nil {
 		o.val.runtime.typeErrorResult(throw, "map key conversion error: %v", err)
@@ -58,26 +54,18 @@ func (o *objectGoMapReflect) _getStr(name string) Value {
 	return nil
 }
 
-func (o *objectGoMapReflect) get(n Value) Value {
-	if v := o._get(n); v != nil {
-		return v
-	}
-	return o.objectGoReflect.get(n)
-}
-
-func (o *objectGoMapReflect) getStr(name string) Value {
+func (o *objectGoMapReflect) getStr(name string, receiver Value) Value {
 	if v := o._getStr(name); v != nil {
 		return v
 	}
-	return o.objectGoReflect.getStr(name)
+	return o.objectGoReflect.getStr(name, receiver)
 }
 
-func (o *objectGoMapReflect) getProp(n Value) Value {
-	return o.get(n)
-}
-
-func (o *objectGoMapReflect) getPropStr(name string) Value {
-	return o.getStr(name)
+func (o *objectGoMapReflect) getIdx(idx valueInt, receiver Value) Value {
+	if v := o._get(idx); v != nil {
+		return v
+	}
+	return o.objectGoReflect.getIdx(idx, receiver)
 }
 
 func (o *objectGoMapReflect) getOwnPropStr(name string) Value {
@@ -91,6 +79,17 @@ func (o *objectGoMapReflect) getOwnPropStr(name string) Value {
 	return o.objectGoReflect.getOwnPropStr(name)
 }
 
+func (o *objectGoMapReflect) getOwnPropIdx(idx valueInt) Value {
+	if v := o._get(idx); v != nil {
+		return &valueProperty{
+			value:      v,
+			writable:   true,
+			enumerable: true,
+		}
+	}
+	return o.objectGoReflect.getOwnPropStr(idx.String())
+}
+
 func (o *objectGoMapReflect) toValue(val Value, throw bool) (reflect.Value, bool) {
 	v, err := o.val.runtime.toReflectValue(val, o.valueType)
 	if err != nil {
@@ -101,79 +100,109 @@ func (o *objectGoMapReflect) toValue(val Value, throw bool) (reflect.Value, bool
 	return v, true
 }
 
-func (o *objectGoMapReflect) put(key, val Value, throw bool) {
-	k := o.toKey(key, throw)
-	v, ok := o.toValue(val, throw)
-	if !ok {
-		return
+func (o *objectGoMapReflect) _put(key reflect.Value, val Value, throw bool) bool {
+	if key.IsValid() {
+		if o.extensible || o.value.MapIndex(key).IsValid() {
+			v, ok := o.toValue(val, throw)
+			if !ok {
+				return false
+			}
+			o.value.SetMapIndex(key, v)
+		} else {
+			o.val.runtime.typeErrorResult(throw, "Cannot set property %s, object is not extensible", key.String())
+			return false
+		}
+		return true
 	}
-	o.value.SetMapIndex(k, v)
+	return false
 }
 
-func (o *objectGoMapReflect) putStr(name string, val Value, throw bool) {
-	k := o.strToKey(name, throw)
-	if !k.IsValid() {
-		return
+func (o *objectGoMapReflect) setOwnStr(name string, val Value, throw bool) bool {
+	key := o.strToKey(name, false)
+	if !key.IsValid() || !o.value.MapIndex(key).IsValid() {
+		if proto := o.prototype; proto != nil {
+			// we know it's foreign because prototype loops are not allowed
+			if res, ok := proto.self.setForeignStr(name, val, o.val, throw); ok {
+				return res
+			}
+		}
+		// new property
+		if !o.extensible {
+			o.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
+			return false
+		} else {
+			if throw && !key.IsValid() {
+				o.strToKey(name, true)
+				return false
+			}
+		}
 	}
-	v, ok := o.toValue(val, throw)
-	if !ok {
-		return
-	}
-	o.value.SetMapIndex(k, v)
+	o._put(key, val, throw)
+	return true
 }
 
-func (o *objectGoMapReflect) _putProp(name string, value Value, writable, enumerable, configurable bool) Value {
-	o.putStr(name, value, true)
-	return value
+func (o *objectGoMapReflect) setOwnIdx(idx valueInt, val Value, throw bool) bool {
+	key := o.toKey(idx, false)
+	if !key.IsValid() || !o.value.MapIndex(key).IsValid() {
+		if proto := o.prototype; proto != nil {
+			// we know it's foreign because prototype loops are not allowed
+			if res, ok := proto.self.setForeignIdx(idx, val, o.val, throw); ok {
+				return res
+			}
+		}
+		// new property
+		if !o.extensible {
+			o.val.runtime.typeErrorResult(throw, "Cannot add property %d, object is not extensible", idx)
+			return false
+		} else {
+			if throw && !key.IsValid() {
+				o.toKey(idx, true)
+				return false
+			}
+		}
+	}
+	o._put(key, val, throw)
+	return true
 }
 
-func (o *objectGoMapReflect) defineOwnProperty(n Value, descr propertyDescr, throw bool) bool {
-	if !o.val.runtime.checkHostObjectPropertyDescr(n, descr, throw) {
+func (o *objectGoMapReflect) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
+	return o._setForeignStr(name, trueValIfPresent(o.hasOwnPropertyStr(name)), val, receiver, throw)
+}
+
+func (o *objectGoMapReflect) setForeignIdx(idx valueInt, val, receiver Value, throw bool) (bool, bool) {
+	return o._setForeignIdx(idx, trueValIfPresent(o.hasOwnPropertyIdx(idx)), val, receiver, throw)
+}
+
+func (o *objectGoMapReflect) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
+	if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 		return false
 	}
 
-	o.put(n, descr.Value, throw)
-	return true
+	return o._put(o.strToKey(name, throw), descr.Value, throw)
+}
+
+func (o *objectGoMapReflect) defineOwnPropertyIdx(idx valueInt, descr PropertyDescriptor, throw bool) bool {
+	if !o.val.runtime.checkHostObjectPropertyDescr(idx.String(), descr, throw) {
+		return false
+	}
+
+	return o._put(o.toKey(idx, throw), descr.Value, throw)
 }
 
 func (o *objectGoMapReflect) hasOwnPropertyStr(name string) bool {
 	key := o.strToKey(name, false)
-	if !key.IsValid() {
-		return false
-	}
-	return o.value.MapIndex(key).IsValid()
-}
-
-func (o *objectGoMapReflect) hasOwnProperty(n Value) bool {
-	key := o.toKey(n, false)
-	if !key.IsValid() {
-		return false
-	}
-
-	return o.value.MapIndex(key).IsValid()
-}
-
-func (o *objectGoMapReflect) hasProperty(n Value) bool {
-	if o.hasOwnProperty(n) {
+	if key.IsValid() && o.value.MapIndex(key).IsValid() {
 		return true
 	}
-	return o.objectGoReflect.hasProperty(n)
+	return false
 }
 
-func (o *objectGoMapReflect) hasPropertyStr(name string) bool {
-	if o.hasOwnPropertyStr(name) {
+func (o *objectGoMapReflect) hasOwnPropertyIdx(idx valueInt) bool {
+	key := o.toKey(idx, false)
+	if key.IsValid() && o.value.MapIndex(key).IsValid() {
 		return true
 	}
-	return o.objectGoReflect.hasPropertyStr(name)
-}
-
-func (o *objectGoMapReflect) delete(n Value, throw bool) bool {
-	key := o.toKey(n, throw)
-	if !key.IsValid() {
-		return false
-	}
-	o.value.SetMapIndex(key, reflect.Value{})
-	return true
+	return false
 }
 
 func (o *objectGoMapReflect) deleteStr(name string, throw bool) bool {
@@ -185,11 +214,19 @@ func (o *objectGoMapReflect) deleteStr(name string, throw bool) bool {
 	return true
 }
 
+func (o *objectGoMapReflect) deleteIdx(idx valueInt, throw bool) bool {
+	key := o.toKey(idx, throw)
+	if !key.IsValid() {
+		return false
+	}
+	o.value.SetMapIndex(key, reflect.Value{})
+	return true
+}
+
 type gomapReflectPropIter struct {
-	o         *objectGoMapReflect
-	keys      []reflect.Value
-	idx       int
-	recursive bool
+	o    *objectGoMapReflect
+	keys []reflect.Value
+	idx  int
 }
 
 func (i *gomapReflectPropIter) next() (propIterItem, iterNextFunc) {
@@ -202,28 +239,26 @@ func (i *gomapReflectPropIter) next() (propIterItem, iterNextFunc) {
 		}
 	}
 
-	if i.recursive {
-		return i.o.objectGoReflect._enumerate(true)()
+	if i.o.prototype != nil {
+		return i.o.prototype.self.enumerateUnfiltered()()
 	}
-
 	return propIterItem{}, nil
 }
 
-func (o *objectGoMapReflect) _enumerate(recusrive bool) iterNextFunc {
-	r := &gomapReflectPropIter{
-		o:         o,
-		keys:      o.value.MapKeys(),
-		recursive: recusrive,
-	}
-	return r.next
+func (o *objectGoMapReflect) enumerateUnfiltered() iterNextFunc {
+	return (&gomapReflectPropIter{
+		o:    o,
+		keys: o.value.MapKeys(),
+	}).next
 }
 
-func (o *objectGoMapReflect) enumerate(all, recursive bool) iterNextFunc {
-	return (&propFilterIter{
-		wrapped: o._enumerate(recursive),
-		all:     all,
-		seen:    make(map[string]bool),
-	}).next
+func (o *objectGoMapReflect) ownKeys(_ bool, accum []Value) []Value {
+	// all own keys are enumerable
+	for _, key := range o.value.MapKeys() {
+		accum = append(accum, newStringValue(key.String()))
+	}
+
+	return accum
 }
 
 func (o *objectGoMapReflect) equal(other objectImpl) bool {

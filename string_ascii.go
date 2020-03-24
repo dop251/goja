@@ -164,7 +164,7 @@ func (s asciiString) ToNumber() Value {
 }
 
 func (s asciiString) ToObject(r *Runtime) *Object {
-	return r._newString(s)
+	return r._newString(s, r.global.StringPrototype)
 }
 
 func (s asciiString) SameAs(other Value) bool {
@@ -179,15 +179,15 @@ func (s asciiString) Equals(other Value) bool {
 		return s == o
 	}
 
-	if o, ok := other.assertInt(); ok {
+	if o, ok := other.(valueInt); ok {
 		if o1, e := s._toInt(); e == nil {
-			return o1 == o
+			return o1 == int64(o)
 		}
 		return false
 	}
 
-	if o, ok := other.assertFloat(); ok {
-		return s.ToFloat() == o
+	if o, ok := other.(valueFloat); ok {
+		return s.ToFloat() == float64(o)
 	}
 
 	if o, ok := other.(valueBool); ok {
@@ -208,18 +208,6 @@ func (s asciiString) StrictEquals(other Value) bool {
 		return s == otherStr
 	}
 	return false
-}
-
-func (s asciiString) assertInt() (int64, bool) {
-	return 0, false
-}
-
-func (s asciiString) assertFloat() (float64, bool) {
-	return 0, false
-}
-
-func (s asciiString) assertString() (valueString, bool) {
-	return s, true
 }
 
 func (s asciiString) baseObject(r *Runtime) *Object {

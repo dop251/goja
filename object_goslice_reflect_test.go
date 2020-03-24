@@ -1,6 +1,8 @@
 package goja
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestGoSliceReflectBasic(t *testing.T) {
 	const SCRIPT = `
@@ -109,7 +111,7 @@ func TestGoSliceReflectPush(t *testing.T) {
 
 }
 
-func TestGoSliceReflectProto(t *testing.T) {
+func TestGoSliceReflectProtoMethod(t *testing.T) {
 	const SCRIPT = `
 	a.join(",")
 	`
@@ -158,5 +160,147 @@ func TestGoSliceReflectGetStr(t *testing.T) {
 		if e := o.Get("0").Export(); e != "test" {
 			t.Fatalf("Unexpected o.Get(\"0\"): %v", e)
 		}
+	}
+}
+
+func TestGoSliceReflectNilObjectIfaceVal(t *testing.T) {
+	r := New()
+	a := []Value{(*Object)(nil)}
+	r.Set("a", a)
+	ret, err := r.RunString(`
+	""+a[0];
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !asciiString("null").SameAs(ret) {
+		t.Fatalf("ret: %v", ret)
+	}
+}
+
+func TestGoSliceReflectSetLength(t *testing.T) {
+	r := New()
+	a := []int{1, 2, 3, 4}
+	b := []testing.TB{&testing.T{}, &testing.T{}, (*testing.T)(nil)}
+	r.Set("a", &a)
+	r.Set("b", &b)
+	_, err := r.RunString(`
+	'use strict';
+	a.length = 3;
+	if (a.length !== 3) {
+		throw new Error("length="+a.length);
+	}
+	if (a[3] !== undefined) {
+		throw new Error("a[3]="+a[3]);
+	}
+	a.length = 5;
+	if (a.length !== 5) {
+		throw new Error("a.length="+a.length);
+	}
+	if (a[3] !== 0) {
+		throw new Error("a[3]="+a[3]);
+	}
+	if (a[4] !== 0) {
+		throw new Error("a[4]="+a[4]);
+	}
+
+	b.length = 3;
+	if (b.length !== 3) {
+		throw new Error("b.length="+b.length);
+	}
+	if (b[3] !== undefined) {
+		throw new Error("b[3]="+b[3]);
+	}
+	b.length = 5;
+	if (b.length !== 5) {
+		throw new Error("length="+b.length);
+	}
+	if (b[3] !== null) {
+		throw new Error("b[3]="+b[3]);
+	}
+	if (b[4] !== null) {
+		throw new Error("b[4]="+b[4]);
+	}
+	if (b[2] !== null) {
+		throw new Error("b[2]="+b[2]);
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGoSliceReflectProto(t *testing.T) {
+	r := New()
+	a := []*Object{{}, nil, {}}
+	r.Set("a", &a)
+	_, err := r.RunString(TESTLIB + `
+	var proto = [,2,,4];
+	Object.setPrototypeOf(a, proto);
+	assert.sameValue(a[1], null, "a[1]");
+	assert.sameValue(a[3], 4, "a[3]");
+	var desc = Object.getOwnPropertyDescriptor(a, "1");
+	assert.sameValue(desc.value, null, "desc.value");
+	assert(desc.writable, "writable");
+	assert(desc.enumerable, "enumerable");
+	assert(!desc.configurable, "configurable");
+	var v5;
+	Object.defineProperty(proto, "5", {
+		set: function(v) {
+			v5 = v;
+		}
+	});
+	a[5] = "test";
+	assert.sameValue(v5, "test", "v5");
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
+
+func TestGoSliceReflectProtoProto(t *testing.T) {
+	r := New()
+	a := []*Object{{}, nil, {}}
+	proto := []*Object{{}, {}, {}, {}}
+	r.Set("a", &a)
+	r.Set("proto", proto)
+	_, err := r.RunString(`
+	"use strict";
+	var protoproto = {};
+	Object.defineProperty(protoproto, "3", {
+		value: 42
+	});
+	Object.setPrototypeOf(proto, protoproto);
+	Object.setPrototypeOf(a, proto);
+	if (a.hasOwnProperty("3")) {
+		throw new Error("a.hasOwnProperty(\"3\")");
+	}
+	if (a[3] !== null) {
+		throw new Error("a[3]="+a[3]);
+	}
+	a[3] = null;
+	if (a[3] !== null) {
+		throw new Error("a[3]=" + a[3]);
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
+
+func TestGoSliceReflectDelete(t *testing.T) {
+	r := New()
+	a := []*Object{{}, nil, {}}
+	r.Set("a", a)
+	v, err := r.RunString(`
+	!delete a[0] && !delete a[1] && delete a[3];
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != valueTrue {
+		t.Fatalf("not true: %v", v)
 	}
 }
