@@ -206,3 +206,16 @@ func TestArrayOf(t *testing.T) {
 
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
+
+func TestUnscopables(t *testing.T) {
+	const SCRIPT = `
+	var keys = [];
+	var _length;
+	with (Array.prototype) {
+		_length = length;
+		keys.push('something');
+	}
+	_length === 0 && keys.length === 1 && keys[0] === "something";
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}

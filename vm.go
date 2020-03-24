@@ -200,9 +200,21 @@ func (s *valueStack) expand(idx int) {
 	}
 }
 
+func stashObjHas(obj objectImpl, name string) bool {
+	if obj.hasPropertyStr(name) {
+		if unscopables, ok := obj.getSym(symUnscopables, nil).(*Object); ok {
+			if b := unscopables.self.getStr(name, nil); b != nil {
+				return !b.ToBoolean()
+			}
+		}
+		return true
+	}
+	return false
+}
+
 func (s *stash) put(name string, v Value) bool {
 	if s.obj != nil {
-		if found := s.obj.getStr(name, nil); found != nil {
+		if stashObjHas(s.obj, name) {
 			s.obj.setOwnStr(name, v, false)
 			return true
 		}
@@ -234,7 +246,7 @@ func (s *stash) getByIdx(idx uint32) Value {
 
 func (s *stash) getByName(name string, _ *vm) (v Value, exists bool) {
 	if s.obj != nil {
-		if s.obj.hasPropertyStr(name) {
+		if stashObjHas(s.obj, name) {
 			return nilSafe(s.obj.getStr(name, nil)), true
 		}
 		return nil, false
@@ -258,7 +270,10 @@ func (s *stash) createBinding(name string) {
 
 func (s *stash) deleteBinding(name string) bool {
 	if s.obj != nil {
-		return s.obj.deleteStr(name, false)
+		if stashObjHas(s.obj, name) {
+			return s.obj.deleteStr(name, false)
+		}
+		return false
 	}
 	if idx, found := s.names[name]; found {
 		s.values[idx] = nil
@@ -1318,7 +1333,7 @@ func (s resolveVar1) exec(vm *vm) {
 	var ref ref
 	for stash := vm.stash; stash != nil; stash = stash.outer {
 		if stash.obj != nil {
-			if stash.obj.hasPropertyStr(name) {
+			if stashObjHas(stash.obj, name) {
 				ref = &objRef{
 					base: stash.obj,
 					name: name,
@@ -1352,7 +1367,7 @@ func (d deleteVar) exec(vm *vm) {
 	ret := true
 	for stash := vm.stash; stash != nil; stash = stash.outer {
 		if stash.obj != nil {
-			if stash.obj.hasPropertyStr(name) {
+			if stashObjHas(stash.obj, name) {
 				ret = stash.obj.deleteStr(name, false)
 				goto end
 			}
@@ -1402,7 +1417,7 @@ func (s resolveVar1Strict) exec(vm *vm) {
 	var ref ref
 	for stash := vm.stash; stash != nil; stash = stash.outer {
 		if stash.obj != nil {
-			if stash.obj.hasPropertyStr(name) {
+			if stashObjHas(stash.obj, name) {
 				ref = &objRef{
 					base:   stash.obj,
 					name:   name,
@@ -1524,8 +1539,8 @@ func (r resolveVar) exec(vm *vm) {
 	stash := vm.stash
 	var ref ref
 	for i := 0; i < level; i++ {
-		if stash.obj != nil {
-			if stash.obj.hasPropertyStr(r.name) {
+		if obj := stash.obj; obj != nil {
+			if stashObjHas(obj, r.name) {
 				ref = &objRef{
 					base:   stash.obj,
 					name:   r.name,

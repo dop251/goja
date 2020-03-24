@@ -139,6 +139,7 @@ var (
 	es6WhiteList = map[string]bool{}
 
 	es6IdWhiteList = []string{
+		"8.1.2.1",
 		"9.5",
 		"12.9.3",
 		"12.9.4",
