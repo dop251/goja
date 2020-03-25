@@ -1968,6 +1968,55 @@ func TestEmptyCodeError(t *testing.T) {
 	}
 }
 
+func TestForOfArray(t *testing.T) {
+	const SCRIPT = `
+	var array = [0, 'a', true, false, null, /* hole */, undefined, NaN];
+	var i = 0;
+	
+	for (var value of array) {
+	  assert.sameValue(value, array[i], 'element at index ' + i);
+	  i++;
+	}
+	
+	assert.sameValue(i, 8, 'Visits all elements');
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestForOfReturn(t *testing.T) {
+	const SCRIPT = `
+	var callCount = 0;
+	var iterationCount = 0;
+	var iterable = {};
+	var x = {
+	  set attr(_) {
+		throw new Test262Error();
+	  }
+	};
+	
+	iterable[Symbol.iterator] = function() {
+	  return {
+		next: function() {
+		  return { done: false, value: 0 };
+		},
+		return: function() {
+		  callCount += 1;
+		}
+	  }
+	};
+	
+	assert.throws(Test262Error, function() {
+	  for (x.attr of iterable) {
+		iterationCount += 1;
+	  }
+	});
+	
+	assert.sameValue(iterationCount, 0, 'The loop body is not evaluated');
+	assert.sameValue(callCount, 1, 'Iterator is closed');
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 // FIXME
 /*
 func TestDummyCompile(t *testing.T) {

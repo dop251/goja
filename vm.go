@@ -34,8 +34,9 @@ type context struct {
 }
 
 type iterStackItem struct {
-	val Value
-	f   iterNextFunc
+	val  Value
+	f    iterNextFunc
+	iter *Object
 }
 
 type ref interface {
@@ -362,6 +363,9 @@ func (vm *vm) try(f func()) (ex *Exception) {
 				// Restore other stacks
 				iterTail := vm.iterStack[iterLen:]
 				for i := range iterTail {
+					if iter := iterTail[i].iter; iter != nil {
+						returnIter(iter)
+					}
 					iterTail[i] = iterStackItem{}
 				}
 				vm.iterStack = vm.iterStack[:iterLen]
@@ -2445,4 +2449,29 @@ func (_enumPop) exec(vm *vm) {
 	vm.iterStack[l] = iterStackItem{}
 	vm.iterStack = vm.iterStack[:l]
 	vm.pc++
+}
+
+type _iterate struct{}
+
+var iterate _iterate
+
+func (_iterate) exec(vm *vm) {
+	iter := vm.r.getIterator(vm.stack[vm.sp-1], nil)
+	vm.iterStack = append(vm.iterStack, iterStackItem{iter: iter})
+	vm.sp--
+	vm.pc++
+}
+
+type iterNext int32
+
+func (jmp iterNext) exec(vm *vm) {
+	l := len(vm.iterStack) - 1
+	iter := vm.iterStack[l].iter
+	res := vm.r.toObject(toMethod(iter.self.getStr("next", nil))(FunctionCall{This: iter}))
+	if nilSafe(res.self.getStr("done", nil)).ToBoolean() {
+		vm.pc += int(jmp)
+	} else {
+		vm.iterStack[l].val = nilSafe(res.self.getStr("value", nil))
+		vm.pc++
+	}
 }

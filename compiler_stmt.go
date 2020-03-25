@@ -28,6 +28,8 @@ func (c *compiler) compileStatement(v ast.Statement, needResult bool) {
 		c.compileForStatement(v, needResult)
 	case *ast.ForInStatement:
 		c.compileForInStatement(v, needResult)
+	case *ast.ForOfStatement:
+		c.compileForOfStatement(v, needResult)
 	case *ast.WhileStatement:
 		c.compileWhileStatement(v, needResult)
 	case *ast.BranchStatement:
@@ -63,6 +65,8 @@ func (c *compiler) compileLabeledStatement(v *ast.LabelledStatement, needResult 
 	switch s := v.Statement.(type) {
 	case *ast.ForInStatement:
 		c.compileLabeledForInStatement(s, needResult, label)
+	case *ast.ForOfStatement:
+		c.compileLabeledForOfStatement(s, needResult, label)
 	case *ast.ForStatement:
 		c.compileLabeledForStatement(s, needResult, label)
 	case *ast.WhileStatement:
@@ -328,6 +332,42 @@ func (c *compiler) compileLabeledForInStatement(v *ast.ForInStatement, needResul
 	c.compileStatement(v.Body, needResult)
 	c.emit(jump(start - len(c.p.code)))
 	c.p.code[start] = enumNext(len(c.p.code) - start)
+	c.leaveBlock()
+	c.markBlockStart()
+	c.emit(enumPop)
+}
+
+func (c *compiler) compileForOfStatement(v *ast.ForOfStatement, needResult bool) {
+	c.compileLabeledForOfStatement(v, needResult, "")
+}
+
+func (c *compiler) compileLabeledForOfStatement(v *ast.ForOfStatement, needResult bool, label string) {
+	c.block = &block{
+		typ:        blockLoop,
+		outer:      c.block,
+		label:      label,
+		needResult: needResult,
+	}
+
+	c.compileExpression(v.Source).emitGetter(true)
+	c.emit(iterate)
+	if needResult {
+		c.emit(loadUndef)
+	}
+	start := len(c.p.code)
+	c.markBlockStart()
+	c.block.cont = start
+
+	c.emit(nil)
+	c.compileExpression(v.Into).emitSetter(&c.enumGetExpr)
+	c.emit(pop)
+	if needResult {
+		c.emit(pop) // remove last result
+	}
+	c.markBlockStart()
+	c.compileStatement(v.Body, needResult)
+	c.emit(jump(start - len(c.p.code)))
+	c.p.code[start] = iterNext(len(c.p.code) - start)
 	c.leaveBlock()
 	c.markBlockStart()
 	c.emit(enumPop)

@@ -1712,6 +1712,15 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *Objec
 	}))
 }
 
+func returnIter(iter *Object) {
+	retMethod := toMethod(iter.self.getStr("return", nil))
+	if retMethod != nil {
+		_ = tryFunc(func() {
+			retMethod(FunctionCall{This: iter})
+		})
+	}
+}
+
 func (r *Runtime) iterate(iter *Object, step func(Value)) {
 	for {
 		res := r.toObject(toMethod(iter.self.getStr("next", nil))(FunctionCall{This: iter}))
@@ -1722,12 +1731,7 @@ func (r *Runtime) iterate(iter *Object, step func(Value)) {
 			step(nilSafe(res.self.getStr("value", nil)))
 		})
 		if err != nil {
-			retMethod := toMethod(iter.self.getStr("return", nil))
-			if retMethod != nil {
-				_ = tryFunc(func() {
-					retMethod(FunctionCall{This: iter})
-				})
-			}
+			returnIter(iter)
 			panic(err)
 		}
 	}
