@@ -57,11 +57,14 @@ and it includes an event loop.
 
 ### Can you implement (feature X from ES6 or higher)?
 
-It's very unlikely that I will be adding new functionality any time soon. It don't have enough time 
-for adding full ES6 support and I don't want to end up with something that is stuck in between ES5 and ES6.
-Most of the new features are available through shims and transpilers. Goja can run Babel (up to v7) and any
-other transpiler as long as it's written in ES5. You can even add a wrapper that will do the translation
-on the fly. Sourcemaps are supported.
+There is now an es6 branch. This is work in progress and all new ES6 features will go there. Every commit
+in this branch represents a relatively stable state (i.e. it compiles and passes all enabled tc39 tests),
+however because the version of tc39 tests I use is quite old, it may be not as well tested as the ES5.1
+functionality. Because ES6 is a superset of ES5.1 it should now break your existing code.
+
+I will be adding features in their dependency order and as quickly as my time allows. Please do not ask
+for ETA. Eventually it will be merged into master. If you wish to implement a new feature please contact
+me first and read the section below.
 
 ### How do I contribute?
 
