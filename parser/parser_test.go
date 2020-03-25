@@ -160,7 +160,7 @@ func TestParserErr(t *testing.T) {
 
 		test("--1", "(anonymous): Line 1:1 Invalid left-hand side in assignment")
 
-		test("for((1 + 1) in abc) def();", "(anonymous): Line 1:1 Invalid left-hand side in for-in")
+		test("for((1 + 1) in abc) def();", "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
 
 		test("[", "(anonymous): Line 1:2 Unexpected end of input")
 
@@ -251,7 +251,7 @@ func TestParserErr(t *testing.T) {
 
 		test("for ((abc in {}));", "(anonymous): Line 1:17 Unexpected token )")
 
-		test("for (+abc in {});", "(anonymous): Line 1:1 Invalid left-hand side in for-in")
+		test("for (+abc in {});", "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
 
 		test("if (false)", "(anonymous): Line 1:11 Unexpected end of input")
 
@@ -384,7 +384,7 @@ func TestParserErr(t *testing.T) {
 
 		test(`for (var abc, def in {}) {}`, "(anonymous): Line 1:19 Unexpected token in")
 
-		test(`for (abc, def in {}) {}`, "(anonymous): Line 1:1 Invalid left-hand side in for-in")
+		test(`for (abc, def in {}) {}`, "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
 
 		test(`for (var abc=def, ghi=("abc" in {}); true;) {}`, nil)
 
