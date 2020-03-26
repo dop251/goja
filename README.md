@@ -60,7 +60,7 @@ and it includes an event loop.
 There is now an es6 branch. This is work in progress and all new ES6 features will go there. Every commit
 in this branch represents a relatively stable state (i.e. it compiles and passes all enabled tc39 tests),
 however because the version of tc39 tests I use is quite old, it may be not as well tested as the ES5.1
-functionality. Because ES6 is a superset of ES5.1 it should now break your existing code.
+functionality. Because ES6 is a superset of ES5.1 it should not break your existing code.
 
 I will be adding features in their dependency order and as quickly as my time allows. Please do not ask
 for ETA. Eventually it will be merged into master. If you wish to implement a new feature please contact
