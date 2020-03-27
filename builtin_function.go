@@ -139,7 +139,7 @@ func (r *Runtime) functionproto_bind(call FunctionCall) Value {
 	fcall := r.toCallable(call.This)
 	construct := obj.self.assertConstructor()
 
-	l := int(toUInt32(obj.self.getStr("length", nil)))
+	l := int(toUint32(obj.self.getStr("length", nil)))
 	l -= len(call.Arguments) - 1
 	if l < 0 {
 		l = 0

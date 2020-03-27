@@ -50,6 +50,7 @@ type global struct {
 	Proxy    *Object
 
 	ArrayBuffer *Object
+	DataView    *Object
 	WeakSet     *Object
 	WeakMap     *Object
 	Map         *Object
@@ -77,6 +78,7 @@ type global struct {
 	ArrayIterator     *Object
 
 	ArrayBufferPrototype *Object
+	DataViewPrototype    *Object
 	WeakSetPrototype     *Object
 	WeakMapPrototype     *Object
 	MapPrototype         *Object
@@ -338,7 +340,7 @@ func (r *Runtime) init() {
 	r.initMath()
 	r.initJSON()
 
-	//r.initTypedArrays()
+	r.initTypedArrays()
 	r.initSymbol()
 	r.initWeakSet()
 	r.initWeakMap()
@@ -705,8 +707,11 @@ func (r *Runtime) wrapNativeConstruct(c func(args []Value, proto *Object) *Objec
 	return func(args []Value, newTarget *Object) *Object {
 		var p *Object
 		if newTarget != nil {
-			p = r.toObject(newTarget.self.getStr("prototype", nil))
-		} else {
+			if pp, ok := newTarget.self.getStr("prototype", nil).(*Object); ok {
+				p = pp
+			}
+		}
+		if p == nil {
 			p = proto
 		}
 		return c(args, p)
@@ -728,16 +733,46 @@ func (r *Runtime) checkObjectCoercible(v Value) {
 	}
 }
 
-func toUInt32(v Value) uint32 {
+func toInt8(v Value) int8 {
 	v = v.ToNumber()
 	if i, ok := v.(valueInt); ok {
-		return uint32(i)
+		return int8(i)
 	}
 
 	if f, ok := v.(valueFloat); ok {
 		f := float64(f)
 		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return uint32(int64(f))
+			return int8(int64(f))
+		}
+	}
+	return 0
+}
+
+func toUint8(v Value) uint8 {
+	v = v.ToNumber()
+	if i, ok := v.(valueInt); ok {
+		return uint8(i)
+	}
+
+	if f, ok := v.(valueFloat); ok {
+		f := float64(f)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			return uint8(int64(f))
+		}
+	}
+	return 0
+}
+
+func toInt16(v Value) int16 {
+	v = v.ToNumber()
+	if i, ok := v.(valueInt); ok {
+		return int16(i)
+	}
+
+	if f, ok := v.(valueFloat); ok {
+		f := float64(f)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			return int16(int64(f))
 		}
 	}
 	return 0
@@ -758,6 +793,36 @@ func toUInt16(v Value) uint16 {
 	return 0
 }
 
+func toInt32(v Value) int32 {
+	v = v.ToNumber()
+	if i, ok := v.(valueInt); ok {
+		return int32(i)
+	}
+
+	if f, ok := v.(valueFloat); ok {
+		f := float64(f)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			return int32(int64(f))
+		}
+	}
+	return 0
+}
+
+func toUint32(v Value) uint32 {
+	v = v.ToNumber()
+	if i, ok := v.(valueInt); ok {
+		return uint32(i)
+	}
+
+	if f, ok := v.(valueFloat); ok {
+		f := float64(f)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			return uint32(int64(f))
+		}
+	}
+	return 0
+}
+
 func toLength(v Value) int64 {
 	if v == nil {
 		return 0
@@ -772,19 +837,12 @@ func toLength(v Value) int64 {
 	return i
 }
 
-func toInt32(v Value) int32 {
-	v = v.ToNumber()
-	if i, ok := v.(valueInt); ok {
-		return int32(i)
+func (r *Runtime) toIndex(v Value) int64 {
+	intIdx := v.ToInteger()
+	if intIdx >= 0 && intIdx < maxInt {
+		return intIdx
 	}
-
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return int32(int64(f))
-		}
-	}
-	return 0
+	panic(r.newError(r.global.RangeError, "Invalid index %s", v.String()))
 }
 
 func (r *Runtime) toBoolean(b bool) Value {

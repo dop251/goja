@@ -924,7 +924,7 @@ var sal _sal
 
 func (_sal) exec(vm *vm) {
 	left := toInt32(vm.stack[vm.sp-2])
-	right := toUInt32(vm.stack[vm.sp-1])
+	right := toUint32(vm.stack[vm.sp-1])
 	vm.stack[vm.sp-2] = intToValue(int64(left << (right & 0x1F)))
 	vm.sp--
 	vm.pc++
@@ -936,7 +936,7 @@ var sar _sar
 
 func (_sar) exec(vm *vm) {
 	left := toInt32(vm.stack[vm.sp-2])
-	right := toUInt32(vm.stack[vm.sp-1])
+	right := toUint32(vm.stack[vm.sp-1])
 	vm.stack[vm.sp-2] = intToValue(int64(left >> (right & 0x1F)))
 	vm.sp--
 	vm.pc++
@@ -947,8 +947,8 @@ type _shr struct{}
 var shr _shr
 
 func (_shr) exec(vm *vm) {
-	left := toUInt32(vm.stack[vm.sp-2])
-	right := toUInt32(vm.stack[vm.sp-1])
+	left := toUint32(vm.stack[vm.sp-2])
+	right := toUint32(vm.stack[vm.sp-1])
 	vm.stack[vm.sp-2] = intToValue(int64(left >> (right & 0x1F)))
 	vm.sp--
 	vm.pc++
