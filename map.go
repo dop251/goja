@@ -1,5 +1,7 @@
 package goja
 
+import "hash"
+
 type mapEntry struct {
 	key, value Value
 
@@ -8,7 +10,8 @@ type mapEntry struct {
 }
 
 type orderedMap struct {
-	hash                map[uint64]*mapEntry
+	hash                hash.Hash64
+	hashTable           map[uint64]*mapEntry
 	iterFirst, iterLast *mapEntry
 	size                int
 }
@@ -22,8 +25,8 @@ func (m *orderedMap) lookup(key Value) (h uint64, entry, hPrev *mapEntry) {
 	if key == _negativeZero {
 		key = intToValue(0)
 	}
-	h = key.hash()
-	for entry = m.hash[h]; entry != nil && !entry.key.SameAs(key); hPrev, entry = entry, entry.hNext {
+	h = key.hash(m.hash)
+	for entry = m.hashTable[h]; entry != nil && !entry.key.SameAs(key); hPrev, entry = entry, entry.hNext {
 	}
 	return
 }
@@ -38,7 +41,7 @@ func (m *orderedMap) set(key, value Value) {
 		}
 		entry = &mapEntry{key: key, value: value}
 		if hPrev == nil {
-			m.hash[h] = entry
+			m.hashTable[h] = entry
 		} else {
 			hPrev.hNext = entry
 		}
@@ -80,12 +83,12 @@ func (m *orderedMap) remove(key Value) bool {
 			m.iterLast = entry.iterPrev
 		}
 
-		// remove from the hash
+		// remove from the hashTable
 		if hPrev == nil {
 			if entry.hNext == nil {
-				delete(m.hash, h)
+				delete(m.hashTable, h)
 			} else {
-				m.hash[h] = entry.hNext
+				m.hashTable[h] = entry.hNext
 			}
 		} else {
 			hPrev.hNext = entry.hNext
@@ -135,9 +138,10 @@ func (iter *orderedMapIter) close() {
 	iter.cur = nil
 }
 
-func newOrderedMap() *orderedMap {
+func newOrderedMap(h hash.Hash64) *orderedMap {
 	return &orderedMap{
-		hash: make(map[uint64]*mapEntry),
+		hash:      h,
+		hashTable: make(map[uint64]*mapEntry),
 	}
 }
 
@@ -158,6 +162,6 @@ func (m *orderedMap) clear() {
 	}
 	m.iterFirst = nil
 	m.iterLast = nil
-	m.hash = make(map[uint64]*mapEntry)
+	m.hashTable = make(map[uint64]*mapEntry)
 	m.size = 0
 }
