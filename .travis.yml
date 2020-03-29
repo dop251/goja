@@ -8,13 +8,13 @@ arch:
 
 env:
   - RACE="-race"
-  - GIMME_ARCH=386
+  - GOARCH=386
   - RACE=""
 
 jobs:
   exclude:
     - arch: s390x
-      env: GIMME_ARCH=386
+      env: GOARCH=386
     - arch: s390x
       env: RACE="-race"
     - arch: amd64
