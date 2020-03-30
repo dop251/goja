@@ -37,7 +37,7 @@ func (o *mapIterObject) next() Value {
 
 func (mo *mapObject) init() {
 	mo.baseObject.init()
-	mo.m = newOrderedMap()
+	mo.m = newOrderedMap(&mo.val.runtime.hash)
 }
 
 func (r *Runtime) mapProto_clear(call FunctionCall) Value {

@@ -6,6 +6,7 @@ import (
 	"github.com/dop251/goja/parser"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"hash"
 	"io"
 	"math"
 	"reflect"
@@ -299,9 +300,9 @@ func (s unicodeString) ExportType() reflect.Type {
 	return reflectTypeString
 }
 
-func (s unicodeString) hash() uint64 {
-	_, _ = mapHasher.Write(*(*[]byte)(unsafe.Pointer(&s)))
-	h := mapHasher.Sum64()
-	mapHasher.Reset()
+func (s unicodeString) hash(hash hash.Hash64) uint64 {
+	_, _ = hash.Write(*(*[]byte)(unsafe.Pointer(&s)))
+	h := hash.Sum64()
+	hash.Reset()
 	return h
 }

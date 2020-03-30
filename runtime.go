@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"hash/maphash"
 	"math"
 	"math/rand"
 	"reflect"
@@ -148,7 +149,8 @@ type Runtime struct {
 	typeInfoCache   map[reflect.Type]*reflectTypeInfo
 	fieldNameMapper FieldNameMapper
 
-	vm *vm
+	vm   *vm
+	hash maphash.Hash
 }
 
 type StackFrame struct {

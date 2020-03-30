@@ -1,13 +1,15 @@
 package goja
 
 import (
+	"hash/maphash"
 	"math"
 	"strconv"
 	"testing"
 )
 
 func testMapHashVal(v1, v2 Value, expected bool, t *testing.T) {
-	actual := v1.hash() == v2.hash()
+	var h maphash.Hash
+	actual := v1.hash(&h) == v2.hash(&h)
 	if actual != expected {
 		t.Fatalf("testMapHashVal failed for %v, %v", v1, v2)
 	}
@@ -31,7 +33,7 @@ func TestMapHash(t *testing.T) {
 }
 
 func TestOrderedMap(t *testing.T) {
-	m := newOrderedMap()
+	m := newOrderedMap(&maphash.Hash{})
 	for i := int64(0); i < 50; i++ {
 		m.set(intToValue(i), asciiString(strconv.FormatInt(i, 10)))
 	}
@@ -77,14 +79,14 @@ func TestOrderedMap(t *testing.T) {
 }
 
 func TestOrderedMapCollision(t *testing.T) {
-	m := newOrderedMap()
+	m := newOrderedMap(&maphash.Hash{})
 	n1 := uint64(123456789)
 	n2 := math.Float64frombits(n1)
 	n1Key := intToValue(int64(n1))
 	n2Key := floatToValue(n2)
 	m.set(n1Key, asciiString("n1"))
 	m.set(n2Key, asciiString("n2"))
-	if m.size == len(m.hash) {
+	if m.size == len(m.hashTable) {
 		t.Fatal("Expected a collision but there wasn't one")
 	}
 	if n2Val := m.get(n2Key); !asciiString("n2").SameAs(n2Val) {
@@ -103,7 +105,7 @@ func TestOrderedMapCollision(t *testing.T) {
 }
 
 func TestOrderedMapIter(t *testing.T) {
-	m := newOrderedMap()
+	m := newOrderedMap(&maphash.Hash{})
 	iter := m.newIter()
 	ent := iter.next()
 	if ent != nil {
@@ -128,7 +130,7 @@ func TestOrderedMapIter(t *testing.T) {
 }
 
 func TestOrderedMapIterVisitAfterReAdd(t *testing.T) {
-	m := newOrderedMap()
+	m := newOrderedMap(&maphash.Hash{})
 	one := intToValue(1)
 	two := intToValue(2)
 
@@ -157,7 +159,7 @@ func TestOrderedMapIterVisitAfterReAdd(t *testing.T) {
 }
 
 func TestOrderedMapIterAddAfterClear(t *testing.T) {
-	m := newOrderedMap()
+	m := newOrderedMap(&maphash.Hash{})
 	one := intToValue(1)
 	m.set(one, valueTrue)
 	iter := m.newIter()
@@ -178,7 +180,7 @@ func TestOrderedMapIterAddAfterClear(t *testing.T) {
 }
 
 func TestOrderedMapIterDeleteCurrent(t *testing.T) {
-	m := newOrderedMap()
+	m := newOrderedMap(&maphash.Hash{})
 	one := intToValue(1)
 	two := intToValue(2)
 	iter := m.newIter()

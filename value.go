@@ -2,7 +2,7 @@ package goja
 
 import (
 	"fmt"
-	"hash/maphash"
+	"hash"
 	"math"
 	"reflect"
 	"regexp"
@@ -33,10 +33,6 @@ var (
 	reflectTypeString = reflect.TypeOf("")
 )
 
-var (
-	mapHasher maphash.Hash
-)
-
 var intCache [256]Value
 
 type Value interface {
@@ -56,7 +52,7 @@ type Value interface {
 
 	baseObject(r *Runtime) *Object
 
-	hash() uint64
+	hash(hash64 hash.Hash64) uint64
 }
 
 type typeError string
@@ -193,7 +189,7 @@ func (i valueInt) ExportType() reflect.Type {
 	return reflectTypeInt
 }
 
-func (i valueInt) hash() uint64 {
+func (i valueInt) hash(hash.Hash64) uint64 {
 	return uint64(i)
 }
 
@@ -283,7 +279,7 @@ func (o valueBool) ExportType() reflect.Type {
 	return reflectTypeBool
 }
 
-func (b valueBool) hash() uint64 {
+func (b valueBool) hash(hash.Hash64) uint64 {
 	if b {
 		return uint64(uintptr(unsafe.Pointer(&valueTrue)))
 	}
@@ -336,7 +332,7 @@ func (u valueUndefined) ToFloat() float64 {
 	return math.NaN()
 }
 
-func (u valueUndefined) hash() uint64 {
+func (u valueUndefined) hash(hash.Hash64) uint64 {
 	return uint64(uintptr(unsafe.Pointer(&_undefined)))
 }
 
@@ -388,7 +384,7 @@ func (n valueNull) ExportType() reflect.Type {
 	return reflectTypeNil
 }
 
-func (n valueNull) hash() uint64 {
+func (n valueNull) hash(hash.Hash64) uint64 {
 	return uint64(uintptr(unsafe.Pointer(&_null)))
 }
 
@@ -481,7 +477,7 @@ func (n *valueProperty) ExportType() reflect.Type {
 	panic("Cannot export valueProperty")
 }
 
-func (n *valueProperty) hash() uint64 {
+func (n *valueProperty) hash(hash.Hash64) uint64 {
 	panic("valueProperty should never be used in maps or sets")
 }
 
@@ -606,7 +602,7 @@ func (f valueFloat) ExportType() reflect.Type {
 	return reflectTypeFloat
 }
 
-func (f valueFloat) hash() uint64 {
+func (f valueFloat) hash(hash.Hash64) uint64 {
 	if f == _negativeZero {
 		return 0
 	}
@@ -686,7 +682,7 @@ func (o *Object) ExportType() reflect.Type {
 	return o.self.exportType()
 }
 
-func (o *Object) hash() uint64 {
+func (o *Object) hash(hash.Hash64) uint64 {
 	return uint64(uintptr(unsafe.Pointer(o)))
 }
 
@@ -832,7 +828,7 @@ func (o valueUnresolved) ExportType() reflect.Type {
 	return nil
 }
 
-func (o valueUnresolved) hash() uint64 {
+func (o valueUnresolved) hash(hash.Hash64) uint64 {
 	o.throw()
 	return 0
 }
@@ -896,7 +892,7 @@ func (s *valueSymbol) baseObject(r *Runtime) *Object {
 	return r.newPrimitiveObject(s, r.global.SymbolPrototype, "Symbol")
 }
 
-func (s *valueSymbol) hash() uint64 {
+func (s *valueSymbol) hash(hash.Hash64) uint64 {
 	return uint64(uintptr(unsafe.Pointer(s)))
 }
 

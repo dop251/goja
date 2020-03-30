@@ -527,7 +527,7 @@ func (o *baseObject) setOwnSym(name *valueSymbol, val Value, throw bool) bool {
 			return false
 		} else {
 			if o.symValues == nil {
-				o.symValues = newOrderedMap()
+				o.symValues = newOrderedMap(&o.val.runtime.hash)
 			}
 			o.symValues.set(name, val)
 		}
@@ -769,7 +769,7 @@ func (o *baseObject) defineOwnPropertySym(s *valueSymbol, descr PropertyDescript
 	}
 	if v, ok := o._defineOwnProperty(s.String(), existingVal, descr, throw); ok {
 		if o.symValues == nil {
-			o.symValues = newOrderedMap()
+			o.symValues = newOrderedMap(&o.val.runtime.hash)
 		}
 		o.symValues.set(s, v)
 		return true
@@ -805,7 +805,7 @@ func (o *baseObject) _putProp(name string, value Value, writable, enumerable, co
 
 func (o *baseObject) _putSym(s *valueSymbol, prop Value) {
 	if o.symValues == nil {
-		o.symValues = newOrderedMap()
+		o.symValues = newOrderedMap(&o.val.runtime.hash)
 	}
 	o.symValues.set(s, prop)
 }

@@ -35,7 +35,7 @@ func (o *setIterObject) next() Value {
 
 func (so *setObject) init() {
 	so.baseObject.init()
-	so.m = newOrderedMap()
+	so.m = newOrderedMap(&so.val.runtime.hash)
 }
 
 func (r *Runtime) setProto_add(call FunctionCall) Value {
