@@ -24,7 +24,7 @@ func (i *proxyPropIter) next() (propIterItem, iterNextFunc) {
 	return propIterItem{}, nil
 }
 
-func (r *Runtime) newProxyObject(target *Object, handler *Object, proto *Object) *proxyObject {
+func (r *Runtime) newProxyObject(target, handler, proto *Object) *proxyObject {
 	if p, ok := target.self.(*proxyObject); ok {
 		if p.handler == nil {
 			panic(r.NewTypeError("Cannot create proxy with a revoked proxy as target"))

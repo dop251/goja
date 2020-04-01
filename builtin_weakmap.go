@@ -133,7 +133,26 @@ func (r *Runtime) weakMapProto_set(call FunctionCall) Value {
 	return call.This
 }
 
-func (r *Runtime) builtin_newWeakMap(args []Value, proto *Object) *Object {
+func (r *Runtime) needNew(name string) *Object {
+	return r.NewTypeError("Constructor %s requires 'new'", name)
+}
+
+func (r *Runtime) getPrototypeFromCtor(newTarget, defCtor, defProto *Object) *Object {
+	if newTarget == defCtor {
+		return defProto
+	}
+	proto := newTarget.self.getStr("prototype", nil)
+	if obj, ok := proto.(*Object); ok {
+		return obj
+	}
+	return defProto
+}
+
+func (r *Runtime) builtin_newWeakMap(args []Value, newTarget *Object) *Object {
+	if newTarget == nil {
+		panic(r.needNew("WeakMap"))
+	}
+	proto := r.getPrototypeFromCtor(newTarget, r.global.WeakMap, r.global.WeakMapPrototype)
 	o := &Object{runtime: r}
 
 	wmo := &weakMapObject{}
@@ -189,7 +208,7 @@ func (r *Runtime) createWeakMapProto(val *Object) objectImpl {
 }
 
 func (r *Runtime) createWeakMap(val *Object) objectImpl {
-	o := r.newNativeFuncObj(val, r.constructorThrower("WeakMap"), r.builtin_newWeakMap, "WeakMap", r.global.WeakMapPrototype, 0)
+	o := r.newNativeConstructOnly(val, r.builtin_newWeakMap, r.global.WeakMapPrototype, "WeakMap", 0)
 
 	return o
 }

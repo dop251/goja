@@ -23,6 +23,7 @@ func TestWeakMapExpiry(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtime.GC()
+	runtime.GC()
 	wmo := vm.Get("m").ToObject(vm).self.(*weakMapObject)
 	wmo.m.Lock()
 	l := len(wmo.m.data)

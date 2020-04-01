@@ -1,200 +1,15 @@
 package goja
 
 import (
-	"math"
-	"math/bits"
+	"strings"
 	"unsafe"
 )
 
-type byteOrder bool
-
-const (
-	bigEndian    byteOrder = false
-	littleEndian byteOrder = true
-)
-
-var (
-	nativeEndian byteOrder
-)
-
-type arrayBufferObject struct {
-	baseObject
-	data []byte
-}
-
-type dataViewObject struct {
-	baseObject
-	viewedArrayBuf      *arrayBufferObject
-	byteLen, byteOffset int
-}
-
-func (o *dataViewObject) getIdxAndByteOrder(idxVal Value, littleEndianVal Value, size int) (int, byteOrder) {
-	idx := o.val.runtime.toIndex(idxVal)
-	if bits.UintSize == 32 && idx >= math.MaxInt32 {
-		panic(o.val.runtime.newError(o.val.runtime.global.RangeError, "Index %d overflows int", idx))
+func (r *Runtime) builtin_newArrayBuffer(args []Value, newTarget *Object) *Object {
+	if newTarget == nil {
+		panic(r.needNew("ArrayBuffer"))
 	}
-	getIdx := int(idx)
-	o.viewedArrayBuf.ensureNotDetached()
-	if getIdx+size > o.byteLen {
-		panic(o.val.runtime.newError(o.val.runtime.global.RangeError, "Index %d is out of bounds", getIdx))
-	}
-	getIdx += o.byteOffset
-	var bo byteOrder
-	if littleEndianVal != nil {
-		if littleEndianVal.ToBoolean() {
-			bo = littleEndian
-		} else {
-			bo = bigEndian
-		}
-	} else {
-		bo = nativeEndian
-	}
-	return getIdx, bo
-}
-
-func (o *arrayBufferObject) export() interface{} {
-	return o.data
-}
-
-func (o *arrayBufferObject) ensureNotDetached() {
-	if o.data == nil {
-		panic(o.val.runtime.NewTypeError("ArrayBuffer is detached"))
-	}
-}
-
-func (o *arrayBufferObject) getFloat32(idx int, byteOrder byteOrder) float32 {
-	return math.Float32frombits(o.getUint32(idx, byteOrder))
-}
-
-func (o *arrayBufferObject) setFloat32(idx int, val float32, byteOrder byteOrder) {
-	o.setUint32(idx, math.Float32bits(val), byteOrder)
-}
-
-func (o *arrayBufferObject) getFloat64(idx int, byteOrder byteOrder) float64 {
-	return math.Float64frombits(o.getUint64(idx, byteOrder))
-}
-
-func (o *arrayBufferObject) setFloat64(idx int, val float64, byteOrder byteOrder) {
-	o.setUint64(idx, math.Float64bits(val), byteOrder)
-}
-
-func (o *arrayBufferObject) getUint64(idx int, byteOrder byteOrder) uint64 {
-	var b []byte
-	if byteOrder == nativeEndian {
-		b = o.data[idx : idx+8]
-	} else {
-		b = make([]byte, 8)
-		d := o.data[idx : idx+8]
-		b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7] = d[7], d[6], d[5], d[4], d[3], d[2], d[1], d[0]
-	}
-	return *((*uint64)(unsafe.Pointer(&b[0])))
-}
-
-func (o *arrayBufferObject) setUint64(idx int, val uint64, byteOrder byteOrder) {
-	if byteOrder == nativeEndian {
-		*(*uint64)(unsafe.Pointer(&o.data[idx])) = val
-	} else {
-		b := (*[8]byte)(unsafe.Pointer(&val))
-		d := o.data[idx : idx+8]
-		d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7] = b[7], b[6], b[5], b[4], b[3], b[2], b[1], b[0]
-	}
-}
-
-func (o *arrayBufferObject) getUint32(idx int, byteOrder byteOrder) uint32 {
-	var b []byte
-	if byteOrder == nativeEndian {
-		b = o.data[idx : idx+4]
-	} else {
-		b = make([]byte, 4)
-		d := o.data[idx : idx+4]
-		b[0], b[1], b[2], b[3] = d[3], d[2], d[1], d[0]
-	}
-	return *((*uint32)(unsafe.Pointer(&b[0])))
-}
-
-func (o *arrayBufferObject) setUint32(idx int, val uint32, byteOrder byteOrder) {
-	if byteOrder == nativeEndian {
-		*(*uint32)(unsafe.Pointer(&o.data[idx])) = val
-	} else {
-		b := (*[4]byte)(unsafe.Pointer(&val))
-		d := o.data[idx : idx+4]
-		d[0], d[1], d[2], d[3] = b[3], b[2], b[1], b[0]
-	}
-}
-
-func (o *arrayBufferObject) getUint16(idx int, byteOrder byteOrder) uint16 {
-	var b []byte
-	if byteOrder == nativeEndian {
-		b = o.data[idx : idx+2]
-	} else {
-		b = make([]byte, 2)
-		d := o.data[idx : idx+2]
-		b[0], b[1] = d[1], d[0]
-	}
-	return *((*uint16)(unsafe.Pointer(&b[0])))
-}
-
-func (o *arrayBufferObject) setUint16(idx int, val uint16, byteOrder byteOrder) {
-	if byteOrder == nativeEndian {
-		*(*uint16)(unsafe.Pointer(&o.data[idx])) = val
-	} else {
-		b := (*[2]byte)(unsafe.Pointer(&val))
-		d := o.data[idx : idx+2]
-		d[0], d[1] = b[1], b[0]
-	}
-}
-
-func (o *arrayBufferObject) getUint8(idx int) uint8 {
-	return o.data[idx]
-}
-
-func (o *arrayBufferObject) setUint8(idx int, val uint8) {
-	o.data[idx] = val
-}
-
-func (o *arrayBufferObject) getInt32(idx int, byteOrder byteOrder) int32 {
-	return int32(o.getUint32(idx, byteOrder))
-}
-
-func (o *arrayBufferObject) setInt32(idx int, val int32, byteOrder byteOrder) {
-	o.setUint32(idx, uint32(val), byteOrder)
-}
-
-func (o *arrayBufferObject) getInt16(idx int, byteOrder byteOrder) int16 {
-	return int16(o.getUint16(idx, byteOrder))
-}
-
-func (o *arrayBufferObject) setInt16(idx int, val int16, byteOrder byteOrder) {
-	o.setUint16(idx, uint16(val), byteOrder)
-}
-
-func (o *arrayBufferObject) getInt8(idx int) int8 {
-	return int8(o.data[idx])
-}
-
-func (o *arrayBufferObject) setInt8(idx int, val int8) {
-	o.setUint8(idx, uint8(val))
-}
-
-func (r *Runtime) _newArrayBuffer(proto *Object, o *Object) *arrayBufferObject {
-	if o == nil {
-		o = &Object{runtime: r}
-	}
-	b := &arrayBufferObject{
-		baseObject: baseObject{
-			class:      classObject,
-			val:        o,
-			prototype:  proto,
-			extensible: true,
-		},
-	}
-	o.self = b
-	b.init()
-	return b
-}
-
-func (r *Runtime) builtin_ArrayBuffer(args []Value, proto *Object) *Object {
-	b := r._newArrayBuffer(proto, nil)
+	b := r._newArrayBuffer(r.getPrototypeFromCtor(newTarget, r.global.ArrayBuffer, r.global.ArrayBufferPrototype), nil)
 	if len(args) > 0 {
 		b.data = make([]byte, toLength(args[0]))
 	}
@@ -257,7 +72,11 @@ func (r *Runtime) arrayBuffer_isView(call FunctionCall) Value {
 	return valueFalse
 }
 
-func (r *Runtime) newDataView(args []Value, proto *Object) *Object {
+func (r *Runtime) newDataView(args []Value, newTarget *Object) *Object {
+	if newTarget == nil {
+		panic(r.needNew("DataView"))
+	}
+	proto := r.getPrototypeFromCtor(newTarget, r.global.DataView, r.global.DataViewPrototype)
 	var bufArg Value
 	if len(args) > 0 {
 		bufArg = args[0]
@@ -273,30 +92,20 @@ func (r *Runtime) newDataView(args []Value, proto *Object) *Object {
 	}
 	var byteOffset, byteLen int
 	if len(args) > 1 {
-		offset := args[1].ToInteger()
-		if offset < 0 {
-			panic(r.newError(r.global.RangeError, "Invalid offset"))
-		}
-		if bits.UintSize == 32 && offset >= math.MaxInt32 {
-			panic(r.newError(r.global.RangeError, "Offset %d overflows int", offset))
-		}
-		byteOffset = int(offset)
+		offsetArg := nilSafe(args[1])
+		byteOffset = r.toIndex(offsetArg)
 		buffer.ensureNotDetached()
 		if byteOffset > len(buffer.data) {
-			panic(r.newError(r.global.RangeError, "Start offset %d is outside the bounds of the buffer", offset))
+			panic(r.newError(r.global.RangeError, "Start offset %s is outside the bounds of the buffer", offsetArg.String()))
 		}
-		if len(args) > 2 && args[2] != _undefined {
-			l := toLength(args[2])
-			if bits.UintSize == 32 && l >= math.MaxInt32 {
-				panic(r.newError(r.global.RangeError, "Length %d overflows integer", l))
-			}
-			byteLen = int(l)
-			if byteOffset+byteLen > len(buffer.data) {
-				panic(r.newError(r.global.RangeError, "Invalid DataView length %d", byteLen))
-			}
-		} else {
-			byteLen = len(buffer.data) - byteOffset
+	}
+	if len(args) > 2 && args[2] != nil && args[2] != _undefined {
+		byteLen = r.toIndex(args[2])
+		if byteOffset+byteLen > len(buffer.data) {
+			panic(r.newError(r.global.RangeError, "Invalid DataView length %d", byteLen))
 		}
+	} else {
+		byteLen = len(buffer.data) - byteOffset
 	}
 	o := &Object{runtime: r}
 	b := &dataViewObject{
@@ -453,7 +262,7 @@ func (r *Runtime) dataViewProto_setUint8(call FunctionCall) Value {
 func (r *Runtime) dataViewProto_setUint16(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
 		idx, bo := dv.getIdxAndByteOrder(call.Argument(0), call.Argument(2), 2)
-		dv.viewedArrayBuf.setUint16(idx, toUInt16(call.Argument(1)), bo)
+		dv.viewedArrayBuf.setUint16(idx, toUint16(call.Argument(1)), bo)
 		return _undefined
 	}
 	panic(r.NewTypeError("Method DataView.prototype.setUint16 called on incompatible receiver %s", call.This.String()))
@@ -466,6 +275,742 @@ func (r *Runtime) dataViewProto_setUint32(call FunctionCall) Value {
 		return _undefined
 	}
 	panic(r.NewTypeError("Method DataView.prototype.setUint32 called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_getBuffer(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		return ta.viewedArrayBuf.val
+	}
+	panic(r.NewTypeError("Method get TypedArray.prototype.buffer called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_getByteLen(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		if ta.viewedArrayBuf.data == nil {
+			return _positiveZero
+		}
+		return intToValue(int64(ta.length) * int64(ta.elemSize))
+	}
+	panic(r.NewTypeError("Method get TypedArray.prototype.byteLength called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_getLength(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		if ta.viewedArrayBuf.data == nil {
+			return _positiveZero
+		}
+		return intToValue(int64(ta.length))
+	}
+	panic(r.NewTypeError("Method get TypedArray.prototype.length called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_getByteOffset(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		if ta.viewedArrayBuf.data == nil {
+			return _positiveZero
+		}
+		return intToValue(int64(ta.offset) * int64(ta.elemSize))
+	}
+	panic(r.NewTypeError("Method get TypedArray.prototype.byteOffset called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_copyWithin(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		l := int64(ta.length)
+		var relEnd int64
+		to := toInt(relToIdx(call.Argument(0).ToInteger(), l))
+		from := toInt(relToIdx(call.Argument(1).ToInteger(), l))
+		if end := call.Argument(2); end != _undefined {
+			relEnd = end.ToInteger()
+		} else {
+			relEnd = l
+		}
+		final := toInt(relToIdx(relEnd, l))
+		data := ta.viewedArrayBuf.data
+		offset := ta.offset
+		elemSize := ta.elemSize
+		copy(data[(offset+to)*elemSize:], data[(offset+from)*elemSize:(offset+final)*elemSize])
+		return call.This
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.copyWithin called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_entries(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		return r.createArrayIterator(ta.val, iterationKindKeyValue)
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.entries called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_every(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		callbackFn := r.toCallable(call.Argument(0))
+		fc := FunctionCall{
+			This:      call.Argument(1),
+			Arguments: []Value{nil, nil, call.This},
+		}
+		for k := 0; k < ta.length; k++ {
+			ta.viewedArrayBuf.ensureNotDetached()
+			fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
+			fc.Arguments[1] = intToValue(int64(k))
+			if !callbackFn(fc).ToBoolean() {
+				return valueFalse
+			}
+		}
+		return valueTrue
+
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.every called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_fill(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		l := int64(ta.length)
+		k := toInt(relToIdx(call.Argument(1).ToInteger(), l))
+		var relEnd int64
+		if endArg := call.Argument(2); endArg != _undefined {
+			relEnd = endArg.ToInteger()
+		} else {
+			relEnd = l
+		}
+		final := toInt(relToIdx(relEnd, l))
+		value := ta.typedArray.toRaw(call.Argument(0))
+		for ; k < final; k++ {
+			ta.typedArray.setRaw(ta.offset+k, value)
+		}
+		return call.This
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.fill called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_filter(call FunctionCall) Value {
+	o := r.toObject(call.This)
+	if ta, ok := o.self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		callbackFn := r.toCallable(call.Argument(0))
+		fc := FunctionCall{
+			This:      call.Argument(1),
+			Arguments: []Value{nil, nil, call.This},
+		}
+		c := r.speciesConstructorObj(o, ta.defaultCtor)
+		buf := make([]byte, 0, ta.length*ta.elemSize)
+		captured := 0
+		for k := 0; k < ta.length; k++ {
+			ta.viewedArrayBuf.ensureNotDetached()
+			fc.Arguments[0] = ta.typedArray.get(k)
+			fc.Arguments[1] = intToValue(int64(k))
+			if callbackFn(fc).ToBoolean() {
+				i := (ta.offset + k) * ta.elemSize
+				buf = append(buf, ta.viewedArrayBuf.data[i:i+ta.elemSize]...)
+				captured++
+			}
+		}
+		ab := r._newArrayBuffer(r.global.ArrayBufferPrototype, nil)
+		ab.data = buf
+		kept := r.toConstructor(ta.defaultCtor)([]Value{ab.val}, ta.defaultCtor)
+		if c == ta.defaultCtor {
+			return kept
+		} else {
+			ret := r.toConstructor(c)([]Value{intToValue(int64(captured))}, c)
+			if retTa, ok := ret.self.(*typedArrayObject); ok {
+				keptTa := kept.self.(*typedArrayObject)
+				for i := 0; i < captured; i++ {
+					retTa.typedArray.set(i, keptTa.typedArray.get(i))
+				}
+				return ret
+			} else {
+				panic(r.NewTypeError("Species constructor did not returned a TypedArray"))
+			}
+		}
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.filter called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_find(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		predicate := r.toCallable(call.Argument(0))
+		fc := FunctionCall{
+			This:      call.Argument(1),
+			Arguments: []Value{nil, nil, call.This},
+		}
+		for k := 0; k < ta.length; k++ {
+			ta.viewedArrayBuf.ensureNotDetached()
+			val := ta.typedArray.get(ta.offset + k)
+			fc.Arguments[0] = val
+			fc.Arguments[1] = intToValue(int64(k))
+			if predicate(fc).ToBoolean() {
+				return val
+			}
+		}
+		return _undefined
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.find called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_findIndex(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		predicate := r.toCallable(call.Argument(0))
+		fc := FunctionCall{
+			This:      call.Argument(1),
+			Arguments: []Value{nil, nil, call.This},
+		}
+		for k := 0; k < ta.length; k++ {
+			ta.viewedArrayBuf.ensureNotDetached()
+			fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
+			fc.Arguments[1] = intToValue(int64(k))
+			if predicate(fc).ToBoolean() {
+				return fc.Arguments[1]
+			}
+		}
+		return _undefined
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.findIndex called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_forEach(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		callbackFn := r.toCallable(call.Argument(0))
+		fc := FunctionCall{
+			This:      call.Argument(1),
+			Arguments: []Value{nil, nil, call.This},
+		}
+		for k := 0; k < ta.length; k++ {
+			ta.viewedArrayBuf.ensureNotDetached()
+			if val := ta.typedArray.get(k); val != nil {
+				fc.Arguments[0] = val
+				fc.Arguments[1] = intToValue(int64(k))
+				callbackFn(fc)
+			}
+		}
+		return _undefined
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.forEach called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_indexOf(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		length := int64(ta.length)
+		if length == 0 {
+			return intToValue(-1)
+		}
+
+		n := call.Argument(1).ToInteger()
+		if n >= length {
+			return intToValue(-1)
+		}
+
+		if n < 0 {
+			n = max(length+n, 0)
+		}
+
+		searchElement := ta.typedArray.toRaw(call.Argument(0))
+		for k := toInt(n); k < ta.length; k++ {
+			if ta.typedArray.getRaw(ta.offset+k) == searchElement {
+				return intToValue(int64(k))
+			}
+		}
+		return intToValue(-1)
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.indexOf called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_join(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		sep := ""
+		ascii := false
+		if s := call.Argument(0); s != _undefined {
+			ss := s.toString()
+			sep = ss.String()
+			_, ascii = ss.(asciiString)
+		} else {
+			sep = ","
+			ascii = true
+		}
+		l := ta.length
+		if l == 0 {
+			return stringEmpty
+		}
+
+		var buf strings.Builder
+		buf.WriteString(ta.typedArray.get(ta.offset + 0).String())
+
+		for i := 1; i < l; i++ {
+			buf.WriteString(sep)
+			element := ta.typedArray.get(ta.offset + i)
+			buf.WriteString(element.String())
+		}
+
+		str := buf.String()
+		if ascii {
+			return asciiString(str)
+		}
+		return newUnicodeString(str)
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.join called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_keys(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		return r.createArrayIterator(ta.val, iterationKindKey)
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.keys called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_lastIndexOf(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		length := int64(ta.length)
+		if length == 0 {
+			return intToValue(-1)
+		}
+
+		var fromIndex int64
+
+		if len(call.Arguments) < 2 {
+			fromIndex = length - 1
+		} else {
+			fromIndex = call.Argument(1).ToInteger()
+			if fromIndex >= 0 {
+				fromIndex = min(fromIndex, length-1)
+			} else {
+				fromIndex += length
+			}
+		}
+
+		searchElement := ta.typedArray.toRaw(call.Argument(0))
+		for k := toInt(fromIndex); k >= 0; k-- {
+			if ta.typedArray.getRaw(ta.offset+k) == searchElement {
+				return intToValue(int64(k))
+			}
+		}
+		return intToValue(-1)
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.lastIndexOf called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_map(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		callbackFn := r.toCallable(call.Argument(0))
+		fc := FunctionCall{
+			This:      call.Argument(1),
+			Arguments: []Value{nil, nil, call.This},
+		}
+		dst := r.typedArraySpeciesCreate(ta, []Value{intToValue(int64(ta.length))})
+		for i := 0; i < ta.length; i++ {
+			ta.viewedArrayBuf.ensureNotDetached()
+			fc.Arguments[0] = ta.typedArray.get(ta.offset + i)
+			fc.Arguments[1] = intToValue(int64(i))
+			dst.typedArray.set(i, callbackFn(fc))
+		}
+		return dst.val
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.map called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_reduce(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		callbackFn := r.toCallable(call.Argument(0))
+		fc := FunctionCall{
+			This:      _undefined,
+			Arguments: []Value{nil, nil, nil, call.This},
+		}
+		k := 0
+		if len(call.Arguments) >= 2 {
+			fc.Arguments[0] = call.Argument(1)
+		} else {
+			if ta.length > 0 {
+				fc.Arguments[0] = ta.typedArray.get(ta.offset + 0)
+				k = 1
+			}
+		}
+		if fc.Arguments[0] == nil {
+			panic(r.NewTypeError("Reduce of empty array with no initial value"))
+		}
+		for ; k < ta.length; k++ {
+			ta.viewedArrayBuf.ensureNotDetached()
+			idx := valueInt(k)
+			fc.Arguments[1] = ta.typedArray.get(ta.offset + k)
+			fc.Arguments[2] = idx
+			fc.Arguments[0] = callbackFn(fc)
+		}
+		return fc.Arguments[0]
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.reduce called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_reduceRight(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		callbackFn := r.toCallable(call.Argument(0))
+		fc := FunctionCall{
+			This:      _undefined,
+			Arguments: []Value{nil, nil, nil, call.This},
+		}
+		k := ta.length - 1
+		if len(call.Arguments) >= 2 {
+			fc.Arguments[0] = call.Argument(1)
+		} else {
+			if k >= 0 {
+				fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
+				k--
+			}
+		}
+		if fc.Arguments[0] == nil {
+			panic(r.NewTypeError("Reduce of empty array with no initial value"))
+		}
+		for ; k >= 0; k-- {
+			ta.viewedArrayBuf.ensureNotDetached()
+			idx := valueInt(k)
+			fc.Arguments[1] = ta.typedArray.get(ta.offset + k)
+			fc.Arguments[2] = idx
+			fc.Arguments[0] = callbackFn(fc)
+		}
+		return fc.Arguments[0]
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.reduceRight called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_reverse(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		l := ta.length
+		middle := l / 2
+		for lower := 0; lower != middle; lower++ {
+			upper := l - lower - 1
+			ta.typedArray.Swap(ta.offset+lower, ta.offset+upper)
+		}
+
+		return call.This
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.reverse called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_set(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		srcObj := r.toObject(call.Argument(0))
+		targetOffset := toInt(call.Argument(1).ToInteger())
+		if targetOffset < 0 {
+			panic(r.newError(r.global.RangeError, "offset should be >= 0"))
+		}
+		ta.viewedArrayBuf.ensureNotDetached()
+		targetLen := ta.length
+		if src := srcObj.self.(*typedArrayObject); ok {
+			src.viewedArrayBuf.ensureNotDetached()
+			srcLen := src.length
+			if srcLen+targetOffset > targetLen {
+				panic(r.newError(r.global.RangeError, "Source is too large"))
+			}
+			if src.defaultCtor == ta.defaultCtor {
+				copy(ta.viewedArrayBuf.data[(ta.offset+targetOffset)*ta.elemSize:],
+					src.viewedArrayBuf.data[src.offset*src.elemSize:(src.offset+srcLen)*src.elemSize])
+			} else {
+				curSrc := uintptr(unsafe.Pointer(&src.viewedArrayBuf.data[src.offset*src.elemSize]))
+				endSrc := curSrc + uintptr(srcLen*src.elemSize)
+				curDst := uintptr(unsafe.Pointer(&ta.viewedArrayBuf.data[(ta.offset+targetOffset)*ta.elemSize]))
+				dstOffset := ta.offset + targetOffset
+				srcOffset := src.offset
+				if ta.elemSize == src.elemSize {
+					if curDst <= curSrc || curDst >= endSrc {
+						for i := 0; i < srcLen; i++ {
+							ta.typedArray.set(dstOffset+i, src.typedArray.get(srcOffset+i))
+						}
+					} else {
+						for i := srcLen - 1; i >= 0; i-- {
+							ta.typedArray.set(dstOffset+i, src.typedArray.get(srcOffset+i))
+						}
+					}
+				} else {
+					x := int(curDst-curSrc) / (src.elemSize - ta.elemSize)
+					if x < 0 {
+						x = 0
+					} else if x > srcLen {
+						x = srcLen
+					}
+					if ta.elemSize < src.elemSize {
+						for i := x; i < srcLen; i++ {
+							ta.typedArray.set(dstOffset+i, src.typedArray.get(srcOffset+i))
+						}
+						for i := x - 1; i >= 0; i-- {
+							ta.typedArray.set(dstOffset+i, src.typedArray.get(srcOffset+i))
+						}
+					} else {
+						for i := 0; i < x; i++ {
+							ta.typedArray.set(dstOffset+i, src.typedArray.get(srcOffset+i))
+						}
+						for i := srcLen - 1; i >= x; i-- {
+							ta.typedArray.set(dstOffset+i, src.typedArray.get(srcOffset+i))
+						}
+					}
+				}
+			}
+		} else {
+			targetLen := ta.length
+			srcLen := toInt(toLength(srcObj.self.getStr("length", nil)))
+			if srcLen+targetOffset > targetLen {
+				panic(r.newError(r.global.RangeError, "Source is too large"))
+			}
+			for i := 0; i < srcLen; i++ {
+				val := nilSafe(srcObj.self.getIdx(valueInt(i), nil))
+				ta.viewedArrayBuf.ensureNotDetached()
+				ta.typedArray.set(targetOffset+i, val)
+			}
+		}
+		return _undefined
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.set called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_slice(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		length := int64(ta.length)
+		start := toInt(relToIdx(call.Argument(0).ToInteger(), length))
+		var e int64
+		if endArg := call.Argument(1); endArg != _undefined {
+			e = endArg.ToInteger()
+		} else {
+			e = length
+		}
+		end := toInt(relToIdx(e, length))
+
+		count := end - start
+		if count < 0 {
+			count = 0
+		}
+		dst := r.typedArraySpeciesCreate(ta, []Value{intToValue(int64(count))})
+		if dst.defaultCtor == ta.defaultCtor {
+			copy(dst.viewedArrayBuf.data, ta.viewedArrayBuf.data[(ta.offset+start)*ta.elemSize:])
+		} else {
+			for i := 0; i < count; i++ {
+				dst.typedArray.set(i, ta.typedArray.get(ta.offset+start+i))
+			}
+		}
+		return dst.val
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.slice called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) typedArrayProto_some(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		callbackFn := r.toCallable(call.Argument(0))
+		fc := FunctionCall{
+			This:      call.Argument(1),
+			Arguments: []Value{nil, nil, call.This},
+		}
+		for k := 0; k < ta.length; k++ {
+			ta.viewedArrayBuf.ensureNotDetached()
+			fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
+			fc.Arguments[1] = intToValue(int64(k))
+			if callbackFn(fc).ToBoolean() {
+				return valueTrue
+			}
+		}
+		return valueFalse
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.some called on incompatible receiver %s", call.This.String()))
+}
+
+func (r *Runtime) newTypedArray([]Value, *Object) *Object {
+	panic(r.NewTypeError("Abstract class TypedArray not directly constructable"))
+}
+
+func (r *Runtime) typedArray_from(call FunctionCall) Value {
+	mapFn := call.Argument(1)
+	if mapFn == _undefined {
+		mapFn = nil
+	}
+	return r.typedArrayFrom(r.toObject(call.This), call.Argument(0).ToObject(r), mapFn, call.Argument(2))
+}
+
+func (r *Runtime) typedArray_of(call FunctionCall) Value {
+	ta := r.typedArrayCreate(r.toObject(call.This), []Value{intToValue(int64(len(call.Arguments)))})
+	for i, val := range call.Arguments {
+		ta.typedArray.set(i, val)
+	}
+	return ta.val
+}
+
+func (r *Runtime) allocateTypedArray(newTarget *Object, length int, taCtor typedArrayObjectCtor) *Object {
+	buf := r._newArrayBuffer(r.global.ArrayBufferPrototype, nil)
+	ta := taCtor(buf, 0, length, r.getPrototypeFromCtor(newTarget, nil, r.global.TypedArrayPrototype))
+	if length > 0 {
+		buf.data = make([]byte, length*ta.elemSize)
+	}
+	return ta.val
+}
+
+func (r *Runtime) typedArraySpeciesCreate(ta *typedArrayObject, args []Value) *typedArrayObject {
+	return r.typedArrayCreate(r.speciesConstructorObj(ta.val, ta.defaultCtor), args)
+}
+
+func (r *Runtime) typedArrayCreate(ctor *Object, args []Value) *typedArrayObject {
+	o := r.toConstructor(ctor)(args, ctor)
+	if ta, ok := o.self.(*typedArrayObject); ok {
+		return ta
+	}
+	panic(r.NewTypeError("Invalid TypedArray: %s", o))
+}
+
+func (r *Runtime) typedArrayFrom(ctor, items *Object, mapFn, thisValue Value) *Object {
+	var mapFc func(call FunctionCall) Value
+	if mapFn != nil {
+		mapFc = r.toCallable(mapFn)
+		if thisValue == nil {
+			thisValue = _undefined
+		}
+	}
+	usingIter := toMethod(items.self.getSym(symIterator, nil))
+	if usingIter != nil {
+		iter := r.getIterator(items, usingIter)
+		var values []Value
+		r.iterate(iter, func(item Value) {
+			values = append(values, item)
+		})
+		ta := r.typedArrayCreate(ctor, []Value{intToValue(int64(len(values)))})
+		if mapFc == nil {
+			for idx, val := range values {
+				ta.typedArray.set(idx, val)
+			}
+		} else {
+			fc := FunctionCall{
+				This:      thisValue,
+				Arguments: []Value{nil, nil},
+			}
+			for idx, val := range values {
+				fc.Arguments[0], fc.Arguments[1] = val, intToValue(int64(idx))
+				val = mapFc(fc)
+				ta.typedArray.set(idx, val)
+			}
+		}
+		return ta.val
+	}
+	length := toInt(toLength(items.self.getStr("length", nil)))
+	ta := r.typedArrayCreate(ctor, []Value{intToValue(int64(length))})
+	if mapFc == nil {
+		for i := 0; i < length; i++ {
+			ta.typedArray.set(i, nilSafe(items.self.getIdx(valueInt(i), nil)))
+		}
+	} else {
+		fc := FunctionCall{
+			This:      thisValue,
+			Arguments: []Value{nil, nil},
+		}
+		for i := 0; i < length; i++ {
+			idx := valueInt(i)
+			fc.Arguments[0], fc.Arguments[1] = items.self.getIdx(idx, nil), idx
+			ta.typedArray.set(i, mapFc(fc))
+		}
+	}
+	return ta.val
+}
+
+func (r *Runtime) _newTypedArrayFromArrayBuffer(ab *arrayBufferObject, args []Value, newTarget *Object, taCtor typedArrayObjectCtor) *Object {
+	ta := taCtor(ab, 0, 0, r.getPrototypeFromCtor(newTarget, nil, r.global.TypedArrayPrototype))
+	var byteOffset int
+	if len(args) > 1 && args[1] != nil && args[1] != _undefined {
+		byteOffset = r.toIndex(args[1])
+		if byteOffset%ta.elemSize != 0 {
+			panic(r.newError(r.global.RangeError, "Start offset of %s should be a multiple of %d", newTarget.self.getStr("name", nil), ta.elemSize))
+		}
+	}
+	ab.ensureNotDetached()
+	var length int
+	if len(args) > 2 && args[2] != nil && args[2] != _undefined {
+		length = r.toIndex(args[2])
+		if byteOffset+length*ta.elemSize > len(ab.data) {
+			panic(r.newError(r.global.RangeError, "Invalid typed array length: %d", length))
+		}
+	} else {
+		if len(ab.data)%ta.elemSize != 0 {
+			panic(r.newError(r.global.RangeError, "Byte length of %s should be a multiple of %d", newTarget.self.getStr("name", nil), ta.elemSize))
+		}
+		length = (len(ab.data) - byteOffset) / ta.elemSize
+	}
+	ta.offset = byteOffset / ta.elemSize
+	ta.length = length
+	return ta.val
+}
+
+func (r *Runtime) cloneArrayBuffer(src *arrayBufferObject, offset, length int) *arrayBufferObject {
+	ctor := r.speciesConstructorObj(src.val, r.global.ArrayBuffer)
+	buf := r._newArrayBuffer(r.getPrototypeFromCtor(ctor, r.global.ArrayBuffer, r.global.ArrayBufferPrototype), nil)
+	src.ensureNotDetached()
+	data := make([]byte, length)
+	copy(data, src.data[offset:])
+	buf.data = data
+	return buf
+}
+
+func (r *Runtime) _newTypedArrayFromTypedArray(src *typedArrayObject, newTarget *Object) *Object {
+	dst := r.typedArrayCreate(newTarget, []Value{_positiveZero})
+	src.viewedArrayBuf.ensureNotDetached()
+	if src.defaultCtor == dst.defaultCtor {
+		buf := r.cloneArrayBuffer(src.viewedArrayBuf, src.offset*src.elemSize, src.length*src.elemSize)
+		dst.viewedArrayBuf = buf
+		dst.length = src.length
+		return dst.val
+	}
+	ctor := r.speciesConstructorObj(src.val, r.global.ArrayBuffer)
+	buf := r._newArrayBuffer(r.getPrototypeFromCtor(ctor, r.global.ArrayBuffer, r.global.ArrayBufferPrototype), nil)
+	l := src.length
+	src.viewedArrayBuf.ensureNotDetached()
+	buf.data = make([]byte, int64(l)*int64(src.elemSize))
+	dst.viewedArrayBuf = buf
+	for i := 0; i < l; i++ {
+		dst.typedArray.setRaw(i, src.typedArray.getRaw(src.offset+i))
+	}
+	dst.length = l
+	return dst.val
+}
+
+func (r *Runtime) _newTypedArray(args []Value, newTarget *Object, taCtor typedArrayObjectCtor) *Object {
+	if newTarget == nil {
+		panic(r.needNew("TypedArray"))
+	}
+	if len(args) > 0 {
+		if obj, ok := args[0].(*Object); !ok {
+			var l int
+			if arg0 := args[0]; arg0 != nil {
+				l = r.toIndex(arg0)
+			}
+			return r.allocateTypedArray(newTarget, l, taCtor)
+		} else {
+			switch o := obj.self.(type) {
+			case *arrayBufferObject:
+				return r._newTypedArrayFromArrayBuffer(o, args, newTarget, taCtor)
+			case *typedArrayObject:
+				return r._newTypedArrayFromTypedArray(o, newTarget)
+			default:
+				return r.typedArrayFrom(newTarget, obj, nil, nil)
+			}
+		}
+	}
+	return nil
+}
+
+func (r *Runtime) newUint8Array(args []Value, newTarget *Object) *Object {
+	return r._newTypedArray(args, newTarget, r.newUint8ArrayObject)
+}
+
+func (r *Runtime) newUint16Array(args []Value, newTarget *Object) *Object {
+	return r._newTypedArray(args, newTarget, r.newUint16ArrayObject)
+}
+
+func (r *Runtime) newUint32Array(args []Value, newTarget *Object) *Object {
+	return r._newTypedArray(args, newTarget, r.newUint32ArrayObject)
 }
 
 func (r *Runtime) createArrayBufferProto(val *Object) objectImpl {
@@ -483,7 +1028,7 @@ func (r *Runtime) createArrayBufferProto(val *Object) objectImpl {
 }
 
 func (r *Runtime) createArrayBuffer(val *Object) objectImpl {
-	o := r.newNativeFuncObj(val, r.constructorThrower("ArrayBuffer"), r.builtin_ArrayBuffer, "ArrayBuffer", r.global.ArrayBufferPrototype, 1)
+	o := r.newNativeConstructOnly(val, r.builtin_newArrayBuffer, r.global.ArrayBufferPrototype, "ArrayBuffer", 1)
 	o._putProp("isView", r.newNativeFunc(r.arrayBuffer_isView, nil, "isView", nil, 1), true, false, true)
 	o._putSym(symSpecies, &valueProperty{
 		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
@@ -533,8 +1078,83 @@ func (r *Runtime) createDataViewProto(val *Object) objectImpl {
 }
 
 func (r *Runtime) createDataView(val *Object) objectImpl {
-	o := r.newNativeFuncObj(val, r.constructorThrower("DataView"), r.newDataView, "DataView", r.global.DataViewPrototype, 3)
+	o := r.newNativeConstructOnly(val, r.newDataView, r.global.DataViewPrototype, "DataView", 3)
 	return o
+}
+
+func (r *Runtime) createTypedArrayProto(val *Object) objectImpl {
+	b := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
+	b._put("buffer", &valueProperty{
+		accessor:     true,
+		configurable: true,
+		getterFunc:   r.newNativeFunc(r.typedArrayProto_getBuffer, nil, "get buffer", nil, 0),
+	})
+	b._put("byteLength", &valueProperty{
+		accessor:     true,
+		configurable: true,
+		getterFunc:   r.newNativeFunc(r.typedArrayProto_getByteLen, nil, "get byteLength", nil, 0),
+	})
+	b._put("byteOffset", &valueProperty{
+		accessor:     true,
+		configurable: true,
+		getterFunc:   r.newNativeFunc(r.typedArrayProto_getByteOffset, nil, "get byteOffset", nil, 0),
+	})
+	b._putProp("constructor", r.global.TypedArray, true, false, true)
+	b._putProp("copyWithin", r.newNativeFunc(r.typedArrayProto_copyWithin, nil, "copyWithin", nil, 2), true, false, true)
+	b._putProp("entries", r.newNativeFunc(r.typedArrayProto_entries, nil, "entries", nil, 0), true, false, true)
+	b._putProp("every", r.newNativeFunc(r.typedArrayProto_every, nil, "every", nil, 1), true, false, true)
+	b._putProp("fill", r.newNativeFunc(r.typedArrayProto_fill, nil, "fill", nil, 1), true, false, true)
+	b._putProp("filter", r.newNativeFunc(r.typedArrayProto_filter, nil, "filter", nil, 1), true, false, true)
+	b._putProp("find", r.newNativeFunc(r.typedArrayProto_find, nil, "find", nil, 1), true, false, true)
+	b._putProp("findIndex", r.newNativeFunc(r.typedArrayProto_findIndex, nil, "findIndex", nil, 1), true, false, true)
+	b._putProp("forEach", r.newNativeFunc(r.typedArrayProto_forEach, nil, "forEach", nil, 1), true, false, true)
+	b._putProp("indexOf", r.newNativeFunc(r.typedArrayProto_indexOf, nil, "indexOf", nil, 1), true, false, true)
+	b._putProp("join", r.newNativeFunc(r.typedArrayProto_join, nil, "join", nil, 1), true, false, true)
+	b._putProp("keys", r.newNativeFunc(r.typedArrayProto_keys, nil, "keys", nil, 0), true, false, true)
+	b._putProp("lastIndexOf", r.newNativeFunc(r.typedArrayProto_lastIndexOf, nil, "lastIndexOf", nil, 1), true, false, true)
+	b._put("length", &valueProperty{
+		accessor:     true,
+		configurable: true,
+		getterFunc:   r.newNativeFunc(r.typedArrayProto_getLength, nil, "get length", nil, 0),
+	})
+	b._putProp("map", r.newNativeFunc(r.typedArrayProto_map, nil, "map", nil, 1), true, false, true)
+	b._putProp("reduce", r.newNativeFunc(r.typedArrayProto_reduce, nil, "reduce", nil, 1), true, false, true)
+	b._putProp("reduceRight", r.newNativeFunc(r.typedArrayProto_reduceRight, nil, "reduce", nil, 1), true, false, true)
+	b._putProp("reverse", r.newNativeFunc(r.typedArrayProto_reverse, nil, "reverse", nil, 0), true, false, true)
+	b._putProp("set", r.newNativeFunc(r.typedArrayProto_set, nil, "set", nil, 1), true, false, true)
+	b._putProp("slice", r.newNativeFunc(r.typedArrayProto_slice, nil, "slice", nil, 2), true, false, true)
+	b._putProp("some", r.newNativeFunc(r.typedArrayProto_some, nil, "some", nil, 1), true, false, true)
+
+	return b
+}
+
+func (r *Runtime) createTypedArray(val *Object) objectImpl {
+	o := r.newNativeConstructOnly(val, r.newTypedArray, r.global.TypedArrayPrototype, "TypedArray", 0)
+	o._putProp("from", r.newNativeFunc(r.typedArray_from, nil, "from", nil, 1), true, false, true)
+	o._putProp("of", r.newNativeFunc(r.typedArray_of, nil, "of", nil, 0), true, false, true)
+	o._putSym(symSpecies, &valueProperty{
+		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
+		accessor:     true,
+		configurable: true,
+	})
+
+	return o
+}
+
+func (r *Runtime) addPrototype(ctor *Object, proto *Object) {
+	p := r.newBaseObject(proto, classObject)
+	p._putProp("constructor", ctor, true, false, true)
+	ctor.self._putProp("prototype", p.val, false, false, false)
+}
+
+func (r *Runtime) typedArrayCreator(ctor func(args []Value, newTarget *Object) *Object, name string, bytesPerElement int) func(val *Object) objectImpl {
+	return func(val *Object) objectImpl {
+		o := r.newNativeConstructOnly(val, ctor, nil, name, 0)
+		o.prototype = r.global.TypedArray
+		r.addPrototype(o.val, r.global.TypedArrayPrototype)
+		o._putProp("BYTES_PER_ELEMENT", intToValue(int64(bytesPerElement)), false, false, false)
+		return o
+	}
 }
 
 func (r *Runtime) initTypedArrays() {
@@ -547,18 +1167,16 @@ func (r *Runtime) initTypedArrays() {
 	r.global.DataView = r.newLazyObject(r.createDataView)
 	r.addToGlobal("DataView", r.global.DataView)
 
-}
+	r.global.TypedArrayPrototype = r.newLazyObject(r.createTypedArrayProto)
+	r.global.TypedArray = r.newLazyObject(r.createTypedArray)
 
-func init() {
-	buf := [2]byte{}
-	*(*uint16)(unsafe.Pointer(&buf[0])) = uint16(0xCAFE)
+	r.global.Uint8Array = r.newLazyObject(r.typedArrayCreator(r.newUint8Array, "Uint8Array", 1))
+	r.addToGlobal("Uint8Array", r.global.Uint8Array)
 
-	switch buf {
-	case [2]byte{0xFE, 0xCA}:
-		nativeEndian = littleEndian
-	case [2]byte{0xCA, 0xFE}:
-		nativeEndian = bigEndian
-	default:
-		panic("Could not determine native endianness.")
-	}
+	r.global.Uint16Array = r.newLazyObject(r.typedArrayCreator(r.newUint16Array, "Uint16Array", 2))
+	r.addToGlobal("Uint16Array", r.global.Uint16Array)
+
+	r.global.Uint32Array = r.newLazyObject(r.typedArrayCreator(r.newUint32Array, "Uint32Array", 4))
+	r.addToGlobal("Uint32Array", r.global.Uint32Array)
+
 }

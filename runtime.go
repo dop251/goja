@@ -7,6 +7,7 @@ import (
 	"go/ast"
 	"hash/maphash"
 	"math"
+	"math/bits"
 	"math/rand"
 	"reflect"
 	"strconv"
@@ -52,10 +53,15 @@ type global struct {
 
 	ArrayBuffer *Object
 	DataView    *Object
-	WeakSet     *Object
-	WeakMap     *Object
-	Map         *Object
-	Set         *Object
+	TypedArray  *Object
+	Uint8Array  *Object
+	Uint16Array *Object
+	Uint32Array *Object
+
+	WeakSet *Object
+	WeakMap *Object
+	Map     *Object
+	Set     *Object
 
 	Error          *Object
 	TypeError      *Object
@@ -80,6 +86,7 @@ type global struct {
 
 	ArrayBufferPrototype *Object
 	DataViewPrototype    *Object
+	TypedArrayPrototype  *Object
 	WeakSetPrototype     *Object
 	WeakMapPrototype     *Object
 	MapPrototype         *Object
@@ -487,6 +494,39 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 	return v
 }
 
+func (r *Runtime) newNativeConstructOnly(v *Object, ctor func(args []Value, newTarget *Object) *Object, defaultProto *Object, name string, length int) *nativeFuncObject {
+	if v == nil {
+		v = &Object{runtime: r}
+	}
+
+	f := &nativeFuncObject{
+		baseFuncObject: baseFuncObject{
+			baseObject: baseObject{
+				class:      classFunction,
+				val:        v,
+				extensible: true,
+				prototype:  r.global.FunctionPrototype,
+			},
+		},
+		f: func(call FunctionCall) Value {
+			return ctor(call.Arguments, nil)
+		},
+		construct: func(args []Value, newTarget *Object) *Object {
+			if newTarget == nil {
+				newTarget = v
+			}
+			return ctor(args, newTarget)
+		},
+	}
+	v.self = f
+	f.init(name, length)
+	if defaultProto != nil {
+		f._putProp("prototype", defaultProto, false, false, false)
+	}
+
+	return f
+}
+
 func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(args []Value, proto *Object) *Object, name string, proto *Object, length int) *Object {
 	v := &Object{runtime: r}
 
@@ -780,7 +820,7 @@ func toInt16(v Value) int16 {
 	return 0
 }
 
-func toUInt16(v Value) uint16 {
+func toUint16(v Value) uint16 {
 	v = v.ToNumber()
 	if i, ok := v.(valueInt); ok {
 		return uint16(i)
@@ -839,10 +879,13 @@ func toLength(v Value) int64 {
 	return i
 }
 
-func (r *Runtime) toIndex(v Value) int64 {
+func (r *Runtime) toIndex(v Value) int {
 	intIdx := v.ToInteger()
 	if intIdx >= 0 && intIdx < maxInt {
-		return intIdx
+		if bits.UintSize == 32 && intIdx >= math.MaxInt32 {
+			panic(r.newError(r.global.RangeError, "Index %s overflows int", v.String()))
+		}
+		return int(intIdx)
 	}
 	panic(r.newError(r.global.RangeError, "Invalid index %s", v.String()))
 }
@@ -1732,6 +1775,17 @@ func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []
 	return r.toConstructor(c)
 }
 
+func (r *Runtime) speciesConstructorObj(o, defaultConstructor *Object) *Object {
+	c := o.self.getStr("constructor", nil)
+	if c != nil && c != _undefined {
+		c = r.toObject(c).self.getSym(symSpecies, nil)
+	}
+	if c == nil || c == _undefined {
+		return defaultConstructor
+	}
+	return r.toObject(c)
+}
+
 func (r *Runtime) returnThis(call FunctionCall) Value {
 	return call.This
 }
@@ -1812,12 +1866,6 @@ func (r *Runtime) newLazyObject(create func(*Object) objectImpl) *Object {
 	}
 	val.self = o
 	return val
-}
-
-func (r *Runtime) constructorThrower(name string) func(call FunctionCall) Value {
-	return func(FunctionCall) Value {
-		panic(r.NewTypeError("Constructor %s requires 'new'", name))
-	}
 }
 
 func nilSafe(v Value) Value {
