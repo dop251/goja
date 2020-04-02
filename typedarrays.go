@@ -3,7 +3,6 @@ package goja
 import (
 	"math"
 	"math/bits"
-	"sort"
 	"strconv"
 	"unsafe"
 )
@@ -23,7 +22,8 @@ type typedArrayObjectCtor func(buf *arrayBufferObject, offset, length int, proto
 
 type arrayBufferObject struct {
 	baseObject
-	data []byte
+	detached bool
+	data     []byte
 }
 
 type dataViewObject struct {
@@ -33,17 +33,24 @@ type dataViewObject struct {
 }
 
 type typedArray interface {
-	sort.Interface
 	toRaw(Value) uint64
 	get(idx int) Value
 	set(idx int, value Value)
 	getRaw(idx int) uint64
 	setRaw(idx int, raw uint64)
+	less(i, j int) bool
+	swap(i, j int)
 }
 
 type uint8Array []uint8
+type uint8ClampedArray []uint8
+type int8Array []int8
 type uint16Array []uint16
+type int16Array []int16
 type uint32Array []uint32
+type int32Array []int32
+type float32Array []float32
+type float64Array []float64
 
 func (a *uint8Array) get(idx int) Value {
 	return intToValue(int64((*a)[idx]))
@@ -65,15 +72,67 @@ func (a *uint8Array) setRaw(idx int, v uint64) {
 	(*a)[idx] = uint8(v)
 }
 
-func (a *uint8Array) Len() int {
-	return len(*a)
-}
-
-func (a *uint8Array) Less(i, j int) bool {
+func (a *uint8Array) less(i, j int) bool {
 	return (*a)[i] < (*a)[j]
 }
 
-func (a *uint8Array) Swap(i, j int) {
+func (a *uint8Array) swap(i, j int) {
+	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
+}
+
+func (a *uint8ClampedArray) get(idx int) Value {
+	return intToValue(int64((*a)[idx]))
+}
+
+func (a *uint8ClampedArray) getRaw(idx int) uint64 {
+	return uint64((*a)[idx])
+}
+
+func (a *uint8ClampedArray) set(idx int, value Value) {
+	(*a)[idx] = toUint8Clamp(value)
+}
+
+func (a *uint8ClampedArray) toRaw(v Value) uint64 {
+	return uint64(toUint8Clamp(v))
+}
+
+func (a *uint8ClampedArray) setRaw(idx int, v uint64) {
+	(*a)[idx] = uint8(v)
+}
+
+func (a *uint8ClampedArray) less(i, j int) bool {
+	return (*a)[i] < (*a)[j]
+}
+
+func (a *uint8ClampedArray) swap(i, j int) {
+	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
+}
+
+func (a *int8Array) get(idx int) Value {
+	return intToValue(int64((*a)[idx]))
+}
+
+func (a *int8Array) getRaw(idx int) uint64 {
+	return uint64((*a)[idx])
+}
+
+func (a *int8Array) set(idx int, value Value) {
+	(*a)[idx] = toInt8(value)
+}
+
+func (a *int8Array) toRaw(v Value) uint64 {
+	return uint64(toInt8(v))
+}
+
+func (a *int8Array) setRaw(idx int, v uint64) {
+	(*a)[idx] = int8(v)
+}
+
+func (a *int8Array) less(i, j int) bool {
+	return (*a)[i] < (*a)[j]
+}
+
+func (a *int8Array) swap(i, j int) {
 	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
 }
 
@@ -97,15 +156,39 @@ func (a *uint16Array) setRaw(idx int, v uint64) {
 	(*a)[idx] = uint16(v)
 }
 
-func (a *uint16Array) Len() int {
-	return len(*a)
-}
-
-func (a *uint16Array) Less(i, j int) bool {
+func (a *uint16Array) less(i, j int) bool {
 	return (*a)[i] < (*a)[j]
 }
 
-func (a *uint16Array) Swap(i, j int) {
+func (a *uint16Array) swap(i, j int) {
+	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
+}
+
+func (a *int16Array) get(idx int) Value {
+	return intToValue(int64((*a)[idx]))
+}
+
+func (a *int16Array) getRaw(idx int) uint64 {
+	return uint64((*a)[idx])
+}
+
+func (a *int16Array) set(idx int, value Value) {
+	(*a)[idx] = toInt16(value)
+}
+
+func (a *int16Array) toRaw(v Value) uint64 {
+	return uint64(toInt16(v))
+}
+
+func (a *int16Array) setRaw(idx int, v uint64) {
+	(*a)[idx] = int16(v)
+}
+
+func (a *int16Array) less(i, j int) bool {
+	return (*a)[i] < (*a)[j]
+}
+
+func (a *int16Array) swap(i, j int) {
 	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
 }
 
@@ -129,15 +212,113 @@ func (a *uint32Array) setRaw(idx int, v uint64) {
 	(*a)[idx] = uint32(v)
 }
 
-func (a *uint32Array) Len() int {
-	return len(*a)
-}
-
-func (a *uint32Array) Less(i, j int) bool {
+func (a *uint32Array) less(i, j int) bool {
 	return (*a)[i] < (*a)[j]
 }
 
-func (a *uint32Array) Swap(i, j int) {
+func (a *uint32Array) swap(i, j int) {
+	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
+}
+
+func (a *int32Array) get(idx int) Value {
+	return intToValue(int64((*a)[idx]))
+}
+
+func (a *int32Array) getRaw(idx int) uint64 {
+	return uint64((*a)[idx])
+}
+
+func (a *int32Array) set(idx int, value Value) {
+	(*a)[idx] = toInt32(value)
+}
+
+func (a *int32Array) toRaw(v Value) uint64 {
+	return uint64(toInt32(v))
+}
+
+func (a *int32Array) setRaw(idx int, v uint64) {
+	(*a)[idx] = int32(v)
+}
+
+func (a *int32Array) less(i, j int) bool {
+	return (*a)[i] < (*a)[j]
+}
+
+func (a *int32Array) swap(i, j int) {
+	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
+}
+
+func (a *float32Array) get(idx int) Value {
+	return floatToValue(float64((*a)[idx]))
+}
+
+func (a *float32Array) getRaw(idx int) uint64 {
+	return uint64(math.Float32bits((*a)[idx]))
+}
+
+func (a *float32Array) set(idx int, value Value) {
+	(*a)[idx] = toFloat32(value)
+}
+
+func (a *float32Array) toRaw(v Value) uint64 {
+	return uint64(math.Float32bits(toFloat32(v)))
+}
+
+func (a *float32Array) setRaw(idx int, v uint64) {
+	(*a)[idx] = math.Float32frombits(uint32(v))
+}
+
+func typedFloatLess(x, y float64) bool {
+	xNan := math.IsNaN(x)
+	yNan := math.IsNaN(y)
+	if xNan && yNan {
+		return false
+	}
+	if xNan {
+		return false
+	}
+	if yNan {
+		return true
+	}
+	if x >= y {
+		return false
+	}
+	return true
+}
+
+func (a *float32Array) less(i, j int) bool {
+	return typedFloatLess(float64((*a)[i]), float64((*a)[j]))
+}
+
+func (a *float32Array) swap(i, j int) {
+	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
+}
+
+func (a *float64Array) get(idx int) Value {
+	return floatToValue((*a)[idx])
+}
+
+func (a *float64Array) getRaw(idx int) uint64 {
+	return math.Float64bits((*a)[idx])
+}
+
+func (a *float64Array) set(idx int, value Value) {
+	(*a)[idx] = value.ToFloat()
+}
+
+func (a *float64Array) toRaw(v Value) uint64 {
+	return math.Float64bits(v.ToFloat())
+}
+
+func (a *float64Array) setRaw(idx int, v uint64) {
+	(*a)[idx] = math.Float64frombits(v)
+}
+
+func (a *float64Array) less(i, j int) bool {
+	return typedFloatLess((*a)[i], (*a)[j])
+}
+
+func (a *float64Array) swap(i, j int) {
 	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
 }
 
@@ -223,6 +404,7 @@ func (a *typedArrayObject) getIdx(idx valueInt, receiver Value) Value {
 }
 
 func (a *typedArrayObject) _putIdx(idx int, v Value, throw bool) bool {
+	v = v.ToNumber()
 	a.viewedArrayBuf.ensureNotDetached()
 	if idx >= 0 && idx < a.length {
 		a.typedArray.set(idx+a.offset, v)
@@ -342,9 +524,10 @@ func (r *Runtime) _newTypedArrayObject(buf *arrayBufferObject, offset, length, e
 	o := &Object{runtime: r}
 	a := &typedArrayObject{
 		baseObject: baseObject{
-			val:       o,
-			class:     classObject,
-			prototype: proto,
+			val:        o,
+			class:      classObject,
+			prototype:  proto,
+			extensible: true,
 		},
 		viewedArrayBuf: buf,
 		offset:         offset,
@@ -363,12 +546,36 @@ func (r *Runtime) newUint8ArrayObject(buf *arrayBufferObject, offset, length int
 	return r._newTypedArrayObject(buf, offset, length, 1, r.global.Uint8Array, (*uint8Array)(&buf.data), proto)
 }
 
+func (r *Runtime) newUint8ClampedArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
+	return r._newTypedArrayObject(buf, offset, length, 1, r.global.Uint8ClampedArray, (*uint8ClampedArray)(&buf.data), proto)
+}
+
+func (r *Runtime) newInt8ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
+	return r._newTypedArrayObject(buf, offset, length, 1, r.global.Int8Array, (*int8Array)(unsafe.Pointer(&buf.data)), proto)
+}
+
 func (r *Runtime) newUint16ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
 	return r._newTypedArrayObject(buf, offset, length, 2, r.global.Uint16Array, (*uint16Array)(unsafe.Pointer(&buf.data)), proto)
 }
 
+func (r *Runtime) newInt16ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
+	return r._newTypedArrayObject(buf, offset, length, 2, r.global.Int16Array, (*int16Array)(unsafe.Pointer(&buf.data)), proto)
+}
+
 func (r *Runtime) newUint32ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
-	return r._newTypedArrayObject(buf, offset, length, 4, r.global.Uint16Array, (*uint32Array)(unsafe.Pointer(&buf.data)), proto)
+	return r._newTypedArrayObject(buf, offset, length, 4, r.global.Uint32Array, (*uint32Array)(unsafe.Pointer(&buf.data)), proto)
+}
+
+func (r *Runtime) newInt32ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
+	return r._newTypedArrayObject(buf, offset, length, 4, r.global.Int32Array, (*int32Array)(unsafe.Pointer(&buf.data)), proto)
+}
+
+func (r *Runtime) newFloat32ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
+	return r._newTypedArrayObject(buf, offset, length, 4, r.global.Float32Array, (*float32Array)(unsafe.Pointer(&buf.data)), proto)
+}
+
+func (r *Runtime) newFloat64ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
+	return r._newTypedArrayObject(buf, offset, length, 8, r.global.Float64Array, (*float64Array)(unsafe.Pointer(&buf.data)), proto)
 }
 
 func (o *dataViewObject) getIdxAndByteOrder(idxVal, littleEndianVal Value, size int) (int, byteOrder) {
@@ -396,7 +603,7 @@ func (o *arrayBufferObject) export() interface{} {
 }
 
 func (o *arrayBufferObject) ensureNotDetached() {
-	if o.data == nil {
+	if o.detached {
 		panic(o.val.runtime.NewTypeError("ArrayBuffer is detached"))
 	}
 }
@@ -513,6 +720,11 @@ func (o *arrayBufferObject) getInt8(idx int) int8 {
 
 func (o *arrayBufferObject) setInt8(idx int, val int8) {
 	o.setUint8(idx, uint8(val))
+}
+
+func (o *arrayBufferObject) detach() {
+	o.data = nil
+	o.detached = true
 }
 
 func (r *Runtime) _newArrayBuffer(proto *Object, o *Object) *arrayBufferObject {

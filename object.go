@@ -461,18 +461,6 @@ func (o *baseObject) setProto(proto *Object, throw bool) bool {
 	return true
 }
 
-func (o *baseObject) _setProto(val Value) {
-	var proto *Object
-	if val != _null {
-		if obj, ok := val.(*Object); ok {
-			proto = obj
-		} else {
-			return
-		}
-	}
-	o.setProto(proto, true)
-}
-
 func (o *baseObject) setOwnStr(name string, val Value, throw bool) bool {
 	ownDesc := o.values[name]
 	if ownDesc == nil {

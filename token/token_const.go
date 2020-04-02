@@ -208,9 +208,6 @@ var keywordTable = map[string]_keyword{
 	"in": {
 		token: IN,
 	},
-	"of": {
-		token: OF,
-	},
 	"do": {
 		token: DO,
 	},

@@ -107,6 +107,8 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/Object/regular-subclassing.js":           true,
 		"test/built-ins/Array/prototype/concat/Array.prototype.concat_non-array.js":                       true,
 		"test/language/statements/class/subclass/builtin-objects/Array/length.js":                         true,
+		"test/language/statements/class/subclass/builtin-objects/TypedArray/super-must-be-called.js":      true,
+		"test/language/statements/class/subclass/builtin-objects/TypedArray/regular-subclassing.js":       true,
 
 		// full unicode regexp flag
 		"test/built-ins/RegExp/prototype/Symbol.match/u-advance-after-empty.js":               true,
@@ -154,6 +156,7 @@ var (
 		"22.1.2.5",
 		"22.1.3",
 		"22.1.4",
+		"22.2",
 		"23.1",
 		"23.2",
 		"23.3",
@@ -164,6 +167,10 @@ var (
 		"26.2",
 		"B.2.1",
 		"B.2.2",
+	}
+
+	esIdPrefixWhiteList = []string{
+		"sec-%typedarray%",
 	}
 )
 
@@ -240,6 +247,16 @@ func parseTC39File(name string) (*tc39Meta, string, error) {
 	return &meta, str, nil
 }
 
+func (*tc39TestCtx) detachArrayBuffer(call FunctionCall) Value {
+	if obj, ok := call.Argument(0).(*Object); ok {
+		if buf, ok := obj.self.(*arrayBufferObject); ok {
+			buf.detach()
+			return _undefined
+		}
+	}
+	panic(typeError("detachArrayBuffer() is called with incompatible argument"))
+}
+
 func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.TB) {
 	defer func() {
 		if x := recover(); x != nil {
@@ -247,6 +264,9 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		}
 	}()
 	vm := New()
+	_262 := vm.NewObject()
+	_262.Set("detachArrayBuffer", ctx.detachArrayBuffer)
+	vm.Set("$262", _262)
 	err, early := ctx.runTC39Script(name, src, meta.Includes, vm)
 
 	if err != nil {
@@ -315,6 +335,18 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 				for _, prefix := range es6IdWhiteList {
 					if strings.HasPrefix(meta.Es6id, prefix) &&
 						(len(meta.Es6id) == len(prefix) || meta.Es6id[len(prefix)] == '.') {
+
+						skip = false
+						break
+					}
+				}
+			}
+		}
+		if skip {
+			if meta.Esid != "" {
+				for _, prefix := range esIdPrefixWhiteList {
+					if strings.HasPrefix(meta.Esid, prefix) &&
+						(len(meta.Esid) == len(prefix) || meta.Esid[len(prefix)] == '.') {
 
 						skip = false
 						break

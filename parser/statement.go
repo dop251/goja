@@ -438,9 +438,11 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 				if self.token == token.IN {
 					self.next() // in
 					forIn = true
-				} else if self.token == token.OF {
-					self.next() // of
-					forOf = true
+				} else if self.token == token.IDENTIFIER {
+					if self.literal == "of" {
+						self.next()
+						forOf = true
+					}
 				}
 			}
 			left = list
@@ -449,9 +451,11 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 			if self.token == token.IN {
 				self.next()
 				forIn = true
-			} else if self.token == token.OF {
-				self.next()
-				forOf = true
+			} else if self.token == token.IDENTIFIER {
+				if self.literal == "of" {
+					self.next()
+					forOf = true
+				}
 			}
 		}
 		self.scope.allowIn = allowIn

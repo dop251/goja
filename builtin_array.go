@@ -519,14 +519,14 @@ func (r *Runtime) arrayproto_indexOf(call FunctionCall) Value {
 		}
 	}
 
-	return valueInt(-1)
+	return intToValue(-1)
 }
 
 func (r *Runtime) arrayproto_lastIndexOf(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	length := toLength(o.self.getStr("length", nil))
 	if length == 0 {
-		return valueInt(-1)
+		return intToValue(-1)
 	}
 
 	var fromIndex int64
@@ -975,7 +975,7 @@ func (r *Runtime) arrayproto_findIndex(call FunctionCall) Value {
 		}
 	}
 
-	return valueInt(-1)
+	return intToValue(-1)
 }
 
 func (r *Runtime) checkStdArrayObj(obj *Object) *arrayObject {
@@ -1176,7 +1176,7 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 	o._putProp("sort", r.newNativeFunc(r.arrayproto_sort, nil, "sort", nil, 1), true, false, true)
 	o._putProp("splice", r.newNativeFunc(r.arrayproto_splice, nil, "splice", nil, 2), true, false, true)
 	o._putProp("toLocaleString", r.newNativeFunc(r.arrayproto_toLocaleString, nil, "toLocaleString", nil, 0), true, false, true)
-	o._putProp("toString", r.newNativeFunc(r.arrayproto_toString, nil, "toString", nil, 0), true, false, true)
+	o._putProp("toString", r.global.arrayToString, true, false, true)
 	o._putProp("unshift", r.newNativeFunc(r.arrayproto_unshift, nil, "unshift", nil, 1), true, false, true)
 	valuesFunc := r.newNativeFunc(r.arrayproto_values, nil, "values", nil, 0)
 	r.global.arrayValues = valuesFunc
@@ -1221,6 +1221,8 @@ func (r *Runtime) createArrayIterProto(val *Object) objectImpl {
 }
 
 func (r *Runtime) initArray() {
+	r.global.arrayToString = r.newNativeFunc(r.arrayproto_toString, nil, "toString", nil, 0)
+
 	r.global.ArrayIteratorPrototype = r.newLazyObject(r.createArrayIterProto)
 	//r.global.ArrayPrototype = r.newArray(r.global.ObjectPrototype).val
 	//o := r.global.ArrayPrototype.self

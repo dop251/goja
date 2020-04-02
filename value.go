@@ -18,7 +18,8 @@ var (
 	_positiveInf  Value = valueFloat(math.Inf(+1))
 	_negativeInf  Value = valueFloat(math.Inf(-1))
 	_positiveZero Value = valueInt(0)
-	_negativeZero Value = valueFloat(math.Float64frombits(0 | (1 << 63)))
+	negativeZero        = math.Float64frombits(0 | (1 << 63))
+	_negativeZero Value = valueFloat(negativeZero)
 	_epsilon            = valueFloat(2.2204460492503130808472633361816e-16)
 	_undefined    Value = valueUndefined{}
 )

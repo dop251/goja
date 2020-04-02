@@ -51,12 +51,18 @@ type global struct {
 	Symbol   *Object
 	Proxy    *Object
 
-	ArrayBuffer *Object
-	DataView    *Object
-	TypedArray  *Object
-	Uint8Array  *Object
-	Uint16Array *Object
-	Uint32Array *Object
+	ArrayBuffer       *Object
+	DataView          *Object
+	TypedArray        *Object
+	Uint8Array        *Object
+	Uint8ClampedArray *Object
+	Int8Array         *Object
+	Uint16Array       *Object
+	Int16Array        *Object
+	Uint32Array       *Object
+	Int32Array        *Object
+	Float32Array      *Object
+	Float64Array      *Object
 
 	WeakSet *Object
 	WeakMap *Object
@@ -118,6 +124,7 @@ type global struct {
 	mapAdder        *Object
 	setAdder        *Object
 	arrayValues     *Object
+	arrayToString   *Object
 }
 
 type Flag int
@@ -805,6 +812,45 @@ func toUint8(v Value) uint8 {
 	return 0
 }
 
+func toUint8Clamp(v Value) uint8 {
+	v = v.ToNumber()
+	if i, ok := v.(valueInt); ok {
+		if i < 0 {
+			return 0
+		}
+		if i <= 255 {
+			return uint8(i)
+		}
+		return 255
+	}
+
+	if num, ok := v.(valueFloat); ok {
+		num := float64(num)
+		if !math.IsNaN(num) {
+			if num < 0 {
+				return 0
+			}
+			if num > 255 {
+				return 255
+			}
+			f := math.Floor(num)
+			f1 := f + 0.5
+			if f1 < num {
+				return uint8(f + 1)
+			}
+			if f1 > num {
+				return uint8(f)
+			}
+			r := uint8(f)
+			if r&1 != 0 {
+				return r + 1
+			}
+			return r
+		}
+	}
+	return 0
+}
+
 func toInt16(v Value) int16 {
 	v = v.ToNumber()
 	if i, ok := v.(valueInt); ok {
@@ -863,6 +909,10 @@ func toUint32(v Value) uint32 {
 		}
 	}
 	return 0
+}
+
+func toFloat32(v Value) float32 {
+	return float32(v.ToFloat())
 }
 
 func toLength(v Value) int64 {
