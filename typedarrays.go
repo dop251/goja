@@ -40,6 +40,7 @@ type typedArray interface {
 	setRaw(idx int, raw uint64)
 	less(i, j int) bool
 	swap(i, j int)
+	typeMatch(v Value) bool
 }
 
 type uint8Array []uint8
@@ -80,6 +81,13 @@ func (a *uint8Array) swap(i, j int) {
 	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
 }
 
+func (a *uint8Array) typeMatch(v Value) bool {
+	if i, ok := v.(valueInt); ok {
+		return i >= 0 && i <= 255
+	}
+	return false
+}
+
 func (a *uint8ClampedArray) get(idx int) Value {
 	return intToValue(int64((*a)[idx]))
 }
@@ -106,6 +114,13 @@ func (a *uint8ClampedArray) less(i, j int) bool {
 
 func (a *uint8ClampedArray) swap(i, j int) {
 	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
+}
+
+func (a *uint8ClampedArray) typeMatch(v Value) bool {
+	if i, ok := v.(valueInt); ok {
+		return i >= 0 && i <= 255
+	}
+	return false
 }
 
 func (a *int8Array) get(idx int) Value {
@@ -136,6 +151,13 @@ func (a *int8Array) swap(i, j int) {
 	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
 }
 
+func (a *int8Array) typeMatch(v Value) bool {
+	if i, ok := v.(valueInt); ok {
+		return i >= math.MinInt8 && i <= math.MaxInt8
+	}
+	return false
+}
+
 func (a *uint16Array) get(idx int) Value {
 	return intToValue(int64((*a)[idx]))
 }
@@ -162,6 +184,13 @@ func (a *uint16Array) less(i, j int) bool {
 
 func (a *uint16Array) swap(i, j int) {
 	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
+}
+
+func (a *uint16Array) typeMatch(v Value) bool {
+	if i, ok := v.(valueInt); ok {
+		return i >= 0 && i <= math.MaxUint16
+	}
+	return false
 }
 
 func (a *int16Array) get(idx int) Value {
@@ -192,6 +221,13 @@ func (a *int16Array) swap(i, j int) {
 	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
 }
 
+func (a *int16Array) typeMatch(v Value) bool {
+	if i, ok := v.(valueInt); ok {
+		return i >= math.MinInt16 && i <= math.MaxInt16
+	}
+	return false
+}
+
 func (a *uint32Array) get(idx int) Value {
 	return intToValue(int64((*a)[idx]))
 }
@@ -220,6 +256,13 @@ func (a *uint32Array) swap(i, j int) {
 	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
 }
 
+func (a *uint32Array) typeMatch(v Value) bool {
+	if i, ok := v.(valueInt); ok {
+		return i >= 0 && i <= math.MaxUint32
+	}
+	return false
+}
+
 func (a *int32Array) get(idx int) Value {
 	return intToValue(int64((*a)[idx]))
 }
@@ -246,6 +289,13 @@ func (a *int32Array) less(i, j int) bool {
 
 func (a *int32Array) swap(i, j int) {
 	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
+}
+
+func (a *int32Array) typeMatch(v Value) bool {
+	if i, ok := v.(valueInt); ok {
+		return i >= math.MinInt32 && i <= math.MaxInt32
+	}
+	return false
 }
 
 func (a *float32Array) get(idx int) Value {
@@ -294,6 +344,14 @@ func (a *float32Array) swap(i, j int) {
 	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
 }
 
+func (a *float32Array) typeMatch(v Value) bool {
+	switch v.(type) {
+	case valueInt, valueFloat:
+		return true
+	}
+	return false
+}
+
 func (a *float64Array) get(idx int) Value {
 	return floatToValue((*a)[idx])
 }
@@ -320,6 +378,14 @@ func (a *float64Array) less(i, j int) bool {
 
 func (a *float64Array) swap(i, j int) {
 	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
+}
+
+func (a *float64Array) typeMatch(v Value) bool {
+	switch v.(type) {
+	case valueInt, valueFloat:
+		return true
+	}
+	return false
 }
 
 type typedArrayObject struct {

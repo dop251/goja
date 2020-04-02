@@ -1819,7 +1819,7 @@ func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []
 	if c != nil && c != _undefined {
 		c = r.toObject(c).self.getSym(symSpecies, nil)
 	}
-	if c == nil || c == _undefined {
+	if c == nil || c == _undefined || c == _null {
 		c = defaultConstructor
 	}
 	return r.toConstructor(c)
@@ -1830,7 +1830,7 @@ func (r *Runtime) speciesConstructorObj(o, defaultConstructor *Object) *Object {
 	if c != nil && c != _undefined {
 		c = r.toObject(c).self.getSym(symSpecies, nil)
 	}
-	if c == nil || c == _undefined {
+	if c == nil || c == _undefined || c == _null {
 		return defaultConstructor
 	}
 	return r.toObject(c)

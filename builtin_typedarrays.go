@@ -552,11 +552,17 @@ func (r *Runtime) typedArrayProto_indexOf(call FunctionCall) Value {
 			n = max(length+n, 0)
 		}
 
-		searchElement := ta.typedArray.toRaw(call.Argument(0))
 		ta.viewedArrayBuf.ensureNotDetached()
-		for k := toInt(n); k < ta.length; k++ {
-			if ta.typedArray.getRaw(ta.offset+k) == searchElement {
-				return intToValue(int64(k))
+		searchElement := call.Argument(0)
+		if searchElement == _negativeZero {
+			searchElement = _positiveZero
+		}
+		if !IsNaN(searchElement) && ta.typedArray.typeMatch(searchElement) {
+			se := ta.typedArray.toRaw(searchElement)
+			for k := toInt(n); k < ta.length; k++ {
+				if ta.typedArray.getRaw(ta.offset+k) == se {
+					return intToValue(int64(k))
+				}
 			}
 		}
 		return intToValue(-1)
@@ -630,13 +636,20 @@ func (r *Runtime) typedArrayProto_lastIndexOf(call FunctionCall) Value {
 			}
 		}
 
-		searchElement := ta.typedArray.toRaw(call.Argument(0))
 		ta.viewedArrayBuf.ensureNotDetached()
-		for k := toInt(fromIndex); k >= 0; k-- {
-			if ta.typedArray.getRaw(ta.offset+k) == searchElement {
-				return intToValue(int64(k))
+		searchElement := call.Argument(0)
+		if searchElement == _negativeZero {
+			searchElement = _positiveZero
+		}
+		if !IsNaN(searchElement) && ta.typedArray.typeMatch(searchElement) {
+			se := ta.typedArray.toRaw(searchElement)
+			for k := toInt(fromIndex); k >= 0; k-- {
+				if ta.typedArray.getRaw(ta.offset+k) == se {
+					return intToValue(int64(k))
+				}
 			}
 		}
+
 		return intToValue(-1)
 	}
 	panic(r.NewTypeError("Method TypedArray.prototype.lastIndexOf called on incompatible receiver %s", call.This.String()))
@@ -835,8 +848,12 @@ func (r *Runtime) typedArrayProto_slice(call FunctionCall) Value {
 		}
 		dst := r.typedArraySpeciesCreate(ta, []Value{intToValue(int64(count))})
 		if dst.defaultCtor == ta.defaultCtor {
-			ta.viewedArrayBuf.ensureNotDetached()
-			copy(dst.viewedArrayBuf.data, ta.viewedArrayBuf.data[(ta.offset+start)*ta.elemSize:])
+			if count > 0 {
+				ta.viewedArrayBuf.ensureNotDetached()
+				offset := ta.offset
+				elemSize := ta.elemSize
+				copy(dst.viewedArrayBuf.data, ta.viewedArrayBuf.data[(offset+start)*elemSize:(offset+start+count)*elemSize])
+			}
 		} else {
 			for i := 0; i < count; i++ {
 				ta.viewedArrayBuf.ensureNotDetached()
@@ -980,6 +997,7 @@ func (r *Runtime) typedArraySpeciesCreate(ta *typedArrayObject, args []Value) *t
 func (r *Runtime) typedArrayCreate(ctor *Object, args []Value) *typedArrayObject {
 	o := r.toConstructor(ctor)(args, ctor)
 	if ta, ok := o.self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
 		if len(args) == 1 {
 			if l, ok := args[0].(valueInt); ok {
 				if ta.length < int(l) {
