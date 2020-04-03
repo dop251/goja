@@ -176,7 +176,7 @@ func (r *Runtime) arrayproto_join(call FunctionCall) Value {
 	l := int(toLength(o.self.getStr("length", nil)))
 	sep := ""
 	if s := call.Argument(0); s != _undefined {
-		sep = s.String()
+		sep = s.toString().String()
 	} else {
 		sep = ","
 	}
@@ -520,6 +520,47 @@ func (r *Runtime) arrayproto_indexOf(call FunctionCall) Value {
 	}
 
 	return intToValue(-1)
+}
+
+func (r *Runtime) arrayproto_includes(call FunctionCall) Value {
+	o := call.This.ToObject(r)
+	length := toLength(o.self.getStr("length", nil))
+	if length == 0 {
+		return valueFalse
+	}
+
+	n := call.Argument(1).ToInteger()
+	if n >= length {
+		return valueFalse
+	}
+
+	if n < 0 {
+		n = max(length+n, 0)
+	}
+
+	searchElement := call.Argument(0)
+	if searchElement == _negativeZero {
+		searchElement = _positiveZero
+	}
+
+	if arr := r.checkStdArrayObj(o); arr != nil {
+		for _, val := range arr.values[n:] {
+			if searchElement.SameAs(val) {
+				return valueTrue
+			}
+		}
+		return valueFalse
+	}
+
+	for ; n < length; n++ {
+		idx := valueInt(n)
+		val := nilSafe(o.self.getIdx(idx, nil))
+		if searchElement.SameAs(val) {
+			return valueTrue
+		}
+	}
+
+	return valueFalse
 }
 
 func (r *Runtime) arrayproto_lastIndexOf(call FunctionCall) Value {
@@ -1160,6 +1201,7 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 	o._putProp("find", r.newNativeFunc(r.arrayproto_find, nil, "find", nil, 1), true, false, true)
 	o._putProp("findIndex", r.newNativeFunc(r.arrayproto_findIndex, nil, "findIndex", nil, 1), true, false, true)
 	o._putProp("forEach", r.newNativeFunc(r.arrayproto_forEach, nil, "forEach", nil, 1), true, false, true)
+	o._putProp("includes", r.newNativeFunc(r.arrayproto_includes, nil, "includes", nil, 1), true, false, true)
 	o._putProp("indexOf", r.newNativeFunc(r.arrayproto_indexOf, nil, "indexOf", nil, 1), true, false, true)
 	o._putProp("join", r.newNativeFunc(r.arrayproto_join, nil, "join", nil, 1), true, false, true)
 	o._putProp("keys", r.newNativeFunc(r.arrayproto_keys, nil, "keys", nil, 0), true, false, true)

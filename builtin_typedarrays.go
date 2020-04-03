@@ -249,8 +249,9 @@ func (r *Runtime) dataViewProto_getUint32(call FunctionCall) Value {
 
 func (r *Runtime) dataViewProto_setFloat32(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
+		val := toFloat32(call.Argument(1))
 		idx, bo := dv.getIdxAndByteOrder(call.Argument(0), call.Argument(2), 4)
-		dv.viewedArrayBuf.setFloat32(idx, toFloat32(call.Argument(1)), bo)
+		dv.viewedArrayBuf.setFloat32(idx, val, bo)
 		return _undefined
 	}
 	panic(r.NewTypeError("Method DataView.prototype.setFloat32 called on incompatible receiver %s", call.This.String()))
@@ -258,8 +259,9 @@ func (r *Runtime) dataViewProto_setFloat32(call FunctionCall) Value {
 
 func (r *Runtime) dataViewProto_setFloat64(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
+		val := call.Argument(1).ToFloat()
 		idx, bo := dv.getIdxAndByteOrder(call.Argument(0), call.Argument(2), 8)
-		dv.viewedArrayBuf.setFloat64(idx, call.Argument(1).ToFloat(), bo)
+		dv.viewedArrayBuf.setFloat64(idx, val, bo)
 		return _undefined
 	}
 	panic(r.NewTypeError("Method DataView.prototype.setFloat64 called on incompatible receiver %s", call.This.String()))
@@ -267,8 +269,9 @@ func (r *Runtime) dataViewProto_setFloat64(call FunctionCall) Value {
 
 func (r *Runtime) dataViewProto_setInt8(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
+		val := toInt8(call.Argument(1))
 		idx, _ := dv.getIdxAndByteOrder(call.Argument(0), call.Argument(2), 1)
-		dv.viewedArrayBuf.setInt8(idx, toInt8(call.Argument(1)))
+		dv.viewedArrayBuf.setInt8(idx, val)
 		return _undefined
 	}
 	panic(r.NewTypeError("Method DataView.prototype.setInt8 called on incompatible receiver %s", call.This.String()))
@@ -276,8 +279,9 @@ func (r *Runtime) dataViewProto_setInt8(call FunctionCall) Value {
 
 func (r *Runtime) dataViewProto_setInt16(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
+		val := toInt16(call.Argument(1))
 		idx, bo := dv.getIdxAndByteOrder(call.Argument(0), call.Argument(2), 2)
-		dv.viewedArrayBuf.setInt16(idx, toInt16(call.Argument(1)), bo)
+		dv.viewedArrayBuf.setInt16(idx, val, bo)
 		return _undefined
 	}
 	panic(r.NewTypeError("Method DataView.prototype.setInt16 called on incompatible receiver %s", call.This.String()))
@@ -285,8 +289,9 @@ func (r *Runtime) dataViewProto_setInt16(call FunctionCall) Value {
 
 func (r *Runtime) dataViewProto_setInt32(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
+		val := toInt32(call.Argument(1))
 		idx, bo := dv.getIdxAndByteOrder(call.Argument(0), call.Argument(2), 4)
-		dv.viewedArrayBuf.setInt32(idx, toInt32(call.Argument(1)), bo)
+		dv.viewedArrayBuf.setInt32(idx, val, bo)
 		return _undefined
 	}
 	panic(r.NewTypeError("Method DataView.prototype.setInt32 called on incompatible receiver %s", call.This.String()))
@@ -294,8 +299,9 @@ func (r *Runtime) dataViewProto_setInt32(call FunctionCall) Value {
 
 func (r *Runtime) dataViewProto_setUint8(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
+		val := toUint8(call.Argument(1))
 		idx, _ := dv.getIdxAndByteOrder(call.Argument(0), call.Argument(2), 1)
-		dv.viewedArrayBuf.setUint8(idx, toUint8(call.Argument(1)))
+		dv.viewedArrayBuf.setUint8(idx, val)
 		return _undefined
 	}
 	panic(r.NewTypeError("Method DataView.prototype.setUint8 called on incompatible receiver %s", call.This.String()))
@@ -303,8 +309,9 @@ func (r *Runtime) dataViewProto_setUint8(call FunctionCall) Value {
 
 func (r *Runtime) dataViewProto_setUint16(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
+		val := toUint16(call.Argument(1))
 		idx, bo := dv.getIdxAndByteOrder(call.Argument(0), call.Argument(2), 2)
-		dv.viewedArrayBuf.setUint16(idx, toUint16(call.Argument(1)), bo)
+		dv.viewedArrayBuf.setUint16(idx, val, bo)
 		return _undefined
 	}
 	panic(r.NewTypeError("Method DataView.prototype.setUint16 called on incompatible receiver %s", call.This.String()))
@@ -312,8 +319,9 @@ func (r *Runtime) dataViewProto_setUint16(call FunctionCall) Value {
 
 func (r *Runtime) dataViewProto_setUint32(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
+		val := toUint32(call.Argument(1))
 		idx, bo := dv.getIdxAndByteOrder(call.Argument(0), call.Argument(2), 4)
-		dv.viewedArrayBuf.setUint32(idx, toUint32(call.Argument(1)), bo)
+		dv.viewedArrayBuf.setUint32(idx, val, bo)
 		return _undefined
 	}
 	panic(r.NewTypeError("Method DataView.prototype.setUint32 called on incompatible receiver %s", call.This.String()))
@@ -441,7 +449,6 @@ func (r *Runtime) typedArrayProto_filter(call FunctionCall) Value {
 			This:      call.Argument(1),
 			Arguments: []Value{nil, nil, call.This},
 		}
-		c := r.speciesConstructorObj(o, ta.defaultCtor)
 		buf := make([]byte, 0, ta.length*ta.elemSize)
 		captured := 0
 		for k := 0; k < ta.length; k++ {
@@ -454,6 +461,7 @@ func (r *Runtime) typedArrayProto_filter(call FunctionCall) Value {
 				captured++
 			}
 		}
+		c := r.speciesConstructorObj(o, ta.defaultCtor)
 		ab := r._newArrayBuffer(r.global.ArrayBufferPrototype, nil)
 		ab.data = buf
 		kept := r.toConstructor(ta.defaultCtor)([]Value{ab.val}, ta.defaultCtor)
@@ -535,6 +543,41 @@ func (r *Runtime) typedArrayProto_forEach(call FunctionCall) Value {
 	panic(r.NewTypeError("Method TypedArray.prototype.forEach called on incompatible receiver %s", call.This.String()))
 }
 
+func (r *Runtime) typedArrayProto_includes(call FunctionCall) Value {
+	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
+		ta.viewedArrayBuf.ensureNotDetached()
+		length := int64(ta.length)
+		if length == 0 {
+			return valueFalse
+		}
+
+		n := call.Argument(1).ToInteger()
+		if n >= length {
+			return valueFalse
+		}
+
+		if n < 0 {
+			n = max(length+n, 0)
+		}
+
+		ta.viewedArrayBuf.ensureNotDetached()
+		searchElement := call.Argument(0)
+		if searchElement == _negativeZero {
+			searchElement = _positiveZero
+		}
+		if ta.typedArray.typeMatch(searchElement) {
+			se := ta.typedArray.toRaw(searchElement)
+			for k := toInt(n); k < ta.length; k++ {
+				if ta.typedArray.getRaw(ta.offset+k) == se {
+					return valueTrue
+				}
+			}
+		}
+		return valueFalse
+	}
+	panic(r.NewTypeError("Method TypedArray.prototype.includes called on incompatible receiver %s", call.This.String()))
+}
+
 func (r *Runtime) typedArrayProto_indexOf(call FunctionCall) Value {
 	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
 		ta.viewedArrayBuf.ensureNotDetached()
@@ -576,7 +619,7 @@ func (r *Runtime) typedArrayProto_join(call FunctionCall) Value {
 		s := call.Argument(0)
 		sep := ""
 		if s != _undefined {
-			sep = s.String()
+			sep = s.toString().String()
 		} else {
 			sep = ","
 		}
@@ -1264,6 +1307,7 @@ func (r *Runtime) createTypedArrayProto(val *Object) objectImpl {
 	b._putProp("find", r.newNativeFunc(r.typedArrayProto_find, nil, "find", nil, 1), true, false, true)
 	b._putProp("findIndex", r.newNativeFunc(r.typedArrayProto_findIndex, nil, "findIndex", nil, 1), true, false, true)
 	b._putProp("forEach", r.newNativeFunc(r.typedArrayProto_forEach, nil, "forEach", nil, 1), true, false, true)
+	b._putProp("includes", r.newNativeFunc(r.typedArrayProto_includes, nil, "includes", nil, 1), true, false, true)
 	b._putProp("indexOf", r.newNativeFunc(r.typedArrayProto_indexOf, nil, "indexOf", nil, 1), true, false, true)
 	b._putProp("join", r.newNativeFunc(r.typedArrayProto_join, nil, "join", nil, 1), true, false, true)
 	b._putProp("keys", r.newNativeFunc(r.typedArrayProto_keys, nil, "keys", nil, 0), true, false, true)

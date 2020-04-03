@@ -638,11 +638,11 @@ func (p *proxyObject) __isCompatibleDescriptor(extensible bool, desc *PropertyDe
 		}
 
 		if p.__isDataDescriptor(desc) && !current.accessor {
-			if desc.Configurable == FLAG_FALSE {
-				if desc.Writable == FLAG_FALSE && current.writable {
+			if !current.configurable {
+				if desc.Writable == FLAG_TRUE && !current.writable {
 					return false
 				}
-				if desc.Writable == FLAG_FALSE {
+				if !current.writable {
 					if desc.Value != nil && !desc.Value.SameAs(current.value) {
 						return false
 					}
@@ -651,7 +651,7 @@ func (p *proxyObject) __isCompatibleDescriptor(extensible bool, desc *PropertyDe
 			return true
 		}
 		if p.__isAccessorDescriptor(desc) && current.accessor {
-			if desc.Configurable == FLAG_FALSE {
+			if !current.configurable {
 				if desc.Setter != nil && desc.Setter.SameAs(current.setterFunc) {
 					return false
 				}
