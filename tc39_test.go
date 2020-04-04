@@ -18,6 +18,16 @@ const (
 
 var (
 	invalidFormatError = errors.New("Invalid file format")
+
+	ignorableTestError = &valueSymbol{}
+
+	sabStub = MustCompile("sabStub.js", `
+		Object.defineProperty(this, "SharedArrayBuffer", {
+			get: function() {
+				throw IgnorableTestError;
+			}
+		});`,
+		false)
 )
 
 var (
@@ -34,64 +44,6 @@ var (
 		// utf-16
 		"test/built-ins/Array/prototype/concat/Array.prototype.concat_spreadable-string-wrapper.js": true,
 
-		// cross-realm
-		"test/built-ins/Symbol/unscopables/cross-realm.js":                                                          true,
-		"test/built-ins/Symbol/toStringTag/cross-realm.js":                                                          true,
-		"test/built-ins/Symbol/toPrimitive/cross-realm.js":                                                          true,
-		"test/built-ins/Symbol/split/cross-realm.js":                                                                true,
-		"test/built-ins/Symbol/species/cross-realm.js":                                                              true,
-		"test/built-ins/Symbol/search/cross-realm.js":                                                               true,
-		"test/built-ins/Symbol/replace/cross-realm.js":                                                              true,
-		"test/built-ins/Symbol/match/cross-realm.js":                                                                true,
-		"test/built-ins/Symbol/keyFor/cross-realm.js":                                                               true,
-		"test/built-ins/Symbol/iterator/cross-realm.js":                                                             true,
-		"test/built-ins/Symbol/isConcatSpreadable/cross-realm.js":                                                   true,
-		"test/built-ins/Symbol/hasInstance/cross-realm.js":                                                          true,
-		"test/built-ins/Symbol/for/cross-realm.js":                                                                  true,
-		"test/built-ins/WeakSet/proto-from-ctor-realm.js":                                                           true,
-		"test/built-ins/WeakMap/proto-from-ctor-realm.js":                                                           true,
-		"test/built-ins/Map/proto-from-ctor-realm.js":                                                               true,
-		"test/built-ins/Set/proto-from-ctor-realm.js":                                                               true,
-		"test/built-ins/Object/proto-from-ctor.js":                                                                  true,
-		"test/built-ins/Array/from/proto-from-ctor-realm.js":                                                        true,
-		"test/built-ins/Array/of/proto-from-ctor-realm.js":                                                          true,
-		"test/built-ins/Array/prototype/concat/create-proto-from-ctor-realm-non-array.js":                           true,
-		"test/built-ins/Array/prototype/concat/create-proto-from-ctor-realm-array.js":                               true,
-		"test/built-ins/Array/prototype/filter/create-proto-from-ctor-realm-non-array.js":                           true,
-		"test/built-ins/Array/prototype/filter/create-proto-from-ctor-realm-array.js":                               true,
-		"test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-non-array.js":                              true,
-		"test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js":                                  true,
-		"test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-non-array.js":                            true,
-		"test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js":                                true,
-		"test/built-ins/Array/prototype/splice/create-proto-from-ctor-realm-non-array.js":                           true,
-		"test/built-ins/Array/prototype/splice/create-proto-from-ctor-realm-array.js":                               true,
-		"test/built-ins/Proxy/construct/arguments-realm.js":                                                         true,
-		"test/built-ins/Proxy/setPrototypeOf/trap-is-not-callable-realm.js":                                         true,
-		"test/built-ins/Proxy/getPrototypeOf/trap-is-not-callable-realm.js":                                         true,
-		"test/built-ins/Proxy/set/trap-is-not-callable-realm.js":                                                    true,
-		"test/built-ins/Proxy/getOwnPropertyDescriptor/trap-is-not-callable-realm.js":                               true,
-		"test/built-ins/Proxy/getOwnPropertyDescriptor/result-type-is-not-object-nor-undefined-realm.js":            true,
-		"test/built-ins/Proxy/get/trap-is-not-callable-realm.js":                                                    true,
-		"test/built-ins/Proxy/preventExtensions/trap-is-not-callable-realm.js":                                      true,
-		"test/built-ins/Proxy/defineProperty/null-handler-realm.js":                                                 true,
-		"test/built-ins/Proxy/ownKeys/trap-is-not-callable-realm.js":                                                true,
-		"test/built-ins/Proxy/ownKeys/return-not-list-object-throws-realm.js":                                       true,
-		"test/built-ins/Proxy/deleteProperty/trap-is-not-callable-realm.js":                                         true,
-		"test/built-ins/Proxy/isExtensible/trap-is-not-callable-realm.js":                                           true,
-		"test/built-ins/Proxy/defineProperty/trap-is-not-callable-realm.js":                                         true,
-		"test/built-ins/Proxy/defineProperty/targetdesc-undefined-target-is-not-extensible-realm.js":                true,
-		"test/built-ins/Proxy/defineProperty/targetdesc-undefined-not-configurable-descriptor-realm.js":             true,
-		"test/built-ins/Proxy/defineProperty/targetdesc-not-compatible-descriptor.js":                               true,
-		"test/built-ins/Proxy/defineProperty/targetdesc-not-compatible-descriptor-realm.js":                         true,
-		"test/built-ins/Proxy/defineProperty/targetdesc-not-compatible-descriptor-not-configurable-target-realm.js": true,
-		"test/built-ins/Proxy/defineProperty/targetdesc-configurable-desc-not-configurable-realm.js":                true,
-		"test/built-ins/Proxy/has/trap-is-not-callable-realm.js":                                                    true,
-		"test/built-ins/Proxy/defineProperty/desc-realm.js":                                                         true,
-		"test/built-ins/Proxy/apply/trap-is-not-callable-realm.js":                                                  true,
-		"test/built-ins/Proxy/apply/arguments-realm.js":                                                             true,
-		"test/built-ins/Proxy/construct/trap-is-undefined-proto-from-ctor-realm.js":                                 true,
-		"test/built-ins/Proxy/construct/trap-is-not-callable-realm.js":                                              true,
-
 		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
 		"test/language/statements/class/subclass/builtin-objects/Symbol/new-symbol-with-super-throws.js":  true,
@@ -107,6 +59,10 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/Object/regular-subclassing.js":           true,
 		"test/built-ins/Array/prototype/concat/Array.prototype.concat_non-array.js":                       true,
 		"test/language/statements/class/subclass/builtin-objects/Array/length.js":                         true,
+		"test/language/statements/class/subclass/builtin-objects/TypedArray/super-must-be-called.js":      true,
+		"test/language/statements/class/subclass/builtin-objects/TypedArray/regular-subclassing.js":       true,
+		"test/language/statements/class/subclass/builtin-objects/DataView/super-must-be-called.js":        true,
+		"test/language/statements/class/subclass/builtin-objects/DataView/regular-subclassing.js":         true,
 
 		// full unicode regexp flag
 		"test/built-ins/RegExp/prototype/Symbol.match/u-advance-after-empty.js":               true,
@@ -115,18 +71,18 @@ var (
 		"test/built-ins/RegExp/prototype/Symbol.match/builtin-infer-unicode.js":               true,
 
 		// object literals
-		"test/built-ins/Array/from/source-object-iterator-1.js": true,
-		"test/built-ins/Array/from/source-object-iterator-2.js": true,
-
-		// Typed arrays
-		"test/built-ins/Array/from/items-is-arraybuffer.js":                                 true,
-		"test/built-ins/Array/prototype/concat/Array.prototype.concat_small-typed-array.js": true,
-		"test/built-ins/Array/prototype/concat/Array.prototype.concat_large-typed-array.js": true,
-
-		// for-of
-		"test/language/statements/for-of/Array.prototype.keys.js":            true,
-		"test/language/statements/for-of/Array.prototype.entries.js":         true,
-		"test/language/statements/for-of/Array.prototype.Symbol.iterator.js": true,
+		"test/built-ins/Array/from/source-object-iterator-1.js":                   true,
+		"test/built-ins/Array/from/source-object-iterator-2.js":                   true,
+		"test/built-ins/TypedArray/prototype/fill/fill-values-conversion-once.js": true,
+		"test/built-ins/TypedArrays/of/this-is-not-constructor.js":                true,
+		"test/built-ins/TypedArrays/of/argument-number-value-throws.js":           true,
+		"test/built-ins/TypedArrays/from/this-is-not-constructor.js":              true,
+		"test/built-ins/TypedArrays/from/set-value-abrupt-completion.js":          true,
+		"test/built-ins/TypedArrays/from/property-abrupt-completion.js":           true,
+		"test/built-ins/TypedArray/of/this-is-not-constructor.js":                 true,
+		"test/built-ins/TypedArray/from/this-is-not-constructor.js":               true,
+		"test/built-ins/DataView/custom-proto-access-throws.js":                   true,
+		"test/built-ins/DataView/custom-proto-access-throws-sab.js":               true,
 
 		// arrow-function
 		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
@@ -154,15 +110,22 @@ var (
 		"22.1.2.5",
 		"22.1.3",
 		"22.1.4",
+		"22.2",
 		"23.1",
 		"23.2",
 		"23.3",
 		"23.4",
+		"24.2",
 		"25.1.2",
 		"26.1",
 		"26.2",
 		"B.2.1",
 		"B.2.2",
+	}
+
+	esIdPrefixWhiteList = []string{
+		"sec-array.prototype.includes",
+		"sec-%typedarray%",
 	}
 )
 
@@ -239,6 +202,20 @@ func parseTC39File(name string) (*tc39Meta, string, error) {
 	return &meta, str, nil
 }
 
+func (*tc39TestCtx) detachArrayBuffer(call FunctionCall) Value {
+	if obj, ok := call.Argument(0).(*Object); ok {
+		if buf, ok := obj.self.(*arrayBufferObject); ok {
+			buf.detach()
+			return _undefined
+		}
+	}
+	panic(typeError("detachArrayBuffer() is called with incompatible argument"))
+}
+
+func (*tc39TestCtx) throwIgnorableTestError(FunctionCall) Value {
+	panic(ignorableTestError)
+}
+
 func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.TB) {
 	defer func() {
 		if x := recover(); x != nil {
@@ -246,10 +223,21 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		}
 	}()
 	vm := New()
+	_262 := vm.NewObject()
+	_262.Set("detachArrayBuffer", ctx.detachArrayBuffer)
+	_262.Set("createRealm", ctx.throwIgnorableTestError)
+	vm.Set("$262", _262)
+	vm.Set("IgnorableTestError", ignorableTestError)
+	vm.RunProgram(sabStub)
 	err, early := ctx.runTC39Script(name, src, meta.Includes, vm)
 
 	if err != nil {
 		if meta.Negative.Type == "" {
+			if err, ok := err.(*Exception); ok {
+				if err.Value() == ignorableTestError {
+					t.Skip("Test threw IgnorableTestError")
+				}
+			}
 			t.Fatalf("%s: %v", name, err)
 		} else {
 			if meta.Negative.Phase == "early" && !early || meta.Negative.Phase == "runtime" && early {
@@ -314,6 +302,18 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 				for _, prefix := range es6IdWhiteList {
 					if strings.HasPrefix(meta.Es6id, prefix) &&
 						(len(meta.Es6id) == len(prefix) || meta.Es6id[len(prefix)] == '.') {
+
+						skip = false
+						break
+					}
+				}
+			}
+		}
+		if skip {
+			if meta.Esid != "" {
+				for _, prefix := range esIdPrefixWhiteList {
+					if strings.HasPrefix(meta.Esid, prefix) &&
+						(len(meta.Esid) == len(prefix) || meta.Esid[len(prefix)] == '.') {
 
 						skip = false
 						break

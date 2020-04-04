@@ -513,7 +513,7 @@ func (r *Runtime) regexpproto_stdSplitter(call FunctionCall) Value {
 
 	limit := -1
 	if limitValue != _undefined {
-		limit = int(toUInt32(limitValue))
+		limit = int(toUint32(limitValue))
 	}
 
 	if limit == 0 {

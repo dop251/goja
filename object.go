@@ -461,18 +461,6 @@ func (o *baseObject) setProto(proto *Object, throw bool) bool {
 	return true
 }
 
-func (o *baseObject) _setProto(val Value) {
-	var proto *Object
-	if val != _null {
-		if obj, ok := val.(*Object); ok {
-			proto = obj
-		} else {
-			return
-		}
-	}
-	o.setProto(proto, true)
-}
-
 func (o *baseObject) setOwnStr(name string, val Value, throw bool) bool {
 	ownDesc := o.values[name]
 	if ownDesc == nil {
@@ -1148,8 +1136,6 @@ func instanceOfOperator(o Value, c *Object) bool {
 
 func (o *Object) get(p Value, receiver Value) Value {
 	switch p := p.(type) {
-	case valueString:
-		return o.self.getStr(p.String(), receiver)
 	case valueInt:
 		return o.self.getIdx(p, receiver)
 	case *valueSymbol:
@@ -1161,8 +1147,6 @@ func (o *Object) get(p Value, receiver Value) Value {
 
 func (o *Object) getOwnProp(p Value) Value {
 	switch p := p.(type) {
-	case valueString:
-		return o.self.getOwnPropStr(p.String())
 	case valueInt:
 		return o.self.getOwnPropIdx(p)
 	case *valueSymbol:
@@ -1174,8 +1158,6 @@ func (o *Object) getOwnProp(p Value) Value {
 
 func (o *Object) hasOwnProperty(p Value) bool {
 	switch p := p.(type) {
-	case valueString:
-		return o.self.hasOwnPropertyStr(p.String())
 	case valueInt:
 		return o.self.hasOwnPropertyIdx(p)
 	case *valueSymbol:
@@ -1187,8 +1169,6 @@ func (o *Object) hasOwnProperty(p Value) bool {
 
 func (o *Object) hasProperty(p Value) bool {
 	switch p := p.(type) {
-	case valueString:
-		return o.self.hasPropertyStr(p.String())
 	case valueInt:
 		return o.self.hasPropertyIdx(p)
 	case *valueSymbol:
@@ -1237,8 +1217,6 @@ func (o *Object) setStr(name string, val, receiver Value, throw bool) bool {
 
 func (o *Object) set(name Value, val, receiver Value, throw bool) bool {
 	switch name := name.(type) {
-	case valueString:
-		return o.setStr(name.String(), val, receiver, throw)
 	case valueInt:
 		return o.setIdx(name, val, receiver, throw)
 	case *valueSymbol:
@@ -1335,8 +1313,6 @@ func (o *Object) setSym(name *valueSymbol, val, receiver Value, throw bool) bool
 
 func (o *Object) delete(n Value, throw bool) bool {
 	switch n := n.(type) {
-	case valueString:
-		return o.self.deleteStr(n.String(), throw)
 	case valueInt:
 		return o.self.deleteIdx(n, throw)
 	case *valueSymbol:
@@ -1348,8 +1324,6 @@ func (o *Object) delete(n Value, throw bool) bool {
 
 func (o *Object) defineOwnProperty(n Value, desc PropertyDescriptor, throw bool) bool {
 	switch n := n.(type) {
-	case valueString:
-		return o.self.defineOwnPropertyStr(n.String(), desc, throw)
 	case valueInt:
 		return o.self.defineOwnPropertyIdx(n, desc, throw)
 	case *valueSymbol:

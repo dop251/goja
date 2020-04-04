@@ -7,6 +7,7 @@ import (
 	"go/ast"
 	"hash/maphash"
 	"math"
+	"math/bits"
 	"math/rand"
 	"reflect"
 	"strconv"
@@ -50,11 +51,23 @@ type global struct {
 	Symbol   *Object
 	Proxy    *Object
 
-	ArrayBuffer *Object
-	WeakSet     *Object
-	WeakMap     *Object
-	Map         *Object
-	Set         *Object
+	ArrayBuffer       *Object
+	DataView          *Object
+	TypedArray        *Object
+	Uint8Array        *Object
+	Uint8ClampedArray *Object
+	Int8Array         *Object
+	Uint16Array       *Object
+	Int16Array        *Object
+	Uint32Array       *Object
+	Int32Array        *Object
+	Float32Array      *Object
+	Float64Array      *Object
+
+	WeakSet *Object
+	WeakMap *Object
+	Map     *Object
+	Set     *Object
 
 	Error          *Object
 	TypeError      *Object
@@ -78,6 +91,8 @@ type global struct {
 	ArrayIterator     *Object
 
 	ArrayBufferPrototype *Object
+	DataViewPrototype    *Object
+	TypedArrayPrototype  *Object
 	WeakSetPrototype     *Object
 	WeakMapPrototype     *Object
 	MapPrototype         *Object
@@ -109,6 +124,7 @@ type global struct {
 	mapAdder        *Object
 	setAdder        *Object
 	arrayValues     *Object
+	arrayToString   *Object
 }
 
 type Flag int
@@ -340,7 +356,7 @@ func (r *Runtime) init() {
 	r.initMath()
 	r.initJSON()
 
-	//r.initTypedArrays()
+	r.initTypedArrays()
 	r.initSymbol()
 	r.initWeakSet()
 	r.initWeakMap()
@@ -483,6 +499,39 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 	f._putProp("prototype", proto, true, false, false)
 
 	return v
+}
+
+func (r *Runtime) newNativeConstructOnly(v *Object, ctor func(args []Value, newTarget *Object) *Object, defaultProto *Object, name string, length int) *nativeFuncObject {
+	if v == nil {
+		v = &Object{runtime: r}
+	}
+
+	f := &nativeFuncObject{
+		baseFuncObject: baseFuncObject{
+			baseObject: baseObject{
+				class:      classFunction,
+				val:        v,
+				extensible: true,
+				prototype:  r.global.FunctionPrototype,
+			},
+		},
+		f: func(call FunctionCall) Value {
+			return ctor(call.Arguments, nil)
+		},
+		construct: func(args []Value, newTarget *Object) *Object {
+			if newTarget == nil {
+				newTarget = v
+			}
+			return ctor(args, newTarget)
+		},
+	}
+	v.self = f
+	f.init(name, length)
+	if defaultProto != nil {
+		f._putProp("prototype", defaultProto, false, false, false)
+	}
+
+	return f
 }
 
 func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(args []Value, proto *Object) *Object, name string, proto *Object, length int) *Object {
@@ -707,8 +756,11 @@ func (r *Runtime) wrapNativeConstruct(c func(args []Value, proto *Object) *Objec
 	return func(args []Value, newTarget *Object) *Object {
 		var p *Object
 		if newTarget != nil {
-			p = r.toObject(newTarget.self.getStr("prototype", nil))
-		} else {
+			if pp, ok := newTarget.self.getStr("prototype", nil).(*Object); ok {
+				p = pp
+			}
+		}
+		if p == nil {
 			p = proto
 		}
 		return c(args, p)
@@ -730,7 +782,121 @@ func (r *Runtime) checkObjectCoercible(v Value) {
 	}
 }
 
-func toUInt32(v Value) uint32 {
+func toInt8(v Value) int8 {
+	v = v.ToNumber()
+	if i, ok := v.(valueInt); ok {
+		return int8(i)
+	}
+
+	if f, ok := v.(valueFloat); ok {
+		f := float64(f)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			return int8(int64(f))
+		}
+	}
+	return 0
+}
+
+func toUint8(v Value) uint8 {
+	v = v.ToNumber()
+	if i, ok := v.(valueInt); ok {
+		return uint8(i)
+	}
+
+	if f, ok := v.(valueFloat); ok {
+		f := float64(f)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			return uint8(int64(f))
+		}
+	}
+	return 0
+}
+
+func toUint8Clamp(v Value) uint8 {
+	v = v.ToNumber()
+	if i, ok := v.(valueInt); ok {
+		if i < 0 {
+			return 0
+		}
+		if i <= 255 {
+			return uint8(i)
+		}
+		return 255
+	}
+
+	if num, ok := v.(valueFloat); ok {
+		num := float64(num)
+		if !math.IsNaN(num) {
+			if num < 0 {
+				return 0
+			}
+			if num > 255 {
+				return 255
+			}
+			f := math.Floor(num)
+			f1 := f + 0.5
+			if f1 < num {
+				return uint8(f + 1)
+			}
+			if f1 > num {
+				return uint8(f)
+			}
+			r := uint8(f)
+			if r&1 != 0 {
+				return r + 1
+			}
+			return r
+		}
+	}
+	return 0
+}
+
+func toInt16(v Value) int16 {
+	v = v.ToNumber()
+	if i, ok := v.(valueInt); ok {
+		return int16(i)
+	}
+
+	if f, ok := v.(valueFloat); ok {
+		f := float64(f)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			return int16(int64(f))
+		}
+	}
+	return 0
+}
+
+func toUint16(v Value) uint16 {
+	v = v.ToNumber()
+	if i, ok := v.(valueInt); ok {
+		return uint16(i)
+	}
+
+	if f, ok := v.(valueFloat); ok {
+		f := float64(f)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			return uint16(int64(f))
+		}
+	}
+	return 0
+}
+
+func toInt32(v Value) int32 {
+	v = v.ToNumber()
+	if i, ok := v.(valueInt); ok {
+		return int32(i)
+	}
+
+	if f, ok := v.(valueFloat); ok {
+		f := float64(f)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			return int32(int64(f))
+		}
+	}
+	return 0
+}
+
+func toUint32(v Value) uint32 {
 	v = v.ToNumber()
 	if i, ok := v.(valueInt); ok {
 		return uint32(i)
@@ -745,19 +911,8 @@ func toUInt32(v Value) uint32 {
 	return 0
 }
 
-func toUInt16(v Value) uint16 {
-	v = v.ToNumber()
-	if i, ok := v.(valueInt); ok {
-		return uint16(i)
-	}
-
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return uint16(int64(f))
-		}
-	}
-	return 0
+func toFloat32(v Value) float32 {
+	return float32(v.ToFloat())
 }
 
 func toLength(v Value) int64 {
@@ -774,19 +929,15 @@ func toLength(v Value) int64 {
 	return i
 }
 
-func toInt32(v Value) int32 {
-	v = v.ToNumber()
-	if i, ok := v.(valueInt); ok {
-		return int32(i)
-	}
-
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return int32(int64(f))
+func (r *Runtime) toIndex(v Value) int {
+	intIdx := v.ToInteger()
+	if intIdx >= 0 && intIdx < maxInt {
+		if bits.UintSize == 32 && intIdx >= math.MaxInt32 {
+			panic(r.newError(r.global.RangeError, "Index %s overflows int", v.String()))
 		}
+		return int(intIdx)
 	}
-	return 0
+	panic(r.newError(r.global.RangeError, "Invalid index %s", v.String()))
 }
 
 func (r *Runtime) toBoolean(b bool) Value {
@@ -1014,6 +1165,8 @@ func (r *Runtime) ToValue(i interface{}) Value {
 			panic(r.NewTypeError("Illegal runtime transition of an Object"))
 		}
 		return i
+	case valueContainer:
+		return i.toValue(r)
 	case Value:
 		return i
 	case string:
@@ -1030,15 +1183,6 @@ func (r *Runtime) ToValue(i interface{}) Value {
 	case func(ConstructorCall) *Object:
 		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 		return r.newNativeConstructor(i, name, 0)
-	case *Proxy:
-		if i == nil {
-			return _null
-		}
-		proxy := i.proxy.val
-		if proxy.runtime != r {
-			panic(r.NewTypeError("Illegal runtime transition of a Proxy"))
-		}
-		return proxy
 	case int:
 		return intToValue(int64(i))
 	case int8:
@@ -1668,10 +1812,21 @@ func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []
 	if c != nil && c != _undefined {
 		c = r.toObject(c).self.getSym(symSpecies, nil)
 	}
-	if c == nil || c == _undefined {
+	if c == nil || c == _undefined || c == _null {
 		c = defaultConstructor
 	}
 	return r.toConstructor(c)
+}
+
+func (r *Runtime) speciesConstructorObj(o, defaultConstructor *Object) *Object {
+	c := o.self.getStr("constructor", nil)
+	if c != nil && c != _undefined {
+		c = r.toObject(c).self.getSym(symSpecies, nil)
+	}
+	if c == nil || c == _undefined || c == _null {
+		return defaultConstructor
+	}
+	return r.toObject(c)
 }
 
 func (r *Runtime) returnThis(call FunctionCall) Value {
@@ -1754,12 +1909,6 @@ func (r *Runtime) newLazyObject(create func(*Object) objectImpl) *Object {
 	}
 	val.self = o
 	return val
-}
-
-func (r *Runtime) constructorThrower(name string) func(call FunctionCall) Value {
-	return func(FunctionCall) Value {
-		panic(r.NewTypeError("Constructor %s requires 'new'", name))
-	}
 }
 
 func nilSafe(v Value) Value {

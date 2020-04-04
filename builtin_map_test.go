@@ -1,6 +1,9 @@
 package goja
 
-import "testing"
+import (
+	"hash/maphash"
+	"testing"
+)
 
 func TestMapEvilIterator(t *testing.T) {
 	const SCRIPT = `
@@ -56,4 +59,43 @@ func TestMapEvilIterator(t *testing.T) {
 	undefined;
 	`
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func BenchmarkMapDelete(b *testing.B) {
+	var key1 Value = asciiString("a")
+	var key2 Value = asciiString("b")
+	one := intToValue(1)
+	two := intToValue(2)
+	for i := 0; i < b.N; i++ {
+		m := newOrderedMap(&maphash.Hash{})
+		m.set(key1, one)
+		m.set(key2, two)
+		if !m.remove(key1) {
+			b.Fatal("remove() returned false")
+		}
+	}
+}
+
+func BenchmarkMapDeleteJS(b *testing.B) {
+	prg, err := Compile("test.js", `
+	var m = new Map([['a',1], ['b', 2]]);
+	
+	var result = m.delete('a');
+
+	if (!result || m.size !== 1) {
+		throw new Error("Fail!");
+	}
+	`,
+		false)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm := New()
+		_, err := vm.RunProgram(prg)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }

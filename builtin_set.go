@@ -121,7 +121,11 @@ func (r *Runtime) setProto_values(call FunctionCall) Value {
 	return r.createSetIterator(call.This, iterationKindValue)
 }
 
-func (r *Runtime) builtin_newSet(args []Value, proto *Object) *Object {
+func (r *Runtime) builtin_newSet(args []Value, newTarget *Object) *Object {
+	if newTarget == nil {
+		panic(r.needNew("Set"))
+	}
+	proto := r.getPrototypeFromCtor(newTarget, r.global.Set, r.global.SetPrototype)
 	o := &Object{runtime: r}
 
 	so := &setObject{}
@@ -213,7 +217,7 @@ func (r *Runtime) createSetProto(val *Object) objectImpl {
 }
 
 func (r *Runtime) createSet(val *Object) objectImpl {
-	o := r.newNativeFuncObj(val, r.constructorThrower("Set"), r.builtin_newSet, "Set", r.global.SetPrototype, 0)
+	o := r.newNativeConstructOnly(val, r.builtin_newSet, r.global.SetPrototype, "Set", 0)
 	o._putSym(symSpecies, &valueProperty{
 		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
 		accessor:     true,

@@ -36,6 +36,7 @@ func TestWeakSetExpiry(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtime.GC()
+	runtime.GC()
 	wso := vm.Get("s").ToObject(vm).self.(*weakSetObject)
 	wso.s.Lock()
 	l := len(wso.s.data)

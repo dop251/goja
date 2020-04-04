@@ -102,7 +102,7 @@ func (r *Runtime) stringproto_valueOf(call FunctionCall) Value {
 func (r *Runtime) string_fromcharcode(call FunctionCall) Value {
 	b := make([]byte, len(call.Arguments))
 	for i, arg := range call.Arguments {
-		chr := toUInt16(arg)
+		chr := toUint16(arg)
 		if chr >= utf8.RuneSelf {
 			bb := make([]uint16, len(call.Arguments))
 			for j := 0; j < i; j++ {
@@ -111,7 +111,7 @@ func (r *Runtime) string_fromcharcode(call FunctionCall) Value {
 			bb[i] = chr
 			i++
 			for j, arg := range call.Arguments[i:] {
-				bb[i+j] = toUInt16(arg)
+				bb[i+j] = toUint16(arg)
 			}
 			return unicodeString(bb)
 		}
@@ -501,7 +501,7 @@ func (r *Runtime) stringproto_split(call FunctionCall) Value {
 
 	limit := -1
 	if limitValue != _undefined {
-		limit = int(toUInt32(limitValue))
+		limit = int(toUint32(limitValue))
 	}
 
 	if limit == 0 {

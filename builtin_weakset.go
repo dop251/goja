@@ -113,7 +113,11 @@ func (r *Runtime) populateWeakSetGeneric(s *Object, adderValue Value, iterable V
 	})
 }
 
-func (r *Runtime) builtin_newWeakSet(args []Value, proto *Object) *Object {
+func (r *Runtime) builtin_newWeakSet(args []Value, newTarget *Object) *Object {
+	if newTarget == nil {
+		panic(r.needNew("WeakSet"))
+	}
+	proto := r.getPrototypeFromCtor(newTarget, r.global.WeakSet, r.global.WeakSetPrototype)
 	o := &Object{runtime: r}
 
 	wso := &weakSetObject{}
@@ -155,7 +159,7 @@ func (r *Runtime) createWeakSetProto(val *Object) objectImpl {
 }
 
 func (r *Runtime) createWeakSet(val *Object) objectImpl {
-	o := r.newNativeFuncObj(val, r.constructorThrower("WeakSet"), r.builtin_newWeakSet, "WeakSet", r.global.WeakSetPrototype, 0)
+	o := r.newNativeConstructOnly(val, r.builtin_newWeakSet, r.global.WeakSetPrototype, "WeakSet", 0)
 
 	return o
 }
