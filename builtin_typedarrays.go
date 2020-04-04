@@ -676,6 +676,9 @@ func (r *Runtime) typedArrayProto_lastIndexOf(call FunctionCall) Value {
 				fromIndex = min(fromIndex, length-1)
 			} else {
 				fromIndex += length
+				if fromIndex < 0 {
+					fromIndex = -1 // prevent underflow in toInt() on 32-bit platforms
+				}
 			}
 		}
 

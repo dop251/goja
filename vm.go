@@ -389,6 +389,10 @@ func (vm *vm) try(f func()) (ex *Exception) {
 				ex = &Exception{
 					val: vm.r.NewTypeError(string(x1)),
 				}
+			case rangeError:
+				ex = &Exception{
+					val: vm.r.newError(vm.r.global.RangeError, string(x1)),
+				}
 			default:
 				/*
 					if vm.prg != nil {

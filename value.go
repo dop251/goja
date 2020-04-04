@@ -61,6 +61,7 @@ type valueContainer interface {
 }
 
 type typeError string
+type rangeError string
 
 type valueInt int64
 type valueFloat float64

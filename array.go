@@ -622,9 +622,6 @@ func strToGoIdx(s string) int {
 		return int(strToIdx64(s))
 	}
 	i := strToIdx(s)
-	if i == math.MaxUint32 {
-		return -1
-	}
 	if i >= math.MaxInt32 {
 		return -1
 	}
