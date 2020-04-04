@@ -2,14 +2,11 @@ language: go
 go:
   - 1.x
 
+go_import_path: github.com/dop251/goja
+
 env:
   - GIMME_OS=linux GIMME_ARCH=amd64 RACE="-race"
   - GIMME_OS=linux GIMME_ARCH=386
-
-before_install:
-  # use local source tree when testing forks
-  - mkdir -p $GOPATH/src/github.com/dop251/
-  - ln -s $TRAVIS_BUILD_DIR $GOPATH/src/github.com/dop251/ || true
 
 script:
   - diff -u <(echo -n) <(gofmt -d .)

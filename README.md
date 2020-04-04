@@ -3,7 +3,7 @@ goja
 
 ECMAScript 5.1(+) implementation in Go.
 
-[![GoDoc](https://godoc.org/github.com/dop251/goja?status.svg)](https://godoc.org/github.com/dop251/goja)
+[![Build Status](https://api.travis-ci.org/dop251/goja.svg?branch=master)](https://travis-ci.org/dop251/goja) [![GoDoc](https://godoc.org/github.com/dop251/goja?status.svg)](https://godoc.org/github.com/dop251/goja)
 
 Goja is an implementation of ECMAScript 5.1 in pure Go with emphasis on standard compliance and
 performance.
