@@ -3,6 +3,7 @@ package goja
 import (
 	"math"
 	"math/bits"
+	"reflect"
 	"strconv"
 	"unsafe"
 )
@@ -16,6 +17,8 @@ const (
 
 var (
 	nativeEndian byteOrder
+
+	arrayBufferType = reflect.TypeOf(ArrayBuffer{})
 )
 
 type typedArrayObjectCtor func(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject
@@ -24,6 +27,13 @@ type arrayBufferObject struct {
 	baseObject
 	detached bool
 	data     []byte
+}
+
+// ArrayBuffer is a Go wrapper around ECMAScript ArrayBuffer. Calling Runtime.ToValue() on it
+// returns the underlying ArrayBuffer. Calling Export() on an ECMAScript ArrayBuffer returns a wrapper.
+// Use Runtime.NewArrayBuffer([]byte) to create one.
+type ArrayBuffer struct {
+	buf *arrayBufferObject
 }
 
 type dataViewObject struct {
@@ -52,6 +62,58 @@ type uint32Array []uint32
 type int32Array []int32
 type float32Array []float32
 type float64Array []float64
+
+type typedArrayObject struct {
+	baseObject
+	viewedArrayBuf *arrayBufferObject
+	defaultCtor    *Object
+	length, offset int
+	elemSize       int
+	typedArray     typedArray
+}
+
+func (a ArrayBuffer) toValue(r *Runtime) Value {
+	if a.buf == nil {
+		return _null
+	}
+	v := a.buf.val
+	if v.runtime != r {
+		panic(r.NewTypeError("Illegal runtime transition of an ArrayBuffer"))
+	}
+	return v
+}
+
+// Bytes returns the underlying []byte for this ArrayBuffer.
+// For detached ArrayBuffers returns nil.
+func (a ArrayBuffer) Bytes() []byte {
+	return a.buf.data
+}
+
+// Detach the ArrayBuffer. After this, the underlying []byte becomes unreferenced and any attempt
+// to use this ArrayBuffer results in a TypeError.
+// Returns false if it was already detached, true otherwise.
+// Note, this method may only be called from the goroutine that 'owns' the Runtime, it may not
+// be called concurrently.
+func (a ArrayBuffer) Detach() bool {
+	if a.buf.detached {
+		return false
+	}
+	a.buf.detach()
+	return true
+}
+
+// Detached returns true if the ArrayBuffer is detached.
+func (a ArrayBuffer) Detached() bool {
+	return a.buf.detached
+}
+
+func (r *Runtime) NewArrayBuffer(data []byte) ArrayBuffer {
+	buf := r._newArrayBuffer(r.global.ArrayBufferPrototype, nil)
+	buf.data = data
+	return ArrayBuffer{
+		buf: buf,
+	}
+}
 
 func (a *uint8Array) get(idx int) Value {
 	return intToValue(int64((*a)[idx]))
@@ -388,15 +450,6 @@ func (a *float64Array) typeMatch(v Value) bool {
 	return false
 }
 
-type typedArrayObject struct {
-	baseObject
-	viewedArrayBuf *arrayBufferObject
-	defaultCtor    *Object
-	length, offset int
-	elemSize       int
-	typedArray     typedArray
-}
-
 func (a *typedArrayObject) _getIdx(idx int) Value {
 	a.viewedArrayBuf.ensureNotDetached()
 	if idx < a.length {
@@ -664,10 +717,6 @@ func (o *dataViewObject) getIdxAndByteOrder(idxVal, littleEndianVal Value, size 
 	return getIdx, bo
 }
 
-func (o *arrayBufferObject) export() interface{} {
-	return o.data
-}
-
 func (o *arrayBufferObject) ensureNotDetached() {
 	if o.detached {
 		panic(o.val.runtime.NewTypeError("ArrayBuffer is detached"))
@@ -791,6 +840,16 @@ func (o *arrayBufferObject) setInt8(idx int, val int8) {
 func (o *arrayBufferObject) detach() {
 	o.data = nil
 	o.detached = true
+}
+
+func (o *arrayBufferObject) exportType() reflect.Type {
+	return arrayBufferType
+}
+
+func (o *arrayBufferObject) export() interface{} {
+	return ArrayBuffer{
+		buf: o,
+	}
 }
 
 func (r *Runtime) _newArrayBuffer(proto *Object, o *Object) *arrayBufferObject {

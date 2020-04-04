@@ -1165,6 +1165,8 @@ func (r *Runtime) ToValue(i interface{}) Value {
 			panic(r.NewTypeError("Illegal runtime transition of an Object"))
 		}
 		return i
+	case valueContainer:
+		return i.toValue(r)
 	case Value:
 		return i
 	case string:
@@ -1181,15 +1183,6 @@ func (r *Runtime) ToValue(i interface{}) Value {
 	case func(ConstructorCall) *Object:
 		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
 		return r.newNativeConstructor(i, name, 0)
-	case *Proxy:
-		if i == nil {
-			return _null
-		}
-		proxy := i.proxy.val
-		if proxy.runtime != r {
-			panic(r.NewTypeError("Illegal runtime transition of a Proxy"))
-		}
-		return proxy
 	case int:
 		return intToValue(int64(i))
 	case int8:

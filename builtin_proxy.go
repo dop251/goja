@@ -246,10 +246,10 @@ func (r *Runtime) builtin_newProxy(args []Value, newTarget *Object) *Object {
 	return r.newProxy(args, r.getPrototypeFromCtor(newTarget, r.global.Proxy, r.global.ObjectPrototype))
 }
 
-func (r *Runtime) NewProxy(target *Object, nativeHandler *ProxyTrapConfig) *Proxy {
+func (r *Runtime) NewProxy(target *Object, nativeHandler *ProxyTrapConfig) Proxy {
 	handler := r.newNativeProxyHandler(nativeHandler)
 	proxy := r.newProxyObject(target, handler, nil)
-	return &Proxy{proxy: proxy}
+	return Proxy{proxy: proxy}
 }
 
 func (r *Runtime) builtin_proxy_revocable(call FunctionCall) Value {

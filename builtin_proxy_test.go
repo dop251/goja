@@ -58,7 +58,7 @@ func TestProxy_Object_native_proxy_getPrototypeOf(t *testing.T) {
 	}
 }
 
-/*func TestProxy_Object_target_setPrototypeOf(t *testing.T) {
+func TestProxy_Object_target_setPrototypeOf(t *testing.T) {
 	const SCRIPT = `
     var proto = {};
 	var obj = {};
@@ -82,12 +82,13 @@ func TestProxy_Object_proxy_setPrototypeOf(t *testing.T) {
 			return Object.setPrototypeOf(target, proto2);
 		}
 	});
+	Object.setPrototypeOf(proxy, null);
 	var p = Object.getPrototypeOf(proxy);
 	assert.sameValue(proto2, p);
 	`
 
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
-}*/
+}
 
 func TestProxy_Object_target_isExtensible(t *testing.T) {
 	const SCRIPT = `
@@ -825,4 +826,18 @@ func TestProxy_proxy_forIn(t *testing.T) {
 	`
 
 	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestProxyExport(t *testing.T) {
+	vm := New()
+	v, err := vm.RunString(`
+	new Proxy({}, {});
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v1 := v.Export()
+	if _, ok := v1.(Proxy); !ok {
+		t.Fatalf("Export returned unexpected type: %T", v1)
+	}
 }

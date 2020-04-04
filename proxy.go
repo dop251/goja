@@ -1,8 +1,17 @@
 package goja
 
+import "reflect"
+
+// Proxy is a Go wrapper around ECMAScript Proxy. Calling Runtime.ToValue() on it
+// returns the underlying Proxy. Calling Export() on an ECMAScript Proxy returns a wrapper.
+// Use Runtime.NewProxy() to create one.
 type Proxy struct {
 	proxy *proxyObject
 }
+
+var (
+	proxyType = reflect.TypeOf(Proxy{})
+)
 
 type proxyPropIter struct {
 	p     *proxyObject
@@ -58,8 +67,19 @@ func (r *Runtime) newProxyObject(target, handler, proto *Object) *proxyObject {
 	return p
 }
 
-func (p *Proxy) Revoke() {
+func (p Proxy) Revoke() {
 	p.proxy.revoke()
+}
+
+func (p Proxy) toValue(r *Runtime) Value {
+	if p.proxy == nil {
+		return _null
+	}
+	proxy := p.proxy.val
+	if proxy.runtime != r {
+		panic(r.NewTypeError("Illegal runtime transition of a Proxy"))
+	}
+	return proxy
 }
 
 type proxyTrap string
@@ -756,6 +776,16 @@ func (p *proxyObject) className() string {
 		return classFunction
 	}
 	return classObject
+}
+
+func (p *proxyObject) exportType() reflect.Type {
+	return proxyType
+}
+
+func (p *proxyObject) export() interface{} {
+	return Proxy{
+		proxy: p,
+	}
 }
 
 func (p *proxyObject) revoke() {

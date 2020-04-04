@@ -56,6 +56,10 @@ type Value interface {
 	hash(hash64 hash.Hash64) uint64
 }
 
+type valueContainer interface {
+	toValue(*Runtime) Value
+}
+
 type typeError string
 
 type valueInt int64
