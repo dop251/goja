@@ -1047,3 +1047,20 @@ func TestGoObj__Proto__(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestGoReflectUnicodeProps(t *testing.T) {
+	type S struct {
+		Тест string
+	}
+	vm := New()
+	var s S
+	vm.Set("s", &s)
+	_, err := vm.RunString(`
+	if (!s.hasOwnProperty("Тест")) {
+		throw new Error("hasOwnProperty");
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

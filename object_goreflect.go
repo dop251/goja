@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"go/ast"
 	"reflect"
+
+	"github.com/dop251/goja/unistring"
 )
 
 // JsonEncodable allows custom JSON encoding by JSON.stringify()
@@ -83,8 +85,8 @@ func (o *objectGoReflect) valueOfFunc(FunctionCall) Value {
 	return o.toPrimitive()
 }
 
-func (o *objectGoReflect) getStr(name string, receiver Value) Value {
-	if v := o._get(name); v != nil {
+func (o *objectGoReflect) getStr(name unistring.String, receiver Value) Value {
+	if v := o._get(name.String()); v != nil {
 		return v
 	}
 	return o.baseObject.getStr(name, receiver)
@@ -128,9 +130,10 @@ func (o *objectGoReflect) _get(name string) Value {
 	return nil
 }
 
-func (o *objectGoReflect) getOwnPropStr(name string) Value {
+func (o *objectGoReflect) getOwnPropStr(name unistring.String) Value {
+	n := name.String()
 	if o.value.Kind() == reflect.Struct {
-		if v := o._getField(name); v.IsValid() {
+		if v := o._getField(n); v.IsValid() {
 			return &valueProperty{
 				value:      o.val.runtime.ToValue(o.getAddr(v).Interface()),
 				writable:   v.CanSet(),
@@ -139,7 +142,7 @@ func (o *objectGoReflect) getOwnPropStr(name string) Value {
 		}
 	}
 
-	if v := o._getMethod(name); v.IsValid() {
+	if v := o._getMethod(n); v.IsValid() {
 		return &valueProperty{
 			value:      o.val.runtime.ToValue(v.Interface()),
 			enumerable: true,
@@ -149,8 +152,8 @@ func (o *objectGoReflect) getOwnPropStr(name string) Value {
 	return nil
 }
 
-func (o *objectGoReflect) setOwnStr(name string, val Value, throw bool) bool {
-	has, ok := o._put(name, val, throw)
+func (o *objectGoReflect) setOwnStr(name unistring.String, val Value, throw bool) bool {
+	has, ok := o._put(name.String(), val, throw)
 	if !has {
 		if res, ok := o._setForeignStr(name, nil, val, o.val, throw); !ok {
 			o.val.runtime.typeErrorResult(throw, "Cannot assign to property %s of a host object", name)
@@ -162,8 +165,8 @@ func (o *objectGoReflect) setOwnStr(name string, val Value, throw bool) bool {
 	return ok
 }
 
-func (o *objectGoReflect) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
-	return o._setForeignStr(name, trueValIfPresent(o._has(name)), val, receiver, throw)
+func (o *objectGoReflect) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
+	return o._setForeignStr(name, trueValIfPresent(o._has(name.String())), val, receiver, throw)
 }
 
 func (o *objectGoReflect) _put(name string, val Value, throw bool) (has, ok bool) {
@@ -185,14 +188,14 @@ func (o *objectGoReflect) _put(name string, val Value, throw bool) (has, ok bool
 	return false, false
 }
 
-func (o *objectGoReflect) _putProp(name string, value Value, writable, enumerable, configurable bool) Value {
-	if _, ok := o._put(name, value, false); ok {
+func (o *objectGoReflect) _putProp(name unistring.String, value Value, writable, enumerable, configurable bool) Value {
+	if _, ok := o._put(name.String(), value, false); ok {
 		return value
 	}
 	return o.baseObject._putProp(name, value, writable, enumerable, configurable)
 }
 
-func (r *Runtime) checkHostObjectPropertyDescr(name string, descr PropertyDescriptor, throw bool) bool {
+func (r *Runtime) checkHostObjectPropertyDescr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	if descr.Getter != nil || descr.Setter != nil {
 		r.typeErrorResult(throw, "Host objects do not support accessor properties")
 		return false
@@ -208,10 +211,11 @@ func (r *Runtime) checkHostObjectPropertyDescr(name string, descr PropertyDescri
 	return true
 }
 
-func (o *objectGoReflect) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
+func (o *objectGoReflect) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	if o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
-		if has, ok := o._put(name, descr.Value, throw); !has {
-			o.val.runtime.typeErrorResult(throw, "Cannot define property '%s' on a host object", name)
+		n := name.String()
+		if has, ok := o._put(n, descr.Value, throw); !has {
+			o.val.runtime.typeErrorResult(throw, "Cannot define property '%s' on a host object", n)
 			return false
 		} else {
 			return ok
@@ -232,8 +236,8 @@ func (o *objectGoReflect) _has(name string) bool {
 	return false
 }
 
-func (o *objectGoReflect) hasOwnPropertyStr(name string) bool {
-	return o._has(name)
+func (o *objectGoReflect) hasOwnPropertyStr(name unistring.String) bool {
+	return o._has(name.String())
 }
 
 func (o *objectGoReflect) _toNumber() Value {
@@ -293,9 +297,10 @@ func (o *objectGoReflect) toPrimitive() Value {
 	return o.toPrimitiveString()
 }
 
-func (o *objectGoReflect) deleteStr(name string, throw bool) bool {
-	if o._has(name) {
-		o.val.runtime.typeErrorResult(throw, "Cannot delete property %s from a Go type")
+func (o *objectGoReflect) deleteStr(name unistring.String, throw bool) bool {
+	n := name.String()
+	if o._has(n) {
+		o.val.runtime.typeErrorResult(throw, "Cannot delete property %s from a Go type", n)
 		return false
 	}
 	return o.baseObject.deleteStr(name, throw)
@@ -311,7 +316,7 @@ func (i *goreflectPropIter) nextField() (propIterItem, iterNextFunc) {
 	if i.idx < len(names) {
 		name := names[i.idx]
 		i.idx++
-		return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.nextField
+		return propIterItem{name: unistring.NewFromString(name), enumerable: _ENUM_TRUE}, i.nextField
 	}
 
 	i.idx = 0
@@ -323,7 +328,7 @@ func (i *goreflectPropIter) nextMethod() (propIterItem, iterNextFunc) {
 	if i.idx < len(names) {
 		name := names[i.idx]
 		i.idx++
-		return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.nextMethod
+		return propIterItem{name: unistring.NewFromString(name), enumerable: _ENUM_TRUE}, i.nextMethod
 	}
 
 	return propIterItem{}, nil

@@ -19,7 +19,7 @@ const (
 var (
 	invalidFormatError = errors.New("Invalid file format")
 
-	ignorableTestError = &valueSymbol{}
+	ignorableTestError = newSymbol(stringEmpty)
 
 	sabStub = MustCompile("sabStub.js", `
 		Object.defineProperty(this, "SharedArrayBuffer", {
@@ -32,17 +32,10 @@ var (
 
 var (
 	skipList = map[string]bool{
-		"test/language/literals/regexp/S7.8.5_A1.1_T2.js":             true, // UTF-16
-		"test/language/literals/regexp/S7.8.5_A1.4_T2.js":             true, // UTF-16
-		"test/language/literals/regexp/S7.8.5_A2.1_T2.js":             true, // UTF-16
-		"test/language/literals/regexp/S7.8.5_A2.4_T2.js":             true, // UTF-16
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
 		"test/annexB/built-ins/escape/escape-above-astral.js":         true, // \u{xxxxx}
-
-		// utf-16
-		"test/built-ins/Array/prototype/concat/Array.prototype.concat_spreadable-string-wrapper.js": true,
 
 		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js": true,
@@ -126,6 +119,8 @@ var (
 	esIdPrefixWhiteList = []string{
 		"sec-array.prototype.includes",
 		"sec-%typedarray%",
+		"sec-string.prototype.padend",
+		"sec-string.prototype.padstart",
 	}
 )
 

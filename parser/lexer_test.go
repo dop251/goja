@@ -5,6 +5,7 @@ import (
 
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
+	"github.com/dop251/goja/unistring"
 )
 
 func TestLexer(t *testing.T) {
@@ -17,13 +18,13 @@ func TestLexer(t *testing.T) {
 		test := func(src string, test ...interface{}) {
 			parser := setup(src)
 			for len(test) > 0 {
-				tkn, literal, idx := parser.scan()
+				tkn, literal, _, idx := parser.scan()
 				if len(test) > 0 {
 					is(tkn, test[0].(token.Token))
 					test = test[1:]
 				}
 				if len(test) > 0 {
-					is(literal, test[0].(string))
+					is(literal, unistring.String(test[0].(string)))
 					test = test[1:]
 				}
 				if len(test) > 0 {
@@ -184,7 +185,7 @@ Second line \
 
 		test(`var \u0024 = 1`,
 			token.VAR, "var", 1,
-			token.IDENTIFIER, "$", 5,
+			token.IDENTIFIER, "\\u0024", 5,
 			token.ASSIGN, "", 12,
 			token.NUMBER, "1", 14,
 			token.EOF, "", 15,

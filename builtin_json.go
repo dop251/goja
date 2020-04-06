@@ -7,9 +7,11 @@ import (
 	"io"
 	"math"
 	"strings"
+
+	"github.com/dop251/goja/unistring"
 )
 
-var hex = "0123456789abcdef"
+const hex = "0123456789abcdef"
 
 func (r *Runtime) builtinJSON_parse(call FunctionCall) Value {
 	d := json.NewDecoder(bytes.NewBufferString(call.Argument(0).String()))
@@ -85,7 +87,7 @@ func (r *Runtime) builtinJSON_decodeObject(d *json.Decoder) (*Object, error) {
 			return nil, err
 		}
 
-		object.self._putProp(key, value, true, true, true)
+		object.self._putProp(unistring.NewFromString(key), value, true, true, true)
 	}
 	return object, nil
 }
@@ -150,9 +152,9 @@ func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holde
 			for _, itemName := range object.self.ownKeys(false, nil) {
 				value := r.builtinJSON_reviveWalk(reviver, object, name)
 				if value == _undefined {
-					object.self.deleteStr(itemName.String(), false)
+					object.self.deleteStr(itemName.string(), false)
 				} else {
-					object.self.setOwnStr(itemName.String(), value, false)
+					object.self.setOwnStr(itemName.string(), value, false)
 				}
 			}
 		}

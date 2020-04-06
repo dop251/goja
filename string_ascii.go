@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/dop251/goja/unistring"
 )
 
 type asciiString string
@@ -240,21 +242,21 @@ func (s asciiString) concat(other valueString) valueString {
 		copy(b, s)
 		copy(b[len(s):], other)
 		return asciiString(b)
-		//return asciiString(string(s) + string(other))
 	case unicodeString:
 		b := make([]uint16, len(s)+len(other))
+		b[0] = unistring.BOM
 		for i := 0; i < len(s); i++ {
-			b[i] = uint16(s[i])
+			b[i+1] = uint16(s[i])
 		}
-		copy(b[len(s):], other)
+		copy(b[len(s)+1:], other[1:])
 		return unicodeString(b)
 	default:
-		panic(fmt.Errorf("Unknown string type: %T", other))
+		panic(fmt.Errorf("unknown string type: %T", other))
 	}
 }
 
 func (s asciiString) substring(start, end int64) valueString {
-	return asciiString(s[start:end])
+	return s[start:end]
 }
 
 func (s asciiString) compareTo(other valueString) int {
@@ -264,7 +266,7 @@ func (s asciiString) compareTo(other valueString) int {
 	case unicodeString:
 		return strings.Compare(string(s), other.String())
 	default:
-		panic(fmt.Errorf("Unknown string type: %T", other))
+		panic(fmt.Errorf("unknown string type: %T", other))
 	}
 }
 
@@ -302,6 +304,10 @@ func (s asciiString) toUpper() valueString {
 
 func (s asciiString) toTrimmedUTF8() string {
 	return strings.TrimSpace(string(s))
+}
+
+func (s asciiString) string() unistring.String {
+	return unistring.String(s)
 }
 
 func (s asciiString) Export() interface{} {

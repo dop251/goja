@@ -1,6 +1,10 @@
 package goja
 
-import "reflect"
+import (
+	"reflect"
+
+	"github.com/dop251/goja/unistring"
+)
 
 type baseFuncObject struct {
 	baseObject
@@ -36,20 +40,20 @@ func (f *nativeFuncObject) exportType() reflect.Type {
 	return reflect.TypeOf(f.f)
 }
 
-func (f *funcObject) _addProto(n string) Value {
+func (f *funcObject) _addProto(n unistring.String) Value {
 	if n == "prototype" {
-		if _, exists := f.values["prototype"]; !exists {
+		if _, exists := f.values[n]; !exists {
 			return f.addPrototype()
 		}
 	}
 	return nil
 }
 
-func (f *funcObject) getStr(p string, receiver Value) Value {
+func (f *funcObject) getStr(p unistring.String, receiver Value) Value {
 	return f.getStrWithOwnProp(f.getOwnPropStr(p), p, receiver)
 }
 
-func (f *funcObject) getOwnPropStr(name string) Value {
+func (f *funcObject) getOwnPropStr(name unistring.String) Value {
 	if v := f._addProto(name); v != nil {
 		return v
 	}
@@ -57,16 +61,16 @@ func (f *funcObject) getOwnPropStr(name string) Value {
 	return f.baseObject.getOwnPropStr(name)
 }
 
-func (f *funcObject) setOwnStr(name string, val Value, throw bool) bool {
+func (f *funcObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
 	f._addProto(name)
 	return f.baseObject.setOwnStr(name, val, throw)
 }
 
-func (f *funcObject) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
+func (f *funcObject) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
 	return f._setForeignStr(name, f.getOwnPropStr(name), val, receiver, throw)
 }
 
-func (f *funcObject) deleteStr(name string, throw bool) bool {
+func (f *funcObject) deleteStr(name unistring.String, throw bool) bool {
 	f._addProto(name)
 	return f.baseObject.deleteStr(name, throw)
 }
@@ -77,7 +81,7 @@ func (f *funcObject) addPrototype() Value {
 	return f._putProp("prototype", proto, true, false, false)
 }
 
-func (f *funcObject) hasOwnPropertyStr(name string) bool {
+func (f *funcObject) hasOwnPropertyStr(name unistring.String) bool {
 	if r := f.baseObject.hasOwnPropertyStr(name); r {
 		return true
 	}
@@ -176,12 +180,12 @@ func (f *funcObject) assertConstructor() func(args []Value, newTarget *Object) *
 	return f.construct
 }
 
-func (f *baseFuncObject) init(name string, length int) {
+func (f *baseFuncObject) init(name unistring.String, length int) {
 	f.baseObject.init()
 
 	if name != "" {
 		f.nameProp.configurable = true
-		f.nameProp.value = newStringValue(name)
+		f.nameProp.value = stringValueFromRaw(name)
 		f._put("name", &f.nameProp)
 	}
 
@@ -242,11 +246,11 @@ func (f *nativeFuncObject) assertConstructor() func(args []Value, newTarget *Obj
 	return f.construct
 }
 
-func (f *boundFuncObject) getStr(p string, receiver Value) Value {
+func (f *boundFuncObject) getStr(p unistring.String, receiver Value) Value {
 	return f.getStrWithOwnProp(f.getOwnPropStr(p), p, receiver)
 }
 
-func (f *boundFuncObject) getOwnPropStr(name string) Value {
+func (f *boundFuncObject) getOwnPropStr(name unistring.String) Value {
 	if name == "caller" || name == "arguments" {
 		return f.val.runtime.global.throwerProperty
 	}
@@ -254,21 +258,21 @@ func (f *boundFuncObject) getOwnPropStr(name string) Value {
 	return f.nativeFuncObject.getOwnPropStr(name)
 }
 
-func (f *boundFuncObject) deleteStr(name string, throw bool) bool {
+func (f *boundFuncObject) deleteStr(name unistring.String, throw bool) bool {
 	if name == "caller" || name == "arguments" {
 		return true
 	}
 	return f.nativeFuncObject.deleteStr(name, throw)
 }
 
-func (f *boundFuncObject) setOwnStr(name string, val Value, throw bool) bool {
+func (f *boundFuncObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
 	if name == "caller" || name == "arguments" {
 		panic(f.val.runtime.NewTypeError("'caller' and 'arguments' are restricted function properties and cannot be accessed in this context."))
 	}
 	return f.nativeFuncObject.setOwnStr(name, val, throw)
 }
 
-func (f *boundFuncObject) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
+func (f *boundFuncObject) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
 	return f._setForeignStr(name, f.getOwnPropStr(name), val, receiver, throw)
 }
 

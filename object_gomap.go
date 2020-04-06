@@ -2,6 +2,8 @@ package goja
 
 import (
 	"reflect"
+
+	"github.com/dop251/goja/unistring"
 )
 
 type objectGoMapSimple struct {
@@ -24,23 +26,24 @@ func (o *objectGoMapSimple) _getStr(name string) Value {
 	return o.val.runtime.ToValue(v)
 }
 
-func (o *objectGoMapSimple) getStr(name string, receiver Value) Value {
-	if v := o._getStr(name); v != nil {
+func (o *objectGoMapSimple) getStr(name unistring.String, receiver Value) Value {
+	if v := o._getStr(name.String()); v != nil {
 		return v
 	}
 	return o.baseObject.getStr(name, receiver)
 }
 
-func (o *objectGoMapSimple) getOwnPropStr(name string) Value {
-	if v := o._getStr(name); v != nil {
+func (o *objectGoMapSimple) getOwnPropStr(name unistring.String) Value {
+	if v := o._getStr(name.String()); v != nil {
 		return v
 	}
 	return nil
 }
 
-func (o *objectGoMapSimple) setOwnStr(name string, val Value, throw bool) bool {
-	if _, exists := o.data[name]; exists {
-		o.data[name] = val.Export()
+func (o *objectGoMapSimple) setOwnStr(name unistring.String, val Value, throw bool) bool {
+	n := name.String()
+	if _, exists := o.data[n]; exists {
+		o.data[n] = val.Export()
 		return true
 	}
 	if proto := o.prototype; proto != nil {
@@ -54,7 +57,7 @@ func (o *objectGoMapSimple) setOwnStr(name string, val Value, throw bool) bool {
 		o.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
 		return false
 	} else {
-		o.data[name] = val.Export()
+		o.data[n] = val.Export()
 	}
 	return true
 }
@@ -66,8 +69,8 @@ func trueValIfPresent(present bool) Value {
 	return nil
 }
 
-func (o *objectGoMapSimple) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
-	return o._setForeignStr(name, trueValIfPresent(o._hasStr(name)), val, receiver, throw)
+func (o *objectGoMapSimple) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
+	return o._setForeignStr(name, trueValIfPresent(o._hasStr(name.String())), val, receiver, throw)
 }
 
 func (o *objectGoMapSimple) _hasStr(name string) bool {
@@ -75,21 +78,22 @@ func (o *objectGoMapSimple) _hasStr(name string) bool {
 	return exists
 }
 
-func (o *objectGoMapSimple) hasOwnPropertyStr(name string) bool {
-	return o._hasStr(name)
+func (o *objectGoMapSimple) hasOwnPropertyStr(name unistring.String) bool {
+	return o._hasStr(name.String())
 }
 
-func (o *objectGoMapSimple) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
+func (o *objectGoMapSimple) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 		return false
 	}
 
-	if o.extensible || o._hasStr(name) {
-		o.data[name] = descr.Value.Export()
+	n := name.String()
+	if o.extensible || o._hasStr(n) {
+		o.data[n] = descr.Value.Export()
 		return true
 	}
 
-	o.val.runtime.typeErrorResult(throw, "Cannot define property %s, object is not extensible", name)
+	o.val.runtime.typeErrorResult(throw, "Cannot define property %s, object is not extensible", n)
 	return false
 }
 
@@ -111,8 +115,8 @@ func (o *objectGoMapSimple) assertCallable() (call func(FunctionCall) Value, ok 
 }
 */
 
-func (o *objectGoMapSimple) deleteStr(name string, _ bool) bool {
-	delete(o.data, name)
+func (o *objectGoMapSimple) deleteStr(name unistring.String, _ bool) bool {
+	delete(o.data, name.String())
 	return true
 }
 
@@ -127,7 +131,7 @@ func (i *gomapPropIter) next() (propIterItem, iterNextFunc) {
 		name := i.propNames[i.idx]
 		i.idx++
 		if _, exists := i.o.data[name]; exists {
-			return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.next
+			return propIterItem{name: unistring.NewFromString(name), enumerable: _ENUM_TRUE}, i.next
 		}
 	}
 

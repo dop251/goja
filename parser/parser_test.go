@@ -8,6 +8,7 @@ import (
 
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
+	"github.com/dop251/goja/unistring"
 )
 
 func firstErr(err error) error {
@@ -86,9 +87,9 @@ func TestParserErr(t *testing.T) {
 			return program, parser
 		}
 
-		program, parser := test("", nil)
+		test("", nil)
 
-		program, parser = test(`
+		program, parser := test(`
         var abc;
         break; do {
         } while(true);
@@ -513,7 +514,7 @@ func TestParser(t *testing.T) {
             abc()
         `, nil)
 
-		program := test("", nil)
+		test("", nil)
 
 		test("//", nil)
 
@@ -531,7 +532,7 @@ func TestParser(t *testing.T) {
 
 		test("new +", "(anonymous): Line 1:5 Unexpected token +")
 
-		program = test(";", nil)
+		program := test(";", nil)
 		is(len(program.Body), 1)
 		is(program.Body[0].(*ast.EmptyStatement).Semicolon, file.Idx(1))
 
@@ -874,10 +875,10 @@ func TestParser(t *testing.T) {
 
 func Test_parseStringLiteral(t *testing.T) {
 	tt(t, func() {
-		test := func(have, want string) {
-			have, err := parseStringLiteral(have)
+		test := func(have string, want unistring.String) {
+			res, err := parseStringLiteral(have)
 			is(err, nil)
-			is(have, want)
+			is(res, want)
 		}
 
 		test("", "")
@@ -925,10 +926,10 @@ func Test_parseStringLiteral(t *testing.T) {
 		test("\\\u4e16", "\u4e16")
 
 		// err
-		test = func(have, want string) {
-			have, err := parseStringLiteral(have)
+		test = func(have string, want unistring.String) {
+			res, err := parseStringLiteral(have)
 			is(err.Error(), want)
-			is(have, "")
+			is(res, "")
 		}
 
 		test(`\u`, `invalid escape: \u: len("") != 4`)

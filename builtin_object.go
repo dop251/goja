@@ -179,21 +179,20 @@ func (r *Runtime) toPropertyDescriptor(v Value) (ret PropertyDescriptor) {
 
 func (r *Runtime) _defineProperties(o *Object, p Value) {
 	type propItem struct {
-		name string
+		name Value
 		prop PropertyDescriptor
 	}
 	props := p.ToObject(r)
-	names := props.self.ownKeys(false, nil)
+	names := props.self.ownPropertyKeys(false, nil)
 	list := make([]propItem, 0, len(names))
 	for _, itemName := range names {
-		itemNameStr := itemName.String()
 		list = append(list, propItem{
-			name: itemNameStr,
-			prop: r.toPropertyDescriptor(props.self.getStr(itemNameStr, nil)),
+			name: itemName,
+			prop: r.toPropertyDescriptor(props.get(itemName, nil)),
 		})
 	}
 	for _, prop := range list {
-		o.self.defineOwnPropertyStr(prop.name, prop.prop, true)
+		o.defineOwnProperty(prop.name, prop.prop, true)
 	}
 }
 

@@ -35,7 +35,7 @@ func (r *regexp2Wrapper) FindSubmatchIndex(s valueString, start int) (result []i
 	case asciiString:
 		match, err = wrapped.FindStringMatch(string(s)[start:])
 	case unicodeString:
-		match, err = wrapped.FindRunesMatch(utf16.Decode(s[start:]))
+		match, err = wrapped.FindRunesMatch(utf16.Decode(s[start+1:]))
 	default:
 		panic(fmt.Errorf("Unknown string type: %T", s))
 	}
@@ -208,7 +208,7 @@ func (r *regexp2Wrapper) MatchString(s valueString) bool {
 		matched, _ := wrapped.MatchString(string(s))
 		return matched
 	case unicodeString:
-		matched, _ := wrapped.MatchRunes(utf16.Decode(s))
+		matched, _ := wrapped.MatchRunes(utf16.Decode(s[1:]))
 		return matched
 	default:
 		panic(fmt.Errorf("Unknown string type: %T", s))

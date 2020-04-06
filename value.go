@@ -1,13 +1,14 @@
 package goja
 
 import (
-	"fmt"
 	"hash"
 	"math"
 	"reflect"
 	"regexp"
 	"strconv"
 	"unsafe"
+
+	"github.com/dop251/goja/unistring"
 )
 
 var (
@@ -39,6 +40,7 @@ var intCache [256]Value
 type Value interface {
 	ToInteger() int64
 	toString() valueString
+	string() unistring.String
 	ToPrimitiveString() Value
 	String() string
 	ToFloat() float64
@@ -71,12 +73,12 @@ type valueUndefined struct {
 	valueNull
 }
 type valueSymbol struct {
-	desc string
+	desc valueString
 }
 
 type valueUnresolved struct {
 	r   *Runtime
-	ref string
+	ref unistring.String
 }
 
 type memberUnresolved struct {
@@ -125,6 +127,10 @@ func (i valueInt) ToInteger() int64 {
 
 func (i valueInt) toString() valueString {
 	return asciiString(i.String())
+}
+
+func (i valueInt) string() unistring.String {
+	return unistring.String(i.String())
 }
 
 func (i valueInt) ToPrimitiveString() Value {
@@ -199,56 +205,60 @@ func (i valueInt) hash(hash.Hash64) uint64 {
 	return uint64(i)
 }
 
-func (o valueBool) ToInteger() int64 {
-	if o {
+func (b valueBool) ToInteger() int64 {
+	if b {
 		return 1
 	}
 	return 0
 }
 
-func (o valueBool) toString() valueString {
-	if o {
+func (b valueBool) toString() valueString {
+	if b {
 		return stringTrue
 	}
 	return stringFalse
 }
 
-func (o valueBool) ToPrimitiveString() Value {
-	return o
+func (b valueBool) ToPrimitiveString() Value {
+	return b
 }
 
-func (o valueBool) String() string {
-	if o {
+func (b valueBool) String() string {
+	if b {
 		return "true"
 	}
 	return "false"
 }
 
-func (o valueBool) ToFloat() float64 {
-	if o {
+func (b valueBool) string() unistring.String {
+	return unistring.String(b.String())
+}
+
+func (b valueBool) ToFloat() float64 {
+	if b {
 		return 1.0
 	}
 	return 0
 }
 
-func (o valueBool) ToBoolean() bool {
-	return bool(o)
+func (b valueBool) ToBoolean() bool {
+	return bool(b)
 }
 
-func (o valueBool) ToObject(r *Runtime) *Object {
-	return r.newPrimitiveObject(o, r.global.BooleanPrototype, "Boolean")
+func (b valueBool) ToObject(r *Runtime) *Object {
+	return r.newPrimitiveObject(b, r.global.BooleanPrototype, "Boolean")
 }
 
-func (o valueBool) ToNumber() Value {
-	if o {
+func (b valueBool) ToNumber() Value {
+	if b {
 		return valueInt(1)
 	}
 	return valueInt(0)
 }
 
-func (o valueBool) SameAs(other Value) bool {
+func (b valueBool) SameAs(other Value) bool {
 	if other, ok := other.(valueBool); ok {
-		return o == other
+		return b == other
 	}
 	return false
 }
@@ -266,22 +276,22 @@ func (b valueBool) Equals(other Value) bool {
 
 }
 
-func (o valueBool) StrictEquals(other Value) bool {
+func (b valueBool) StrictEquals(other Value) bool {
 	if other, ok := other.(valueBool); ok {
-		return o == other
+		return b == other
 	}
 	return false
 }
 
-func (o valueBool) baseObject(r *Runtime) *Object {
+func (b valueBool) baseObject(r *Runtime) *Object {
 	return r.global.BooleanPrototype
 }
 
-func (o valueBool) Export() interface{} {
-	return bool(o)
+func (b valueBool) Export() interface{} {
+	return bool(b)
 }
 
-func (o valueBool) ExportType() reflect.Type {
+func (b valueBool) ExportType() reflect.Type {
 	return reflectTypeBool
 }
 
@@ -298,6 +308,10 @@ func (n valueNull) ToInteger() int64 {
 
 func (n valueNull) toString() valueString {
 	return stringNull
+}
+
+func (n valueNull) string() unistring.String {
+	return stringNull.string()
 }
 
 func (n valueNull) ToPrimitiveString() Value {
@@ -317,6 +331,10 @@ func (u valueUndefined) ToPrimitiveString() Value {
 }
 
 func (u valueUndefined) String() string {
+	return "undefined"
+}
+
+func (u valueUndefined) string() unistring.String {
 	return "undefined"
 }
 
@@ -402,6 +420,10 @@ func (p *valueProperty) toString() valueString {
 	return stringEmpty
 }
 
+func (p *valueProperty) string() unistring.String {
+	return ""
+}
+
 func (p *valueProperty) ToPrimitiveString() Value {
 	return _undefined
 }
@@ -470,20 +492,20 @@ func (p *valueProperty) StrictEquals(Value) bool {
 	return false
 }
 
-func (n *valueProperty) baseObject(r *Runtime) *Object {
+func (p *valueProperty) baseObject(r *Runtime) *Object {
 	r.typeErrorResult(true, "BUG: baseObject() is called on valueProperty") // TODO error message
 	return nil
 }
 
-func (n *valueProperty) Export() interface{} {
+func (p *valueProperty) Export() interface{} {
 	panic("Cannot export valueProperty")
 }
 
-func (n *valueProperty) ExportType() reflect.Type {
+func (p *valueProperty) ExportType() reflect.Type {
 	panic("Cannot export valueProperty")
 }
 
-func (n *valueProperty) hash(hash.Hash64) uint64 {
+func (p *valueProperty) hash(hash.Hash64) uint64 {
 	panic("valueProperty should never be used in maps or sets")
 }
 
@@ -501,6 +523,10 @@ func (f valueFloat) ToInteger() int64 {
 
 func (f valueFloat) toString() valueString {
 	return asciiString(f.String())
+}
+
+func (f valueFloat) string() unistring.String {
+	return unistring.String(f.String())
 }
 
 func (f valueFloat) ToPrimitiveString() Value {
@@ -623,6 +649,10 @@ func (o *Object) toString() valueString {
 	return o.self.toPrimitiveString().toString()
 }
 
+func (o *Object) string() unistring.String {
+	return o.self.toPrimitiveString().string()
+}
+
 func (o *Object) ToPrimitiveString() Value {
 	return o.self.toPrimitiveString().ToPrimitiveString()
 }
@@ -693,7 +723,7 @@ func (o *Object) hash(hash.Hash64) uint64 {
 }
 
 func (o *Object) Get(name string) Value {
-	return o.self.getStr(name, nil)
+	return o.self.getStr(unistring.NewFromString(name), nil)
 }
 
 func (o *Object) Keys() (keys []string) {
@@ -710,7 +740,7 @@ func (o *Object) Keys() (keys []string) {
 // configurable: configurable, enumerable: enumerable})
 func (o *Object) DefineDataProperty(name string, value Value, writable, configurable, enumerable Flag) error {
 	return tryFunc(func() {
-		o.self.defineOwnPropertyStr(name, PropertyDescriptor{
+		o.self.defineOwnPropertyStr(unistring.NewFromString(name), PropertyDescriptor{
 			Value:        value,
 			Writable:     writable,
 			Configurable: configurable,
@@ -723,7 +753,7 @@ func (o *Object) DefineDataProperty(name string, value Value, writable, configur
 // configurable: configurable, enumerable: enumerable})
 func (o *Object) DefineAccessorProperty(name string, getter, setter Value, configurable, enumerable Flag) error {
 	return tryFunc(func() {
-		o.self.defineOwnPropertyStr(name, PropertyDescriptor{
+		o.self.defineOwnPropertyStr(unistring.NewFromString(name), PropertyDescriptor{
 			Getter:       getter,
 			Setter:       setter,
 			Configurable: configurable,
@@ -734,7 +764,7 @@ func (o *Object) DefineAccessorProperty(name string, getter, setter Value, confi
 
 func (o *Object) Set(name string, value interface{}) error {
 	return tryFunc(func() {
-		o.self.setOwnStr(name, o.runtime.ToValue(value), true)
+		o.self.setOwnStr(unistring.NewFromString(name), o.runtime.ToValue(value), true)
 	})
 }
 
@@ -772,6 +802,11 @@ func (o valueUnresolved) ToInteger() int64 {
 func (o valueUnresolved) toString() valueString {
 	o.throw()
 	return nil
+}
+
+func (o valueUnresolved) string() unistring.String {
+	o.throw()
+	return ""
 }
 
 func (o valueUnresolved) ToPrimitiveString() Value {
@@ -852,7 +887,11 @@ func (s *valueSymbol) ToPrimitiveString() Value {
 }
 
 func (s *valueSymbol) String() string {
-	return s.descString()
+	return s.desc.String()
+}
+
+func (s *valueSymbol) string() unistring.String {
+	return s.desc.string()
 }
 
 func (s *valueSymbol) ToFloat() float64 {
@@ -902,8 +941,10 @@ func (s *valueSymbol) hash(hash.Hash64) uint64 {
 	return uint64(uintptr(unsafe.Pointer(s)))
 }
 
-func (s *valueSymbol) descString() string {
-	return fmt.Sprintf("Symbol(%s)", s.desc)
+func newSymbol(s valueString) *valueSymbol {
+	return &valueSymbol{
+		desc: asciiString("Symbol(").concat(s).concat(asciiString(")")),
+	}
 }
 
 func init() {

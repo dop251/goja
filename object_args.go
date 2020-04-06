@@ -1,5 +1,7 @@
 package goja
 
+import "github.com/dop251/goja/unistring"
+
 type argumentsObject struct {
 	baseObject
 	length int
@@ -10,11 +12,11 @@ type mappedProperty struct {
 	v *Value
 }
 
-func (a *argumentsObject) getStr(name string, receiver Value) Value {
+func (a *argumentsObject) getStr(name unistring.String, receiver Value) Value {
 	return a.getStrWithOwnProp(a.getOwnPropStr(name), name, receiver)
 }
 
-func (a *argumentsObject) getOwnPropStr(name string) Value {
+func (a *argumentsObject) getOwnPropStr(name unistring.String) Value {
 	if mapped, ok := a.values[name].(*mappedProperty); ok {
 		return *mapped.v
 	}
@@ -27,7 +29,7 @@ func (a *argumentsObject) init() {
 	a._putProp("length", intToValue(int64(a.length)), true, false, true)
 }
 
-func (a *argumentsObject) setOwnStr(name string, val Value, throw bool) bool {
+func (a *argumentsObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
 	if prop, ok := a.values[name].(*mappedProperty); ok {
 		if !prop.writable {
 			a.val.runtime.typeErrorResult(throw, "Property is not writable: %s", name)
@@ -39,7 +41,7 @@ func (a *argumentsObject) setOwnStr(name string, val Value, throw bool) bool {
 	return a.baseObject.setOwnStr(name, val, throw)
 }
 
-func (a *argumentsObject) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
+func (a *argumentsObject) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
 	return a._setForeignStr(name, a.getOwnPropStr(name), val, receiver, throw)
 }
 
@@ -55,7 +57,7 @@ func (a *argumentsObject) setForeignStr(name string, val, receiver Value, throw 
 	a.baseObject.putStr(name, val, throw)
 }*/
 
-func (a *argumentsObject) deleteStr(name string, throw bool) bool {
+func (a *argumentsObject) deleteStr(name unistring.String, throw bool) bool {
 	if prop, ok := a.values[name].(*mappedProperty); ok {
 		if !a.checkDeleteProp(name, &prop.valueProperty, throw) {
 			return false
@@ -89,7 +91,7 @@ func (a *argumentsObject) enumerateUnfiltered() iterNextFunc {
 	}).next)
 }
 
-func (a *argumentsObject) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
+func (a *argumentsObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	if mapped, ok := a.values[name].(*mappedProperty); ok {
 		existing := &valueProperty{
 			configurable: mapped.configurable,

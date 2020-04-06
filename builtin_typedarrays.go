@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strings"
 	"unsafe"
+
+	"github.com/dop251/goja/unistring"
 )
 
 type typedArraySortCtx struct {
@@ -1363,7 +1365,7 @@ func (r *Runtime) addPrototype(ctor *Object, proto *Object) *baseObject {
 	return p
 }
 
-func (r *Runtime) typedArrayCreator(ctor func(args []Value, newTarget *Object) *Object, name string, bytesPerElement int) func(val *Object) objectImpl {
+func (r *Runtime) typedArrayCreator(ctor func(args []Value, newTarget *Object) *Object, name unistring.String, bytesPerElement int) func(val *Object) objectImpl {
 	return func(val *Object) objectImpl {
 		o := r.newNativeConstructOnly(val, ctor, nil, name, 3)
 		o.prototype = r.global.TypedArray
