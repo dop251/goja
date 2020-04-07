@@ -26,9 +26,10 @@ const (
 	classRegExp   = "RegExp"
 	classDate     = "Date"
 
-	classArrayIterator = "Array Iterator"
-	classMapIterator   = "Map Iterator"
-	classSetIterator   = "Set Iterator"
+	classArrayIterator  = "Array Iterator"
+	classMapIterator    = "Map Iterator"
+	classSetIterator    = "Set Iterator"
+	classStringIterator = "String Iterator"
 )
 
 type weakCollection interface {

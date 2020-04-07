@@ -60,7 +60,7 @@ func (r *Runtime) _newString(s valueString, proto *Object) *Object {
 func (r *Runtime) builtin_newString(args []Value, proto *Object) *Object {
 	var s valueString
 	if len(args) > 0 {
-		s = toString(args[0])
+		s = args[0].toString()
 	} else {
 		s = stringEmpty
 	}
@@ -102,6 +102,11 @@ func (r *Runtime) stringproto_valueOf(call FunctionCall) Value {
 	return r.stringproto_toStringValueOf(call.This, "valueOf")
 }
 
+func (r *Runtime) stringproto_iterator(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
+	return r.createStringIterator(call.This.toString())
+}
+
 func (r *Runtime) string_fromcharcode(call FunctionCall) Value {
 	b := make([]byte, len(call.Arguments))
 	for i, arg := range call.Arguments {
@@ -124,6 +129,67 @@ func (r *Runtime) string_fromcharcode(call FunctionCall) Value {
 	}
 
 	return asciiString(b)
+}
+
+func (r *Runtime) string_fromcodepoint(call FunctionCall) Value {
+	var b []byte
+	var sb unicodeStringBuilder
+	unicode := false
+	for i, arg := range call.Arguments {
+		num := arg.ToNumber()
+		var c rune
+		if numInt, ok := num.(valueInt); ok {
+			if numInt < 0 || numInt > utf8.MaxRune {
+				panic(r.newError(r.global.RangeError, "Invalid code point %d", numInt))
+			}
+			c = rune(numInt)
+		} else {
+			panic(r.newError(r.global.RangeError, "Invalid code point %s", num))
+		}
+		if c >= utf8.RuneSelf {
+			if !unicode {
+				unicode = true
+				sb.Grow(len(call.Arguments))
+				sb.writeASCII(b[:i])
+				b = nil
+			}
+		}
+		if unicode {
+			sb.writeRune(c)
+		} else {
+			if b == nil {
+				b = make([]byte, 0, len(call.Arguments))
+			}
+			b = append(b, byte(c))
+		}
+	}
+	if !unicode {
+		return asciiString(b)
+	}
+	return sb.string()
+}
+
+func (r *Runtime) string_raw(call FunctionCall) Value {
+	cooked := call.Argument(0).ToObject(r)
+	raw := nilSafe(cooked.self.getStr("raw", nil)).ToObject(r)
+	literalSegments := toLength(raw.self.getStr("length", nil))
+	if literalSegments <= 0 {
+		return stringEmpty
+	}
+	var stringElements unicodeStringBuilder
+	nextIndex := int64(0)
+	numberOfSubstitutions := int64(len(call.Arguments) - 1)
+	for {
+		nextSeg := nilSafe(raw.self.getIdx(valueInt(nextIndex), nil)).toString()
+		stringElements.writeString(nextSeg)
+		if nextIndex+1 == literalSegments {
+			return stringElements.string()
+		}
+		if nextIndex < numberOfSubstitutions {
+			stringElements.writeString(nilSafe(call.Arguments[nextIndex+1]).toString())
+		}
+		nextIndex++
+	}
 }
 
 func (r *Runtime) stringproto_charAt(call FunctionCall) Value {
@@ -155,11 +221,11 @@ func (r *Runtime) stringproto_codePointAt(call FunctionCall) Value {
 		return _undefined
 	}
 	first := s.charAt(pos)
-	if utf16.IsSurrogate(first) {
+	if isUTF16FirstSurrogate(first) {
 		pos++
 		if pos < size {
 			second := s.charAt(pos)
-			if utf16.IsSurrogate(second) {
+			if isUTF16SecondSurrogate(second) {
 				return intToValue(int64(utf16.DecodeRune(first, second)))
 			}
 		}
@@ -251,7 +317,8 @@ func (r *Runtime) stringproto_includes(call FunctionCall) Value {
 	} else {
 		pos = 0
 	}
-	if s.index(searchStr, pos) != -1 {
+	start := min(max(pos, 0), s.length())
+	if s.index(searchStr, start) != -1 {
 		return valueTrue
 	}
 	return valueFalse
@@ -342,7 +409,7 @@ func (r *Runtime) stringproto_normalize(call FunctionCall) Value {
 	s := call.This.toString()
 	var form string
 	if formArg := call.Argument(0); formArg != _undefined {
-		form = formArg.String()
+		form = formArg.toString().String()
 	} else {
 		form = "NFC"
 	}
@@ -406,7 +473,7 @@ func (r *Runtime) stringproto_padEnd(call FunctionCall) Value {
 		return asciiString(sb.String())
 	}
 	var sb unicodeStringBuilder
-	sb.grow(toInt(maxLength))
+	sb.Grow(toInt(maxLength))
 	sb.writeString(s)
 	remaining := maxLength - stringLength
 	fl := filler.length()
@@ -459,7 +526,7 @@ func (r *Runtime) stringproto_padStart(call FunctionCall) Value {
 		return asciiString(sb.String())
 	}
 	var sb unicodeStringBuilder
-	sb.grow(toInt(maxLength))
+	sb.Grow(toInt(maxLength))
 	remaining := maxLength - stringLength
 	fl := filler.length()
 	for remaining >= fl {
@@ -471,6 +538,37 @@ func (r *Runtime) stringproto_padStart(call FunctionCall) Value {
 	}
 	sb.writeString(s)
 
+	return sb.string()
+}
+
+func (r *Runtime) stringproto_repeat(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
+	s := call.This.toString()
+	n := call.Argument(0).ToNumber()
+	if n == _positiveInf {
+		panic(r.newError(r.global.RangeError, "Invalid count value"))
+	}
+	num := toInt(n.ToInteger())
+	if num < 0 {
+		panic(r.newError(r.global.RangeError, "Invalid count value"))
+	}
+	if num == 0 {
+		return stringEmpty
+	}
+	if s, ok := s.(asciiString); ok {
+		var sb strings.Builder
+		sb.Grow(len(s) * num)
+		for i := 0; i < num; i++ {
+			sb.WriteString(string(s))
+		}
+		return asciiString(sb.String())
+	}
+
+	var sb unicodeStringBuilder
+	sb.Grow(toInt(s.length() * int64(num)))
+	for i := 0; i < num; i++ {
+		sb.writeString(s)
+	}
 	return sb.string()
 }
 
@@ -752,6 +850,32 @@ func (r *Runtime) stringproto_split(call FunctionCall) Value {
 	return r.newArrayValues(valueArray)
 }
 
+func (r *Runtime) stringproto_startsWith(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
+	s := call.This.toString()
+	searchString := call.Argument(0)
+	if isRegexp(searchString) {
+		panic(r.NewTypeError("First argument to String.prototype.startsWith must not be a regular expression"))
+	}
+	searchStr := searchString.toString()
+	l := s.length()
+	var pos int64
+	if posArg := call.Argument(1); posArg != _undefined {
+		pos = posArg.ToInteger()
+	}
+	start := min(max(pos, 0), l)
+	searchLength := searchStr.length()
+	if searchLength+start > l {
+		return valueFalse
+	}
+	for i := int64(0); i < searchLength; i++ {
+		if s.charAt(start+i) != searchStr.charAt(i) {
+			return valueFalse
+		}
+	}
+	return valueTrue
+}
+
 func (r *Runtime) stringproto_substring(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
@@ -804,7 +928,22 @@ func (r *Runtime) stringproto_trim(call FunctionCall) Value {
 	return newStringValue(strings.Trim(s.String(), parser.WhitespaceChars))
 }
 
+func (r *Runtime) stringproto_trimEnd(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
+	s := call.This.toString()
+
+	return newStringValue(strings.TrimRight(s.String(), parser.WhitespaceChars))
+}
+
+func (r *Runtime) stringproto_trimStart(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
+	s := call.This.toString()
+
+	return newStringValue(strings.TrimLeft(s.String(), parser.WhitespaceChars))
+}
+
 func (r *Runtime) stringproto_substr(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
 	start := call.Argument(0).ToInteger()
 	var length int64
@@ -827,7 +966,25 @@ func (r *Runtime) stringproto_substr(call FunctionCall) Value {
 	return s.substring(start, start+length)
 }
 
+func (r *Runtime) stringIterProto_next(call FunctionCall) Value {
+	thisObj := r.toObject(call.This)
+	if iter, ok := thisObj.self.(*stringIterObject); ok {
+		return iter.next()
+	}
+	panic(r.NewTypeError("Method String Iterator.prototype.next called on incompatible receiver %s", thisObj.String()))
+}
+
+func (r *Runtime) createStringIterProto(val *Object) objectImpl {
+	o := newBaseObjectObj(val, r.global.IteratorPrototype, classObject)
+
+	o._putProp("next", r.newNativeFunc(r.stringIterProto_next, nil, "next", nil, 0), true, false, true)
+	o._putSym(symToStringTag, valueProp(asciiString(classStringIterator), false, false, true))
+
+	return o
+}
+
 func (r *Runtime) initString() {
+	r.global.StringIteratorPrototype = r.newLazyObject(r.createStringIterProto)
 	r.global.StringPrototype = r.builtin_newString([]Value{stringEmpty}, r.global.ObjectPrototype)
 
 	o := r.global.StringPrototype.self
@@ -844,18 +1001,24 @@ func (r *Runtime) initString() {
 	o._putProp("normalize", r.newNativeFunc(r.stringproto_normalize, nil, "normalize", nil, 0), true, false, true)
 	o._putProp("padEnd", r.newNativeFunc(r.stringproto_padEnd, nil, "padEnd", nil, 1), true, false, true)
 	o._putProp("padStart", r.newNativeFunc(r.stringproto_padStart, nil, "padStart", nil, 1), true, false, true)
-	o._putProp("toString", r.newNativeFunc(r.stringproto_toString, nil, "toString", nil, 0), true, false, true)
-	o._putProp("valueOf", r.newNativeFunc(r.stringproto_valueOf, nil, "valueOf", nil, 0), true, false, true)
+	o._putProp("repeat", r.newNativeFunc(r.stringproto_repeat, nil, "repeat", nil, 1), true, false, true)
 	o._putProp("replace", r.newNativeFunc(r.stringproto_replace, nil, "replace", nil, 2), true, false, true)
 	o._putProp("search", r.newNativeFunc(r.stringproto_search, nil, "search", nil, 1), true, false, true)
 	o._putProp("slice", r.newNativeFunc(r.stringproto_slice, nil, "slice", nil, 2), true, false, true)
 	o._putProp("split", r.newNativeFunc(r.stringproto_split, nil, "split", nil, 2), true, false, true)
+	o._putProp("startsWith", r.newNativeFunc(r.stringproto_startsWith, nil, "startsWith", nil, 1), true, false, true)
 	o._putProp("substring", r.newNativeFunc(r.stringproto_substring, nil, "substring", nil, 2), true, false, true)
-	o._putProp("toLowerCase", r.newNativeFunc(r.stringproto_toLowerCase, nil, "toLowerCase", nil, 0), true, false, true)
 	o._putProp("toLocaleLowerCase", r.newNativeFunc(r.stringproto_toLowerCase, nil, "toLocaleLowerCase", nil, 0), true, false, true)
-	o._putProp("toUpperCase", r.newNativeFunc(r.stringproto_toUpperCase, nil, "toUpperCase", nil, 0), true, false, true)
 	o._putProp("toLocaleUpperCase", r.newNativeFunc(r.stringproto_toUpperCase, nil, "toLocaleUpperCase", nil, 0), true, false, true)
+	o._putProp("toLowerCase", r.newNativeFunc(r.stringproto_toLowerCase, nil, "toLowerCase", nil, 0), true, false, true)
+	o._putProp("toString", r.newNativeFunc(r.stringproto_toString, nil, "toString", nil, 0), true, false, true)
+	o._putProp("toUpperCase", r.newNativeFunc(r.stringproto_toUpperCase, nil, "toUpperCase", nil, 0), true, false, true)
 	o._putProp("trim", r.newNativeFunc(r.stringproto_trim, nil, "trim", nil, 0), true, false, true)
+	o._putProp("trimEnd", r.newNativeFunc(r.stringproto_trimEnd, nil, "trimEnd", nil, 0), true, false, true)
+	o._putProp("trimStart", r.newNativeFunc(r.stringproto_trimStart, nil, "trimStart", nil, 0), true, false, true)
+	o._putProp("valueOf", r.newNativeFunc(r.stringproto_valueOf, nil, "valueOf", nil, 0), true, false, true)
+
+	o._putSym(symIterator, valueProp(r.newNativeFunc(r.stringproto_iterator, nil, "[Symbol.iterator]", nil, 0), true, false, true))
 
 	// Annex B
 	o._putProp("substr", r.newNativeFunc(r.stringproto_substr, nil, "substr", nil, 2), true, false, true)
@@ -863,6 +1026,8 @@ func (r *Runtime) initString() {
 	r.global.String = r.newNativeFunc(r.builtin_String, r.builtin_newString, "String", r.global.StringPrototype, 1)
 	o = r.global.String.self
 	o._putProp("fromCharCode", r.newNativeFunc(r.string_fromcharcode, nil, "fromCharCode", nil, 1), true, false, true)
+	o._putProp("fromCodePoint", r.newNativeFunc(r.string_fromcodepoint, nil, "fromCodePoint", nil, 1), true, false, true)
+	o._putProp("raw", r.newNativeFunc(r.string_raw, nil, "raw", nil, 1), true, false, true)
 
 	r.addToGlobal("String", r.global.String)
 

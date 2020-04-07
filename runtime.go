@@ -89,7 +89,6 @@ type global struct {
 	RegExpPrototype   *Object
 	DatePrototype     *Object
 	SymbolPrototype   *Object
-	ArrayIterator     *Object
 
 	ArrayBufferPrototype *Object
 	DataViewPrototype    *Object
@@ -99,10 +98,11 @@ type global struct {
 	MapPrototype         *Object
 	SetPrototype         *Object
 
-	IteratorPrototype      *Object
-	ArrayIteratorPrototype *Object
-	MapIteratorPrototype   *Object
-	SetIteratorPrototype   *Object
+	IteratorPrototype       *Object
+	ArrayIteratorPrototype  *Object
+	MapIteratorPrototype    *Object
+	SetIteratorPrototype    *Object
+	StringIteratorPrototype *Object
 
 	ErrorPrototype          *Object
 	TypeErrorPrototype      *Object

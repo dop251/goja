@@ -56,12 +56,16 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/TypedArray/regular-subclassing.js":       true,
 		"test/language/statements/class/subclass/builtin-objects/DataView/super-must-be-called.js":        true,
 		"test/language/statements/class/subclass/builtin-objects/DataView/regular-subclassing.js":         true,
+		"test/language/statements/class/subclass/builtin-objects/String/super-must-be-called.js":          true,
+		"test/language/statements/class/subclass/builtin-objects/String/regular-subclassing.js":           true,
+		"test/language/statements/class/subclass/builtin-objects/String/length.js":                        true,
 
 		// full unicode regexp flag
 		"test/built-ins/RegExp/prototype/Symbol.match/u-advance-after-empty.js":               true,
 		"test/built-ins/RegExp/prototype/Symbol.match/get-unicode-error.js":                   true,
 		"test/built-ins/RegExp/prototype/Symbol.match/builtin-success-u-return-val-groups.js": true,
 		"test/built-ins/RegExp/prototype/Symbol.match/builtin-infer-unicode.js":               true,
+		"test/built-ins/RegExp/unicode_identity_escape.js":                                    true,
 
 		// object literals
 		"test/built-ins/Array/from/source-object-iterator-1.js":                   true,
@@ -79,6 +83,12 @@ var (
 
 		// arrow-function
 		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
+
+		// template strings
+		"test/built-ins/String/raw/zero-literal-segments.js":                             true,
+		"test/built-ins/String/raw/template-substitutions-are-appended-on-same-index.js": true,
+		"test/built-ins/String/raw/special-characters.js":                                true,
+		"test/built-ins/String/raw/return-the-string-value-from-template.js":             true,
 	}
 
 	featuresBlackList = []string{
@@ -94,9 +104,7 @@ var (
 		"12.9.4",
 		"19.1",
 		"19.4",
-		"21.1.3.14",
-		"21.1.3.15",
-		"21.1.3.17",
+		"21.1",
 		"21.2.5.6",
 		"22.1.2.1",
 		"22.1.2.3",
@@ -119,8 +127,7 @@ var (
 	esIdPrefixWhiteList = []string{
 		"sec-array.prototype.includes",
 		"sec-%typedarray%",
-		"sec-string.prototype.padend",
-		"sec-string.prototype.padstart",
+		"sec-string.prototype",
 	}
 )
 

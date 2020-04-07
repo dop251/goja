@@ -3,6 +3,7 @@ package goja
 import (
 	"io"
 	"strconv"
+	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
 
@@ -59,6 +60,64 @@ type valueString interface {
 	toLower() valueString
 	toUpper() valueString
 	toTrimmedUTF8() string
+}
+
+type stringIterObject struct {
+	baseObject
+	reader io.RuneReader
+}
+
+func isUTF16FirstSurrogate(r rune) bool {
+	return r >= 0xD800 && r <= 0xDBFF
+}
+
+func isUTF16SecondSurrogate(r rune) bool {
+	return r >= 0xDC00 && r <= 0xDFFF
+}
+
+func (si *stringIterObject) next() Value {
+	if si.reader == nil {
+		return si.val.runtime.createIterResultObject(_undefined, true)
+	}
+	r, _, err := si.reader.ReadRune()
+	if err == io.EOF {
+		si.reader = nil
+		return si.val.runtime.createIterResultObject(_undefined, true)
+	}
+	return si.val.runtime.createIterResultObject(stringFromRune(r), false)
+}
+
+func stringFromRune(r rune) valueString {
+	if r < utf8.RuneSelf {
+		var sb strings.Builder
+		sb.Grow(1)
+		sb.WriteByte(byte(r))
+		return asciiString(sb.String())
+	}
+	var sb unicodeStringBuilder
+	if r <= 0xFFFF {
+		sb.Grow(1)
+	} else {
+		sb.Grow(2)
+	}
+	sb.writeRune(r)
+	return sb.string()
+}
+
+func (r *Runtime) createStringIterator(s valueString) Value {
+	o := &Object{runtime: r}
+
+	si := &stringIterObject{
+		reader: s.reader(0),
+	}
+	si.class = classStringIterator
+	si.val = o
+	si.extensible = true
+	o.self = si
+	si.prototype = r.global.StringIteratorPrototype
+	si.init()
+
+	return o
 }
 
 type stringObject struct {

@@ -95,7 +95,7 @@ func (r *Runtime) _encode(uriString valueString, unescaped *[256]bool) valueStri
 	reader = uriString.reader(0)
 	for {
 		rn, _, err := reader.ReadRune()
-		if err != nil {
+		if err == io.EOF {
 			break
 		}
 
