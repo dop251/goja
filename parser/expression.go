@@ -59,14 +59,10 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 		}
 	case token.STRING:
 		self.next()
-		value, err := parseStringLiteral(literal[1 : len(literal)-1])
-		if err != nil {
-			self.error(idx, err.Error())
-		}
 		return &ast.StringLiteral{
 			Idx:     idx,
 			Literal: literal,
-			Value:   value,
+			Value:   parsedLiteral,
 		}
 	case token.NUMBER:
 		self.next()
@@ -113,7 +109,7 @@ func (self *_parser) parseRegExpLiteral() *ast.RegExpLiteral {
 	}
 	idx := self.idxOf(offset)
 
-	pattern, err := self.scanString(offset)
+	pattern, _, err := self.scanString(offset, false)
 	endOffset := self.chrOffset
 
 	if err == nil {
@@ -209,11 +205,7 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String) {
 			value = unistring.String(literal)
 		}
 	case token.STRING:
-		var err error
-		value, err = parseStringLiteral(literal[1 : len(literal)-1])
-		if err != nil {
-			self.error(idx, err.Error())
-		}
+		value = parsedLiteral
 	default:
 		// null, false, class, etc.
 		if isId(tkn) {
