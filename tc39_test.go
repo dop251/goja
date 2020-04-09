@@ -7,9 +7,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 const (
@@ -136,11 +138,21 @@ type tc39Test struct {
 	f    func(t *testing.T)
 }
 
+type tc39BenchmarkItem struct {
+	name     string
+	duration time.Duration
+}
+
+type tc39BenchmarkData []tc39BenchmarkItem
+
 type tc39TestCtx struct {
 	base         string
 	t            *testing.T
 	prgCache     map[string]*Program
 	prgCacheLock sync.Mutex
+	enableBench  bool
+	benchmark    tc39BenchmarkData
+	benchLock    sync.Mutex
 	testQueue    []tc39Test
 }
 
@@ -336,6 +348,11 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		}
 	}
 
+	var startTime time.Time
+	if ctx.enableBench {
+		startTime = time.Now()
+	}
+
 	hasRaw := meta.hasFlag("raw")
 
 	if hasRaw || !meta.hasFlag("onlyStrict") {
@@ -348,6 +365,15 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		//log.Printf("Running strict test: %s", name)
 		//t.Logf("Running strict test: %s", name)
 		ctx.runTC39Test(name, "'use strict';\n"+src, meta, t)
+	}
+
+	if ctx.enableBench {
+		ctx.benchLock.Lock()
+		ctx.benchmark = append(ctx.benchmark, tc39BenchmarkItem{
+			name:     name,
+			duration: time.Since(startTime),
+		})
+		ctx.benchLock.Unlock()
 	}
 
 }
@@ -461,32 +487,48 @@ func TestTC39(t *testing.T) {
 
 	ctx := &tc39TestCtx{
 		base: tc39BASE,
-		t:    t,
 	}
 	ctx.init()
+	//ctx.enableBench = true
 
-	//ctx.runTC39File("test/language/types/number/8.5.1.js", t)
-	//ctx.runTC39Tests("test/language")
-	ctx.runTC39Tests("test/language/expressions")
-	ctx.runTC39Tests("test/language/arguments-object")
-	ctx.runTC39Tests("test/language/asi")
-	ctx.runTC39Tests("test/language/directive-prologue")
-	ctx.runTC39Tests("test/language/function-code")
-	ctx.runTC39Tests("test/language/eval-code")
-	ctx.runTC39Tests("test/language/global-code")
-	ctx.runTC39Tests("test/language/identifier-resolution")
-	ctx.runTC39Tests("test/language/identifiers")
-	//ctx.runTC39Tests("test/language/literals") // octal sequences in strict mode
-	ctx.runTC39Tests("test/language/punctuators")
-	ctx.runTC39Tests("test/language/reserved-words")
-	ctx.runTC39Tests("test/language/source-text")
-	ctx.runTC39Tests("test/language/statements")
-	ctx.runTC39Tests("test/language/types")
-	ctx.runTC39Tests("test/language/white-space")
-	ctx.runTC39Tests("test/built-ins")
-	ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
-	ctx.runTC39Tests("test/annexB/built-ins/escape")
-	ctx.runTC39Tests("test/annexB/built-ins/unescape")
+	t.Run("tc39", func(t *testing.T) {
+		ctx.t = t
+		//ctx.runTC39File("test/language/types/number/8.5.1.js", t)
+		//ctx.runTC39Tests("test/language")
+		ctx.runTC39Tests("test/language/expressions")
+		ctx.runTC39Tests("test/language/arguments-object")
+		ctx.runTC39Tests("test/language/asi")
+		ctx.runTC39Tests("test/language/directive-prologue")
+		ctx.runTC39Tests("test/language/function-code")
+		ctx.runTC39Tests("test/language/eval-code")
+		ctx.runTC39Tests("test/language/global-code")
+		ctx.runTC39Tests("test/language/identifier-resolution")
+		ctx.runTC39Tests("test/language/identifiers")
+		//ctx.runTC39Tests("test/language/literals") // octal sequences in strict mode
+		ctx.runTC39Tests("test/language/punctuators")
+		ctx.runTC39Tests("test/language/reserved-words")
+		ctx.runTC39Tests("test/language/source-text")
+		ctx.runTC39Tests("test/language/statements")
+		ctx.runTC39Tests("test/language/types")
+		ctx.runTC39Tests("test/language/white-space")
+		ctx.runTC39Tests("test/built-ins")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
+		ctx.runTC39Tests("test/annexB/built-ins/escape")
+		ctx.runTC39Tests("test/annexB/built-ins/unescape")
 
-	ctx.flush()
+		ctx.flush()
+	})
+
+	if ctx.enableBench {
+		sort.Slice(ctx.benchmark, func(i, j int) bool {
+			return ctx.benchmark[i].duration > ctx.benchmark[j].duration
+		})
+		bench := ctx.benchmark
+		if len(bench) > 50 {
+			bench = bench[:50]
+		}
+		for _, item := range bench {
+			fmt.Printf("%s\t%d\n", item.name, item.duration/time.Millisecond)
+		}
+	}
 }
