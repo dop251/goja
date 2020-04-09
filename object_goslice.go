@@ -138,7 +138,7 @@ func (o *objectGoSlice) putIdx(idx int, v Value, throw bool) {
 
 func toInt(i int64) int {
 	if bits.UintSize == 32 {
-		if i >= math.MaxInt32 || i < math.MinInt32 {
+		if i > math.MaxInt32 || i < math.MinInt32 {
 			panic(rangeError("Integer value overflows 32-bit int"))
 		}
 	}

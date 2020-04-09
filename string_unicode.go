@@ -224,12 +224,12 @@ func (s unicodeString) baseObject(r *Runtime) *Object {
 	return ss.val
 }
 
-func (s unicodeString) charAt(idx int64) rune {
+func (s unicodeString) charAt(idx int) rune {
 	return rune(s[idx+1])
 }
 
-func (s unicodeString) length() int64 {
-	return int64(len(s) - 1)
+func (s unicodeString) length() int {
+	return len(s) - 1
 }
 
 func (s unicodeString) concat(other valueString) valueString {
@@ -252,7 +252,7 @@ func (s unicodeString) concat(other valueString) valueString {
 	}
 }
 
-func (s unicodeString) substring(start, end int64) valueString {
+func (s unicodeString) substring(start, end int) valueString {
 	ss := s[start+1 : end+1]
 	for _, c := range ss {
 		if c >= utf8.RuneSelf {
@@ -277,7 +277,7 @@ func (s unicodeString) compareTo(other valueString) int {
 	return strings.Compare(s.String(), other.String())
 }
 
-func (s unicodeString) index(substr valueString, start int64) int64 {
+func (s unicodeString) index(substr valueString, start int) int {
 	var ss []uint16
 	switch substr := substr.(type) {
 	case unicodeString:
@@ -292,9 +292,9 @@ func (s unicodeString) index(substr valueString, start int64) int64 {
 	}
 	s1 := s[1:]
 	// TODO: optimise
-	end := int64(len(s1) - len(ss))
+	end := len(s1) - len(ss)
 	for start <= end {
-		for i := int64(0); i < int64(len(ss)); i++ {
+		for i := 0; i < len(ss); i++ {
 			if s1[start+i] != ss[i] {
 				goto nomatch
 			}
@@ -307,7 +307,7 @@ func (s unicodeString) index(substr valueString, start int64) int64 {
 	return -1
 }
 
-func (s unicodeString) lastIndex(substr valueString, start int64) int64 {
+func (s unicodeString) lastIndex(substr valueString, start int) int {
 	var ss []uint16
 	switch substr := substr.(type) {
 	case unicodeString:
@@ -322,12 +322,12 @@ func (s unicodeString) lastIndex(substr valueString, start int64) int64 {
 	}
 
 	s1 := s[1:]
-	if maxStart := int64(len(s1) - len(ss)); start > maxStart {
+	if maxStart := len(s1) - len(ss); start > maxStart {
 		start = maxStart
 	}
 	// TODO: optimise
 	for start >= 0 {
-		for i := int64(0); i < int64(len(ss)); i++ {
+		for i := 0; i < len(ss); i++ {
 			if s1[start+i] != ss[i] {
 				goto nomatch
 			}

@@ -240,7 +240,7 @@ func (r *Runtime) builtin_escape(call FunctionCall) Value {
 	s := call.Argument(0).toString()
 	var sb strings.Builder
 	l := s.length()
-	for i := int64(0); i < l; i++ {
+	for i := 0; i < l; i++ {
 		r := uint16(s.charAt(i))
 		if r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' ||
 			r == '@' || r == '*' || r == '_' || r == '+' || r == '-' || r == '.' || r == '/' {
@@ -272,7 +272,7 @@ func (r *Runtime) builtin_unescape(call FunctionCall) Value {
 	} else {
 		asciiBuf = make([]byte, 0, l)
 	}
-	for i := int64(0); i < l; {
+	for i := 0; i < l; {
 		r := s.charAt(i)
 		if r == '%' {
 			if i <= l-6 && s.charAt(i+1) == 'u' {

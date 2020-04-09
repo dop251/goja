@@ -227,12 +227,12 @@ func (s asciiString) hash(hash *maphash.Hash) uint64 {
 	return h
 }
 
-func (s asciiString) charAt(idx int64) rune {
+func (s asciiString) charAt(idx int) rune {
 	return rune(s[idx])
 }
 
-func (s asciiString) length() int64 {
-	return int64(len(s))
+func (s asciiString) length() int {
+	return len(s)
 }
 
 func (s asciiString) concat(other valueString) valueString {
@@ -255,7 +255,7 @@ func (s asciiString) concat(other valueString) valueString {
 	}
 }
 
-func (s asciiString) substring(start, end int64) valueString {
+func (s asciiString) substring(start, end int) valueString {
 	return s[start:end]
 }
 
@@ -270,9 +270,9 @@ func (s asciiString) compareTo(other valueString) int {
 	}
 }
 
-func (s asciiString) index(substr valueString, start int64) int64 {
+func (s asciiString) index(substr valueString, start int) int {
 	if substr, ok := substr.(asciiString); ok {
-		p := int64(strings.Index(string(s[start:]), string(substr)))
+		p := strings.Index(string(s[start:]), string(substr))
 		if p >= 0 {
 			return p + start
 		}
@@ -280,16 +280,16 @@ func (s asciiString) index(substr valueString, start int64) int64 {
 	return -1
 }
 
-func (s asciiString) lastIndex(substr valueString, pos int64) int64 {
+func (s asciiString) lastIndex(substr valueString, pos int) int {
 	if substr, ok := substr.(asciiString); ok {
-		end := pos + int64(len(substr))
+		end := pos + len(substr)
 		var ss string
-		if end > int64(len(s)) {
+		if end > len(s) {
 			ss = string(s)
 		} else {
 			ss = string(s[:end])
 		}
-		return int64(strings.LastIndex(ss, string(substr)))
+		return strings.LastIndex(ss, string(substr))
 	}
 	return -1
 }

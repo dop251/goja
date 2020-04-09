@@ -389,7 +389,7 @@ func (r *Runtime) regexpproto_stdMatcher(call FunctionCall) Value {
 			} else {
 				previousLastIndex = thisIndex
 			}
-			a = append(a, s.substring(int64(result[0]), int64(result[1])))
+			a = append(a, s.substring(result[0], result[1]))
 		}
 		if len(a) == 0 {
 			return _null
@@ -447,11 +447,11 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s valueString
 	} else {
 		lim = toLength(limit)
 	}
-	size := s.length()
-	p := int64(0)
 	if lim == 0 {
 		return r.newArrayValues(a)
 	}
+	size := s.length()
+	p := 0
 	execFn := toMethod(splitter.ToObject(r).self.getStr("exec", nil)) // must be non-nil
 
 	if size == 0 {
@@ -463,21 +463,25 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s valueString
 
 	q := p
 	for q < size {
-		splitter.self.setOwnStr("lastIndex", intToValue(q), true)
+		splitter.self.setOwnStr("lastIndex", intToValue(int64(q)), true)
 		z := r.regExpExec(execFn, splitter, s)
 		if z == _null {
 			q++
 		} else {
 			z := r.toObject(z)
 			e := toLength(splitter.self.getStr("lastIndex", nil))
-			if e == p {
+			if e == int64(p) {
 				q++
 			} else {
 				a = append(a, s.substring(p, q))
 				if int64(len(a)) == lim {
 					return r.newArrayValues(a)
 				}
-				p = e
+				if e > int64(size) {
+					p = size
+				} else {
+					p = int(e)
+				}
 				numberOfCaptures := max(toLength(z.self.getStr("length", nil))-1, 0)
 				for i := int64(1); i <= numberOfCaptures; i++ {
 					a = append(a, z.self.getIdx(valueInt(i), nil))
@@ -529,13 +533,13 @@ func (r *Runtime) regexpproto_stdSplitter(call FunctionCall) Value {
 	for _, match := range result {
 		if match[0] == match[1] {
 			// FIXME Ugh, this is a hack
-			if match[0] == 0 || int64(match[0]) == targetLength {
+			if match[0] == 0 || match[0] == targetLength {
 				continue
 			}
 		}
 
 		if lastIndex != match[0] {
-			valueArray = append(valueArray, s.substring(int64(lastIndex), int64(match[0])))
+			valueArray = append(valueArray, s.substring(lastIndex, match[0]))
 			found++
 		} else if lastIndex == match[0] {
 			if lastIndex != -1 {
@@ -554,7 +558,7 @@ func (r *Runtime) regexpproto_stdSplitter(call FunctionCall) Value {
 			offset := index * 2
 			var value Value
 			if match[offset] != -1 {
-				value = s.substring(int64(match[offset]), int64(match[offset+1]))
+				value = s.substring(match[offset], match[offset+1])
 			} else {
 				value = _undefined
 			}
@@ -567,8 +571,8 @@ func (r *Runtime) regexpproto_stdSplitter(call FunctionCall) Value {
 	}
 
 	if found != limit {
-		if int64(lastIndex) != targetLength {
-			valueArray = append(valueArray, s.substring(int64(lastIndex), targetLength))
+		if lastIndex != targetLength {
+			valueArray = append(valueArray, s.substring(lastIndex, targetLength))
 		} else {
 			valueArray = append(valueArray, stringEmpty)
 		}
