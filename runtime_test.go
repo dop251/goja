@@ -828,6 +828,38 @@ func TestSortComparatorReturnValues(t *testing.T) {
 	testScript1(SCRIPT, _undefined, t)
 }
 
+func TestSortComparatorReturnValueFloats(t *testing.T) {
+	const SCRIPT = `
+	var a = [
+		5.97,
+		9.91,
+		4.13,
+		9.28,
+		3.29,
+	];
+	a.sort( function(a, b) { return a - b; } );
+	for (var i = 1; i < a.length; i++) {
+		if (a[i] < a[i-1]) {
+			throw new Error("Array is not sorted: " + a);
+		}
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestSortComparatorReturnValueNegZero(t *testing.T) {
+	const SCRIPT = `
+	var a = [2, 1];
+	a.sort( function(a, b) { return a > b ? 0 : -0; } );
+	for (var i = 1; i < a.length; i++) {
+		if (a[i] < a[i-1]) {
+			throw new Error("Array is not sorted: " + a);
+		}
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
 func TestNilApplyArg(t *testing.T) {
 	const SCRIPT = `
 	(function x(a, b) {

@@ -1315,10 +1315,20 @@ func (a *arraySortCtx) sortCompare(x, y Value) int {
 	}
 
 	if a.compare != nil {
-		return int(a.compare(FunctionCall{
+		f := a.compare(FunctionCall{
 			This:      _undefined,
 			Arguments: []Value{x, y},
-		}).ToInteger())
+		}).ToFloat()
+		if f > 0 {
+			return 1
+		}
+		if f < 0 {
+			return -1
+		}
+		if math.Signbit(f) {
+			return -1
+		}
+		return 0
 	}
 	return strings.Compare(x.String(), y.String())
 }
