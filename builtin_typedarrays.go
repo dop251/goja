@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"math"
 	"sort"
 	"strings"
 	"unsafe"
@@ -28,9 +29,22 @@ func (ctx *typedArraySortCtx) Less(i, j int) bool {
 		res := ctx.compare(FunctionCall{
 			This:      _undefined,
 			Arguments: []Value{x, y},
-		}).ToInteger()
+		}).ToNumber()
 		ctx.needValidate = true
-		return res < 0
+		if i, ok := res.(valueInt); ok {
+			return i < 0
+		}
+		f := res.ToFloat()
+		if f < 0 {
+			return true
+		}
+		if f > 0 {
+			return false
+		}
+		if math.Signbit(f) {
+			return true
+		}
+		return false
 	}
 
 	return ctx.ta.typedArray.less(offset+i, offset+j)

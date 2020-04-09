@@ -264,3 +264,35 @@ func TestTypedArraySliceDifType(t *testing.T) {
 	`
 	testScript1(SCRIPT, _undefined, t)
 }
+
+func TestTypedArraySortComparatorReturnValueFloats(t *testing.T) {
+	const SCRIPT = `
+	var a = Float64Array.of(
+		5.97,
+		9.91,
+		4.13,
+		9.28,
+		3.29
+	);
+	a.sort( function(a, b) { return a - b; } );
+	for (var i = 1; i < a.length; i++) {
+		if (a[i] < a[i-1]) {
+			throw new Error("Array is not sorted: " + a);
+		}
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestTypedArraySortComparatorReturnValueNegZero(t *testing.T) {
+	const SCRIPT = `
+	var a = new Uint8Array([2, 1]);
+	a.sort( function(a, b) { return a > b ? 0 : -0; } );
+	for (var i = 1; i < a.length; i++) {
+		if (a[i] < a[i-1]) {
+			throw new Error("Array is not sorted: " + a);
+		}
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
