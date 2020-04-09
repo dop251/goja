@@ -1,3 +1,11 @@
+// Package unistring contains an implementation of a hybrid ASCII/UTF-16 string.
+// For ASCII strings the underlying representation is equivalent to a normal Go string.
+// For unicode strings the underlying representation is UTF-16 as []uint16 with 0th element set to 0xFEFF.
+// unicode.String allows representing malformed UTF-16 values (e.g. stand-alone parts of surrogate pairs)
+// which cannot be represented in UTF-8.
+// At the same time it is possible to use unicode.String as property keys just as efficiently as simple strings,
+// (the leading 0xFEFF ensures there is no clash with ASCII string), and it is possible to convert it
+// to valueString without extra allocations.
 package unistring
 
 import (

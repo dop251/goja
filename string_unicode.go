@@ -3,7 +3,7 @@ package goja
 import (
 	"errors"
 	"fmt"
-	"hash"
+	"hash/maphash"
 	"io"
 	"math"
 	"reflect"
@@ -380,8 +380,8 @@ func (s unicodeString) ExportType() reflect.Type {
 	return reflectTypeString
 }
 
-func (s unicodeString) hash(hash hash.Hash64) uint64 {
-	_, _ = hash.Write([]byte(unistring.FromUtf16(s)))
+func (s unicodeString) hash(hash *maphash.Hash) uint64 {
+	_, _ = hash.WriteString(string(unistring.FromUtf16(s)))
 	h := hash.Sum64()
 	hash.Reset()
 	return h

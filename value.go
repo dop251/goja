@@ -1,7 +1,7 @@
 package goja
 
 import (
-	"hash"
+	"hash/maphash"
 	"math"
 	"reflect"
 	"regexp"
@@ -55,7 +55,7 @@ type Value interface {
 
 	baseObject(r *Runtime) *Object
 
-	hash(hash64 hash.Hash64) uint64
+	hash(hasher *maphash.Hash) uint64
 }
 
 type valueContainer interface {
@@ -201,7 +201,7 @@ func (i valueInt) ExportType() reflect.Type {
 	return reflectTypeInt
 }
 
-func (i valueInt) hash(hash.Hash64) uint64 {
+func (i valueInt) hash(*maphash.Hash) uint64 {
 	return uint64(i)
 }
 
@@ -295,7 +295,7 @@ func (b valueBool) ExportType() reflect.Type {
 	return reflectTypeBool
 }
 
-func (b valueBool) hash(hash.Hash64) uint64 {
+func (b valueBool) hash(*maphash.Hash) uint64 {
 	if b {
 		return uint64(uintptr(unsafe.Pointer(&valueTrue)))
 	}
@@ -356,7 +356,7 @@ func (u valueUndefined) ToFloat() float64 {
 	return math.NaN()
 }
 
-func (u valueUndefined) hash(hash.Hash64) uint64 {
+func (u valueUndefined) hash(*maphash.Hash) uint64 {
 	return uint64(uintptr(unsafe.Pointer(&_undefined)))
 }
 
@@ -408,7 +408,7 @@ func (n valueNull) ExportType() reflect.Type {
 	return reflectTypeNil
 }
 
-func (n valueNull) hash(hash.Hash64) uint64 {
+func (n valueNull) hash(*maphash.Hash) uint64 {
 	return uint64(uintptr(unsafe.Pointer(&_null)))
 }
 
@@ -505,7 +505,7 @@ func (p *valueProperty) ExportType() reflect.Type {
 	panic("Cannot export valueProperty")
 }
 
-func (p *valueProperty) hash(hash.Hash64) uint64 {
+func (p *valueProperty) hash(*maphash.Hash) uint64 {
 	panic("valueProperty should never be used in maps or sets")
 }
 
@@ -634,7 +634,7 @@ func (f valueFloat) ExportType() reflect.Type {
 	return reflectTypeFloat
 }
 
-func (f valueFloat) hash(hash.Hash64) uint64 {
+func (f valueFloat) hash(*maphash.Hash) uint64 {
 	if f == _negativeZero {
 		return 0
 	}
@@ -718,7 +718,7 @@ func (o *Object) ExportType() reflect.Type {
 	return o.self.exportType()
 }
 
-func (o *Object) hash(hash.Hash64) uint64 {
+func (o *Object) hash(*maphash.Hash) uint64 {
 	return uint64(uintptr(unsafe.Pointer(o)))
 }
 
@@ -869,7 +869,7 @@ func (o valueUnresolved) ExportType() reflect.Type {
 	return nil
 }
 
-func (o valueUnresolved) hash(hash.Hash64) uint64 {
+func (o valueUnresolved) hash(*maphash.Hash) uint64 {
 	o.throw()
 	return 0
 }
@@ -937,7 +937,7 @@ func (s *valueSymbol) baseObject(r *Runtime) *Object {
 	return r.newPrimitiveObject(s, r.global.SymbolPrototype, "Symbol")
 }
 
-func (s *valueSymbol) hash(hash.Hash64) uint64 {
+func (s *valueSymbol) hash(*maphash.Hash) uint64 {
 	return uint64(uintptr(unsafe.Pointer(s)))
 }
 

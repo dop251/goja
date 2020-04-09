@@ -1,6 +1,8 @@
 package goja
 
-import "hash"
+import (
+	"hash/maphash"
+)
 
 type mapEntry struct {
 	key, value Value
@@ -10,7 +12,7 @@ type mapEntry struct {
 }
 
 type orderedMap struct {
-	hash                hash.Hash64
+	hash                *maphash.Hash
 	hashTable           map[uint64]*mapEntry
 	iterFirst, iterLast *mapEntry
 	size                int
@@ -138,7 +140,7 @@ func (iter *orderedMapIter) close() {
 	iter.cur = nil
 }
 
-func newOrderedMap(h hash.Hash64) *orderedMap {
+func newOrderedMap(h *maphash.Hash) *orderedMap {
 	return &orderedMap{
 		hash:      h,
 		hashTable: make(map[uint64]*mapEntry),

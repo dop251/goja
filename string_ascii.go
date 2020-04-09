@@ -2,7 +2,7 @@ package goja
 
 import (
 	"fmt"
-	"hash"
+	"hash/maphash"
 	"io"
 	"math"
 	"reflect"
@@ -220,8 +220,8 @@ func (s asciiString) baseObject(r *Runtime) *Object {
 	return ss.val
 }
 
-func (s asciiString) hash(hash hash.Hash64) uint64 {
-	_, _ = hash.Write([]byte(s))
+func (s asciiString) hash(hash *maphash.Hash) uint64 {
+	_, _ = hash.WriteString(string(s))
 	h := hash.Sum64()
 	hash.Reset()
 	return h
