@@ -259,10 +259,10 @@ func (o *lazyObject) ownKeys(all bool, accum []Value) []Value {
 	return obj.ownKeys(all, accum)
 }
 
-func (o *lazyObject) ownSymbols() []Value {
+func (o *lazyObject) ownSymbols(all bool, accum []Value) []Value {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.ownSymbols()
+	return obj.ownSymbols(all, accum)
 }
 
 func (o *lazyObject) ownPropertyKeys(all bool, accum []Value) []Value {

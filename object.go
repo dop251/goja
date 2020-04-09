@@ -222,7 +222,7 @@ type objectImpl interface {
 	exportType() reflect.Type
 	equal(objectImpl) bool
 	ownKeys(all bool, accum []Value) []Value
-	ownSymbols() []Value
+	ownSymbols(all bool, accum []Value) []Value
 	ownPropertyKeys(all bool, accum []Value) []Value
 
 	_putProp(name unistring.String, value Value, writable, enumerable, configurable bool) Value
@@ -1086,28 +1086,38 @@ func (o *baseObject) ownKeys(all bool, keys []Value) []Value {
 	return keys
 }
 
-func (o *baseObject) ownSymbols() (res []Value) {
+func (o *baseObject) ownSymbols(all bool, accum []Value) []Value {
 	if o.symValues != nil {
 		iter := o.symValues.newIter()
-		for {
-			entry := iter.next()
-			if entry == nil {
-				break
+		if all {
+			for {
+				entry := iter.next()
+				if entry == nil {
+					break
+				}
+				accum = append(accum, entry.key)
 			}
-			res = append(res, entry.key)
+		} else {
+			for {
+				entry := iter.next()
+				if entry == nil {
+					break
+				}
+				if prop, ok := entry.value.(*valueProperty); ok {
+					if !prop.enumerable {
+						continue
+					}
+				}
+				accum = append(accum, entry.key)
+			}
 		}
 	}
 
-	return
+	return accum
 }
 
 func (o *baseObject) ownPropertyKeys(all bool, accum []Value) []Value {
-	accum = o.val.self.ownKeys(all, accum)
-	if all {
-		accum = append(accum, o.ownSymbols()...)
-	}
-
-	return accum
+	return o.ownSymbols(all, o.val.self.ownKeys(all, accum))
 }
 
 func (o *baseObject) hasInstance(Value) bool {

@@ -764,12 +764,17 @@ func (p *proxyObject) ownKeys(all bool, _ []Value) []Value { // we can assume ac
 	return p.target.self.ownKeys(all, nil)
 }
 
-func (p *proxyObject) ownSymbols() []Value {
+func (p *proxyObject) ownSymbols(all bool, accum []Value) []Value {
 	if vals, ok := p.proxyOwnKeys(); ok {
-		return p.filterKeys(vals, true, true)
+		res := p.filterKeys(vals, true, true)
+		if accum == nil {
+			return res
+		}
+		accum = append(accum, res...)
+		return accum
 	}
 
-	return p.target.self.ownSymbols()
+	return p.target.self.ownSymbols(all, accum)
 }
 
 func (p *proxyObject) className() string {

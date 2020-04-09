@@ -82,7 +82,7 @@ func (r *Runtime) object_getOwnPropertyNames(call FunctionCall) Value {
 
 func (r *Runtime) object_getOwnPropertySymbols(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
-	return r.newArrayValues(obj.self.ownSymbols())
+	return r.newArrayValues(obj.self.ownSymbols(true, nil))
 }
 
 func (r *Runtime) toValueProp(v Value) *valueProperty {
