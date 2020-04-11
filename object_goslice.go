@@ -1,8 +1,6 @@
 package goja
 
 import (
-	"math"
-	"math/bits"
 	"reflect"
 	"strconv"
 
@@ -134,15 +132,6 @@ func (o *objectGoSlice) putIdx(idx int, v Value, throw bool) {
 		o.grow(idx + 1)
 	}
 	(*o.data)[idx] = v.Export()
-}
-
-func toInt(i int64) int {
-	if bits.UintSize == 32 {
-		if i > math.MaxInt32 || i < math.MinInt32 {
-			panic(rangeError("Integer value overflows 32-bit int"))
-		}
-	}
-	return int(i)
 }
 
 func (o *objectGoSlice) putLength(v Value, throw bool) bool {

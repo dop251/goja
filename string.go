@@ -127,11 +127,6 @@ type stringObject struct {
 	lengthProp valueProperty
 }
 
-func newUnicodeString(s string) valueString {
-	return newStringValue(s)
-	//return unicodeString(utf16.Encode([]rune(s)))
-}
-
 func newStringValue(s string) valueString {
 	utf16Size := 0
 	ascii := true

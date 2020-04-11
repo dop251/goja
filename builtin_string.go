@@ -430,7 +430,7 @@ func (r *Runtime) stringproto_normalize(call FunctionCall) Value {
 
 	if s, ok := s.(unicodeString); ok {
 		ss := s.String()
-		return newUnicodeString(f.String(ss))
+		return newStringValue(f.String(ss))
 	}
 
 	return s
