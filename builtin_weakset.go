@@ -6,7 +6,7 @@ type weakSet struct {
 	// need to synchronise access to the data map because it may be accessed
 	// from the finalizer goroutine
 	sync.Mutex
-	data map[uintptr]struct{}
+	data map[uint64]struct{}
 }
 
 type weakSetObject struct {
@@ -16,7 +16,7 @@ type weakSetObject struct {
 
 func newWeakSet() *weakSet {
 	return &weakSet{
-		data: make(map[uintptr]struct{}),
+		data: make(map[uint64]struct{}),
 	}
 }
 
@@ -25,9 +25,9 @@ func (ws *weakSetObject) init() {
 	ws.s = newWeakSet()
 }
 
-func (ws *weakSet) removePtr(ptr uintptr) {
+func (ws *weakSet) removeId(id uint64) {
 	ws.Lock()
-	delete(ws.data, ptr)
+	delete(ws.data, id)
 	ws.Unlock()
 }
 

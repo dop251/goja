@@ -6,7 +6,7 @@ type weakMap struct {
 	// need to synchronise access to the data map because it may be accessed
 	// from the finalizer goroutine
 	sync.Mutex
-	data map[uintptr]Value
+	data map[uint64]Value
 }
 
 type weakMapObject struct {
@@ -16,7 +16,7 @@ type weakMapObject struct {
 
 func newWeakMap() *weakMap {
 	return &weakMap{
-		data: make(map[uintptr]Value),
+		data: make(map[uint64]Value),
 	}
 }
 
@@ -25,9 +25,9 @@ func (wmo *weakMapObject) init() {
 	wmo.m = newWeakMap()
 }
 
-func (wm *weakMap) removePtr(ptr uintptr) {
+func (wm *weakMap) removeId(id uint64) {
 	wm.Lock()
-	delete(wm.data, ptr)
+	delete(wm.data, id)
 	wm.Unlock()
 }
 

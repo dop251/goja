@@ -164,8 +164,9 @@ type Runtime struct {
 	typeInfoCache   map[reflect.Type]*reflectTypeInfo
 	fieldNameMapper FieldNameMapper
 
-	vm   *vm
-	hash maphash.Hash
+	vm    *vm
+	hash  *maphash.Hash
+	idSeq uint64
 }
 
 type StackFrame struct {
@@ -1919,6 +1920,13 @@ func (r *Runtime) newLazyObject(create func(*Object) objectImpl) *Object {
 	}
 	val.self = o
 	return val
+}
+
+func (r *Runtime) getHash() *maphash.Hash {
+	if r.hash == nil {
+		r.hash = &maphash.Hash{}
+	}
+	return r.hash
 }
 
 func nilSafe(v Value) Value {

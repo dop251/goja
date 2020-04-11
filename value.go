@@ -12,6 +12,22 @@ import (
 )
 
 var (
+	// Not goroutine-safe, do not use for anything other than package level init
+	pkgHasher maphash.Hash
+
+	hashFalse = randomHash()
+	hashTrue  = randomHash()
+	hashNull  = randomHash()
+	hashUndef = randomHash()
+)
+
+// Not goroutine-safe, do not use for anything other than package level init
+func randomHash() uint64 {
+	pkgHasher.WriteByte(0)
+	return pkgHasher.Sum64()
+}
+
+var (
 	valueFalse    Value = valueBool(false)
 	valueTrue     Value = valueBool(true)
 	_null         Value = valueNull{}
@@ -73,6 +89,7 @@ type valueUndefined struct {
 	valueNull
 }
 type valueSymbol struct {
+	h    uintptr
 	desc valueString
 }
 
@@ -297,9 +314,10 @@ func (b valueBool) ExportType() reflect.Type {
 
 func (b valueBool) hash(*maphash.Hash) uint64 {
 	if b {
-		return uint64(uintptr(unsafe.Pointer(&valueTrue)))
+		return hashTrue
 	}
-	return uint64(uintptr(unsafe.Pointer(&valueFalse)))
+
+	return hashFalse
 }
 
 func (n valueNull) ToInteger() int64 {
@@ -357,7 +375,7 @@ func (u valueUndefined) ToFloat() float64 {
 }
 
 func (u valueUndefined) hash(*maphash.Hash) uint64 {
-	return uint64(uintptr(unsafe.Pointer(&_undefined)))
+	return hashUndef
 }
 
 func (n valueNull) ToFloat() float64 {
@@ -409,7 +427,7 @@ func (n valueNull) ExportType() reflect.Type {
 }
 
 func (n valueNull) hash(*maphash.Hash) uint64 {
-	return uint64(uintptr(unsafe.Pointer(&_null)))
+	return hashNull
 }
 
 func (p *valueProperty) ToInteger() int64 {
@@ -719,7 +737,7 @@ func (o *Object) ExportType() reflect.Type {
 }
 
 func (o *Object) hash(*maphash.Hash) uint64 {
-	return uint64(uintptr(unsafe.Pointer(o)))
+	return o.getId()
 }
 
 func (o *Object) Get(name string) Value {
@@ -938,13 +956,19 @@ func (s *valueSymbol) baseObject(r *Runtime) *Object {
 }
 
 func (s *valueSymbol) hash(*maphash.Hash) uint64 {
-	return uint64(uintptr(unsafe.Pointer(s)))
+	return uint64(s.h)
 }
 
 func newSymbol(s valueString) *valueSymbol {
-	return &valueSymbol{
+	r := &valueSymbol{
 		desc: asciiString("Symbol(").concat(s).concat(asciiString(")")),
 	}
+	// This may need to be reconsidered in the future.
+	// Depending on changes in Go's allocation policy and/or introduction of a compacting GC
+	// this may no longer provide sufficient dispersion. The alternative, however, is a globally
+	// synchronised random generator/hasher/sequencer and I don't want to go down that route just yet.
+	r.h = uintptr(unsafe.Pointer(r))
+	return r
 }
 
 func init() {

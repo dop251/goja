@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"runtime"
 	"sort"
-	"unsafe"
 
 	"github.com/dop251/goja/unistring"
 )
@@ -33,10 +32,11 @@ const (
 )
 
 type weakCollection interface {
-	removePtr(uintptr)
+	removeId(uint64)
 }
 
 type weakCollections struct {
+	objId uint64
 	colls []weakCollection
 }
 
@@ -49,8 +49,8 @@ func (r *weakCollections) add(c weakCollection) {
 	r.colls = append(r.colls, c)
 }
 
-func (r *weakCollections) id() uintptr {
-	return uintptr(unsafe.Pointer(r))
+func (r *weakCollections) id() uint64 {
+	return r.objId
 }
 
 func (r *weakCollections) remove(c weakCollection) {
@@ -79,12 +79,13 @@ func (r *weakCollections) remove(c weakCollection) {
 func finalizeObjectWeakRefs(r *weakCollections) {
 	id := r.id()
 	for _, c := range r.colls {
-		c.removePtr(id)
+		c.removeId(id)
 	}
 	r.colls = nil
 }
 
 type Object struct {
+	id      uint64
 	runtime *Runtime
 	self    objectImpl
 
@@ -518,7 +519,7 @@ func (o *baseObject) setOwnSym(name *valueSymbol, val Value, throw bool) bool {
 			return false
 		} else {
 			if o.symValues == nil {
-				o.symValues = newOrderedMap(&o.val.runtime.hash)
+				o.symValues = newOrderedMap(nil)
 			}
 			o.symValues.set(name, val)
 		}
@@ -760,7 +761,7 @@ func (o *baseObject) defineOwnPropertySym(s *valueSymbol, descr PropertyDescript
 	}
 	if v, ok := o._defineOwnProperty(s.desc.string(), existingVal, descr, throw); ok {
 		if o.symValues == nil {
-			o.symValues = newOrderedMap(&o.val.runtime.hash)
+			o.symValues = newOrderedMap(nil)
 		}
 		o.symValues.set(s, v)
 		return true
@@ -796,7 +797,7 @@ func (o *baseObject) _putProp(name unistring.String, value Value, writable, enum
 
 func (o *baseObject) _putSym(s *valueSymbol, prop Value) {
 	if o.symValues == nil {
-		o.symValues = newOrderedMap(&o.val.runtime.hash)
+		o.symValues = newOrderedMap(nil)
 	}
 	o.symValues.set(s, prop)
 }
@@ -1348,9 +1349,23 @@ func (o *Object) defineOwnProperty(n Value, desc PropertyDescriptor, throw bool)
 
 func (o *Object) getWeakCollRefs() *weakCollections {
 	if o.weakColls == nil {
-		o.weakColls = &weakCollections{}
+		o.weakColls = &weakCollections{
+			objId: o.getId(),
+		}
 		runtime.SetFinalizer(o.weakColls, finalizeObjectWeakRefs)
 	}
 
 	return o.weakColls
+}
+
+func (o *Object) getId() uint64 {
+	for o.id == 0 {
+		if o.runtime.hash == nil {
+			h := o.runtime.getHash()
+			o.runtime.idSeq = h.Sum64()
+		}
+		o.id = o.runtime.idSeq
+		o.runtime.idSeq++
+	}
+	return o.id
 }
