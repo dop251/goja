@@ -5,6 +5,8 @@ import (
 	"math/bits"
 	"reflect"
 	"strconv"
+
+	"github.com/dop251/goja/unistring"
 )
 
 type arrayIterObject struct {
@@ -158,7 +160,7 @@ func (a *arrayObject) getIdx(idx valueInt, receiver Value) Value {
 	return prop
 }
 
-func (a *arrayObject) getOwnPropStr(name string) Value {
+func (a *arrayObject) getOwnPropStr(name unistring.String) Value {
 	if i := strToIdx(name); i != math.MaxUint32 {
 		if i < uint32(len(a.values)) {
 			return a.values[i]
@@ -178,7 +180,7 @@ func (a *arrayObject) getOwnPropIdx(idx valueInt) Value {
 		return nil
 	}
 
-	return a.baseObject.getOwnPropStr(idx.String())
+	return a.baseObject.getOwnPropStr(idx.string())
 }
 
 func (a *arrayObject) sortLen() int64 {
@@ -197,7 +199,7 @@ func (a *arrayObject) swap(i, j int64) {
 	a.values[i], a.values[j] = a.values[j], a.values[i]
 }
 
-func (a *arrayObject) getStr(name string, receiver Value) Value {
+func (a *arrayObject) getStr(name unistring.String, receiver Value) Value {
 	return a.getStrWithOwnProp(a.getOwnPropStr(name), name, receiver)
 }
 
@@ -210,7 +212,7 @@ func (a *arrayObject) setOwnIdx(idx valueInt, val Value, throw bool) bool {
 	if i := toIdx(idx); i != math.MaxUint32 {
 		return a._setOwnIdx(i, val, throw)
 	} else {
-		return a.baseObject.setOwnStr(idx.String(), val, throw)
+		return a.baseObject.setOwnStr(idx.string(), val, throw)
 	}
 }
 
@@ -259,7 +261,7 @@ func (a *arrayObject) _setOwnIdx(idx uint32, val Value, throw bool) bool {
 	return true
 }
 
-func (a *arrayObject) setOwnStr(name string, val Value, throw bool) bool {
+func (a *arrayObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
 	if idx := strToIdx(name); idx != math.MaxUint32 {
 		return a._setOwnIdx(idx, val, throw)
 	} else {
@@ -275,7 +277,7 @@ func (a *arrayObject) setForeignIdx(idx valueInt, val, receiver Value, throw boo
 	return a._setForeignIdx(idx, a.getOwnPropIdx(idx), val, receiver, throw)
 }
 
-func (a *arrayObject) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
+func (a *arrayObject) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
 	return a._setForeignStr(name, a.getOwnPropStr(name), val, receiver, throw)
 }
 
@@ -286,7 +288,7 @@ type arrayPropIter struct {
 
 func (i *arrayPropIter) next() (propIterItem, iterNextFunc) {
 	for i.idx < len(i.a.values) {
-		name := strconv.Itoa(i.idx)
+		name := unistring.String(strconv.Itoa(i.idx))
 		prop := i.a.values[i.idx]
 		i.idx++
 		if prop != nil {
@@ -318,7 +320,7 @@ func (a *arrayObject) ownKeys(all bool, accum []Value) []Value {
 	return a.baseObject.ownKeys(all, accum)
 }
 
-func (a *arrayObject) hasOwnPropertyStr(name string) bool {
+func (a *arrayObject) hasOwnPropertyStr(name unistring.String) bool {
 	if idx := strToIdx(name); idx != math.MaxUint32 {
 		return idx < uint32(len(a.values)) && a.values[idx] != nil
 	} else {
@@ -330,7 +332,7 @@ func (a *arrayObject) hasOwnPropertyIdx(idx valueInt) bool {
 	if idx := toIdx(idx); idx != math.MaxUint32 {
 		return idx < uint32(len(a.values)) && a.values[idx] != nil
 	}
-	return a.baseObject.hasOwnPropertyStr(idx.String())
+	return a.baseObject.hasOwnPropertyStr(idx.string())
 }
 
 func (a *arrayObject) expand(idx uint32) bool {
@@ -420,7 +422,7 @@ func (a *arrayObject) _defineIdxProperty(idx uint32, desc PropertyDescriptor, th
 	if idx < uint32(len(a.values)) {
 		existing = a.values[idx]
 	}
-	prop, ok := a.baseObject._defineOwnProperty(strconv.FormatUint(uint64(idx), 10), existing, desc, throw)
+	prop, ok := a.baseObject._defineOwnProperty(unistring.String(strconv.FormatUint(uint64(idx), 10)), existing, desc, throw)
 	if ok {
 		if idx >= a.length {
 			if !a.setLengthInt(int64(idx)+1, throw) {
@@ -440,7 +442,7 @@ func (a *arrayObject) _defineIdxProperty(idx uint32, desc PropertyDescriptor, th
 	return ok
 }
 
-func (a *arrayObject) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
+func (a *arrayObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	if idx := strToIdx(name); idx != math.MaxUint32 {
 		return a._defineIdxProperty(idx, descr, throw)
 	}
@@ -454,7 +456,7 @@ func (a *arrayObject) defineOwnPropertyIdx(idx valueInt, descr PropertyDescripto
 	if idx := toIdx(idx); idx != math.MaxUint32 {
 		return a._defineIdxProperty(idx, descr, throw)
 	}
-	return a.baseObject.defineOwnPropertyStr(idx.String(), descr, throw)
+	return a.baseObject.defineOwnPropertyStr(idx.string(), descr, throw)
 }
 
 func (a *arrayObject) _deleteIdxProp(idx uint32, throw bool) bool {
@@ -474,7 +476,7 @@ func (a *arrayObject) _deleteIdxProp(idx uint32, throw bool) bool {
 	return true
 }
 
-func (a *arrayObject) deleteStr(name string, throw bool) bool {
+func (a *arrayObject) deleteStr(name unistring.String, throw bool) bool {
 	if idx := strToIdx(name); idx != math.MaxUint32 {
 		return a._deleteIdxProp(idx, throw)
 	}
@@ -485,7 +487,7 @@ func (a *arrayObject) deleteIdx(idx valueInt, throw bool) bool {
 	if idx := toIdx(idx); idx != math.MaxUint32 {
 		return a._deleteIdxProp(idx, throw)
 	}
-	return a.baseObject.deleteStr(idx.String(), throw)
+	return a.baseObject.deleteStr(idx.string(), throw)
 }
 
 func (a *arrayObject) export() interface{} {
@@ -518,7 +520,7 @@ func toIdx(v valueInt) uint32 {
 	return math.MaxUint32
 }
 
-func strToIdx64(s string) int64 {
+func strToIdx64(s unistring.String) int64 {
 	if s == "" {
 		return -1
 	}
@@ -567,7 +569,7 @@ func strToIdx64(s string) int64 {
 	return n1
 }
 
-func strToIdx(s string) uint32 {
+func strToIdx(s unistring.String) uint32 {
 	if s == "" {
 		return math.MaxUint32
 	}
@@ -617,7 +619,7 @@ func strToIdx(s string) uint32 {
 	return n1
 }
 
-func strToGoIdx(s string) int {
+func strToGoIdx(s unistring.String) int {
 	if bits.UintSize == 64 {
 		return int(strToIdx64(s))
 	}

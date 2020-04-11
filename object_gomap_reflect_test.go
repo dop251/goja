@@ -249,3 +249,32 @@ func TestGoMapReflectProtoProp(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestGoMapReflectUnicode(t *testing.T) {
+	const SCRIPT = `
+	Object.setPrototypeOf(m, s);
+	if (m.Тест !== "passed") {
+		throw new Error("m.Тест: " + m.Тест);
+	}
+	m["é"];
+	`
+	type S struct {
+		Тест string
+	}
+	vm := New()
+	m := map[string]int{
+		"é": 42,
+	}
+	s := S{
+		Тест: "passed",
+	}
+	vm.Set("m", m)
+	vm.Set("s", &s)
+	res, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil || !res.StrictEquals(valueInt(42)) {
+		t.Fatalf("Unexpected value: %v", res)
+	}
+}

@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+
+	"github.com/dop251/goja/unistring"
 )
 
 const (
@@ -18,7 +20,7 @@ type valueStack []Value
 type stash struct {
 	values    valueStack
 	extraArgs valueStack
-	names     map[string]uint32
+	names     map[unistring.String]uint32
 	obj       objectImpl
 
 	outer *stash
@@ -26,7 +28,7 @@ type stash struct {
 
 type context struct {
 	prg       *Program
-	funcName  string
+	funcName  unistring.String
 	stash     *stash
 	newTarget Value
 	pc, sb    int
@@ -42,12 +44,12 @@ type iterStackItem struct {
 type ref interface {
 	get() Value
 	set(Value)
-	refname() string
+	refname() unistring.String
 }
 
 type stashRef struct {
 	v *Value
-	n string
+	n unistring.String
 }
 
 func (r stashRef) get() Value {
@@ -58,13 +60,13 @@ func (r *stashRef) set(v Value) {
 	*r.v = v
 }
 
-func (r *stashRef) refname() string {
+func (r *stashRef) refname() unistring.String {
 	return r.n
 }
 
 type objRef struct {
 	base   objectImpl
-	name   string
+	name   unistring.String
 	strict bool
 }
 
@@ -76,13 +78,13 @@ func (r *objRef) set(v Value) {
 	r.base.setOwnStr(r.name, v, r.strict)
 }
 
-func (r *objRef) refname() string {
+func (r *objRef) refname() unistring.String {
 	return r.name
 }
 
 type unresolvedRef struct {
 	runtime *Runtime
-	name    string
+	name    unistring.String
 }
 
 func (r *unresolvedRef) get() Value {
@@ -94,14 +96,14 @@ func (r *unresolvedRef) set(Value) {
 	r.get()
 }
 
-func (r *unresolvedRef) refname() string {
+func (r *unresolvedRef) refname() unistring.String {
 	return r.name
 }
 
 type vm struct {
 	r            *Runtime
 	prg          *Program
-	funcName     string
+	funcName     unistring.String
 	pc           int
 	stack        valueStack
 	sp, sb, args int
@@ -201,7 +203,7 @@ func (s *valueStack) expand(idx int) {
 	}
 }
 
-func stashObjHas(obj objectImpl, name string) bool {
+func stashObjHas(obj objectImpl, name unistring.String) bool {
 	if obj.hasPropertyStr(name) {
 		if unscopables, ok := obj.getSym(symUnscopables, nil).(*Object); ok {
 			if b := unscopables.self.getStr(name, nil); b != nil {
@@ -213,7 +215,7 @@ func stashObjHas(obj objectImpl, name string) bool {
 	return false
 }
 
-func (s *stash) put(name string, v Value) bool {
+func (s *stash) put(name unistring.String, v Value) bool {
 	if s.obj != nil {
 		if stashObjHas(s.obj, name) {
 			s.obj.setOwnStr(name, v, false)
@@ -245,7 +247,7 @@ func (s *stash) getByIdx(idx uint32) Value {
 	return _undefined
 }
 
-func (s *stash) getByName(name string, _ *vm) (v Value, exists bool) {
+func (s *stash) getByName(name unistring.String, _ *vm) (v Value, exists bool) {
 	if s.obj != nil {
 		if stashObjHas(s.obj, name) {
 			return nilSafe(s.obj.getStr(name, nil)), true
@@ -259,9 +261,9 @@ func (s *stash) getByName(name string, _ *vm) (v Value, exists bool) {
 	//return valueUnresolved{r: vm.r, ref: name}, false
 }
 
-func (s *stash) createBinding(name string) {
+func (s *stash) createBinding(name unistring.String) {
 	if s.names == nil {
-		s.names = make(map[string]uint32)
+		s.names = make(map[unistring.String]uint32)
 	}
 	if _, exists := s.names[name]; !exists {
 		s.names[name] = uint32(len(s.names))
@@ -269,7 +271,7 @@ func (s *stash) createBinding(name string) {
 	}
 }
 
-func (s *stash) deleteBinding(name string) bool {
+func (s *stash) deleteBinding(name unistring.String) bool {
 	if s.obj != nil {
 		if stashObjHas(s.obj, name) {
 			return s.obj.deleteStr(name, false)
@@ -1034,11 +1036,11 @@ func (_deleteElemStrict) exec(vm *vm) {
 	vm.pc++
 }
 
-type deleteProp string
+type deleteProp unistring.String
 
 func (d deleteProp) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-1])
-	if obj.self.deleteStr(string(d), false) {
+	if obj.self.deleteStr(unistring.String(d), false) {
 		vm.stack[vm.sp-1] = valueTrue
 	} else {
 		vm.stack[vm.sp-1] = valueFalse
@@ -1046,42 +1048,42 @@ func (d deleteProp) exec(vm *vm) {
 	vm.pc++
 }
 
-type deletePropStrict string
+type deletePropStrict unistring.String
 
 func (d deletePropStrict) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-1])
-	obj.self.deleteStr(string(d), true)
+	obj.self.deleteStr(unistring.String(d), true)
 	vm.stack[vm.sp-1] = valueTrue
 	vm.pc++
 }
 
-type setProp string
+type setProp unistring.String
 
 func (p setProp) exec(vm *vm) {
 	val := vm.stack[vm.sp-1]
-	vm.stack[vm.sp-2].ToObject(vm.r).self.setOwnStr(string(p), val, false)
+	vm.stack[vm.sp-2].ToObject(vm.r).self.setOwnStr(unistring.String(p), val, false)
 	vm.stack[vm.sp-2] = val
 	vm.sp--
 	vm.pc++
 }
 
-type setPropStrict string
+type setPropStrict unistring.String
 
 func (p setPropStrict) exec(vm *vm) {
 	obj := vm.stack[vm.sp-2]
 	val := vm.stack[vm.sp-1]
 
 	obj1 := vm.r.toObject(obj)
-	obj1.self.setOwnStr(string(p), val, true)
+	obj1.self.setOwnStr(unistring.String(p), val, true)
 	vm.stack[vm.sp-2] = val
 	vm.sp--
 	vm.pc++
 }
 
-type setProp1 string
+type setProp1 unistring.String
 
 func (p setProp1) exec(vm *vm) {
-	vm.r.toObject(vm.stack[vm.sp-2]).self._putProp(string(p), vm.stack[vm.sp-1], true, true, true)
+	vm.r.toObject(vm.stack[vm.sp-2]).self._putProp(unistring.String(p), vm.stack[vm.sp-1], true, true, true)
 
 	vm.sp--
 	vm.pc++
@@ -1098,7 +1100,7 @@ func (_setProto) exec(vm *vm) {
 	vm.pc++
 }
 
-type setPropGetter string
+type setPropGetter unistring.String
 
 func (s setPropGetter) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
@@ -1110,13 +1112,13 @@ func (s setPropGetter) exec(vm *vm) {
 		Enumerable:   FLAG_TRUE,
 	}
 
-	obj.self.defineOwnPropertyStr(string(s), descr, false)
+	obj.self.defineOwnPropertyStr(unistring.String(s), descr, false)
 
 	vm.sp--
 	vm.pc++
 }
 
-type setPropSetter string
+type setPropSetter unistring.String
 
 func (s setPropSetter) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
@@ -1128,13 +1130,13 @@ func (s setPropSetter) exec(vm *vm) {
 		Enumerable:   FLAG_TRUE,
 	}
 
-	obj.self.defineOwnPropertyStr(string(s), descr, false)
+	obj.self.defineOwnPropertyStr(unistring.String(s), descr, false)
 
 	vm.sp--
 	vm.pc++
 }
 
-type getProp string
+type getProp unistring.String
 
 func (g getProp) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
@@ -1142,22 +1144,23 @@ func (g getProp) exec(vm *vm) {
 	if obj == nil {
 		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
 	}
-	vm.stack[vm.sp-1] = nilSafe(obj.self.getStr(string(g), v))
+	vm.stack[vm.sp-1] = nilSafe(obj.self.getStr(unistring.String(g), v))
 
 	vm.pc++
 }
 
-type getPropCallee string
+type getPropCallee unistring.String
 
 func (g getPropCallee) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
 	obj := v.baseObject(vm.r)
+	n := unistring.String(g)
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined or null", g))
+		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined or null", n))
 	}
-	prop := obj.self.getStr(string(g), v)
+	prop := obj.self.getStr(n, v)
 	if prop == nil {
-		prop = memberUnresolved{valueUnresolved{r: vm.r, ref: string(g)}}
+		prop = memberUnresolved{valueUnresolved{r: vm.r, ref: n}}
 	}
 	vm.stack[vm.sp-1] = prop
 
@@ -1196,7 +1199,7 @@ func (_getElemCallee) exec(vm *vm) {
 
 	prop := obj.get(propName, v)
 	if prop == nil {
-		prop = memberUnresolved{valueUnresolved{r: vm.r, ref: propName.String()}}
+		prop = memberUnresolved{valueUnresolved{r: vm.r, ref: propName.string()}}
 	}
 	vm.stack[vm.sp-2] = prop
 
@@ -1306,7 +1309,7 @@ func (s setLocalP) exec(vm *vm) {
 }
 
 type setVar struct {
-	name string
+	name unistring.String
 	idx  uint32
 }
 
@@ -1334,10 +1337,10 @@ end:
 	vm.pc++
 }
 
-type resolveVar1 string
+type resolveVar1 unistring.String
 
 func (s resolveVar1) exec(vm *vm) {
-	name := string(s)
+	name := unistring.String(s)
 	var ref ref
 	for stash := vm.stash; stash != nil; stash = stash.outer {
 		if stash.obj != nil {
@@ -1368,10 +1371,10 @@ end:
 	vm.pc++
 }
 
-type deleteVar string
+type deleteVar unistring.String
 
 func (d deleteVar) exec(vm *vm) {
-	name := string(d)
+	name := unistring.String(d)
 	ret := true
 	for stash := vm.stash; stash != nil; stash = stash.outer {
 		if stash.obj != nil {
@@ -1400,10 +1403,10 @@ end:
 	vm.pc++
 }
 
-type deleteGlobal string
+type deleteGlobal unistring.String
 
 func (d deleteGlobal) exec(vm *vm) {
-	name := string(d)
+	name := unistring.String(d)
 	var ret bool
 	if vm.r.globalObject.self.hasPropertyStr(name) {
 		ret = vm.r.globalObject.self.deleteStr(name, false)
@@ -1418,10 +1421,10 @@ func (d deleteGlobal) exec(vm *vm) {
 	vm.pc++
 }
 
-type resolveVar1Strict string
+type resolveVar1Strict unistring.String
 
 func (s resolveVar1Strict) exec(vm *vm) {
-	name := string(s)
+	name := unistring.String(s)
 	var ref ref
 	for stash := vm.stash; stash != nil; stash = stash.outer {
 		if stash.obj != nil {
@@ -1454,7 +1457,7 @@ func (s resolveVar1Strict) exec(vm *vm) {
 
 	ref = &unresolvedRef{
 		runtime: vm.r,
-		name:    string(s),
+		name:    name,
 	}
 
 end:
@@ -1462,21 +1465,21 @@ end:
 	vm.pc++
 }
 
-type setGlobal string
+type setGlobal unistring.String
 
 func (s setGlobal) exec(vm *vm) {
 	v := vm.peek()
 
-	vm.r.globalObject.self.setOwnStr(string(s), v, false)
+	vm.r.globalObject.self.setOwnStr(unistring.String(s), v, false)
 	vm.pc++
 }
 
-type setGlobalStrict string
+type setGlobalStrict unistring.String
 
 func (s setGlobalStrict) exec(vm *vm) {
 	v := vm.peek()
 
-	name := string(s)
+	name := unistring.String(s)
 	o := vm.r.globalObject.self
 	if o.hasOwnPropertyStr(name) {
 		o.setOwnStr(name, v, true)
@@ -1501,14 +1504,14 @@ func (g getLocal) exec(vm *vm) {
 }
 
 type getVar struct {
-	name string
+	name unistring.String
 	idx  uint32
 	ref  bool
 }
 
 func (g getVar) exec(vm *vm) {
 	level := int(g.idx >> 24)
-	idx := uint32(g.idx & 0x00FFFFFF)
+	idx := g.idx & 0x00FFFFFF
 	stash := vm.stash
 	name := g.name
 	for i := 0; i < level; i++ {
@@ -1536,7 +1539,7 @@ end:
 }
 
 type resolveVar struct {
-	name   string
+	name   unistring.String
 	idx    uint32
 	strict bool
 }
@@ -1620,10 +1623,10 @@ func (_putValue) exec(vm *vm) {
 	vm.pc++
 }
 
-type getVar1 string
+type getVar1 unistring.String
 
 func (n getVar1) exec(vm *vm) {
-	name := string(n)
+	name := unistring.String(n)
 	var val Value
 	for stash := vm.stash; stash != nil; stash = stash.outer {
 		if v, exists := stash.getByName(name, vm); exists {
@@ -1641,10 +1644,10 @@ func (n getVar1) exec(vm *vm) {
 	vm.pc++
 }
 
-type getVar1Callee string
+type getVar1Callee unistring.String
 
 func (n getVar1Callee) exec(vm *vm) {
-	name := string(n)
+	name := unistring.String(n)
 	var val Value
 	for stash := vm.stash; stash != nil; stash = stash.outer {
 		if v, exists := stash.getByName(name, vm); exists {
@@ -1774,7 +1777,7 @@ func (vm *vm) _nativeCall(f *nativeFuncObject, n int) {
 	if f.f != nil {
 		vm.pushCtx()
 		vm.prg = nil
-		vm.funcName = f.nameProp.get(nil).String()
+		vm.funcName = f.nameProp.get(nil).string()
 		ret := f.f(FunctionCall{
 			Arguments: vm.stack[vm.sp-n : vm.sp],
 			This:      vm.stack[vm.sp-n-2],
@@ -1895,7 +1898,7 @@ func (_retStashless) exec(vm *vm) {
 
 type newFunc struct {
 	prg    *Program
-	name   string
+	name   unistring.String
 	length uint32
 	strict bool
 
@@ -1911,13 +1914,14 @@ func (n *newFunc) exec(vm *vm) {
 	vm.pc++
 }
 
-type bindName string
+type bindName unistring.String
 
 func (d bindName) exec(vm *vm) {
+	name := unistring.String(d)
 	if vm.stash != nil {
-		vm.stash.createBinding(string(d))
+		vm.stash.createBinding(name)
 	} else {
-		vm.r.globalObject.self._putProp(string(d), _undefined, true, true, false)
+		vm.r.globalObject.self._putProp(name, _undefined, true, true, false)
 	}
 	vm.pc++
 }
@@ -2239,11 +2243,11 @@ func (_retFinally) exec(vm *vm) {
 	vm.pc++
 }
 
-type enterCatch string
+type enterCatch unistring.String
 
 func (varName enterCatch) exec(vm *vm) {
-	vm.stash.names = map[string]uint32{
-		string(varName): 0,
+	vm.stash.names = map[unistring.String]uint32{
+		unistring.String(varName): 0,
 	}
 	vm.pc++
 }
@@ -2335,7 +2339,7 @@ func (formalArgs createArgs) exec(vm *vm) {
 		c = vm.args
 	}
 	for ; i < c; i++ {
-		args._put(strconv.Itoa(i), &mappedProperty{
+		args._put(unistring.String(strconv.Itoa(i)), &mappedProperty{
 			valueProperty: valueProperty{
 				writable:     true,
 				configurable: true,
@@ -2346,7 +2350,7 @@ func (formalArgs createArgs) exec(vm *vm) {
 	}
 
 	for _, v := range vm.stash.extraArgs {
-		args._put(strconv.Itoa(i), v)
+		args._put(unistring.String(strconv.Itoa(i)), v)
 		i++
 	}
 
@@ -2365,12 +2369,12 @@ func (formalArgs createArgsStrict) exec(vm *vm) {
 		c = vm.args
 	}
 	for _, v := range vm.stash.values[:c] {
-		args._put(strconv.Itoa(i), v)
+		args._put(unistring.String(strconv.Itoa(i)), v)
 		i++
 	}
 
 	for _, v := range vm.stash.extraArgs {
-		args._put(strconv.Itoa(i), v)
+		args._put(unistring.String(strconv.Itoa(i)), v)
 		i++
 	}
 
@@ -2426,7 +2430,7 @@ func (jmp enumNext) exec(vm *vm) {
 	l := len(vm.iterStack) - 1
 	item, n := vm.iterStack[l].f()
 	if n != nil {
-		vm.iterStack[l].val = newStringValue(item.name)
+		vm.iterStack[l].val = stringValueFromRaw(item.name)
 		vm.iterStack[l].f = n
 		vm.pc++
 	} else {

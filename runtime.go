@@ -10,6 +10,7 @@ import (
 	"math/bits"
 	"math/rand"
 	"reflect"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 
 	js_ast "github.com/dop251/goja/ast"
 	"github.com/dop251/goja/parser"
-	"runtime"
+	"github.com/dop251/goja/unistring"
 )
 
 const (
@@ -88,7 +89,6 @@ type global struct {
 	RegExpPrototype   *Object
 	DatePrototype     *Object
 	SymbolPrototype   *Object
-	ArrayIterator     *Object
 
 	ArrayBufferPrototype *Object
 	DataViewPrototype    *Object
@@ -98,10 +98,11 @@ type global struct {
 	MapPrototype         *Object
 	SetPrototype         *Object
 
-	IteratorPrototype      *Object
-	ArrayIteratorPrototype *Object
-	MapIteratorPrototype   *Object
-	SetIteratorPrototype   *Object
+	IteratorPrototype       *Object
+	ArrayIteratorPrototype  *Object
+	MapIteratorPrototype    *Object
+	SetIteratorPrototype    *Object
+	StringIteratorPrototype *Object
 
 	ErrorPrototype          *Object
 	TypeErrorPrototype      *Object
@@ -158,7 +159,7 @@ type Runtime struct {
 	now             Now
 	_collator       *collate.Collator
 
-	symbolRegistry map[string]*valueSymbol
+	symbolRegistry map[unistring.String]*valueSymbol
 
 	typeInfoCache   map[reflect.Type]*reflectTypeInfo
 	fieldNameMapper FieldNameMapper
@@ -169,7 +170,7 @@ type Runtime struct {
 
 type StackFrame struct {
 	prg      *Program
-	funcName string
+	funcName unistring.String
 	pc       int
 }
 
@@ -187,7 +188,7 @@ func (f *StackFrame) FuncName() string {
 	if f.funcName == "" {
 		return "<anonymous>"
 	}
-	return f.funcName
+	return f.funcName.String()
 }
 
 func (f *StackFrame) Position() Position {
@@ -203,7 +204,7 @@ func (f *StackFrame) Position() Position {
 func (f *StackFrame) Write(b *bytes.Buffer) {
 	if f.prg != nil {
 		if n := f.prg.funcName; n != "" {
-			b.WriteString(n)
+			b.WriteString(n.String())
 			b.WriteString(" (")
 		}
 		if n := f.prg.src.name; n != "" {
@@ -221,7 +222,7 @@ func (f *StackFrame) Write(b *bytes.Buffer) {
 		}
 	} else {
 		if f.funcName != "" {
-			b.WriteString(f.funcName)
+			b.WriteString(f.funcName.String())
 			b.WriteString(" (")
 		}
 		b.WriteString("native")
@@ -311,7 +312,7 @@ func (e *Exception) Value() Value {
 }
 
 func (r *Runtime) addToGlobal(name string, value Value) {
-	r.globalObject.self._putProp(name, value, true, false, true)
+	r.globalObject.self._putProp(unistring.String(name), value, true, false, true)
 }
 
 func (r *Runtime) createIterProto(val *Object) objectImpl {
@@ -382,7 +383,7 @@ func (r *Runtime) newError(typ *Object, format string, args ...interface{}) Valu
 	return r.builtin_new(typ, []Value{newStringValue(msg)})
 }
 
-func (r *Runtime) throwReferenceError(name string) {
+func (r *Runtime) throwReferenceError(name unistring.String) {
 	panic(r.newError(r.global.ReferenceError, "%s is not defined", name))
 }
 
@@ -431,7 +432,7 @@ func (r *Runtime) NewGoError(err error) *Object {
 	return e
 }
 
-func (r *Runtime) newFunc(name string, len int, strict bool) (f *funcObject) {
+func (r *Runtime) newFunc(name unistring.String, len int, strict bool) (f *funcObject) {
 	v := &Object{runtime: r}
 
 	f = &funcObject{}
@@ -448,7 +449,7 @@ func (r *Runtime) newFunc(name string, len int, strict bool) (f *funcObject) {
 	return
 }
 
-func (r *Runtime) newNativeFuncObj(v *Object, call func(FunctionCall) Value, construct func(args []Value, proto *Object) *Object, name string, proto *Object, length int) *nativeFuncObject {
+func (r *Runtime) newNativeFuncObj(v *Object, call func(FunctionCall) Value, construct func(args []Value, proto *Object) *Object, name unistring.String, proto *Object, length int) *nativeFuncObject {
 	f := &nativeFuncObject{
 		baseFuncObject: baseFuncObject{
 			baseObject: baseObject{
@@ -469,7 +470,7 @@ func (r *Runtime) newNativeFuncObj(v *Object, call func(FunctionCall) Value, con
 	return f
 }
 
-func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name string, length int) *Object {
+func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name unistring.String, length int) *Object {
 	v := &Object{runtime: r}
 
 	f := &nativeFuncObject{
@@ -501,7 +502,7 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 	return v
 }
 
-func (r *Runtime) newNativeConstructOnly(v *Object, ctor func(args []Value, newTarget *Object) *Object, defaultProto *Object, name string, length int) *nativeFuncObject {
+func (r *Runtime) newNativeConstructOnly(v *Object, ctor func(args []Value, newTarget *Object) *Object, defaultProto *Object, name unistring.String, length int) *nativeFuncObject {
 	if v == nil {
 		v = &Object{runtime: r}
 	}
@@ -534,7 +535,7 @@ func (r *Runtime) newNativeConstructOnly(v *Object, ctor func(args []Value, newT
 	return f
 }
 
-func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(args []Value, proto *Object) *Object, name string, proto *Object, length int) *Object {
+func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(args []Value, proto *Object) *Object, name unistring.String, proto *Object, length int) *Object {
 	v := &Object{runtime: r}
 
 	f := &nativeFuncObject{
@@ -558,7 +559,7 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(ar
 	return v
 }
 
-func (r *Runtime) newNativeFuncConstructObj(v *Object, construct func(args []Value, proto *Object) *Object, name string, proto *Object, length int) *nativeFuncObject {
+func (r *Runtime) newNativeFuncConstructObj(v *Object, construct func(args []Value, proto *Object) *Object, name unistring.String, proto *Object, length int) *nativeFuncObject {
 	f := &nativeFuncObject{
 		baseFuncObject: baseFuncObject{
 			baseObject: baseObject{
@@ -579,11 +580,11 @@ func (r *Runtime) newNativeFuncConstructObj(v *Object, construct func(args []Val
 	return f
 }
 
-func (r *Runtime) newNativeFuncConstruct(construct func(args []Value, proto *Object) *Object, name string, prototype *Object, length int) *Object {
+func (r *Runtime) newNativeFuncConstruct(construct func(args []Value, proto *Object) *Object, name unistring.String, prototype *Object, length int) *Object {
 	return r.newNativeFuncConstructProto(construct, name, prototype, r.global.FunctionPrototype, length)
 }
 
-func (r *Runtime) newNativeFuncConstructProto(construct func(args []Value, proto *Object) *Object, name string, prototype, proto *Object, length int) *Object {
+func (r *Runtime) newNativeFuncConstructProto(construct func(args []Value, proto *Object) *Object, name unistring.String, prototype, proto *Object, length int) *Object {
 	v := &Object{runtime: r}
 
 	f := &nativeFuncObject{}
@@ -929,6 +930,15 @@ func toLength(v Value) int64 {
 	return i
 }
 
+func toInt(i int64) int {
+	if bits.UintSize == 32 {
+		if i > math.MaxInt32 || i < math.MinInt32 {
+			panic(rangeError("Integer value overflows 32-bit int"))
+		}
+	}
+	return int(i)
+}
+
 func (r *Runtime) toIndex(v Value) int {
 	intIdx := v.ToInteger()
 	if intIdx >= 0 && intIdx < maxInt {
@@ -1178,10 +1188,10 @@ func (r *Runtime) ToValue(i interface{}) Value {
 			return valueFalse
 		}
 	case func(FunctionCall) Value:
-		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
 		return r.newNativeFunc(i, nil, name, nil, 0)
 	case func(ConstructorCall) *Object:
-		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
 		return r.newNativeConstructor(i, name, 0)
 	case int:
 		return intToValue(int64(i))
@@ -1309,7 +1319,7 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		obj.self = a
 		return obj
 	case reflect.Func:
-		name := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
+		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
 		return r.newNativeFunc(r.wrapReflectFunc(value), nil, name, nil, value.Type().NumIn())
 	}
 
@@ -1559,7 +1569,7 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 					if field.Anonymous {
 						v = o
 					} else {
-						v = o.self.getStr(name, nil)
+						v = o.self.getStr(unistring.NewFromString(name), nil)
 					}
 
 					if v != nil {
@@ -1650,12 +1660,12 @@ func (r *Runtime) GlobalObject() *Object {
 // Set the specified value as a property of the global object.
 // The value is first converted using ToValue()
 func (r *Runtime) Set(name string, value interface{}) {
-	r.globalObject.self.setOwnStr(name, r.ToValue(value), false)
+	r.globalObject.self.setOwnStr(unistring.NewFromString(name), r.ToValue(value), false)
 }
 
 // Get the specified property of the global object.
 func (r *Runtime) Get(name string) Value {
-	return r.globalObject.self.getStr(name, nil)
+	return r.globalObject.self.getStr(unistring.NewFromString(name), nil)
 }
 
 // SetRandSource sets random source for this Runtime. If not called, the default math/rand is used.
@@ -1846,7 +1856,7 @@ func toPropertyKey(key Value) Value {
 	return key.ToPrimitiveString()
 }
 
-func (r *Runtime) getVStr(v Value, p string) Value {
+func (r *Runtime) getVStr(v Value, p unistring.String) Value {
 	o := v.ToObject(r)
 	return o.self.getStr(p, v)
 }
@@ -1932,4 +1942,16 @@ func isArray(object *Object) bool {
 	default:
 		return false
 	}
+}
+
+func isRegexp(v Value) bool {
+	if o, ok := v.(*Object); ok {
+		matcher := o.self.getSym(symMatch, nil)
+		if matcher != nil && matcher != _undefined {
+			return matcher.ToBoolean()
+		}
+		_, reg := o.self.(*regexpObject)
+		return reg
+	}
+	return false
 }

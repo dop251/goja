@@ -97,6 +97,18 @@ func TestPropertyOrder(t *testing.T) {
 	testScript1(SCRIPT, _undefined, t)
 }
 
+func TestDefinePropertiesSymbol(t *testing.T) {
+	const SCRIPT = `
+	var desc = {};
+	desc[Symbol.toStringTag] = {value: "Test"};
+	var o = {};
+	Object.defineProperties(o, desc);
+	o[Symbol.toStringTag] === "Test";
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func BenchmarkPut(b *testing.B) {
 	v := &Object{}
 

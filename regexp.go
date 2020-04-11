@@ -35,7 +35,7 @@ func (r *regexp2Wrapper) FindSubmatchIndex(s valueString, start int) (result []i
 	case asciiString:
 		match, err = wrapped.FindStringMatch(string(s)[start:])
 	case unicodeString:
-		match, err = wrapped.FindRunesMatch(utf16.Decode(s[start:]))
+		match, err = wrapped.FindRunesMatch(utf16.Decode(s[start+1:]))
 	default:
 		panic(fmt.Errorf("Unknown string type: %T", s))
 	}
@@ -208,7 +208,7 @@ func (r *regexp2Wrapper) MatchString(s valueString) bool {
 		matched, _ := wrapped.MatchString(string(s))
 		return matched
 	case unicodeString:
-		matched, _ := wrapped.MatchRunes(utf16.Decode(s))
+		matched, _ := wrapped.MatchRunes(utf16.Decode(s[1:]))
 		return matched
 	default:
 		panic(fmt.Errorf("Unknown string type: %T", s))
@@ -287,7 +287,7 @@ func (r *regexpObject) execResultToArray(target valueString, result []int) Value
 	for index := 0; index < captureCount; index++ {
 		offset := index << 1
 		if result[offset] >= lowerBound {
-			valueArray[index] = target.substring(int64(result[offset]), int64(result[offset+1]))
+			valueArray[index] = target.substring(result[offset], result[offset+1])
 			lowerBound = result[offset]
 		} else {
 			valueArray[index] = _undefined
@@ -311,7 +311,7 @@ func (r *regexpObject) execRegexp(target valueString) (match bool, result []int)
 	if !r.global && !r.sticky {
 		index = 0
 	}
-	if index >= 0 && index <= target.length() {
+	if index >= 0 && index <= int64(target.length()) {
 		result = r.pattern.FindSubmatchIndex(target, int(index))
 	}
 	if result == nil || r.sticky && result[0] != 0 {

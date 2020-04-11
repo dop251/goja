@@ -1289,7 +1289,7 @@ type arraySortCtx struct {
 	compare func(FunctionCall) Value
 }
 
-func (ctx *arraySortCtx) sortCompare(x, y Value) int {
+func (a *arraySortCtx) sortCompare(x, y Value) int {
 	if x == nil && y == nil {
 		return 0
 	}
@@ -1314,8 +1314,8 @@ func (ctx *arraySortCtx) sortCompare(x, y Value) int {
 		return -1
 	}
 
-	if ctx.compare != nil {
-		f := ctx.compare(FunctionCall{
+	if a.compare != nil {
+		f := a.compare(FunctionCall{
 			This:      _undefined,
 			Arguments: []Value{x, y},
 		}).ToFloat()

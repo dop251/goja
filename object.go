@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"sort"
 	"unsafe"
+
+	"github.com/dop251/goja/unistring"
 )
 
 const (
@@ -24,9 +26,10 @@ const (
 	classRegExp   = "RegExp"
 	classDate     = "Date"
 
-	classArrayIterator = "Array Iterator"
-	classMapIterator   = "Map Iterator"
-	classSetIterator   = "Set Iterator"
+	classArrayIterator  = "Array Iterator"
+	classMapIterator    = "Map Iterator"
+	classSetIterator    = "Set Iterator"
+	classStringIterator = "String Iterator"
 )
 
 type weakCollection interface {
@@ -171,35 +174,35 @@ func (p *PropertyDescriptor) complete() {
 type objectImpl interface {
 	sortable
 	className() string
-	getStr(p string, receiver Value) Value
+	getStr(p unistring.String, receiver Value) Value
 	getIdx(p valueInt, receiver Value) Value
 	getSym(p *valueSymbol, receiver Value) Value
 
-	getOwnPropStr(string) Value
+	getOwnPropStr(unistring.String) Value
 	getOwnPropIdx(valueInt) Value
 	getOwnPropSym(*valueSymbol) Value
 
-	setOwnStr(p string, v Value, throw bool) bool
+	setOwnStr(p unistring.String, v Value, throw bool) bool
 	setOwnIdx(p valueInt, v Value, throw bool) bool
 	setOwnSym(p *valueSymbol, v Value, throw bool) bool
 
-	setForeignStr(p string, v, receiver Value, throw bool) (res bool, handled bool)
+	setForeignStr(p unistring.String, v, receiver Value, throw bool) (res bool, handled bool)
 	setForeignIdx(p valueInt, v, receiver Value, throw bool) (res bool, handled bool)
 	setForeignSym(p *valueSymbol, v, receiver Value, throw bool) (res bool, handled bool)
 
-	hasPropertyStr(string) bool
+	hasPropertyStr(unistring.String) bool
 	hasPropertyIdx(idx valueInt) bool
 	hasPropertySym(s *valueSymbol) bool
 
-	hasOwnPropertyStr(string) bool
+	hasOwnPropertyStr(unistring.String) bool
 	hasOwnPropertyIdx(valueInt) bool
 	hasOwnPropertySym(s *valueSymbol) bool
 
-	defineOwnPropertyStr(name string, desc PropertyDescriptor, throw bool) bool
+	defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool
 	defineOwnPropertyIdx(name valueInt, desc PropertyDescriptor, throw bool) bool
 	defineOwnPropertySym(name *valueSymbol, desc PropertyDescriptor, throw bool) bool
 
-	deleteStr(name string, throw bool) bool
+	deleteStr(name unistring.String, throw bool) bool
 	deleteIdx(idx valueInt, throw bool) bool
 	deleteSym(s *valueSymbol, throw bool) bool
 
@@ -219,10 +222,10 @@ type objectImpl interface {
 	exportType() reflect.Type
 	equal(objectImpl) bool
 	ownKeys(all bool, accum []Value) []Value
-	ownSymbols() []Value
+	ownSymbols(all bool, accum []Value) []Value
 	ownPropertyKeys(all bool, accum []Value) []Value
 
-	_putProp(name string, value Value, writable, enumerable, configurable bool) Value
+	_putProp(name unistring.String, value Value, writable, enumerable, configurable bool) Value
 	_putSym(s *valueSymbol, prop Value)
 }
 
@@ -232,8 +235,8 @@ type baseObject struct {
 	prototype  *Object
 	extensible bool
 
-	values    map[string]Value
-	propNames []string
+	values    map[unistring.String]Value
+	propNames []unistring.String
 
 	lastSortedPropLen, idxPropCount int
 
@@ -278,14 +281,14 @@ func (f ConstructorCall) Argument(idx int) Value {
 }
 
 func (o *baseObject) init() {
-	o.values = make(map[string]Value)
+	o.values = make(map[unistring.String]Value)
 }
 
 func (o *baseObject) className() string {
 	return o.class
 }
 
-func (o *baseObject) hasPropertyStr(name string) bool {
+func (o *baseObject) hasPropertyStr(name unistring.String) bool {
 	if o.val.self.hasOwnPropertyStr(name) {
 		return true
 	}
@@ -296,7 +299,7 @@ func (o *baseObject) hasPropertyStr(name string) bool {
 }
 
 func (o *baseObject) hasPropertyIdx(idx valueInt) bool {
-	return o.val.self.hasPropertyStr(idx.String())
+	return o.val.self.hasPropertyStr(idx.string())
 }
 
 func (o *baseObject) hasPropertySym(s *valueSymbol) bool {
@@ -325,7 +328,7 @@ func (o *baseObject) getWithOwnProp(prop, p, receiver Value) Value {
 	return prop
 }
 
-func (o *baseObject) getStrWithOwnProp(prop Value, name string, receiver Value) Value {
+func (o *baseObject) getStrWithOwnProp(prop Value, name unistring.String, receiver Value) Value {
 	if prop == nil && o.prototype != nil {
 		if receiver == nil {
 			return o.prototype.self.getStr(name, o.val)
@@ -342,14 +345,14 @@ func (o *baseObject) getStrWithOwnProp(prop Value, name string, receiver Value) 
 }
 
 func (o *baseObject) getIdx(idx valueInt, receiver Value) Value {
-	return o.val.self.getStr(idx.String(), receiver)
+	return o.val.self.getStr(idx.string(), receiver)
 }
 
 func (o *baseObject) getSym(s *valueSymbol, receiver Value) Value {
 	return o.getWithOwnProp(o.getOwnPropSym(s), s, receiver)
 }
 
-func (o *baseObject) getStr(name string, receiver Value) Value {
+func (o *baseObject) getStr(name unistring.String, receiver Value) Value {
 	prop := o.values[name]
 	if prop == nil {
 		if o.prototype != nil {
@@ -369,7 +372,7 @@ func (o *baseObject) getStr(name string, receiver Value) Value {
 }
 
 func (o *baseObject) getOwnPropIdx(idx valueInt) Value {
-	return o.val.self.getOwnPropStr(idx.String())
+	return o.val.self.getOwnPropStr(idx.string())
 }
 
 func (o *baseObject) getOwnPropSym(s *valueSymbol) Value {
@@ -379,11 +382,11 @@ func (o *baseObject) getOwnPropSym(s *valueSymbol) Value {
 	return nil
 }
 
-func (o *baseObject) getOwnPropStr(name string) Value {
+func (o *baseObject) getOwnPropStr(name unistring.String) Value {
 	return o.values[name]
 }
 
-func (o *baseObject) checkDeleteProp(name string, prop *valueProperty, throw bool) bool {
+func (o *baseObject) checkDeleteProp(name unistring.String, prop *valueProperty, throw bool) bool {
 	if !prop.configurable {
 		o.val.runtime.typeErrorResult(throw, "Cannot delete property '%s' of %s", name, o.val.toString())
 		return false
@@ -391,14 +394,14 @@ func (o *baseObject) checkDeleteProp(name string, prop *valueProperty, throw boo
 	return true
 }
 
-func (o *baseObject) checkDelete(name string, val Value, throw bool) bool {
+func (o *baseObject) checkDelete(name unistring.String, val Value, throw bool) bool {
 	if val, ok := val.(*valueProperty); ok {
 		return o.checkDeleteProp(name, val, throw)
 	}
 	return true
 }
 
-func (o *baseObject) _delete(name string) {
+func (o *baseObject) _delete(name unistring.String) {
 	delete(o.values, name)
 	for i, n := range o.propNames {
 		if n == name {
@@ -416,13 +419,13 @@ func (o *baseObject) _delete(name string) {
 }
 
 func (o *baseObject) deleteIdx(idx valueInt, throw bool) bool {
-	return o.val.self.deleteStr(idx.String(), throw)
+	return o.val.self.deleteStr(idx.string(), throw)
 }
 
 func (o *baseObject) deleteSym(s *valueSymbol, throw bool) bool {
 	if o.symValues != nil {
 		if val := o.symValues.get(s); val != nil {
-			if !o.checkDelete(s.String(), val, throw) {
+			if !o.checkDelete(s.desc.string(), val, throw) {
 				return false
 			}
 			o.symValues.remove(s)
@@ -431,7 +434,7 @@ func (o *baseObject) deleteSym(s *valueSymbol, throw bool) bool {
 	return true
 }
 
-func (o *baseObject) deleteStr(name string, throw bool) bool {
+func (o *baseObject) deleteStr(name unistring.String, throw bool) bool {
 	if val, exists := o.values[name]; exists {
 		if !o.checkDelete(name, val, throw) {
 			return false
@@ -461,7 +464,7 @@ func (o *baseObject) setProto(proto *Object, throw bool) bool {
 	return true
 }
 
-func (o *baseObject) setOwnStr(name string, val Value, throw bool) bool {
+func (o *baseObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
 	ownDesc := o.values[name]
 	if ownDesc == nil {
 		if proto := o.prototype; proto != nil {
@@ -494,7 +497,7 @@ func (o *baseObject) setOwnStr(name string, val Value, throw bool) bool {
 }
 
 func (o *baseObject) setOwnIdx(idx valueInt, val Value, throw bool) bool {
-	return o.val.self.setOwnStr(idx.String(), val, throw)
+	return o.val.self.setOwnStr(idx.string(), val, throw)
 }
 
 func (o *baseObject) setOwnSym(name *valueSymbol, val Value, throw bool) bool {
@@ -534,7 +537,7 @@ func (o *baseObject) setOwnSym(name *valueSymbol, val Value, throw bool) bool {
 	return true
 }
 
-func (o *baseObject) _setForeignStr(name string, prop, val, receiver Value, throw bool) (bool, bool) {
+func (o *baseObject) _setForeignStr(name unistring.String, prop, val, receiver Value, throw bool) (bool, bool) {
 	if prop != nil {
 		if prop, ok := prop.(*valueProperty); ok {
 			if !prop.isWritable() {
@@ -580,12 +583,12 @@ func (o *baseObject) _setForeignIdx(idx valueInt, prop, val, receiver Value, thr
 	return false, false
 }
 
-func (o *baseObject) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
+func (o *baseObject) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
 	return o._setForeignStr(name, o.values[name], val, receiver, throw)
 }
 
 func (o *baseObject) setForeignIdx(name valueInt, val, receiver Value, throw bool) (bool, bool) {
-	return o.val.self.setForeignStr(name.String(), val, receiver, throw)
+	return o.val.self.setForeignStr(name.string(), val, receiver, throw)
 }
 
 func (o *baseObject) setForeignSym(name *valueSymbol, val, receiver Value, throw bool) (bool, bool) {
@@ -622,16 +625,16 @@ func (o *baseObject) hasOwnPropertySym(s *valueSymbol) bool {
 	return false
 }
 
-func (o *baseObject) hasOwnPropertyStr(name string) bool {
+func (o *baseObject) hasOwnPropertyStr(name unistring.String) bool {
 	_, exists := o.values[name]
 	return exists
 }
 
 func (o *baseObject) hasOwnPropertyIdx(idx valueInt) bool {
-	return o.val.self.hasOwnPropertyStr(idx.String())
+	return o.val.self.hasOwnPropertyStr(idx.string())
 }
 
-func (o *baseObject) _defineOwnProperty(name string, existingValue Value, descr PropertyDescriptor, throw bool) (val Value, ok bool) {
+func (o *baseObject) _defineOwnProperty(name unistring.String, existingValue Value, descr PropertyDescriptor, throw bool) (val Value, ok bool) {
 
 	getterObj, _ := descr.Getter.(*Object)
 	setterObj, _ := descr.Setter.(*Object)
@@ -734,7 +737,7 @@ Reject:
 
 }
 
-func (o *baseObject) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
+func (o *baseObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	existingVal := o.values[name]
 	if v, ok := o._defineOwnProperty(name, existingVal, descr, throw); ok {
 		o.values[name] = v
@@ -747,7 +750,7 @@ func (o *baseObject) defineOwnPropertyStr(name string, descr PropertyDescriptor,
 }
 
 func (o *baseObject) defineOwnPropertyIdx(idx valueInt, desc PropertyDescriptor, throw bool) bool {
-	return o.val.self.defineOwnPropertyStr(idx.String(), desc, throw)
+	return o.val.self.defineOwnPropertyStr(idx.string(), desc, throw)
 }
 
 func (o *baseObject) defineOwnPropertySym(s *valueSymbol, descr PropertyDescriptor, throw bool) bool {
@@ -755,7 +758,7 @@ func (o *baseObject) defineOwnPropertySym(s *valueSymbol, descr PropertyDescript
 	if o.symValues != nil {
 		existingVal = o.symValues.get(s)
 	}
-	if v, ok := o._defineOwnProperty(s.String(), existingVal, descr, throw); ok {
+	if v, ok := o._defineOwnProperty(s.desc.string(), existingVal, descr, throw); ok {
 		if o.symValues == nil {
 			o.symValues = newOrderedMap(&o.val.runtime.hash)
 		}
@@ -765,7 +768,7 @@ func (o *baseObject) defineOwnPropertySym(s *valueSymbol, descr PropertyDescript
 	return false
 }
 
-func (o *baseObject) _put(name string, v Value) {
+func (o *baseObject) _put(name unistring.String, v Value) {
 	if _, exists := o.values[name]; !exists {
 		o.propNames = append(o.propNames, name)
 	}
@@ -785,7 +788,7 @@ func valueProp(value Value, writable, enumerable, configurable bool) Value {
 	}
 }
 
-func (o *baseObject) _putProp(name string, value Value, writable, enumerable, configurable bool) Value {
+func (o *baseObject) _putProp(name unistring.String, value Value, writable, enumerable, configurable bool) Value {
 	prop := valueProp(value, writable, enumerable, configurable)
 	o._put(name, prop)
 	return prop
@@ -810,7 +813,7 @@ func (o *baseObject) tryExoticToPrimitive(hint string) Value {
 }
 
 func (o *baseObject) tryPrimitive(methodName string) Value {
-	if method, ok := o.val.self.getStr(methodName, nil).(*Object); ok {
+	if method, ok := o.val.self.getStr(unistring.String(methodName), nil).(*Object); ok {
 		if call, ok := method.self.assertCallable(); ok {
 			v := call(FunctionCall{
 				This: o.val,
@@ -905,7 +908,7 @@ func (o *baseObject) export() interface{} {
 	m := make(map[string]interface{})
 	for _, itemName := range o.ownKeys(false, nil) {
 		itemNameStr := itemName.String()
-		v := o.val.self.getStr(itemNameStr, nil)
+		v := o.val.self.getStr(itemName.string(), nil)
 		if v != nil {
 			m[itemNameStr] = v.Export()
 		} else {
@@ -929,21 +932,21 @@ const (
 )
 
 type propIterItem struct {
-	name       string
+	name       unistring.String
 	value      Value // set only when enumerable == _ENUM_UNKNOWN
 	enumerable enumerableFlag
 }
 
 type objectPropIter struct {
 	o         *baseObject
-	propNames []string
+	propNames []unistring.String
 	idx       int
 }
 
 type propFilterIter struct {
 	wrapped iterNextFunc
 	all     bool
-	seen    map[string]bool
+	seen    map[unistring.String]bool
 }
 
 func (i *propFilterIter) next() (propIterItem, iterNextFunc) {
@@ -989,7 +992,7 @@ func (i *objectPropIter) next() (propIterItem, iterNextFunc) {
 func (o *baseObject) enumerate() iterNextFunc {
 	return (&propFilterIter{
 		wrapped: o.val.self.enumerateUnfiltered(),
-		seen:    make(map[string]bool),
+		seen:    make(map[unistring.String]bool),
 	}).next
 }
 
@@ -997,7 +1000,7 @@ func (o *baseObject) ownIter() iterNextFunc {
 	if len(o.propNames) > o.lastSortedPropLen {
 		o.fixPropOrder()
 	}
-	propNames := make([]string, len(o.propNames))
+	propNames := make([]unistring.String, len(o.propNames))
 	copy(propNames, o.propNames)
 	return (&objectPropIter{
 		o:         o,
@@ -1069,7 +1072,7 @@ func (o *baseObject) ownKeys(all bool, keys []Value) []Value {
 	}
 	if all {
 		for _, k := range o.propNames {
-			keys = append(keys, newStringValue(k))
+			keys = append(keys, stringValueFromRaw(k))
 		}
 	} else {
 		for _, k := range o.propNames {
@@ -1077,34 +1080,44 @@ func (o *baseObject) ownKeys(all bool, keys []Value) []Value {
 			if prop, ok := prop.(*valueProperty); ok && !prop.enumerable {
 				continue
 			}
-			keys = append(keys, newStringValue(k))
+			keys = append(keys, stringValueFromRaw(k))
 		}
 	}
 	return keys
 }
 
-func (o *baseObject) ownSymbols() (res []Value) {
+func (o *baseObject) ownSymbols(all bool, accum []Value) []Value {
 	if o.symValues != nil {
 		iter := o.symValues.newIter()
-		for {
-			entry := iter.next()
-			if entry == nil {
-				break
+		if all {
+			for {
+				entry := iter.next()
+				if entry == nil {
+					break
+				}
+				accum = append(accum, entry.key)
 			}
-			res = append(res, entry.key)
+		} else {
+			for {
+				entry := iter.next()
+				if entry == nil {
+					break
+				}
+				if prop, ok := entry.value.(*valueProperty); ok {
+					if !prop.enumerable {
+						continue
+					}
+				}
+				accum = append(accum, entry.key)
+			}
 		}
 	}
 
-	return
+	return accum
 }
 
 func (o *baseObject) ownPropertyKeys(all bool, accum []Value) []Value {
-	accum = o.val.self.ownKeys(all, accum)
-	if all {
-		accum = append(accum, o.ownSymbols()...)
-	}
-
-	return accum
+	return o.ownSymbols(all, o.val.self.ownKeys(all, accum))
 }
 
 func (o *baseObject) hasInstance(Value) bool {
@@ -1141,7 +1154,7 @@ func (o *Object) get(p Value, receiver Value) Value {
 	case *valueSymbol:
 		return o.self.getSym(p, receiver)
 	default:
-		return o.self.getStr(p.String(), receiver)
+		return o.self.getStr(p.string(), receiver)
 	}
 }
 
@@ -1152,7 +1165,7 @@ func (o *Object) getOwnProp(p Value) Value {
 	case *valueSymbol:
 		return o.self.getOwnPropSym(p)
 	default:
-		return o.self.getOwnPropStr(p.String())
+		return o.self.getOwnPropStr(p.string())
 	}
 }
 
@@ -1163,7 +1176,7 @@ func (o *Object) hasOwnProperty(p Value) bool {
 	case *valueSymbol:
 		return o.self.hasOwnPropertySym(p)
 	default:
-		return o.self.hasOwnPropertyStr(p.String())
+		return o.self.hasOwnPropertyStr(p.string())
 	}
 }
 
@@ -1174,11 +1187,11 @@ func (o *Object) hasProperty(p Value) bool {
 	case *valueSymbol:
 		return o.self.hasPropertySym(p)
 	default:
-		return o.self.hasPropertyStr(p.String())
+		return o.self.hasPropertyStr(p.string())
 	}
 }
 
-func (o *Object) setStr(name string, val, receiver Value, throw bool) bool {
+func (o *Object) setStr(name unistring.String, val, receiver Value, throw bool) bool {
 	if receiver == o {
 		return o.self.setOwnStr(name, val, throw)
 	} else {
@@ -1222,7 +1235,7 @@ func (o *Object) set(name Value, val, receiver Value, throw bool) bool {
 	case *valueSymbol:
 		return o.setSym(name, val, receiver, throw)
 	default:
-		return o.setStr(name.String(), val, receiver, throw)
+		return o.setStr(name.string(), val, receiver, throw)
 	}
 }
 
@@ -1233,7 +1246,7 @@ func (o *Object) setOwn(name Value, val Value, throw bool) bool {
 	case *valueSymbol:
 		return o.self.setOwnSym(name, val, throw)
 	default:
-		return o.self.setOwnStr(name.String(), val, throw)
+		return o.self.setOwnStr(name.string(), val, throw)
 	}
 }
 
@@ -1318,7 +1331,7 @@ func (o *Object) delete(n Value, throw bool) bool {
 	case *valueSymbol:
 		return o.self.deleteSym(n, throw)
 	default:
-		return o.self.deleteStr(n.String(), throw)
+		return o.self.deleteStr(n.string(), throw)
 	}
 }
 
@@ -1329,7 +1342,7 @@ func (o *Object) defineOwnProperty(n Value, desc PropertyDescriptor, throw bool)
 	case *valueSymbol:
 		return o.self.defineOwnPropertySym(n, desc, throw)
 	default:
-		return o.self.defineOwnPropertyStr(n.String(), desc, throw)
+		return o.self.defineOwnPropertyStr(n.string(), desc, throw)
 	}
 }
 

@@ -3,6 +3,8 @@ package goja
 import (
 	"reflect"
 	"strconv"
+
+	"github.com/dop251/goja/unistring"
 )
 
 type objectGoSliceReflect struct {
@@ -32,7 +34,7 @@ func (o *objectGoSliceReflect) _hasIdx(idx valueInt) bool {
 	return false
 }
 
-func (o *objectGoSliceReflect) _hasStr(name string) bool {
+func (o *objectGoSliceReflect) _hasStr(name unistring.String) bool {
 	if idx := strToIdx64(name); idx >= 0 && idx < int64(o.value.Len()) {
 		return true
 	}
@@ -51,10 +53,10 @@ func (o *objectGoSliceReflect) getIdx(idx valueInt, receiver Value) Value {
 	if idx := toInt(int64(idx)); idx >= 0 && idx < o.value.Len() {
 		return o._getIdx(idx)
 	}
-	return o.objectGoReflect.getStr(idx.String(), receiver)
+	return o.objectGoReflect.getStr(idx.string(), receiver)
 }
 
-func (o *objectGoSliceReflect) getStr(name string, receiver Value) Value {
+func (o *objectGoSliceReflect) getStr(name unistring.String, receiver Value) Value {
 	var ownProp Value
 	if idx := strToGoIdx(name); idx >= 0 && idx < o.value.Len() {
 		ownProp = o._getIdx(idx)
@@ -66,7 +68,7 @@ func (o *objectGoSliceReflect) getStr(name string, receiver Value) Value {
 	return o.getStrWithOwnProp(ownProp, name, receiver)
 }
 
-func (o *objectGoSliceReflect) getOwnPropStr(name string) Value {
+func (o *objectGoSliceReflect) getOwnPropStr(name unistring.String) Value {
 	if idx := strToGoIdx(name); idx >= 0 {
 		if idx < o.value.Len() {
 			return &valueProperty{
@@ -180,7 +182,7 @@ func (o *objectGoSliceReflect) setOwnIdx(idx valueInt, val Value, throw bool) bo
 		}
 		o.putIdx(i, val, throw)
 	} else {
-		name := idx.String()
+		name := idx.string()
 		if res, ok := o._setForeignStr(name, nil, val, o.val, throw); !ok {
 			o.val.runtime.typeErrorResult(throw, "Can't set property '%s' on Go slice", name)
 			return false
@@ -191,7 +193,7 @@ func (o *objectGoSliceReflect) setOwnIdx(idx valueInt, val Value, throw bool) bo
 	return true
 }
 
-func (o *objectGoSliceReflect) setOwnStr(name string, val Value, throw bool) bool {
+func (o *objectGoSliceReflect) setOwnStr(name unistring.String, val Value, throw bool) bool {
 	if idx := strToGoIdx(name); idx >= 0 {
 		if idx >= o.value.Len() {
 			if res, ok := o._setForeignStr(name, nil, val, o.val, throw); ok {
@@ -217,7 +219,7 @@ func (o *objectGoSliceReflect) setForeignIdx(idx valueInt, val, receiver Value, 
 	return o._setForeignIdx(idx, trueValIfPresent(o._hasIdx(idx)), val, receiver, throw)
 }
 
-func (o *objectGoSliceReflect) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
+func (o *objectGoSliceReflect) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
 	return o._setForeignStr(name, trueValIfPresent(o._hasStr(name)), val, receiver, throw)
 }
 
@@ -225,16 +227,16 @@ func (o *objectGoSliceReflect) hasOwnPropertyIdx(idx valueInt) bool {
 	return o._hasIdx(idx)
 }
 
-func (o *objectGoSliceReflect) hasOwnPropertyStr(name string) bool {
+func (o *objectGoSliceReflect) hasOwnPropertyStr(name unistring.String) bool {
 	if o._hasStr(name) {
 		return true
 	}
-	return o.objectGoReflect._has(name)
+	return o.objectGoReflect._has(name.String())
 }
 
 func (o *objectGoSliceReflect) defineOwnPropertyIdx(idx valueInt, descr PropertyDescriptor, throw bool) bool {
 	if i := toInt(int64(idx)); i >= 0 {
-		if !o.val.runtime.checkHostObjectPropertyDescr(idx.String(), descr, throw) {
+		if !o.val.runtime.checkHostObjectPropertyDescr(idx.string(), descr, throw) {
 			return false
 		}
 		val := descr.Value
@@ -248,7 +250,7 @@ func (o *objectGoSliceReflect) defineOwnPropertyIdx(idx valueInt, descr Property
 	return false
 }
 
-func (o *objectGoSliceReflect) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
+func (o *objectGoSliceReflect) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	if idx := strToGoIdx(name); idx >= 0 {
 		if !o.val.runtime.checkHostObjectPropertyDescr(name, descr, throw) {
 			return false
@@ -278,7 +280,7 @@ func (o *objectGoSliceReflect) toPrimitive() Value {
 	return o.toPrimitiveString()
 }
 
-func (o *objectGoSliceReflect) deleteStr(name string, throw bool) bool {
+func (o *objectGoSliceReflect) deleteStr(name unistring.String, throw bool) bool {
 	if idx := strToIdx64(name); idx >= 0 {
 		if idx < int64(o.value.Len()) {
 			o.val.runtime.typeErrorResult(throw, "Can't delete from Go slice")
@@ -310,7 +312,7 @@ func (i *gosliceReflectPropIter) next() (propIterItem, iterNextFunc) {
 	if i.idx < i.limit && i.idx < i.o.value.Len() {
 		name := strconv.Itoa(i.idx)
 		i.idx++
-		return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.next
+		return propIterItem{name: unistring.String(name), enumerable: _ENUM_TRUE}, i.next
 	}
 
 	return i.o.objectGoReflect.enumerateUnfiltered()()

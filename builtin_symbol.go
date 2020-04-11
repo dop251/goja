@@ -1,27 +1,29 @@
 package goja
 
+import "github.com/dop251/goja/unistring"
+
 var (
-	symHasInstance        = &valueSymbol{desc: "Symbol.hasInstance"}
-	symIsConcatSpreadable = &valueSymbol{desc: "Symbol.isConcatSpreadable"}
-	symIterator           = &valueSymbol{desc: "Symbol.iterator"}
-	symMatch              = &valueSymbol{desc: "Symbol.match"}
-	symReplace            = &valueSymbol{desc: "Symbol.replace"}
-	symSearch             = &valueSymbol{desc: "Symbol.search"}
-	symSpecies            = &valueSymbol{desc: "Symbol.species"}
-	symSplit              = &valueSymbol{desc: "Symbol.split"}
-	symToPrimitive        = &valueSymbol{desc: "Symbol.toPrimitive"}
-	symToStringTag        = &valueSymbol{desc: "Symbol.toStringTag"}
-	symUnscopables        = &valueSymbol{desc: "Symbol.unscopables"}
+	symHasInstance        = newSymbol(asciiString("Symbol.hasInstance"))
+	symIsConcatSpreadable = newSymbol(asciiString("Symbol.isConcatSpreadable"))
+	symIterator           = newSymbol(asciiString("Symbol.iterator"))
+	symMatch              = newSymbol(asciiString("Symbol.match"))
+	symReplace            = newSymbol(asciiString("Symbol.replace"))
+	symSearch             = newSymbol(asciiString("Symbol.search"))
+	symSpecies            = newSymbol(asciiString("Symbol.species"))
+	symSplit              = newSymbol(asciiString("Symbol.split"))
+	symToPrimitive        = newSymbol(asciiString("Symbol.toPrimitive"))
+	symToStringTag        = newSymbol(asciiString("Symbol.toStringTag"))
+	symUnscopables        = newSymbol(asciiString("Symbol.unscopables"))
 )
 
 func (r *Runtime) builtin_symbol(call FunctionCall) Value {
-	desc := ""
+	var desc valueString
 	if arg := call.Argument(0); !IsUndefined(arg) {
-		desc = arg.toString().String()
+		desc = arg.toString()
+	} else {
+		desc = stringEmpty
 	}
-	return &valueSymbol{
-		desc: desc,
-	}
+	return newSymbol(desc)
 }
 
 func (r *Runtime) symbolproto_tostring(call FunctionCall) Value {
@@ -38,7 +40,7 @@ func (r *Runtime) symbolproto_tostring(call FunctionCall) Value {
 	if sym == nil {
 		panic(r.NewTypeError("Method Symbol.prototype.toString is called on incompatible receiver"))
 	}
-	return newStringValue(sym.descString())
+	return sym.desc
 }
 
 func (r *Runtime) symbolproto_valueOf(call FunctionCall) Value {
@@ -59,17 +61,16 @@ func (r *Runtime) symbolproto_valueOf(call FunctionCall) Value {
 }
 
 func (r *Runtime) symbol_for(call FunctionCall) Value {
-	key := call.Argument(0).toString().String()
-	if v := r.symbolRegistry[key]; v != nil {
+	key := call.Argument(0).toString()
+	keyStr := key.string()
+	if v := r.symbolRegistry[keyStr]; v != nil {
 		return v
 	}
 	if r.symbolRegistry == nil {
-		r.symbolRegistry = make(map[string]*valueSymbol)
+		r.symbolRegistry = make(map[unistring.String]*valueSymbol)
 	}
-	v := &valueSymbol{
-		desc: key,
-	}
-	r.symbolRegistry[key] = v
+	v := newSymbol(key)
+	r.symbolRegistry[keyStr] = v
 	return v
 }
 
@@ -81,7 +82,7 @@ func (r *Runtime) symbol_keyfor(call FunctionCall) Value {
 	}
 	for key, s := range r.symbolRegistry {
 		if s == sym {
-			return r.ToValue(key)
+			return stringValueFromRaw(key)
 		}
 	}
 	return _undefined
@@ -124,7 +125,9 @@ func (r *Runtime) createSymbol(val *Object) objectImpl {
 		symToStringTag,
 		symUnscopables,
 	} {
-		o._putProp(s.desc[len("Symbol."):], s, false, false, false)
+		n := s.desc.(asciiString)
+		n = n[len("Symbol(Symbol.") : len(n)-1]
+		o._putProp(unistring.String(n), s, false, false, false)
 	}
 
 	return o

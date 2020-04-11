@@ -1,6 +1,10 @@
 package goja
 
-import "reflect"
+import (
+	"reflect"
+
+	"github.com/dop251/goja/unistring"
+)
 
 // Proxy is a Go wrapper around ECMAScript Proxy. Calling Runtime.ToValue() on it
 // returns the underlying Proxy. Calling Export() on an ECMAScript Proxy returns a wrapper.
@@ -24,7 +28,7 @@ func (i *proxyPropIter) next() (propIterItem, iterNextFunc) {
 		name := i.names[i.idx]
 		i.idx++
 		if prop := i.p.val.getOwnProp(name); prop != nil {
-			return propIterItem{name: name.String(), value: prop}, i.next
+			return propIterItem{name: name.string(), value: prop}, i.next
 		}
 	}
 	if proto := i.p.proto(); proto != nil {
@@ -118,7 +122,7 @@ func (p *proxyObject) proxyCall(trap proxyTrap, args ...Value) (Value, bool) {
 		panic(r.NewTypeError("Proxy already revoked"))
 	}
 
-	if m := toMethod(r.getVStr(p.handler, trap.String())); m != nil {
+	if m := toMethod(r.getVStr(p.handler, unistring.String(trap.String()))); m != nil {
 		return m(FunctionCall{
 			This:      p.handler,
 			Arguments: args,
@@ -230,8 +234,8 @@ func (p *proxyObject) proxyDefineOwnProperty(name Value, descr PropertyDescripto
 	return false, false
 }
 
-func (p *proxyObject) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
-	if v, ok := p.proxyDefineOwnProperty(newStringValue(name), descr, throw); ok {
+func (p *proxyObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
+	if v, ok := p.proxyDefineOwnProperty(stringValueFromRaw(name), descr, throw); ok {
 		return v
 	}
 	return p.target.self.defineOwnPropertyStr(name, descr, throw)
@@ -271,8 +275,8 @@ func (p *proxyObject) proxyHas(name Value) (bool, bool) {
 	return false, false
 }
 
-func (p *proxyObject) hasPropertyStr(name string) bool {
-	if b, ok := p.proxyHas(newStringValue(name)); ok {
+func (p *proxyObject) hasPropertyStr(name unistring.String) bool {
+	if b, ok := p.proxyHas(stringValueFromRaw(name)); ok {
 		return b
 	}
 
@@ -295,7 +299,7 @@ func (p *proxyObject) hasPropertySym(s *valueSymbol) bool {
 	return p.target.self.hasPropertySym(s)
 }
 
-func (p *proxyObject) hasOwnPropertyStr(name string) bool {
+func (p *proxyObject) hasOwnPropertyStr(name unistring.String) bool {
 	return p.getOwnPropStr(name) != nil
 }
 
@@ -361,8 +365,8 @@ func (p *proxyObject) proxyGetOwnPropertyDescriptor(name Value) (Value, bool) {
 	return nil, false
 }
 
-func (p *proxyObject) getOwnPropStr(name string) Value {
-	if v, ok := p.proxyGetOwnPropertyDescriptor(newStringValue(name)); ok {
+func (p *proxyObject) getOwnPropStr(name unistring.String) Value {
+	if v, ok := p.proxyGetOwnPropertyDescriptor(stringValueFromRaw(name)); ok {
 		return v
 	}
 
@@ -385,8 +389,8 @@ func (p *proxyObject) getOwnPropSym(s *valueSymbol) Value {
 	return p.target.self.getOwnPropSym(s)
 }
 
-func (p *proxyObject) getStr(name string, receiver Value) Value {
-	if v, ok := p.proxyGet(newStringValue(name), receiver); ok {
+func (p *proxyObject) getStr(name unistring.String, receiver Value) Value {
+	if v, ok := p.proxyGet(stringValueFromRaw(name), receiver); ok {
 		return v
 	}
 	return p.target.self.getStr(name, receiver)
@@ -451,8 +455,8 @@ func (p *proxyObject) proxySet(name, value, receiver Value, throw bool) (bool, b
 	return false, false
 }
 
-func (p *proxyObject) setOwnStr(name string, v Value, throw bool) bool {
-	if res, ok := p.proxySet(newStringValue(name), v, p.val, throw); ok {
+func (p *proxyObject) setOwnStr(name unistring.String, v Value, throw bool) bool {
+	if res, ok := p.proxySet(stringValueFromRaw(name), v, p.val, throw); ok {
 		return res
 	}
 	return p.target.setStr(name, v, p.val, throw)
@@ -472,8 +476,8 @@ func (p *proxyObject) setOwnSym(s *valueSymbol, v Value, throw bool) bool {
 	return p.target.setSym(s, v, p.val, throw)
 }
 
-func (p *proxyObject) setForeignStr(name string, v, receiver Value, throw bool) (bool, bool) {
-	if res, ok := p.proxySet(newStringValue(name), v, receiver, throw); ok {
+func (p *proxyObject) setForeignStr(name unistring.String, v, receiver Value, throw bool) (bool, bool) {
+	if res, ok := p.proxySet(stringValueFromRaw(name), v, receiver, throw); ok {
 		return res, true
 	}
 	return p.target.setStr(name, v, receiver, throw), true
@@ -509,8 +513,8 @@ func (p *proxyObject) proxyDelete(n Value) (bool, bool) {
 	return false, false
 }
 
-func (p *proxyObject) deleteStr(name string, throw bool) bool {
-	if ret, ok := p.proxyDelete(newStringValue(name)); ok {
+func (p *proxyObject) deleteStr(name unistring.String, throw bool) bool {
+	if ret, ok := p.proxyDelete(stringValueFromRaw(name)); ok {
 		return ret
 	}
 
@@ -719,7 +723,7 @@ func (p *proxyObject) filterKeys(vals []Value, all, symbols bool) []Value {
 				}
 			} else {
 				if _, ok := val.(*valueSymbol); !ok {
-					prop = p.getOwnPropStr(val.String())
+					prop = p.getOwnPropStr(val.string())
 				} else {
 					continue
 				}
@@ -760,12 +764,17 @@ func (p *proxyObject) ownKeys(all bool, _ []Value) []Value { // we can assume ac
 	return p.target.self.ownKeys(all, nil)
 }
 
-func (p *proxyObject) ownSymbols() []Value {
+func (p *proxyObject) ownSymbols(all bool, accum []Value) []Value {
 	if vals, ok := p.proxyOwnKeys(); ok {
-		return p.filterKeys(vals, true, true)
+		res := p.filterKeys(vals, true, true)
+		if accum == nil {
+			return res
+		}
+		accum = append(accum, res...)
+		return accum
 	}
 
-	return p.target.self.ownSymbols()
+	return p.target.self.ownSymbols(all, accum)
 }
 
 func (p *proxyObject) className() string {

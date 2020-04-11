@@ -8,6 +8,7 @@ import (
 
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
+	"github.com/dop251/goja/unistring"
 )
 
 func firstErr(err error) error {
@@ -86,9 +87,9 @@ func TestParserErr(t *testing.T) {
 			return program, parser
 		}
 
-		program, parser := test("", nil)
+		test("", nil)
 
-		program, parser = test(`
+		program, parser := test(`
         var abc;
         break; do {
         } while(true);
@@ -513,7 +514,7 @@ func TestParser(t *testing.T) {
             abc()
         `, nil)
 
-		program := test("", nil)
+		test("", nil)
 
 		test("//", nil)
 
@@ -531,7 +532,7 @@ func TestParser(t *testing.T) {
 
 		test("new +", "(anonymous): Line 1:5 Unexpected token +")
 
-		program = test(";", nil)
+		program := test(";", nil)
 		is(len(program.Body), 1)
 		is(program.Body[0].(*ast.EmptyStatement).Semicolon, file.Idx(1))
 
@@ -874,71 +875,77 @@ func TestParser(t *testing.T) {
 
 func Test_parseStringLiteral(t *testing.T) {
 	tt(t, func() {
-		test := func(have, want string) {
-			have, err := parseStringLiteral(have)
+		test := func(have string, want unistring.String) {
+			parser := newParser("", have)
+			parser.read()
+			parser.read()
+			_, res, err := parser.scanString(0, true)
 			is(err, nil)
-			is(have, want)
+			is(res, want)
 		}
 
-		test("", "")
+		test(`""`, "")
+		test(`/=/`, "=")
 
-		test("1(\\\\d+)", "1(\\d+)")
+		test("'1(\\\\d+)'", "1(\\d+)")
 
-		test("\\u2029", "\u2029")
+		test("'\\u2029'", "\u2029")
 
-		test("abc\\uFFFFabc", "abc\uFFFFabc")
+		test("'abc\\uFFFFabc'", "abc\uFFFFabc")
 
-		test("[First line \\\nSecond line \\\n Third line\\\n.     ]",
+		test("'[First line \\\nSecond line \\\n Third line\\\n.     ]'",
 			"[First line Second line  Third line.     ]")
 
-		test("\\u007a\\x79\\u000a\\x78", "zy\nx")
+		test("'\\u007a\\x79\\u000a\\x78'", "zy\nx")
 
 		// S7.8.4_A4.2_T3
-		test("\\a", "a")
-		test("\u0410", "\u0410")
+		test("'\\a'", "a")
+		test("'\u0410'", "\u0410")
 
 		// S7.8.4_A5.1_T1
-		test("\\0", "\u0000")
+		test("'\\0'", "\u0000")
 
 		// S8.4_A5
-		test("\u0000", "\u0000")
+		test("'\u0000'", "\u0000")
 
 		// 15.5.4.20
-		test("'abc'\\\n'def'", "'abc''def'")
+		test("\"'abc'\\\n'def'\"", "'abc''def'")
 
 		// 15.5.4.20-4-1
-		test("'abc'\\\r\n'def'", "'abc''def'")
+		test("\"'abc'\\\r\n'def'\"", "'abc''def'")
 
 		// Octal
-		test("\\0", "\000")
-		test("\\00", "\000")
-		test("\\000", "\000")
-		test("\\09", "\0009")
-		test("\\009", "\0009")
-		test("\\0009", "\0009")
-		test("\\1", "\001")
-		test("\\01", "\001")
-		test("\\001", "\001")
-		test("\\0011", "\0011")
-		test("\\1abc", "\001abc")
+		test("'\\0'", "\000")
+		test("'\\00'", "\000")
+		test("'\\000'", "\000")
+		test("'\\09'", "\0009")
+		test("'\\009'", "\0009")
+		test("'\\0009'", "\0009")
+		test("'\\1'", "\001")
+		test("'\\01'", "\001")
+		test("'\\001'", "\001")
+		test("'\\0011'", "\0011")
+		test("'\\1abc'", "\001abc")
 
-		test("\\\u4e16", "\u4e16")
+		test("'\\\u4e16'", "\u4e16")
 
 		// err
-		test = func(have, want string) {
-			have, err := parseStringLiteral(have)
+		test = func(have string, want unistring.String) {
+			parser := newParser("", have)
+			parser.read()
+			parser.read()
+			_, res, err := parser.scanString(0, true)
 			is(err.Error(), want)
-			is(have, "")
+			is(res, "")
 		}
 
-		test(`\u`, `invalid escape: \u: len("") != 4`)
-		test(`\u0`, `invalid escape: \u: len("0") != 4`)
-		test(`\u00`, `invalid escape: \u: len("00") != 4`)
-		test(`\u000`, `invalid escape: \u: len("000") != 4`)
+		test(`"\u"`, `invalid escape: \u: len("") != 4`)
+		test(`"\u0"`, `invalid escape: \u: len("0") != 4`)
+		test(`"\u00"`, `invalid escape: \u: len("00") != 4`)
+		test(`"\u000"`, `invalid escape: \u: len("000") != 4`)
 
-		test(`\x`, `invalid escape: \x: len("") != 2`)
-		test(`\x0`, `invalid escape: \x: len("0") != 2`)
-		test(`\x0`, `invalid escape: \x: len("0") != 2`)
+		test(`"\x"`, `invalid escape: \x: len("") != 2`)
+		test(`"\x0"`, `invalid escape: \x: len("0") != 2`)
 	})
 }
 

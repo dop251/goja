@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strconv"
 	"unsafe"
+
+	"github.com/dop251/goja/unistring"
 )
 
 type byteOrder bool
@@ -458,15 +460,15 @@ func (a *typedArrayObject) _getIdx(idx int) Value {
 	return nil
 }
 
-func strToTAIdx(s string) (int, bool) {
-	i, err := strconv.ParseInt(s, 10, bits.UintSize)
+func strToTAIdx(s unistring.String) (int, bool) {
+	i, err := strconv.ParseInt(string(s), 10, bits.UintSize)
 	if err != nil {
 		return 0, false
 	}
 	return int(i), true
 }
 
-func (a *typedArrayObject) getOwnPropStr(name string) Value {
+func (a *typedArrayObject) getOwnPropStr(name unistring.String) Value {
 	if idx, ok := strToTAIdx(name); ok {
 		v := a._getIdx(idx)
 		if v != nil {
@@ -493,7 +495,7 @@ func (a *typedArrayObject) getOwnPropIdx(idx valueInt) Value {
 	return nil
 }
 
-func (a *typedArrayObject) getStr(name string, receiver Value) Value {
+func (a *typedArrayObject) getStr(name unistring.String, receiver Value) Value {
 	if idx, ok := strToTAIdx(name); ok {
 		prop := a._getIdx(idx)
 		if prop == nil {
@@ -538,7 +540,7 @@ func (a *typedArrayObject) _hasIdx(idx int) bool {
 	return idx >= 0 && idx < a.length
 }
 
-func (a *typedArrayObject) setOwnStr(p string, v Value, throw bool) bool {
+func (a *typedArrayObject) setOwnStr(p unistring.String, v Value, throw bool) bool {
 	if idx, ok := strToTAIdx(p); ok {
 		return a._putIdx(idx, v, throw)
 	}
@@ -549,7 +551,7 @@ func (a *typedArrayObject) setOwnIdx(p valueInt, v Value, throw bool) bool {
 	return a._putIdx(toInt(int64(p)), v, throw)
 }
 
-func (a *typedArrayObject) setForeignStr(p string, v, receiver Value, throw bool) (res bool, handled bool) {
+func (a *typedArrayObject) setForeignStr(p unistring.String, v, receiver Value, throw bool) (res bool, handled bool) {
 	return a._setForeignStr(p, a.getOwnPropStr(p), v, receiver, throw)
 }
 
@@ -557,7 +559,7 @@ func (a *typedArrayObject) setForeignIdx(p valueInt, v, receiver Value, throw bo
 	return a._setForeignIdx(p, trueValIfPresent(a.hasOwnPropertyIdx(p)), v, receiver, throw)
 }
 
-func (a *typedArrayObject) hasOwnPropertyStr(name string) bool {
+func (a *typedArrayObject) hasOwnPropertyStr(name unistring.String) bool {
 	if idx, ok := strToTAIdx(name); ok {
 		a.viewedArrayBuf.ensureNotDetached()
 		return idx < a.length
@@ -571,14 +573,14 @@ func (a *typedArrayObject) hasOwnPropertyIdx(idx valueInt) bool {
 }
 
 func (a *typedArrayObject) _defineIdxProperty(idx int, desc PropertyDescriptor, throw bool) bool {
-	prop, ok := a._defineOwnProperty(strconv.Itoa(idx), a.getOwnPropIdx(valueInt(idx)), desc, throw)
+	prop, ok := a._defineOwnProperty(unistring.String(strconv.Itoa(idx)), a.getOwnPropIdx(valueInt(idx)), desc, throw)
 	if ok {
 		return a._putIdx(idx, prop, throw)
 	}
 	return ok
 }
 
-func (a *typedArrayObject) defineOwnPropertyStr(name string, desc PropertyDescriptor, throw bool) bool {
+func (a *typedArrayObject) defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool {
 	if idx, ok := strToTAIdx(name); ok {
 		return a._defineIdxProperty(idx, desc, throw)
 	}
@@ -589,7 +591,7 @@ func (a *typedArrayObject) defineOwnPropertyIdx(name valueInt, desc PropertyDesc
 	return a._defineIdxProperty(toInt(int64(name)), desc, throw)
 }
 
-func (a *typedArrayObject) deleteStr(name string, throw bool) bool {
+func (a *typedArrayObject) deleteStr(name unistring.String, throw bool) bool {
 	if idx, ok := strToTAIdx(name); ok {
 		if idx < a.length {
 			a.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of %s", idx, a.val.String())
@@ -627,7 +629,7 @@ func (i *typedArrayPropIter) next() (propIterItem, iterNextFunc) {
 		name := strconv.Itoa(i.idx)
 		prop := i.a._getIdx(i.idx)
 		i.idx++
-		return propIterItem{name: name, value: prop}, i.next
+		return propIterItem{name: unistring.String(name), value: prop}, i.next
 	}
 
 	return i.a.baseObject.enumerateUnfiltered()()

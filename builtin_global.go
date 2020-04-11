@@ -2,12 +2,12 @@ package goja
 
 import (
 	"errors"
+	"github.com/dop251/goja/unistring"
 	"io"
 	"math"
 	"regexp"
 	"strconv"
 	"strings"
-	"unicode/utf16"
 	"unicode/utf8"
 )
 
@@ -95,7 +95,7 @@ func (r *Runtime) _encode(uriString valueString, unescaped *[256]bool) valueStri
 	reader = uriString.reader(0)
 	for {
 		rn, _, err := reader.ReadRune()
-		if err != nil {
+		if err == io.EOF {
 			break
 		}
 
@@ -189,7 +189,7 @@ func (r *Runtime) _decode(sv valueString, reservedSet *[256]bool) valueString {
 		us = append(us, rn)
 		t = t[size:]
 	}
-	return unicodeString(utf16.Encode(us))
+	return unicodeStringFromRunes(us)
 }
 
 func ishex(c byte) bool {
@@ -240,7 +240,7 @@ func (r *Runtime) builtin_escape(call FunctionCall) Value {
 	s := call.Argument(0).toString()
 	var sb strings.Builder
 	l := s.length()
-	for i := int64(0); i < l; i++ {
+	for i := 0; i < l; i++ {
 		r := uint16(s.charAt(i))
 		if r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' ||
 			r == '@' || r == '*' || r == '_' || r == '+' || r == '-' || r == '.' || r == '/' {
@@ -267,11 +267,12 @@ func (r *Runtime) builtin_unescape(call FunctionCall) Value {
 	var asciiBuf []byte
 	var unicodeBuf []uint16
 	if unicode {
-		unicodeBuf = make([]uint16, 0, l)
+		unicodeBuf = make([]uint16, 1, l+1)
+		unicodeBuf[0] = unistring.BOM
 	} else {
 		asciiBuf = make([]byte, 0, l)
 	}
-	for i := int64(0); i < l; {
+	for i := 0; i < l; {
 		r := s.charAt(i)
 		if r == '%' {
 			if i <= l-6 && s.charAt(i+1) == 'u' {
@@ -303,7 +304,8 @@ func (r *Runtime) builtin_unescape(call FunctionCall) Value {
 		}
 	out:
 		if r >= utf8.RuneSelf && !unicode {
-			unicodeBuf = make([]uint16, 0, l)
+			unicodeBuf = make([]uint16, 1, l+1)
+			unicodeBuf[0] = unistring.BOM
 			for _, b := range asciiBuf {
 				unicodeBuf = append(unicodeBuf, uint16(b))
 			}

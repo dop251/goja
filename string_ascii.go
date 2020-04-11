@@ -2,12 +2,14 @@ package goja
 
 import (
 	"fmt"
-	"hash"
+	"hash/maphash"
 	"io"
 	"math"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/dop251/goja/unistring"
 )
 
 type asciiString string
@@ -218,19 +220,19 @@ func (s asciiString) baseObject(r *Runtime) *Object {
 	return ss.val
 }
 
-func (s asciiString) hash(hash hash.Hash64) uint64 {
-	_, _ = hash.Write([]byte(s))
+func (s asciiString) hash(hash *maphash.Hash) uint64 {
+	_, _ = hash.WriteString(string(s))
 	h := hash.Sum64()
 	hash.Reset()
 	return h
 }
 
-func (s asciiString) charAt(idx int64) rune {
+func (s asciiString) charAt(idx int) rune {
 	return rune(s[idx])
 }
 
-func (s asciiString) length() int64 {
-	return int64(len(s))
+func (s asciiString) length() int {
+	return len(s)
 }
 
 func (s asciiString) concat(other valueString) valueString {
@@ -240,21 +242,21 @@ func (s asciiString) concat(other valueString) valueString {
 		copy(b, s)
 		copy(b[len(s):], other)
 		return asciiString(b)
-		//return asciiString(string(s) + string(other))
 	case unicodeString:
 		b := make([]uint16, len(s)+len(other))
+		b[0] = unistring.BOM
 		for i := 0; i < len(s); i++ {
-			b[i] = uint16(s[i])
+			b[i+1] = uint16(s[i])
 		}
-		copy(b[len(s):], other)
+		copy(b[len(s)+1:], other[1:])
 		return unicodeString(b)
 	default:
-		panic(fmt.Errorf("Unknown string type: %T", other))
+		panic(fmt.Errorf("unknown string type: %T", other))
 	}
 }
 
-func (s asciiString) substring(start, end int64) valueString {
-	return asciiString(s[start:end])
+func (s asciiString) substring(start, end int) valueString {
+	return s[start:end]
 }
 
 func (s asciiString) compareTo(other valueString) int {
@@ -264,13 +266,13 @@ func (s asciiString) compareTo(other valueString) int {
 	case unicodeString:
 		return strings.Compare(string(s), other.String())
 	default:
-		panic(fmt.Errorf("Unknown string type: %T", other))
+		panic(fmt.Errorf("unknown string type: %T", other))
 	}
 }
 
-func (s asciiString) index(substr valueString, start int64) int64 {
+func (s asciiString) index(substr valueString, start int) int {
 	if substr, ok := substr.(asciiString); ok {
-		p := int64(strings.Index(string(s[start:]), string(substr)))
+		p := strings.Index(string(s[start:]), string(substr))
 		if p >= 0 {
 			return p + start
 		}
@@ -278,16 +280,16 @@ func (s asciiString) index(substr valueString, start int64) int64 {
 	return -1
 }
 
-func (s asciiString) lastIndex(substr valueString, pos int64) int64 {
+func (s asciiString) lastIndex(substr valueString, pos int) int {
 	if substr, ok := substr.(asciiString); ok {
-		end := pos + int64(len(substr))
+		end := pos + len(substr)
 		var ss string
-		if end > int64(len(s)) {
+		if end > len(s) {
 			ss = string(s)
 		} else {
 			ss = string(s[:end])
 		}
-		return int64(strings.LastIndex(ss, string(substr)))
+		return strings.LastIndex(ss, string(substr))
 	}
 	return -1
 }
@@ -302,6 +304,10 @@ func (s asciiString) toUpper() valueString {
 
 func (s asciiString) toTrimmedUTF8() string {
 	return strings.TrimSpace(string(s))
+}
+
+func (s asciiString) string() unistring.String {
+	return unistring.String(s)
 }
 
 func (s asciiString) Export() interface{} {

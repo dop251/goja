@@ -1,6 +1,10 @@
 package goja
 
-import "reflect"
+import (
+	"reflect"
+
+	"github.com/dop251/goja/unistring"
+)
 
 type lazyObject struct {
 	val    *Object
@@ -61,7 +65,7 @@ func (o *lazyObject) hasOwnPropertySym(s *valueSymbol) bool {
 	return obj.hasOwnPropertySym(s)
 }
 
-func (o *lazyObject) defineOwnPropertyStr(name string, desc PropertyDescriptor, throw bool) bool {
+func (o *lazyObject) defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.defineOwnPropertyStr(name, desc, throw)
@@ -91,19 +95,19 @@ func (o *lazyObject) deleteSym(s *valueSymbol, throw bool) bool {
 	return obj.deleteSym(s, throw)
 }
 
-func (o *lazyObject) getStr(name string, receiver Value) Value {
+func (o *lazyObject) getStr(name unistring.String, receiver Value) Value {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.getStr(name, receiver)
 }
 
-func (o *lazyObject) getOwnPropStr(name string) Value {
+func (o *lazyObject) getOwnPropStr(name unistring.String) Value {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.getOwnPropStr(name)
 }
 
-func (o *lazyObject) setOwnStr(p string, v Value, throw bool) bool {
+func (o *lazyObject) setOwnStr(p unistring.String, v Value, throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.setOwnStr(p, v, throw)
@@ -121,7 +125,7 @@ func (o *lazyObject) setOwnSym(p *valueSymbol, v Value, throw bool) bool {
 	return obj.setOwnSym(p, v, throw)
 }
 
-func (o *lazyObject) setForeignStr(p string, v, receiver Value, throw bool) (bool, bool) {
+func (o *lazyObject) setForeignStr(p unistring.String, v, receiver Value, throw bool) (bool, bool) {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.setForeignStr(p, v, receiver, throw)
@@ -139,19 +143,19 @@ func (o *lazyObject) setForeignSym(p *valueSymbol, v, receiver Value, throw bool
 	return obj.setForeignSym(p, v, receiver, throw)
 }
 
-func (o *lazyObject) hasPropertyStr(name string) bool {
+func (o *lazyObject) hasPropertyStr(name unistring.String) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.hasPropertyStr(name)
 }
 
-func (o *lazyObject) hasOwnPropertyStr(name string) bool {
+func (o *lazyObject) hasOwnPropertyStr(name unistring.String) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.hasOwnPropertyStr(name)
 }
 
-func (o *lazyObject) _putProp(string, Value, bool, bool, bool) Value {
+func (o *lazyObject) _putProp(unistring.String, Value, bool, bool, bool) Value {
 	panic("cannot use _putProp() in lazy object")
 }
 
@@ -189,7 +193,7 @@ func (o *lazyObject) assertConstructor() func(args []Value, newTarget *Object) *
 	return obj.assertConstructor()
 }
 
-func (o *lazyObject) deleteStr(name string, throw bool) bool {
+func (o *lazyObject) deleteStr(name unistring.String, throw bool) bool {
 	obj := o.create(o.val)
 	o.val.self = obj
 	return obj.deleteStr(name, throw)
@@ -255,10 +259,10 @@ func (o *lazyObject) ownKeys(all bool, accum []Value) []Value {
 	return obj.ownKeys(all, accum)
 }
 
-func (o *lazyObject) ownSymbols() []Value {
+func (o *lazyObject) ownSymbols(all bool, accum []Value) []Value {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.ownSymbols()
+	return obj.ownSymbols(all, accum)
 }
 
 func (o *lazyObject) ownPropertyKeys(all bool, accum []Value) []Value {

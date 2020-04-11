@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -1146,7 +1147,7 @@ func TestInterruptInWrappedFunction(t *testing.T) {
 		rt.Interrupt(errors.New("hi"))
 	}()
 
-	v, err = fn(nil)
+	_, err = fn(nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1173,7 +1174,7 @@ func TestRunLoopPreempt(t *testing.T) {
 		vm.Interrupt(errors.New("hi"))
 	}()
 
-	v, err = fn(nil)
+	_, err = fn(nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1521,5 +1522,46 @@ func BenchmarkMainLoop(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		vm.RunProgram(prg)
+	}
+}
+
+func BenchmarkStringMapGet(b *testing.B) {
+	m := make(map[string]Value)
+	for i := 0; i < 100; i++ {
+		m[strconv.Itoa(i)] = intToValue(int64(i))
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if m["50"] == nil {
+			b.Fatal()
+		}
+	}
+}
+
+func BenchmarkValueStringMapGet(b *testing.B) {
+	m := make(map[valueString]Value)
+	for i := 0; i < 100; i++ {
+		m[asciiString(strconv.Itoa(i))] = intToValue(int64(i))
+	}
+	b.ResetTimer()
+	var key valueString = asciiString("50")
+	for i := 0; i < b.N; i++ {
+		if m[key] == nil {
+			b.Fatal()
+		}
+	}
+}
+
+func BenchmarkAsciiStringMapGet(b *testing.B) {
+	m := make(map[asciiString]Value)
+	for i := 0; i < 100; i++ {
+		m[asciiString(strconv.Itoa(i))] = intToValue(int64(i))
+	}
+	b.ResetTimer()
+	var key = asciiString("50")
+	for i := 0; i < b.N; i++ {
+		if m[key] == nil {
+			b.Fatal()
+		}
 	}
 }

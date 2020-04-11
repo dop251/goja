@@ -1,6 +1,10 @@
 package goja
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/dop251/goja/unistring"
+)
 
 func (r *Runtime) newNativeProxyHandler(nativeHandler *ProxyTrapConfig) *Object {
 	handler := r.NewObject()
@@ -22,14 +26,14 @@ func (r *Runtime) newNativeProxyHandler(nativeHandler *ProxyTrapConfig) *Object 
 
 func (r *Runtime) proxyproto_nativehandler_gen_obj_obj(name proxyTrap, native func(*Object) *Object, handler *Object) {
 	if native != nil {
-		handler.self._putProp(string(name), r.newNativeFunc(func(call FunctionCall) Value {
+		handler.self._putProp(unistring.String(name), r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 1 {
 				if t, ok := call.Argument(0).(*Object); ok {
 					return native(t)
 				}
 			}
 			panic(r.NewTypeError("%s needs to be called with target as Object", name))
-		}, nil, fmt.Sprintf("[native %s]", name), nil, 1), true, true, true)
+		}, nil, unistring.String(fmt.Sprintf("[native %s]", name)), nil, 1), true, true, true)
 	}
 }
 
@@ -51,7 +55,7 @@ func (r *Runtime) proxyproto_nativehandler_setPrototypeOf(native func(*Object, *
 
 func (r *Runtime) proxyproto_nativehandler_gen_obj_bool(name proxyTrap, native func(*Object) bool, handler *Object) {
 	if native != nil {
-		handler.self._putProp(string(name), r.newNativeFunc(func(call FunctionCall) Value {
+		handler.self._putProp(unistring.String(name), r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 1 {
 				if t, ok := call.Argument(0).(*Object); ok {
 					s := native(t)
@@ -59,7 +63,7 @@ func (r *Runtime) proxyproto_nativehandler_gen_obj_bool(name proxyTrap, native f
 				}
 			}
 			panic(r.NewTypeError("%s needs to be called with target as Object", name))
-		}, nil, fmt.Sprintf("[native %s]", name), nil, 1), true, true, true)
+		}, nil, unistring.String(fmt.Sprintf("[native %s]", name)), nil, 1), true, true, true)
 	}
 }
 
@@ -98,7 +102,7 @@ func (r *Runtime) proxyproto_nativehandler_defineProperty(native func(*Object, s
 
 func (r *Runtime) proxyproto_nativehandler_gen_obj_string_bool(name proxyTrap, native func(*Object, string) bool, handler *Object) {
 	if native != nil {
-		handler.self._putProp(string(name), r.newNativeFunc(func(call FunctionCall) Value {
+		handler.self._putProp(unistring.String(name), r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 2 {
 				if t, ok := call.Argument(0).(*Object); ok {
 					if p, ok := call.Argument(1).(valueString); ok {
@@ -108,7 +112,7 @@ func (r *Runtime) proxyproto_nativehandler_gen_obj_string_bool(name proxyTrap, n
 				}
 			}
 			panic(r.NewTypeError("%s needs to be called with target as Object and property as string", name))
-		}, nil, fmt.Sprintf("[native %s]", name), nil, 2), true, true, true)
+		}, nil, unistring.String(fmt.Sprintf("[native %s]", name)), nil, 2), true, true, true)
 	}
 }
 

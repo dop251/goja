@@ -2,10 +2,12 @@ package goja
 
 import (
 	"fmt"
+	"regexp"
+
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
-	"regexp"
+	"github.com/dop251/goja/unistring"
 )
 
 var (
@@ -60,18 +62,18 @@ type compiledAssignExpr struct {
 
 type deleteGlobalExpr struct {
 	baseCompiledExpr
-	name string
+	name unistring.String
 }
 
 type deleteVarExpr struct {
 	baseCompiledExpr
-	name string
+	name unistring.String
 }
 
 type deletePropExpr struct {
 	baseCompiledExpr
 	left compiledExpr
-	name string
+	name unistring.String
 }
 
 type deleteElemExpr struct {
@@ -91,7 +93,7 @@ type baseCompiledExpr struct {
 
 type compiledIdentifierExpr struct {
 	baseCompiledExpr
-	name string
+	name unistring.String
 }
 
 type compiledFunctionLiteral struct {
@@ -154,7 +156,7 @@ type compiledBinaryExpr struct {
 
 type compiledVariableExpr struct {
 	baseCompiledExpr
-	name        string
+	name        unistring.String
 	initializer compiledExpr
 	expr        *ast.VariableExpression
 }
@@ -320,7 +322,7 @@ func (e *compiledIdentifierExpr) emitGetterOrRef() {
 	}
 }
 
-func (c *compiler) emitVarSetter1(name string, offset int, emitRight func(isRef bool)) {
+func (c *compiler) emitVarSetter1(name unistring.String, offset int, emitRight func(isRef bool)) {
 	if c.scope.strict {
 		c.checkIdentifierLName(name, offset)
 	}
@@ -353,7 +355,7 @@ func (c *compiler) emitVarSetter1(name string, offset int, emitRight func(isRef 
 	}
 }
 
-func (c *compiler) emitVarSetter(name string, offset int, valueExpr compiledExpr) {
+func (c *compiler) emitVarSetter(name unistring.String, offset int, valueExpr compiledExpr) {
 	c.emitVarSetter1(name, offset, func(bool) {
 		c.emitExpr(valueExpr, true)
 	})
@@ -432,7 +434,7 @@ func (e *compiledIdentifierExpr) deleteExpr() compiledExpr {
 type compiledDotExpr struct {
 	baseCompiledExpr
 	left compiledExpr
-	name string
+	name unistring.String
 }
 
 func (e *compiledDotExpr) emitGetter(putOnStack bool) {
@@ -854,7 +856,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	e.c.popScope()
 	e.c.p = savedPrg
 	e.c.blockStart = savedBlockStart
-	name := ""
+	var name unistring.String
 	if e.expr.Name != nil {
 		name = e.expr.Name.Name
 	}
@@ -1444,7 +1446,7 @@ func (c *compiler) compileRegexpLiteral(v *ast.RegExpLiteral) compiledExpr {
 }
 
 func (e *compiledCallExpr) emitGetter(putOnStack bool) {
-	var calleeName string
+	var calleeName unistring.String
 	switch callee := e.callee.(type) {
 	case *compiledDotExpr:
 		callee.left.emitGetter(true)
@@ -1549,7 +1551,7 @@ func (c *compiler) compileNumberLiteral(v *ast.NumberLiteral) compiledExpr {
 
 func (c *compiler) compileStringLiteral(v *ast.StringLiteral) compiledExpr {
 	r := &compiledLiteral{
-		val: newStringValue(v.Value),
+		val: stringValueFromRaw(v.Value),
 	}
 	r.init(c, v.Idx0())
 	return r

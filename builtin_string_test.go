@@ -145,3 +145,25 @@ res.length === 3 && res[0] === "a" && res[1] === "b" && res[2] === "c";
 `
 	testScript1(SCRIPT, valueTrue, t)
 }
+
+func TestStringIterSurrPair(t *testing.T) {
+	const SCRIPT = `
+var lo = '\uD834';
+var hi = '\uDF06';
+var pair = lo + hi;
+var string = 'a' + pair + 'b' + lo + pair + hi + lo;
+var iterator = string[Symbol.iterator]();
+var result;
+
+result = iterator.next();
+if (result.value !== 'a') {
+	throw new Error("at 0: " + result.value);
+}
+result = iterator.next();
+if (result.value !== pair) {
+	throw new Error("at 1: " + result.value);
+}
+
+`
+	testScript1(SCRIPT, _undefined, t)
+}

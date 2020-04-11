@@ -12,6 +12,7 @@ package ast
 import (
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
+	"github.com/dop251/goja/unistring"
 	"github.com/go-sourcemap/sourcemap"
 )
 
@@ -98,7 +99,7 @@ type (
 	}
 
 	Identifier struct {
-		Name string
+		Name unistring.String
 		Idx  file.Idx
 	}
 
@@ -134,7 +135,7 @@ type (
 	}
 
 	Property struct {
-		Key   string
+		Key   unistring.String
 		Kind  string
 		Value Expression
 	}
@@ -153,7 +154,7 @@ type (
 	StringLiteral struct {
 		Idx     file.Idx
 		Literal string
-		Value   string
+		Value   unistring.String
 	}
 
 	ThisExpression struct {
@@ -168,7 +169,7 @@ type (
 	}
 
 	VariableExpression struct {
-		Name        string
+		Name        unistring.String
 		Idx         file.Idx
 		Initializer Expression
 	}

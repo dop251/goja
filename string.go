@@ -3,8 +3,11 @@ package goja
 import (
 	"io"
 	"strconv"
+	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/dop251/goja/unistring"
 )
 
 const (
@@ -46,37 +49,121 @@ var (
 
 type valueString interface {
 	Value
-	charAt(int64) rune
-	length() int64
+	charAt(int) rune
+	length() int
 	concat(valueString) valueString
-	substring(start, end int64) valueString
+	substring(start, end int) valueString
 	compareTo(valueString) int
 	reader(start int) io.RuneReader
-	index(valueString, int64) int64
-	lastIndex(valueString, int64) int64
+	index(valueString, int) int
+	lastIndex(valueString, int) int
 	toLower() valueString
 	toUpper() valueString
 	toTrimmedUTF8() string
 }
 
+type stringIterObject struct {
+	baseObject
+	reader io.RuneReader
+}
+
+func isUTF16FirstSurrogate(r rune) bool {
+	return r >= 0xD800 && r <= 0xDBFF
+}
+
+func isUTF16SecondSurrogate(r rune) bool {
+	return r >= 0xDC00 && r <= 0xDFFF
+}
+
+func (si *stringIterObject) next() Value {
+	if si.reader == nil {
+		return si.val.runtime.createIterResultObject(_undefined, true)
+	}
+	r, _, err := si.reader.ReadRune()
+	if err == io.EOF {
+		si.reader = nil
+		return si.val.runtime.createIterResultObject(_undefined, true)
+	}
+	return si.val.runtime.createIterResultObject(stringFromRune(r), false)
+}
+
+func stringFromRune(r rune) valueString {
+	if r < utf8.RuneSelf {
+		var sb strings.Builder
+		sb.Grow(1)
+		sb.WriteByte(byte(r))
+		return asciiString(sb.String())
+	}
+	var sb unicodeStringBuilder
+	if r <= 0xFFFF {
+		sb.Grow(1)
+	} else {
+		sb.Grow(2)
+	}
+	sb.writeRune(r)
+	return sb.string()
+}
+
+func (r *Runtime) createStringIterator(s valueString) Value {
+	o := &Object{runtime: r}
+
+	si := &stringIterObject{
+		reader: s.reader(0),
+	}
+	si.class = classStringIterator
+	si.val = o
+	si.extensible = true
+	o.self = si
+	si.prototype = r.global.StringIteratorPrototype
+	si.init()
+
+	return o
+}
+
 type stringObject struct {
 	baseObject
 	value      valueString
-	length     int64
+	length     int
 	lengthProp valueProperty
 }
 
-func newUnicodeString(s string) valueString {
-	return unicodeString(utf16.Encode([]rune(s)))
-}
-
 func newStringValue(s string) valueString {
+	utf16Size := 0
+	ascii := true
 	for _, chr := range s {
+		utf16Size++
 		if chr >= utf8.RuneSelf {
-			return newUnicodeString(s)
+			ascii = false
+			if chr > 0xFFFF {
+				utf16Size++
+			}
 		}
 	}
-	return asciiString(s)
+	if ascii {
+		return asciiString(s)
+	}
+	buf := make([]uint16, utf16Size+1)
+	buf[0] = unistring.BOM
+	c := 1
+	for _, chr := range s {
+		if chr <= 0xFFFF {
+			buf[c] = uint16(chr)
+		} else {
+			first, second := utf16.EncodeRune(chr)
+			buf[c] = uint16(first)
+			c++
+			buf[c] = uint16(second)
+		}
+		c++
+	}
+	return unicodeString(buf)
+}
+
+func stringValueFromRaw(raw unistring.String) valueString {
+	if b := raw.AsUtf16(); b != nil {
+		return unicodeString(b)
+	}
+	return asciiString(raw)
 }
 
 func (s *stringObject) init() {
@@ -88,12 +175,12 @@ func (s *stringObject) setLength() {
 	if s.value != nil {
 		s.length = s.value.length()
 	}
-	s.lengthProp.value = intToValue(s.length)
+	s.lengthProp.value = intToValue(int64(s.length))
 	s._put("length", &s.lengthProp)
 }
 
-func (s *stringObject) getStr(name string, receiver Value) Value {
-	if i := strToIdx64(name); i >= 0 && i < s.length {
+func (s *stringObject) getStr(name unistring.String, receiver Value) Value {
+	if i := strToGoIdx(name); i >= 0 && i < s.length {
 		return s._getIdx(i)
 	}
 	return s.baseObject.getStr(name, receiver)
@@ -102,16 +189,16 @@ func (s *stringObject) getStr(name string, receiver Value) Value {
 func (s *stringObject) getIdx(idx valueInt, receiver Value) Value {
 	i := int64(idx)
 	if i >= 0 {
-		if i < s.length {
-			return s._getIdx(i)
+		if i < int64(s.length) {
+			return s._getIdx(int(i))
 		}
 		return nil
 	}
-	return s.baseObject.getStr(idx.String(), receiver)
+	return s.baseObject.getStr(idx.string(), receiver)
 }
 
-func (s *stringObject) getOwnPropStr(name string) Value {
-	if i := strToIdx64(name); i >= 0 && i < s.length {
+func (s *stringObject) getOwnPropStr(name unistring.String) Value {
+	if i := strToGoIdx(name); i >= 0 && i < s.length {
 		val := s._getIdx(i)
 		return &valueProperty{
 			value:      val,
@@ -125,8 +212,8 @@ func (s *stringObject) getOwnPropStr(name string) Value {
 func (s *stringObject) getOwnPropIdx(idx valueInt) Value {
 	i := int64(idx)
 	if i >= 0 {
-		if i < s.length {
-			val := s._getIdx(i)
+		if i < int64(s.length) {
+			val := s._getIdx(int(i))
 			return &valueProperty{
 				value:      val,
 				enumerable: true,
@@ -135,15 +222,15 @@ func (s *stringObject) getOwnPropIdx(idx valueInt) Value {
 		return nil
 	}
 
-	return s.baseObject.getOwnPropStr(idx.String())
+	return s.baseObject.getOwnPropStr(idx.string())
 }
 
-func (s *stringObject) _getIdx(idx int64) Value {
+func (s *stringObject) _getIdx(idx int) Value {
 	return s.value.substring(idx, idx+1)
 }
 
-func (s *stringObject) setOwnStr(name string, val Value, throw bool) bool {
-	if i := strToIdx64(name); i >= 0 && i < s.length {
+func (s *stringObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
+	if i := strToGoIdx(name); i >= 0 && i < s.length {
 		s.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%d' of a String", i)
 		return false
 	}
@@ -153,15 +240,15 @@ func (s *stringObject) setOwnStr(name string, val Value, throw bool) bool {
 
 func (s *stringObject) setOwnIdx(idx valueInt, val Value, throw bool) bool {
 	i := int64(idx)
-	if i >= 0 && i < s.length {
+	if i >= 0 && i < int64(s.length) {
 		s.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%d' of a String", i)
 		return false
 	}
 
-	return s.baseObject.setOwnStr(idx.String(), val, throw)
+	return s.baseObject.setOwnStr(idx.string(), val, throw)
 }
 
-func (s *stringObject) setForeignStr(name string, val, receiver Value, throw bool) (bool, bool) {
+func (s *stringObject) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
 	return s._setForeignStr(name, s.getOwnPropStr(name), val, receiver, throw)
 }
 
@@ -169,8 +256,8 @@ func (s *stringObject) setForeignIdx(idx valueInt, val, receiver Value, throw bo
 	return s._setForeignIdx(idx, s.getOwnPropIdx(idx), val, receiver, throw)
 }
 
-func (s *stringObject) defineOwnPropertyStr(name string, descr PropertyDescriptor, throw bool) bool {
-	if i := strToIdx64(name); i >= 0 && i < s.length {
+func (s *stringObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
+	if i := strToGoIdx(name); i >= 0 && i < s.length {
 		s.val.runtime.typeErrorResult(throw, "Cannot redefine property: %d", i)
 		return false
 	}
@@ -180,25 +267,25 @@ func (s *stringObject) defineOwnPropertyStr(name string, descr PropertyDescripto
 
 func (s *stringObject) defineOwnPropertyIdx(idx valueInt, descr PropertyDescriptor, throw bool) bool {
 	i := int64(idx)
-	if i >= 0 && i < s.length {
+	if i >= 0 && i < int64(s.length) {
 		s.val.runtime.typeErrorResult(throw, "Cannot redefine property: %d", i)
 		return false
 	}
 
-	return s.baseObject.defineOwnPropertyStr(idx.String(), descr, throw)
+	return s.baseObject.defineOwnPropertyStr(idx.string(), descr, throw)
 }
 
 type stringPropIter struct {
 	str         valueString // separate, because obj can be the singleton
 	obj         *stringObject
-	idx, length int64
+	idx, length int
 }
 
 func (i *stringPropIter) next() (propIterItem, iterNextFunc) {
 	if i.idx < i.length {
-		name := strconv.FormatInt(i.idx, 10)
+		name := strconv.Itoa(i.idx)
 		i.idx++
-		return propIterItem{name: name, enumerable: _ENUM_TRUE}, i.next
+		return propIterItem{name: unistring.String(name), enumerable: _ENUM_TRUE}, i.next
 	}
 
 	return i.obj.baseObject.enumerateUnfiltered()()
@@ -213,15 +300,15 @@ func (s *stringObject) enumerateUnfiltered() iterNextFunc {
 }
 
 func (s *stringObject) ownKeys(all bool, accum []Value) []Value {
-	for i := int64(0); i < s.length; i++ {
-		accum = append(accum, asciiString(strconv.FormatInt(i, 10)))
+	for i := 0; i < s.length; i++ {
+		accum = append(accum, asciiString(strconv.Itoa(i)))
 	}
 
 	return s.baseObject.ownKeys(all, accum)
 }
 
-func (s *stringObject) deleteStr(name string, throw bool) bool {
-	if i := strToIdx64(name); i >= 0 && i < s.length {
+func (s *stringObject) deleteStr(name unistring.String, throw bool) bool {
+	if i := strToGoIdx(name); i >= 0 && i < s.length {
 		s.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of a String", i)
 		return false
 	}
@@ -231,16 +318,16 @@ func (s *stringObject) deleteStr(name string, throw bool) bool {
 
 func (s *stringObject) deleteIdx(idx valueInt, throw bool) bool {
 	i := int64(idx)
-	if i >= 0 && i < s.length {
+	if i >= 0 && i < int64(s.length) {
 		s.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of a String", i)
 		return false
 	}
 
-	return s.baseObject.deleteStr(idx.String(), throw)
+	return s.baseObject.deleteStr(idx.string(), throw)
 }
 
-func (s *stringObject) hasOwnPropertyStr(name string) bool {
-	if i := strToIdx64(name); i >= 0 && i < s.length {
+func (s *stringObject) hasOwnPropertyStr(name unistring.String) bool {
+	if i := strToGoIdx(name); i >= 0 && i < s.length {
 		return true
 	}
 	return s.baseObject.hasOwnPropertyStr(name)
@@ -248,8 +335,8 @@ func (s *stringObject) hasOwnPropertyStr(name string) bool {
 
 func (s *stringObject) hasOwnPropertyIdx(idx valueInt) bool {
 	i := int64(idx)
-	if i >= 0 && i < s.length {
+	if i >= 0 && i < int64(s.length) {
 		return true
 	}
-	return s.baseObject.hasOwnPropertyStr(idx.String())
+	return s.baseObject.hasOwnPropertyStr(idx.string())
 }
