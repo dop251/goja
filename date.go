@@ -96,3 +96,31 @@ func (d *dateObject) export() interface{} {
 	}
 	return nil
 }
+
+func (d *dateObject) setTime(year, m, day, hour, min, sec, nsec int64) Value {
+	t, ok := mkTime(year, m, day, hour, min, sec, nsec, time.Local)
+	if ok {
+		return d.setTimeMs(timeToMsec(t))
+	}
+	d.isSet = false
+	return _NaN
+}
+
+func (d *dateObject) setTimeUTC(year, m, day, hour, min, sec, nsec int64) Value {
+	t, ok := mkTime(year, m, day, hour, min, sec, nsec, time.UTC)
+	if ok {
+		t = t.In(time.Local)
+		return d.setTimeMs(timeToMsec(t))
+	}
+	d.isSet = false
+	return _NaN
+}
+
+func (d *dateObject) setTimeMs(ms int64) Value {
+	if ms >= 0 && ms <= maxTime || ms < 0 && ms >= -maxTime {
+		d.time = timeFromMsec(ms)
+		return intToValue(ms)
+	}
+	d.isSet = false
+	return _NaN
+}

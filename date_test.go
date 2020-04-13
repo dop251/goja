@@ -367,3 +367,26 @@ assert.sameValue(Date.parse(aboveRange), NaN, "parse above maximum time value");
 
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
+
+func TestDateZZZ(t *testing.T) {
+	const SCRIPT = `
+var date = new Date();
+var callCount = 0;
+var originalValue = date.getTime();
+var obj = {
+  valueOf: function() {
+    throw new Test262Error();
+  }
+};
+var counter = {
+  valueOf: function() {
+    callCount += 1;
+  }
+};
+
+assert.throws(Test262Error, function() {
+  date.setSeconds(obj, counter);
+});
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}

@@ -189,7 +189,7 @@ func (i valueInt) Equals(other Value) bool {
 	case valueBool:
 		return int64(i) == o.ToInteger()
 	case *Object:
-		return i.Equals(o.self.toPrimitiveNumber())
+		return i.Equals(o.toPrimitiveNumber())
 	}
 
 	return false
@@ -527,16 +527,20 @@ func (p *valueProperty) hash(*maphash.Hash) uint64 {
 	panic("valueProperty should never be used in maps or sets")
 }
 
-func (f valueFloat) ToInteger() int64 {
+func floatToIntClip(n float64) int64 {
 	switch {
-	case math.IsNaN(float64(f)):
+	case math.IsNaN(n):
 		return 0
-	case math.IsInf(float64(f), 1):
-		return int64(math.MaxInt64)
-	case math.IsInf(float64(f), -1):
-		return int64(math.MinInt64)
+	case n >= math.MaxInt64:
+		return math.MaxInt64
+	case n <= math.MinInt64:
+		return math.MinInt64
 	}
-	return int64(f)
+	return int64(n)
+}
+
+func (f valueFloat) ToInteger() int64 {
+	return floatToIntClip(float64(f))
 }
 
 func (f valueFloat) toString() valueString {
@@ -623,7 +627,7 @@ func (f valueFloat) Equals(other Value) bool {
 	case valueString, valueBool:
 		return float64(f) == o.ToFloat()
 	case *Object:
-		return f.Equals(o.self.toPrimitiveNumber())
+		return f.Equals(o.toPrimitiveNumber())
 	}
 
 	return false
@@ -660,27 +664,27 @@ func (f valueFloat) hash(*maphash.Hash) uint64 {
 }
 
 func (o *Object) ToInteger() int64 {
-	return o.self.toPrimitiveNumber().ToNumber().ToInteger()
+	return o.toPrimitiveNumber().ToNumber().ToInteger()
 }
 
 func (o *Object) toString() valueString {
-	return o.self.toPrimitiveString().toString()
+	return o.toPrimitiveString().toString()
 }
 
 func (o *Object) string() unistring.String {
-	return o.self.toPrimitiveString().string()
+	return o.toPrimitiveString().string()
 }
 
 func (o *Object) ToPrimitiveString() Value {
-	return o.self.toPrimitiveString().ToPrimitiveString()
+	return o.toPrimitiveString().ToPrimitiveString()
 }
 
 func (o *Object) String() string {
-	return o.self.toPrimitiveString().String()
+	return o.toPrimitiveString().String()
 }
 
 func (o *Object) ToFloat() float64 {
-	return o.self.toPrimitiveNumber().ToFloat()
+	return o.toPrimitiveNumber().ToFloat()
 }
 
 func (o *Object) ToBoolean() bool {
@@ -692,7 +696,7 @@ func (o *Object) ToObject(*Runtime) *Object {
 }
 
 func (o *Object) ToNumber() Value {
-	return o.self.toPrimitiveNumber().ToNumber()
+	return o.toPrimitiveNumber().ToNumber()
 }
 
 func (o *Object) SameAs(other Value) bool {
@@ -709,7 +713,7 @@ func (o *Object) Equals(other Value) bool {
 
 	switch o1 := other.(type) {
 	case valueInt, valueFloat, valueString:
-		return o.self.toPrimitive().Equals(other)
+		return o.toPrimitive().Equals(other)
 	case valueBool:
 		return o.Equals(o1.ToNumber())
 	}

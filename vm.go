@@ -133,7 +133,7 @@ func intToValue(i int64) Value {
 		}
 		return valueInt(i)
 	}
-	return valueFloat(float64(i))
+	return valueFloat(i)
 }
 
 func floatToInt(f float64) (result int64, ok bool) {
@@ -617,11 +617,11 @@ func (_add) exec(vm *vm) {
 	left := vm.stack[vm.sp-2]
 
 	if o, ok := left.(*Object); ok {
-		left = o.self.toPrimitive()
+		left = o.toPrimitive()
 	}
 
 	if o, ok := right.(*Object); ok {
-		right = o.self.toPrimitive()
+		right = o.toPrimitive()
 	}
 
 	var ret Value
@@ -1983,7 +1983,14 @@ func (_not) exec(vm *vm) {
 
 func toPrimitiveNumber(v Value) Value {
 	if o, ok := v.(*Object); ok {
-		return o.self.toPrimitiveNumber()
+		return o.toPrimitiveNumber()
+	}
+	return v
+}
+
+func toPrimitive(v Value) Value {
+	if o, ok := v.(*Object); ok {
+		return o.toPrimitive()
 	}
 	return v
 }

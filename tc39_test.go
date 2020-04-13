@@ -61,6 +61,8 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/String/super-must-be-called.js":          true,
 		"test/language/statements/class/subclass/builtin-objects/String/regular-subclassing.js":           true,
 		"test/language/statements/class/subclass/builtin-objects/String/length.js":                        true,
+		"test/language/statements/class/subclass/builtin-objects/Date/super-must-be-called.js":            true,
+		"test/language/statements/class/subclass/builtin-objects/Date/regular-subclassing.js":             true,
 
 		// full unicode regexp flag
 		"test/built-ins/RegExp/prototype/Symbol.match/u-advance-after-empty.js":               true,
@@ -106,6 +108,7 @@ var (
 		"12.9.4",
 		"19.1",
 		"19.4",
+		"20.3",
 		"21.1",
 		"21.2.5.6",
 		"22.1.2.1",
@@ -130,6 +133,7 @@ var (
 		"sec-array.prototype.includes",
 		"sec-%typedarray%",
 		"sec-string.prototype",
+		"sec-date",
 	}
 )
 

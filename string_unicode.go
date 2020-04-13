@@ -208,7 +208,7 @@ func (s unicodeString) Equals(other Value) bool {
 	}
 
 	if o, ok := other.(*Object); ok {
-		return s.Equals(o.self.toPrimitive())
+		return s.Equals(o.toPrimitive())
 	}
 	return false
 }
