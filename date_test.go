@@ -367,3 +367,13 @@ assert.sameValue(Date.parse(aboveRange), NaN, "parse above maximum time value");
 
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
+
+func TestDateMaxValues(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue((new Date(0)).setUTCMilliseconds(8.64e15), 8.64e15);
+	assert.sameValue((new Date(0)).setUTCSeconds(8640000000000), 8.64e15);
+	assert.sameValue((new Date(0)).setUTCMilliseconds(-8.64e15), -8.64e15);
+	assert.sameValue((new Date(0)).setUTCSeconds(-8640000000000), -8.64e15);
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}

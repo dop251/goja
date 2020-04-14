@@ -1963,3 +1963,11 @@ func isRegexp(v Value) bool {
 	}
 	return false
 }
+
+func limitCallArgs(call FunctionCall, n int) FunctionCall {
+	if len(call.Arguments) > n {
+		return FunctionCall{This: call.This, Arguments: call.Arguments[:n]}
+	} else {
+		return call
+	}
+}

@@ -31,6 +31,12 @@ const (
 	classStringIterator = "String Iterator"
 )
 
+var (
+	hintDefault Value = asciiString("default")
+	hintNumber  Value = asciiString("number")
+	hintString  Value = asciiString("string")
+)
+
 type weakCollection interface {
 	removeId(uint64)
 }
@@ -802,19 +808,8 @@ func (o *baseObject) _putSym(s *valueSymbol, prop Value) {
 	o.symValues.set(s, prop)
 }
 
-func (o *baseObject) tryExoticToPrimitive(hint string) Value {
-	exoticToPrimitive := toMethod(o.getSym(symToPrimitive, nil))
-	if exoticToPrimitive != nil {
-		return exoticToPrimitive(FunctionCall{
-			This:      o.val,
-			Arguments: []Value{newStringValue(hint)},
-		})
-	}
-	return nil
-}
-
-func (o *baseObject) tryPrimitive(methodName string) Value {
-	if method, ok := o.val.self.getStr(unistring.String(methodName), nil).(*Object); ok {
+func (o *baseObject) tryPrimitive(methodName unistring.String) Value {
+	if method, ok := o.val.self.getStr(methodName, nil).(*Object); ok {
 		if call, ok := method.self.assertCallable(); ok {
 			v := call(FunctionCall{
 				This: o.val,
@@ -828,10 +823,6 @@ func (o *baseObject) tryPrimitive(methodName string) Value {
 }
 
 func (o *baseObject) toPrimitiveNumber() Value {
-	if v := o.tryExoticToPrimitive("number"); v != nil {
-		return v
-	}
-
 	if v := o.tryPrimitive("valueOf"); v != nil {
 		return v
 	}
@@ -845,10 +836,6 @@ func (o *baseObject) toPrimitiveNumber() Value {
 }
 
 func (o *baseObject) toPrimitiveString() Value {
-	if v := o.tryExoticToPrimitive("string"); v != nil {
-		return v
-	}
-
 	if v := o.tryPrimitive("toString"); v != nil {
 		return v
 	}
@@ -862,7 +849,54 @@ func (o *baseObject) toPrimitiveString() Value {
 }
 
 func (o *baseObject) toPrimitive() Value {
-	return o.toPrimitiveNumber()
+	if v := o.tryPrimitive("valueOf"); v != nil {
+		return v
+	}
+
+	if v := o.tryPrimitive("toString"); v != nil {
+		return v
+	}
+
+	o.val.runtime.typeErrorResult(true, "Could not convert %v to primitive", o)
+	return nil
+}
+
+func (o *Object) tryExoticToPrimitive(hint Value) Value {
+	exoticToPrimitive := toMethod(o.self.getSym(symToPrimitive, nil))
+	if exoticToPrimitive != nil {
+		ret := exoticToPrimitive(FunctionCall{
+			This:      o,
+			Arguments: []Value{hint},
+		})
+		if _, fail := ret.(*Object); !fail {
+			return ret
+		}
+		panic(o.runtime.NewTypeError("Cannot convert object to primitive value"))
+	}
+	return nil
+}
+
+func (o *Object) toPrimitiveNumber() Value {
+	if v := o.tryExoticToPrimitive(hintNumber); v != nil {
+		return v
+	}
+
+	return o.self.toPrimitiveNumber()
+}
+
+func (o *Object) toPrimitiveString() Value {
+	if v := o.tryExoticToPrimitive(hintString); v != nil {
+		return v
+	}
+
+	return o.self.toPrimitiveString()
+}
+
+func (o *Object) toPrimitive() Value {
+	if v := o.tryExoticToPrimitive(hintDefault); v != nil {
+		return v
+	}
+	return o.self.toPrimitive()
 }
 
 func (o *baseObject) assertCallable() (func(FunctionCall) Value, bool) {
