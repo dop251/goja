@@ -2032,6 +2032,17 @@ func TestReturnFromForInLoop(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestReturnFromForOfLoop(t *testing.T) {
+	const SCRIPT = `
+	(function f() {
+		for (var i of [1]) {
+			return true;
+		}
+	})();
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func TestIfStackLeaks(t *testing.T) {
 	const SCRIPT = `
 	var t = 0;

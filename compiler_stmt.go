@@ -345,7 +345,7 @@ func (c *compiler) compileForOfStatement(v *ast.ForOfStatement, needResult bool)
 
 func (c *compiler) compileLabeledForOfStatement(v *ast.ForOfStatement, needResult bool, label unistring.String) {
 	c.block = &block{
-		typ:        blockLoop,
+		typ:        blockLoopEnum,
 		outer:      c.block,
 		label:      label,
 		needResult: needResult,
