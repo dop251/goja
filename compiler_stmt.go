@@ -310,7 +310,7 @@ func (c *compiler) compileForInStatement(v *ast.ForInStatement, needResult bool)
 
 func (c *compiler) compileLabeledForInStatement(v *ast.ForInStatement, needResult bool, label unistring.String) {
 	c.block = &block{
-		typ:        blockLoop,
+		typ:        blockLoopEnum,
 		outer:      c.block,
 		label:      label,
 		needResult: needResult,
@@ -463,7 +463,7 @@ func (c *compiler) findBranchBlock(st *ast.BranchStatement) *block {
 func (c *compiler) findContinueBlock(label *ast.Identifier) (block *block) {
 	if label != nil {
 		for b := c.block; b != nil; b = b.outer {
-			if b.typ == blockLoop && b.label == label.Name {
+			if (b.typ == blockLoop || b.typ == blockLoopEnum) && b.label == label.Name {
 				block = b
 				break
 			}
@@ -471,7 +471,7 @@ func (c *compiler) findContinueBlock(label *ast.Identifier) (block *block) {
 	} else {
 		// find the nearest loop
 		for b := c.block; b != nil; b = b.outer {
-			if b.typ == blockLoop {
+			if b.typ == blockLoop || b.typ == blockLoopEnum {
 				block = b
 				break
 			}
@@ -494,7 +494,7 @@ func (c *compiler) findBreakBlock(label *ast.Identifier) (block *block) {
 	L:
 		for b := c.block; b != nil; b = b.outer {
 			switch b.typ {
-			case blockLoop, blockSwitch:
+			case blockLoop, blockLoopEnum, blockSwitch:
 				block = b
 				break L
 			}
@@ -532,7 +532,7 @@ func (c *compiler) compileBreak(label *ast.Identifier, idx file.Idx) {
 				c.emit(halt)
 			case blockWith:
 				c.emit(leaveWith)
-			case blockLoop, blockSwitch:
+			case blockLoop, blockLoopEnum, blockSwitch:
 				block = b
 				break L
 			}
@@ -556,7 +556,7 @@ func (c *compiler) compileContinue(label *ast.Identifier, idx file.Idx) {
 		for b := c.block; b != nil; b = b.outer {
 			if b.typ == blockTry {
 				c.emit(halt)
-			} else if b.typ == blockLoop && b.label == label.Name {
+			} else if (b.typ == blockLoop || b.typ == blockLoopEnum) && b.label == label.Name {
 				block = b
 				break
 			}
@@ -570,7 +570,7 @@ func (c *compiler) compileContinue(label *ast.Identifier, idx file.Idx) {
 		for b := c.block; b != nil; b = b.outer {
 			if b.typ == blockTry {
 				c.emit(halt)
-			} else if b.typ == blockLoop {
+			} else if b.typ == blockLoop || b.typ == blockLoopEnum {
 				block = b
 				break
 			}
@@ -637,10 +637,14 @@ func (c *compiler) compileIfStatement(v *ast.IfStatement, needResult bool) {
 		c.p.code[jmp1] = jump(len(c.p.code) - jmp1)
 		c.markBlockStart()
 	} else {
-		c.p.code[jmp] = jne(len(c.p.code) - jmp)
-		c.markBlockStart()
 		if needResult {
+			c.emit(jump(2))
+			c.p.code[jmp] = jne(len(c.p.code) - jmp)
 			c.emit(loadUndef)
+			c.markBlockStart()
+		} else {
+			c.p.code[jmp] = jne(len(c.p.code) - jmp)
+			c.markBlockStart()
 		}
 	}
 }
@@ -653,8 +657,11 @@ func (c *compiler) compileReturnStatement(v *ast.ReturnStatement) {
 		c.emit(loadUndef)
 	}
 	for b := c.block; b != nil; b = b.outer {
-		if b.typ == blockTry {
+		switch b.typ {
+		case blockTry:
 			c.emit(halt)
+		case blockLoopEnum:
+			c.emit(enumPop)
 		}
 	}
 	c.emit(ret)

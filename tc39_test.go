@@ -297,6 +297,14 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 			t.Fatalf("%s: Expected error: %v", name, err)
 		}
 	}
+
+	if vm.vm.sp != 0 {
+		t.Fatalf("sp: %d", vm.vm.sp)
+	}
+
+	if l := len(vm.vm.iterStack); l > 0 {
+		t.Fatalf("iter stack is not empty: %d", l)
+	}
 }
 
 func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {

@@ -67,6 +67,10 @@ func testScript1(script string, expectedResult Value, t *testing.T) {
 	if vm.sp != 0 {
 		t.Fatalf("sp: %d", vm.sp)
 	}
+
+	if l := len(vm.iterStack); l > 0 {
+		t.Fatalf("iter stack is not empty: %d", l)
+	}
 }
 
 func TestEmptyProgram(t *testing.T) {
@@ -2015,6 +2019,27 @@ func TestForOfReturn(t *testing.T) {
 	assert.sameValue(callCount, 1, 'Iterator is closed');
 	`
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestReturnFromForInLoop(t *testing.T) {
+	const SCRIPT = `
+	(function f() {
+		for (var i in {a: 1}) {
+			return true;
+		}
+	})();
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestIfStackLeaks(t *testing.T) {
+	const SCRIPT = `
+	var t = 0;
+	if (t === 0) {
+		t;
+	}
+	`
+	testScript1(SCRIPT, _positiveZero, t)
 }
 
 // FIXME
