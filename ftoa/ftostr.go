@@ -36,6 +36,9 @@ var (
 	big5  = big.NewInt(5)
 	big10 = big.NewInt(10)
 
+	p05       = []*big.Int{big5, big.NewInt(25), big.NewInt(125)}
+	pow5Cache [7]*big.Int
+
 	dtoaModes = []int{
 		ModeStandard:            0,
 		ModeStandardExponential: 0,
@@ -100,7 +103,8 @@ func ftoa(d float64, mode int, biasUp bool, ndigits int, buf []byte) ([]byte, in
 	if sign {
 		buf = append(buf, '-')
 	}
-	b, be, bbits := d2b(d)
+	b := new(big.Int)
+	be, bbits := d2b(d, b)
 	i := int((word0 >> exp_shift1) & (exp_mask >> exp_shift1))
 	var d2 float64
 	var denorm bool
@@ -534,9 +538,8 @@ func ftoa(d float64, mode int, biasUp bool, ndigits int, buf []byte) ([]byte, in
 		}
 		/* mlo/S = maximum acceptable error, divided by 10^k, if the output is less than d. */
 		/* mhi/S = maximum acceptable error, divided by 10^k, if the output is greater than d. */
-
+		var z, delta big.Int
 		for i = 1; ; i++ {
-			z := new(big.Int)
 			z.DivMod(b, S, b)
 			dig = byte(z.Int64() + '0')
 			/* Do we yet have the shortest decimal string
@@ -544,12 +547,12 @@ func ftoa(d float64, mode int, biasUp bool, ndigits int, buf []byte) ([]byte, in
 			 */
 			j = b.Cmp(mlo)
 			/* j is b/S compared with mlo/S. */
-			delta := new(big.Int).Sub(S, mhi)
+			delta.Sub(S, mhi)
 			var j1 int
 			if delta.Sign() <= 0 {
 				j1 = 1
 			} else {
-				j1 = b.Cmp(delta)
+				j1 = b.Cmp(&delta)
 			}
 			/* j1 is b/S compared with 1 - mhi/S. */
 			if (j1 == 0) && (mode == 0) && ((_word1(d) & 1) == 0) {
@@ -560,13 +563,13 @@ func ftoa(d float64, mode int, biasUp bool, ndigits int, buf []byte) ([]byte, in
 						k++
 						buf = append(buf, '1')
 					}
-					return buf, int(k + 1)
+					return buf, k + 1
 				}
 				if j > 0 {
 					dig++
 				}
 				buf = append(buf, dig)
-				return buf, int(k + 1)
+				return buf, k + 1
 			}
 			if (j < 0) || ((j == 0) && (mode == 0) && ((_word1(d) & 1) == 0)) {
 				if j1 > 0 {
@@ -583,28 +586,25 @@ func ftoa(d float64, mode int, biasUp bool, ndigits int, buf []byte) ([]byte, in
 								k++
 								buf = append(buf, '1')
 							}
-							return buf, int(k + 1)
+							return buf, k + 1
 						}
 					}
 				}
 				buf = append(buf, dig)
-				return buf, int(k + 1)
+				return buf, k + 1
 			}
 			if j1 > 0 {
 				if dig == '9' { /* possible if i == 1 */
-					//                    round_9_up:
-					//                        *s++ = '9';
-					//                        goto roundoff;
 					buf = append(buf, '9')
 					buf, flag := roundOff(buf)
 					if flag {
 						k++
 						buf = append(buf, '1')
 					}
-					return buf, int(k + 1)
+					return buf, k + 1
 				}
 				buf = append(buf, dig+1)
-				return buf, int(k + 1)
+				return buf, k + 1
 			}
 			buf = append(buf, dig)
 			if i == ilim {
@@ -619,9 +619,8 @@ func ftoa(d float64, mode int, biasUp bool, ndigits int, buf []byte) ([]byte, in
 			}
 		}
 	} else {
+		var z big.Int
 		for i = 1; ; i++ {
-			//                (char)(dig = quorem(b,S) + '0');
-			z := new(big.Int)
 			z.DivMod(b, S, b)
 			dig = byte(z.Int64() + '0')
 			buf = append(buf, dig)
@@ -642,13 +641,13 @@ func ftoa(d float64, mode int, biasUp bool, ndigits int, buf []byte) ([]byte, in
 		if flag {
 			k++
 			buf = append(buf, '1')
-			return buf, int(k + 1)
+			return buf, k + 1
 		}
 	} else {
 		buf = stripTrailingZeroes(buf)
 	}
 
-	return buf, int(k + 1)
+	return buf, k + 1
 }
 
 func insert(b []byte, p int, c byte) []byte {
@@ -656,6 +655,16 @@ func insert(b []byte, p int, c byte) []byte {
 	copy(b[p+1:], b[p:])
 	b[p] = c
 	return b
+}
+
+func expand(b []byte, delta int) []byte {
+	newLen := len(b) + delta
+	if newLen <= cap(b) {
+		return b[:newLen]
+	}
+	b1 := make([]byte, newLen)
+	copy(b1, b)
+	return b1
 }
 
 func FToStr(d float64, mode FToStrMode, precision int, buffer []byte) []byte {
@@ -736,10 +745,13 @@ func FToStr(d float64, mode FToStrMode, precision int, buffer []byte) []byte {
 				if sign {
 					o = 1
 				}
-				for i := 0; i < 1-decPt; i++ {
-					buffer = insert(buffer, o, '0')
+				buffer = expand(buffer, 2-decPt)
+				copy(buffer[o+2-decPt:], buffer[o:])
+				buffer[o] = '0'
+				buffer[o+1] = '.'
+				for i := o + 2; i < o+2-decPt; i++ {
+					buffer[i] = '0'
 				}
-				buffer = insert(buffer, o+1, '.')
 			}
 		}
 	}
@@ -792,8 +804,26 @@ func stripTrailingZeroes(buf []byte) []byte {
 }
 
 /* Set b = b * 5^k.  k must be nonnegative. */
-// XXXX the C version built a cache of these
 func pow5mult(b *big.Int, k int) *big.Int {
+	if k < (1 << (len(pow5Cache) + 2)) {
+		i := k & 3
+		if i != 0 {
+			b.Mul(b, p05[i-1])
+		}
+		k >>= 2
+		i = 0
+		for {
+			if k&1 != 0 {
+				b.Mul(b, pow5Cache[i])
+			}
+			k >>= 1
+			if k == 0 {
+				break
+			}
+			i++
+		}
+		return b
+	}
 	return b.Mul(b, new(big.Int).Exp(big5, big.NewInt(int64(k)), nil))
 }
 
@@ -811,4 +841,13 @@ func roundOff(buf []byte) ([]byte, bool) {
 		}
 	}
 	return buf[:stop], true
+}
+
+func init() {
+	p := big.NewInt(625)
+	pow5Cache[0] = p
+	for i := 1; i < len(pow5Cache); i++ {
+		p = new(big.Int).Mul(p, p)
+		pow5Cache[i] = p
+	}
 }

@@ -2,6 +2,7 @@ package ftoa
 
 import (
 	"math"
+	"strconv"
 	"testing"
 )
 
@@ -31,7 +32,40 @@ func TestDtostr(t *testing.T) {
 	testFToStr(8.85, ModeExponential, 2, "8.8e+0", t)
 	testFToStr(885, ModeExponential, 2, "8.9e+2", t)
 	testFToStr(25, ModeExponential, 1, "3e+1", t)
+	testFToStr(1e-6, ModeFixed, 7, "0.0000010", t)
 	testFToStr(math.Inf(1), ModeStandard, 0, "Infinity", t)
 	testFToStr(math.NaN(), ModeStandard, 0, "NaN", t)
 	testFToStr(math.SmallestNonzeroFloat64, ModeExponential, 40, "4.940656458412465441765687928682213723651e-324", t)
+}
+
+func BenchmarkDtostrSmall(b *testing.B) {
+	var buf [128]byte
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		FToStr(math.Pi, ModeExponential, 0, buf[:0])
+	}
+}
+
+func BenchmarkDtostrBig(b *testing.B) {
+	var buf [128]byte
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		FToStr(math.SmallestNonzeroFloat64, ModeExponential, 40, buf[:0])
+	}
+}
+
+func BenchmarkAppendFloatBig(b *testing.B) {
+	var buf [128]byte
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		strconv.AppendFloat(buf[:0], math.SmallestNonzeroFloat64, 'e', 40, 64)
+	}
+}
+
+func BenchmarkAppendFloatSmall(b *testing.B) {
+	var buf [128]byte
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		strconv.AppendFloat(buf[:0], math.Pi, 'e', -1, 64)
+	}
 }

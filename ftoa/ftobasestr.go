@@ -64,7 +64,8 @@ func FToBaseStr(num float64, radix int) string {
 		word0 := uint32(dBits >> 32)
 		word1 := uint32(dBits)
 
-		b, e, _ := d2b(df)
+		b := new(big.Int)
+		e, _ := d2b(df, b)
 		//            JS_ASSERT(e < 0);
 		/* At this point df = b * 2^e.  e must be less than zero because 0 < df < 1. */
 

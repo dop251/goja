@@ -97,7 +97,7 @@ func stuffBits(bits []byte, offset int, val uint32) {
 	bits[offset+3] = byte(val)
 }
 
-func d2b(d float64) (b *big.Int, e, bits int) {
+func d2b(d float64, bi *big.Int) (e, bits int) {
 	dBits := math.Float64bits(d)
 	d0 := uint32(dBits >> 32)
 	d1 := uint32(dBits)
@@ -144,6 +144,6 @@ func d2b(d float64) (b *big.Int, e, bits int) {
 		e = de - bias - (p - 1) + 1 + k
 		bits = 32*i - hi0bits(z)
 	}
-	b = (&big.Int{}).SetBytes(dbl_bits)
+	bi.SetBytes(dbl_bits)
 	return
 }
