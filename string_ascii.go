@@ -47,14 +47,11 @@ func strToInt(ss string) (int64, error) {
 	if len(ss) > 2 {
 		switch ss[:2] {
 		case "0x", "0X":
-			i, _ := strconv.ParseInt(ss[2:], 16, 64)
-			return i, nil
+			return strconv.ParseInt(ss[2:], 16, 64)
 		case "0b", "0B":
-			i, _ := strconv.ParseInt(ss[2:], 2, 64)
-			return i, nil
+			return strconv.ParseInt(ss[2:], 2, 64)
 		case "0o", "0O":
-			i, _ := strconv.ParseInt(ss[2:], 8, 64)
-			return i, nil
+			return strconv.ParseInt(ss[2:], 8, 64)
 		}
 	}
 	return strconv.ParseInt(ss, 10, 64)

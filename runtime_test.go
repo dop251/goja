@@ -137,6 +137,29 @@ func TestFractionalNumberToStringRadix(t *testing.T) {
 	testScript1(SCRIPT, asciiString("3f.gez4w97ry"), t)
 }
 
+func TestNumberFormatRounding(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue((123.456).toExponential(undefined), "1.23456e+2", "undefined");
+	assert.sameValue((0.000001).toPrecision(2), "0.0000010")
+	assert.sameValue((-7).toPrecision(1), "-7");
+	assert.sameValue((-42).toPrecision(1), "-4e+1");
+	assert.sameValue((0.000001).toPrecision(1), "0.000001");
+	assert.sameValue((123.456).toPrecision(1), "1e+2", "1");
+	assert.sameValue((123.456).toPrecision(2), "1.2e+2", "2");
+
+	var n = new Number("0.000000000000000000001"); // 1e-21
+	assert.sameValue((n).toPrecision(1), "1e-21");
+	assert.sameValue((25).toExponential(0), "3e+1");
+	assert.sameValue((-25).toExponential(0), "-3e+1");
+	assert.sameValue((12345).toExponential(3), "1.235e+4");
+	assert.sameValue((25.5).toFixed(0), "26");
+	assert.sameValue((-25.5).toFixed(0), "-26");
+	assert.sameValue((99.9).toFixed(0), "100");
+	assert.sameValue((99.99).toFixed(1), "100.0");
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 func TestSetFunc(t *testing.T) {
 	const SCRIPT = `
 	sum(40, 2);

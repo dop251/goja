@@ -341,6 +341,7 @@ func (r *Runtime) init() {
 	r.initFunction()
 	r.initArray()
 	r.initString()
+	r.initGlobalObject()
 	r.initNumber()
 	r.initRegExp()
 	r.initDate()
@@ -352,8 +353,6 @@ func (r *Runtime) init() {
 
 	r.global.Eval = r.newNativeFunc(r.builtin_eval, nil, "eval", nil, 1)
 	r.addToGlobal("eval", r.global.Eval)
-
-	r.initGlobalObject()
 
 	r.initMath()
 	r.initJSON()
@@ -1816,6 +1815,18 @@ func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
 		}
 		panic(r.NewTypeError("Value is not an object: %s", s))
 	}
+}
+
+func (r *Runtime) toNumber(v Value) Value {
+	switch o := v.(type) {
+	case valueInt, valueFloat:
+		return v
+	case *Object:
+		if pvo, ok := o.self.(*primitiveValueObject); ok {
+			return r.toNumber(pvo.pValue)
+		}
+	}
+	panic(r.NewTypeError("Value is not a number: %s", v))
 }
 
 func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value, newTarget *Object) *Object {

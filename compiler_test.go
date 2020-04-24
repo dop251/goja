@@ -890,10 +890,10 @@ func TestPostDecObj(t *testing.T) {
 
 func TestPropAcc1(t *testing.T) {
 	const SCRIPT = `
-	1..toString() === "1"
+	1..toString()
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript1(SCRIPT, asciiString("1"), t)
 }
 
 func TestEvalDirect(t *testing.T) {

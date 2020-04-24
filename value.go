@@ -4,10 +4,10 @@ import (
 	"hash/maphash"
 	"math"
 	"reflect"
-	"regexp"
 	"strconv"
 	"unsafe"
 
+	"github.com/dop251/goja/ftoa"
 	"github.com/dop251/goja/unistring"
 )
 
@@ -136,6 +136,11 @@ func propSetter(o Value, v Value, r *Runtime) *Object {
 	}
 	r.typeErrorResult(true, "Setter must be a function: %s", v.toString())
 	return nil
+}
+
+func fToStr(num float64, mode ftoa.FToStrMode, prec int) string {
+	var buf1 [128]byte
+	return string(ftoa.FToStr(num, mode, prec, buf1[:0]))
 }
 
 func (i valueInt) ToInteger() int64 {
@@ -555,25 +560,8 @@ func (f valueFloat) ToPrimitiveString() Value {
 	return f
 }
 
-var matchLeading0Exponent = regexp.MustCompile(`([eE][+\-])0+([1-9])`) // 1e-07 => 1e-7
-
 func (f valueFloat) String() string {
-	value := float64(f)
-	if math.IsNaN(value) {
-		return "NaN"
-	} else if math.IsInf(value, 0) {
-		if math.Signbit(value) {
-			return "-Infinity"
-		}
-		return "Infinity"
-	} else if f == _negativeZero {
-		return "0"
-	}
-	exponent := math.Log10(math.Abs(value))
-	if exponent >= 21 || exponent < -6 {
-		return matchLeading0Exponent.ReplaceAllString(strconv.FormatFloat(value, 'g', -1, 64), "$1$2")
-	}
-	return strconv.FormatFloat(value, 'f', -1, 64)
+	return fToStr(float64(f), ftoa.ModeStandard, 0)
 }
 
 func (f valueFloat) ToFloat() float64 {
