@@ -111,6 +111,7 @@ var (
 		"19.1",
 		"19.4",
 		"20.1",
+		"20.2",
 		"20.3",
 		"21.1",
 		"21.2.5.6",
@@ -138,6 +139,7 @@ var (
 		"sec-string.prototype",
 		"sec-date",
 		"sec-number",
+		"sec-math",
 	}
 )
 

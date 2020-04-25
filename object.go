@@ -16,6 +16,7 @@ const (
 	classWeakSet  = "WeakSet"
 	classWeakMap  = "WeakMap"
 	classMap      = "Map"
+	classMath     = "Math"
 	classSet      = "Set"
 	classFunction = "Function"
 	classNumber   = "Number"
