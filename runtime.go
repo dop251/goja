@@ -334,7 +334,10 @@ func (r *Runtime) init() {
 	}
 	r.vm.init()
 
-	r.global.FunctionPrototype = r.newNativeFunc(nil, nil, "Empty", nil, 0)
+	r.global.FunctionPrototype = r.newNativeFunc(func(FunctionCall) Value {
+		return _undefined
+	}, nil, " ", nil, 0)
+
 	r.global.IteratorPrototype = r.newLazyObject(r.createIterProto)
 
 	r.initObject()

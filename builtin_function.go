@@ -59,6 +59,16 @@ repeat:
 	return nil
 }
 
+func (r *Runtime) functionproto_hasInstance(call FunctionCall) Value {
+	if o, ok := call.This.(*Object); ok {
+		if _, ok = o.self.assertCallable(); ok {
+			return r.toBoolean(o.self.hasInstance(call.Argument(0)))
+		}
+	}
+
+	return valueFalse
+}
+
 func (r *Runtime) createListFromArrayLike(a Value) []Value {
 	o := r.toObject(a)
 	if arr := r.checkStdArrayObj(o); arr != nil {
@@ -145,9 +155,15 @@ func (r *Runtime) functionproto_bind(call FunctionCall) Value {
 		l = 0
 	}
 
+	name := obj.self.getStr("name", nil)
+	nameStr := stringBound_
+	if s, ok := name.(valueString); ok {
+		nameStr = nameStr.concat(s)
+	}
+
 	v := &Object{runtime: r}
 
-	ff := r.newNativeFuncObj(v, r.boundCallable(fcall, call.Arguments), r.boundConstruct(construct, call.Arguments), "", nil, l)
+	ff := r.newNativeFuncObj(v, r.boundCallable(fcall, call.Arguments), r.boundConstruct(construct, call.Arguments), nameStr.string(), nil, l)
 	v.self = &boundFuncObject{
 		nativeFuncObject: *ff,
 		wrapped:          obj,
@@ -161,12 +177,15 @@ func (r *Runtime) functionproto_bind(call FunctionCall) Value {
 }
 
 func (r *Runtime) initFunction() {
-	o := r.global.FunctionPrototype.self
-	o.(*nativeFuncObject).prototype = r.global.ObjectPrototype
-	o._putProp("toString", r.newNativeFunc(r.functionproto_toString, nil, "toString", nil, 0), true, false, true)
+	o := r.global.FunctionPrototype.self.(*nativeFuncObject)
+	o.prototype = r.global.ObjectPrototype
+	o.nameProp.value = stringEmpty
+
 	o._putProp("apply", r.newNativeFunc(r.functionproto_apply, nil, "apply", nil, 2), true, false, true)
-	o._putProp("call", r.newNativeFunc(r.functionproto_call, nil, "call", nil, 1), true, false, true)
 	o._putProp("bind", r.newNativeFunc(r.functionproto_bind, nil, "bind", nil, 1), true, false, true)
+	o._putProp("call", r.newNativeFunc(r.functionproto_call, nil, "call", nil, 1), true, false, true)
+	o._putProp("toString", r.newNativeFunc(r.functionproto_toString, nil, "toString", nil, 0), true, false, true)
+	o._putSym(symHasInstance, valueProp(r.newNativeFunc(r.functionproto_hasInstance, nil, "[Symbol.hasInstance]", nil, 1), false, false, false))
 
 	r.global.Function = r.newNativeFuncConstruct(r.builtin_Function, "Function", r.global.FunctionPrototype, 1)
 	r.addToGlobal("Function", r.global.Function)

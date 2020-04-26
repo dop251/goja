@@ -29,6 +29,7 @@ var (
 	stringInfinity                 = asciiString("Infinity")
 	stringPlusInfinity             = asciiString("+Infinity")
 	stringNegInfinity              = asciiString("-Infinity")
+	stringBound_       valueString = asciiString("bound ")
 	stringEmpty        valueString = asciiString("")
 
 	stringError          valueString = asciiString("Error")

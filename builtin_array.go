@@ -1226,15 +1226,16 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 
 	o._putSym(symIterator, valueProp(valuesFunc, true, false, true))
 
-	bl := r.NewObject()
-	bl.self.setOwnStr("copyWithin", valueTrue, true)
-	bl.self.setOwnStr("entries", valueTrue, true)
-	bl.self.setOwnStr("fill", valueTrue, true)
-	bl.self.setOwnStr("find", valueTrue, true)
-	bl.self.setOwnStr("findIndex", valueTrue, true)
-	bl.self.setOwnStr("keys", valueTrue, true)
-	bl.self.setOwnStr("values", valueTrue, true)
-	o._putSym(symUnscopables, valueProp(bl, false, false, true))
+	bl := r.newBaseObject(nil, classObject)
+	bl.setOwnStr("copyWithin", valueTrue, true)
+	bl.setOwnStr("entries", valueTrue, true)
+	bl.setOwnStr("fill", valueTrue, true)
+	bl.setOwnStr("find", valueTrue, true)
+	bl.setOwnStr("findIndex", valueTrue, true)
+	bl.setOwnStr("includes", valueTrue, true)
+	bl.setOwnStr("keys", valueTrue, true)
+	bl.setOwnStr("values", valueTrue, true)
+	o._putSym(symUnscopables, valueProp(bl.val, false, false, true))
 
 	return o
 }
