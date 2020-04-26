@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -61,13 +62,26 @@ func (ctx *typedArraySortCtx) Swap(i, j int) {
 	ctx.ta.typedArray.swap(offset+i, offset+j)
 }
 
+func allocByteSlice(size int) (b []byte) {
+	defer func() {
+		if x := recover(); x != nil {
+			panic(rangeError(fmt.Sprintf("Buffer size is too large: %d", size)))
+		}
+	}()
+	if size < 0 {
+		panic(rangeError(fmt.Sprintf("Invalid buffer size: %d", size)))
+	}
+	b = make([]byte, size)
+	return
+}
+
 func (r *Runtime) builtin_newArrayBuffer(args []Value, newTarget *Object) *Object {
 	if newTarget == nil {
 		panic(r.needNew("ArrayBuffer"))
 	}
 	b := r._newArrayBuffer(r.getPrototypeFromCtor(newTarget, r.global.ArrayBuffer, r.global.ArrayBufferPrototype), nil)
 	if len(args) > 0 {
-		b.data = make([]byte, toLength(args[0]))
+		b.data = allocByteSlice(r.toIndex(args[0]))
 	}
 	return b.val
 }
@@ -75,9 +89,7 @@ func (r *Runtime) builtin_newArrayBuffer(args []Value, newTarget *Object) *Objec
 func (r *Runtime) arrayBufferProto_getByteLength(call FunctionCall) Value {
 	o := r.toObject(call.This)
 	if b, ok := o.self.(*arrayBufferObject); ok {
-		if b.data == nil {
-			panic(r.NewTypeError("ArrayBuffer is detached"))
-		}
+		b.ensureNotDetached()
 		return intToValue(int64(len(b.data)))
 	}
 	panic(r.NewTypeError("Object is not ArrayBuffer: %s", o))
@@ -87,10 +99,10 @@ func (r *Runtime) arrayBufferProto_slice(call FunctionCall) Value {
 	o := r.toObject(call.This)
 	if b, ok := o.self.(*arrayBufferObject); ok {
 		l := int64(len(b.data))
-		start := relToIdx(toLength(call.Argument(0)), l)
+		start := relToIdx(call.Argument(0).ToInteger(), l)
 		var stop int64
 		if arg := call.Argument(1); arg != _undefined {
-			stop = toLength(arg)
+			stop = arg.ToInteger()
 		} else {
 			stop = l
 		}
@@ -98,18 +110,14 @@ func (r *Runtime) arrayBufferProto_slice(call FunctionCall) Value {
 		newLen := max(stop-start, 0)
 		ret := r.speciesConstructor(o, r.global.ArrayBuffer)([]Value{intToValue(newLen)}, nil)
 		if ab, ok := ret.self.(*arrayBufferObject); ok {
-			if ab.data == nil {
-				panic(r.NewTypeError("Species constructor returned a detached ArrayBuffer"))
-			}
+			ab.ensureNotDetached()
 			if ret == o {
 				panic(r.NewTypeError("Species constructor returned the same ArrayBuffer"))
 			}
 			if int64(len(ab.data)) < newLen {
 				panic(r.NewTypeError("Species constructor returned an ArrayBuffer that is too small: %d", len(ab.data)))
 			}
-			if b.data == nil {
-				panic(r.NewTypeError("Species constructor has detached the current ArrayBuffer"))
-			}
+			b.ensureNotDetached()
 
 			if stop > start {
 				copy(ab.data, b.data[start:stop])
@@ -122,8 +130,11 @@ func (r *Runtime) arrayBufferProto_slice(call FunctionCall) Value {
 }
 
 func (r *Runtime) arrayBuffer_isView(call FunctionCall) Value {
-	if o, ok := call.This.(*Object); ok {
+	if o, ok := call.Argument(0).(*Object); ok {
 		if _, ok := o.self.(*dataViewObject); ok {
+			return valueTrue
+		}
+		if _, ok := o.self.(*typedArrayObject); ok {
 			return valueTrue
 		}
 	}
@@ -1047,7 +1058,7 @@ func (r *Runtime) allocateTypedArray(newTarget *Object, length int, taCtor typed
 	buf := r._newArrayBuffer(r.global.ArrayBufferPrototype, nil)
 	ta := taCtor(buf, 0, length, r.getPrototypeFromCtor(newTarget, nil, r.global.TypedArrayPrototype))
 	if length > 0 {
-		buf.data = make([]byte, length*ta.elemSize)
+		buf.data = allocByteSlice(length * ta.elemSize)
 	}
 	return ta.val
 }
@@ -1157,7 +1168,7 @@ func (r *Runtime) _newTypedArrayFromTypedArray(src *typedArrayObject, newTarget 
 	src.viewedArrayBuf.ensureNotDetached()
 	l := src.length
 	dst.viewedArrayBuf.prototype = r.getPrototypeFromCtor(r.toObject(src.viewedArrayBuf.getStr("constructor", nil)), r.global.ArrayBuffer, r.global.ArrayBufferPrototype)
-	dst.viewedArrayBuf.data = make([]byte, int64(l)*int64(dst.elemSize))
+	dst.viewedArrayBuf.data = allocByteSlice(toInt(int64(l) * int64(dst.elemSize)))
 	if src.defaultCtor == dst.defaultCtor {
 		copy(dst.viewedArrayBuf.data, src.viewedArrayBuf.data[src.offset*src.elemSize:])
 		dst.length = src.length

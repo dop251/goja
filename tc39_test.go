@@ -39,6 +39,9 @@ var (
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
 		"test/annexB/built-ins/escape/escape-above-astral.js":         true, // \u{xxxxx}
 
+		// SharedArrayBuffer
+		"test/built-ins/ArrayBuffer/prototype/slice/this-is-sharedarraybuffer.js": true,
+
 		// class
 		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js":            true,
 		"test/language/statements/class/subclass/builtin-objects/Symbol/new-symbol-with-super-throws.js":             true,
@@ -96,6 +99,10 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/Array/regular-subclassing.js":                       true,
 		"test/language/statements/class/subclass/builtin-objects/Array/contructor-calls-super-single-argument.js":    true,
 		"test/language/statements/class/subclass/builtin-objects/Array/contructor-calls-super-multiple-arguments.js": true,
+		"test/language/statements/class/subclass/builtin-objects/ArrayBuffer/super-must-be-called.js":                true,
+		"test/language/statements/class/subclass/builtin-objects/ArrayBuffer/regular-subclassing.js":                 true,
+		"test/built-ins/ArrayBuffer/isView/arg-is-typedarray-subclass-instance.js":                                   true,
+		"test/built-ins/ArrayBuffer/isView/arg-is-dataview-subclass-instance.js":                                     true,
 
 		// full unicode regexp flag
 		"test/built-ins/RegExp/prototype/Symbol.match/u-advance-after-empty.js":               true,
@@ -155,6 +162,7 @@ var (
 		"23.2",
 		"23.3",
 		"23.4",
+		"24.1",
 		"24.2",
 		"25.1.2",
 		"26.1",
@@ -170,6 +178,8 @@ var (
 		"sec-date",
 		"sec-number",
 		"sec-math",
+		"sec-arraybuffer-length",
+		"sec-arraybuffer",
 	}
 )
 
