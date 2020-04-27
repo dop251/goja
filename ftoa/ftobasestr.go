@@ -64,8 +64,8 @@ func FToBaseStr(num float64, radix int) string {
 		word0 := uint32(dBits >> 32)
 		word1 := uint32(dBits)
 
-		b := new(big.Int)
-		e, _ := d2b(df, b)
+		dblBits := make([]byte, 0, 8)
+		e, _, dblBits := d2b(df, dblBits)
 		//            JS_ASSERT(e < 0);
 		/* At this point df = b * 2^e.  e must be less than zero because 0 < df < 1. */
 
@@ -88,6 +88,7 @@ func FToBaseStr(num float64, radix int) string {
 			mhi = big.NewInt(1 << log2P)
 		}
 
+		b := new(big.Int).SetBytes(dblBits)
 		b.Lsh(b, uint(e+s2))
 		s := big.NewInt(1)
 		s.Lsh(s, uint(s2))

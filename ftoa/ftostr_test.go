@@ -33,16 +33,37 @@ func TestDtostr(t *testing.T) {
 	testFToStr(885, ModeExponential, 2, "8.9e+2", t)
 	testFToStr(25, ModeExponential, 1, "3e+1", t)
 	testFToStr(1e-6, ModeFixed, 7, "0.0000010", t)
+	testFToStr(math.Pi, ModeStandardExponential, 0, "3.141592653589793e+0", t)
 	testFToStr(math.Inf(1), ModeStandard, 0, "Infinity", t)
 	testFToStr(math.NaN(), ModeStandard, 0, "NaN", t)
 	testFToStr(math.SmallestNonzeroFloat64, ModeExponential, 40, "4.940656458412465441765687928682213723651e-324", t)
+	testFToStr(3.5844466002796428e+298, ModeStandard, 0, "3.5844466002796428e+298", t)
+	testFToStr(math.Float64frombits(0x0010000000000000), ModeStandard, 0, "2.2250738585072014e-308", t) // smallest normal
+	testFToStr(math.Float64frombits(0x000FFFFFFFFFFFFF), ModeStandard, 0, "2.225073858507201e-308", t)  // largest denormal
+	testFToStr(4294967272.0, ModePrecision, 14, "4294967272.0000", t)
 }
 
 func BenchmarkDtostrSmall(b *testing.B) {
 	var buf [128]byte
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		FToStr(math.Pi, ModeExponential, 0, buf[:0])
+		FToStr(math.Pi, ModeStandardExponential, 0, buf[:0])
+	}
+}
+
+func BenchmarkDtostrShort(b *testing.B) {
+	var buf [128]byte
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		FToStr(3.1415, ModeStandard, 0, buf[:0])
+	}
+}
+
+func BenchmarkDtostrFixed(b *testing.B) {
+	var buf [128]byte
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		FToStr(math.Pi, ModeFixed, 4, buf[:0])
 	}
 }
 

@@ -1,12 +1,16 @@
 /*
 Package ftoa provides ECMAScript-compliant floating point number conversion to string.
+
 It contains code ported from Rhino (https://github.com/mozilla/rhino/blob/master/src/org/mozilla/javascript/DToA.java)
+as well as from the original code by David M. Gay.
+
+See LICENSE_LUCENE for the original copyright message and disclaimer.
+
 */
 package ftoa
 
 import (
 	"math"
-	"math/big"
 )
 
 const (
@@ -97,7 +101,7 @@ func stuffBits(bits []byte, offset int, val uint32) {
 	bits[offset+3] = byte(val)
 }
 
-func d2b(d float64, bi *big.Int) (e, bits int) {
+func d2b(d float64, b []byte) (e, bits int, dblBits []byte) {
 	dBits := math.Float64bits(d)
 	d0 := uint32(dBits >> 32)
 	d1 := uint32(dBits)
@@ -106,33 +110,32 @@ func d2b(d float64, bi *big.Int) (e, bits int) {
 	d0 &= 0x7fffffff /* clear sign bit, which we ignore */
 
 	var de, k, i int
-	var dbl_bits []byte
 	if de = int(d0 >> exp_shift); de != 0 {
 		z |= exp_msk1
 	}
 
 	y := d1
 	if y != 0 {
-		dbl_bits = make([]byte, 8)
+		dblBits = b[:8]
 		k = lo0bits(y)
 		y >>= k
 		if k != 0 {
-			stuffBits(dbl_bits, 4, y|z<<(32-k))
+			stuffBits(dblBits, 4, y|z<<(32-k))
 			z >>= k
 		} else {
-			stuffBits(dbl_bits, 4, y)
+			stuffBits(dblBits, 4, y)
 		}
-		stuffBits(dbl_bits, 0, z)
+		stuffBits(dblBits, 0, z)
 		if z != 0 {
 			i = 2
 		} else {
 			i = 1
 		}
 	} else {
-		dbl_bits = make([]byte, 4)
+		dblBits = b[:4]
 		k = lo0bits(z)
 		z >>= k
-		stuffBits(dbl_bits, 0, z)
+		stuffBits(dblBits, 0, z)
 		k += 32
 		i = 1
 	}
@@ -144,6 +147,5 @@ func d2b(d float64, bi *big.Int) (e, bits int) {
 		e = de - bias - (p - 1) + 1 + k
 		bits = 32*i - hi0bits(z)
 	}
-	bi.SetBytes(dbl_bits)
 	return
 }
