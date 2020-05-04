@@ -413,6 +413,9 @@ func (p *proxyObject) getSym(s *valueSymbol, receiver Value) Value {
 
 func (p *proxyObject) proxyGet(name, receiver Value) (Value, bool) {
 	target := p.target
+	if receiver == nil {
+		receiver = p.val
+	}
 	if v, ok := p.proxyCall(proxy_trap_get, target, name, receiver); ok {
 		if targetDesc, ok := target.getOwnProp(name).(*valueProperty); ok {
 			if !targetDesc.accessor {

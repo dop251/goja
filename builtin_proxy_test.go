@@ -485,6 +485,81 @@ func TestProxy_proxy_get(t *testing.T) {
 	testScript1(SCRIPT, asciiString("321tset"), t)
 }
 
+func TestProxy_proxy_get_json_stringify(t *testing.T) {
+	const SCRIPT = `
+	var obj = {};
+	var propValue = "321tset";
+	var _handler, _target, _prop, _receiver;
+	var proxy = new Proxy(obj, {
+		ownKeys: function() {
+			return ["foo"];
+		},
+		getOwnPropertyDescriptor: function(target, prop) {
+			if (prop === "foo") {
+				return {
+					value: propValue,
+					enumerable: true,
+					configurable: true
+				}
+			}
+		},
+		get: function(target, prop, receiver) {
+			if (prop === "foo") {
+				_prop = prop;
+				_receiver = receiver;
+				return propValue;
+			}
+			return obj[prop];
+		}
+	});
+	/*Object.defineProperty(proxy, "foo", {
+		value: "test123",
+		configurable: true,
+	});*/
+	var res = JSON.stringify(proxy);
+	assert.sameValue(res, '{"foo":"321tset"}');
+	assert.sameValue(_prop, "foo");
+	assert.sameValue(_receiver, proxy);
+	`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestProxy_native_proxy_get_json_stringify(t *testing.T) {
+	vm := New()
+	propValue := vm.ToValue("321tset")
+	obj := vm.NewObject()
+	proxy := vm.NewProxy(obj, &ProxyTrapConfig{
+		OwnKeys: func(*Object) *Object {
+			return vm.newArrayValues([]Value{vm.ToValue("foo")})
+		},
+		GetOwnPropertyDescriptor: func(target *Object, prop string) (propertyDescriptor PropertyDescriptor) {
+			if prop == "foo" {
+				return PropertyDescriptor{
+					Value:        propValue,
+					Enumerable:   FLAG_TRUE,
+					Configurable: FLAG_TRUE,
+				}
+			}
+			return PropertyDescriptor{}
+		},
+		Get: func(target *Object, property string, receiver *Object) (value Value) {
+			if property == "foo" {
+				return propValue
+			}
+			return obj.Get(property)
+		},
+	})
+	vm.Set("proxy", proxy)
+	res, err := vm.RunString(`JSON.stringify(proxy)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.SameAs(asciiString(`{"foo":"321tset"}`)) {
+		t.Fatalf("res: %v", res)
+	}
+}
+
 func TestProxy_target_set_prop(t *testing.T) {
 	const SCRIPT = `
 	var obj = {};
