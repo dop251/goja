@@ -72,7 +72,10 @@ func (r *Runtime) proxyproto_nativehandler_getOwnPropertyDescriptor(native func(
 		handler.self._putProp("getOwnPropertyDescriptor", r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 2 {
 				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).(valueString); ok {
+					switch p := call.Argument(1).(type) {
+					case *valueSymbol:
+						return _undefined
+					default:
 						desc := native(t, p.String())
 						return desc.toValue(r)
 					}
@@ -105,7 +108,10 @@ func (r *Runtime) proxyproto_nativehandler_gen_obj_string_bool(name proxyTrap, n
 		handler.self._putProp(unistring.String(name), r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 2 {
 				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).(valueString); ok {
+					switch p := call.Argument(1).(type) {
+					case *valueSymbol:
+						return valueFalse
+					default:
 						o := native(t, p.String())
 						return r.ToValue(o)
 					}
@@ -121,8 +127,11 @@ func (r *Runtime) proxyproto_nativehandler_get(native func(*Object, string, *Obj
 		handler.self._putProp("get", r.newNativeFunc(func(call FunctionCall) Value {
 			if len(call.Arguments) >= 3 {
 				if t, ok := call.Argument(0).(*Object); ok {
-					if p, ok := call.Argument(1).(valueString); ok {
-						if r, ok := call.Argument(2).(*Object); ok {
+					if r, ok := call.Argument(2).(*Object); ok {
+						switch p := call.Argument(1).(type) {
+						case *valueSymbol:
+							return _undefined
+						default:
 							return native(t, p.String(), r)
 						}
 					}
@@ -191,6 +200,13 @@ func (r *Runtime) proxyproto_nativehandler_construct(native func(*Object, []Valu
 	}
 }
 
+// ProxyTrapConfig provides a simplified Go-friendly API for implementing Proxy traps.
+// Note that the Proxy may not have Symbol properties when using this as a handler because property keys are
+// passed as strings.
+// get() and getOwnPropertyDescriptor() for Symbol properties will always return undefined;
+// has() and deleteProperty() for Symbol properties will always return false;
+// set() and defineProperty() for Symbol properties will throw a TypeError.
+// If you need Symbol properties implement the handler in JavaScript.
 type ProxyTrapConfig struct {
 	// A trap for Object.getPrototypeOf, Reflect.getPrototypeOf, __proto__, Object.prototype.isPrototypeOf, instanceof
 	GetPrototypeOf func(target *Object) (prototype *Object)

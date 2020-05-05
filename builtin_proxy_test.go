@@ -512,10 +512,6 @@ func TestProxy_proxy_get_json_stringify(t *testing.T) {
 			return obj[prop];
 		}
 	});
-	/*Object.defineProperty(proxy, "foo", {
-		value: "test123",
-		configurable: true,
-	});*/
 	var res = JSON.stringify(proxy);
 	assert.sameValue(res, '{"foo":"321tset"}');
 	assert.sameValue(_prop, "foo");
@@ -525,7 +521,7 @@ func TestProxy_proxy_get_json_stringify(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
-func TestProxy_native_proxy_get_json_stringify(t *testing.T) {
+func TestProxy_native_proxy_get(t *testing.T) {
 	vm := New()
 	propValue := vm.ToValue("321tset")
 	obj := vm.NewObject()
@@ -556,6 +552,29 @@ func TestProxy_native_proxy_get_json_stringify(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !res.SameAs(asciiString(`{"foo":"321tset"}`)) {
+		t.Fatalf("res: %v", res)
+	}
+	res, err = vm.RunString(`proxy[Symbol.toPrimitive]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !IsUndefined(res) {
+		t.Fatalf("res: %v", res)
+	}
+
+	res, err = vm.RunString(`proxy.hasOwnProperty(Symbol.toPrimitive)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.SameAs(valueFalse) {
+		t.Fatalf("res: %v", res)
+	}
+
+	res, err = vm.RunString(`proxy.toString()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.SameAs(asciiString(`[object Object]`)) {
 		t.Fatalf("res: %v", res)
 	}
 }
