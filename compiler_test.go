@@ -1993,6 +1993,34 @@ func TestIfStackLeaks(t *testing.T) {
 	testScript1(SCRIPT, _positiveZero, t)
 }
 
+func TestWithCallee(t *testing.T) {
+	const SCRIPT = `
+	function O() {
+		var that = this;
+		this.m = function() {
+			return this === that;
+		}
+	}
+	with(new O()) {
+		m();
+	}
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestEvalCallee(t *testing.T) {
+	const SCRIPT = `
+	(function () {
+		'use strict';
+		var v = function() {
+			return this === undefined;
+		};
+		return eval('v()');
+	})();
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 // FIXME
 /*
 func TestDummyCompile(t *testing.T) {
