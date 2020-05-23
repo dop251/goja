@@ -203,9 +203,9 @@ func (s *valueStack) expand(idx int) {
 	}
 }
 
-func stashObjHas(obj objectImpl, name unistring.String) bool {
-	if obj.hasPropertyStr(name) {
-		if unscopables, ok := obj.getSym(symUnscopables, nil).(*Object); ok {
+func stashObjHas(obj *Object, name unistring.String) bool {
+	if obj.self.hasPropertyStr(name) {
+		if unscopables, ok := obj.self.getSym(symUnscopables, nil).(*Object); ok {
 			if b := unscopables.self.getStr(name, nil); b != nil {
 				return !b.ToBoolean()
 			}
@@ -1504,9 +1504,9 @@ func (g getLocal) exec(vm *vm) {
 }
 
 type getVar struct {
-	name unistring.String
-	idx  uint32
-	ref, callee  bool
+	name        unistring.String
+	idx         uint32
+	ref, callee bool
 }
 
 func (g getVar) exec(vm *vm) {
@@ -1657,7 +1657,7 @@ func (n getVar1) exec(vm *vm) {
 type getVar1Ref string
 
 func (n getVar1Ref) exec(vm *vm) {
-	name := string(n)
+	name := unistring.String(n)
 	var val Value
 	for stash := vm.stash; stash != nil; stash = stash.outer {
 		if v, exists := stash.getByName(name, vm); exists {
@@ -1666,7 +1666,7 @@ func (n getVar1Ref) exec(vm *vm) {
 		}
 	}
 	if val == nil {
-		val = vm.r.globalObject.self.getStr(name)
+		val = vm.r.globalObject.self.getStr(name, nil)
 		if val == nil {
 			val = valueUnresolved{r: vm.r, ref: name}
 		}
