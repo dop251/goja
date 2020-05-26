@@ -137,6 +137,26 @@ A JS value can be exported into its default Go representation using Value.Export
 
 Alternatively it can be exported into a specific Go variable using Runtime.ExportTo() method.
 
+Mapping struct field and method names
+-------------------------------------
+By default, the names are passed through as is which means they are capitalised. This does not match
+the standard JavaScript naming convention, so if you need to make your JS code look more natural or if you are
+dealing with a 3rd party library, you can use a FieldNameMapper:
+
+```go
+vm := New()
+vm.SetFieldNameMapper(TagFieldNameMapper("json", true))
+type S struct {
+    Field int `json:"field"`
+}
+vm.Set("s", S{Field: 42})
+res, _ := vm.RunString(`s.field`) // without the mapper it would have been s.Field
+fmt.Println(res.Export())
+// Output: 42
+```
+
+There are two standard mappers: `TagFieldNameMapper` and `UncapFieldNameMapper`, or you can use your own implementation.
+
 Native Constructors
 -------------------
 
