@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -949,4 +950,44 @@ func TestStructNonAddressableAnonStruct(t *testing.T) {
 		t.Fatalf("Expected '%s', got '%s'", expected, v.String())
 	}
 
+}
+
+func TestTagFieldNameMapperInvalidId(t *testing.T) {
+	vm := New()
+	vm.SetFieldNameMapper(TagFieldNameMapper("json", true))
+	type S struct {
+		Field int `json:"-"`
+	}
+	vm.Set("s", S{Field: 42})
+	res, err := vm.RunString(`s.hasOwnProperty("field") || s.hasOwnProperty("Field")`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != valueFalse {
+		t.Fatalf("Unexpected result: %v", res)
+	}
+}
+
+func ExampleTagFieldNameMapper() {
+	vm := New()
+	vm.SetFieldNameMapper(TagFieldNameMapper("json", true))
+	type S struct {
+		Field int `json:"field"`
+	}
+	vm.Set("s", S{Field: 42})
+	res, _ := vm.RunString(`s.field`)
+	fmt.Println(res.Export())
+	// Output: 42
+}
+
+func ExampleUncapFieldNameMapper() {
+	vm := New()
+	s := testGoReflectMethod_O{
+		Test: "passed",
+	}
+	vm.SetFieldNameMapper(UncapFieldNameMapper())
+	vm.Set("s", s)
+	res, _ := vm.RunString(`s.test + " and " + s.method("passed too")`)
+	fmt.Println(res.Export())
+	// Output: passed and passed too
 }
