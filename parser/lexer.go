@@ -3,6 +3,7 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -13,6 +14,8 @@ import (
 	"github.com/dop251/goja/token"
 	"github.com/dop251/goja/unistring"
 )
+
+var matchIdentifier = regexp.MustCompile(`^[$_\p{L}][$_\p{L}\d}]*$`)
 
 func isDecimalDigit(chr rune) bool {
 	return '0' <= chr && chr <= '9'
