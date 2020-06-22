@@ -968,6 +968,27 @@ func TestTagFieldNameMapperInvalidId(t *testing.T) {
 	}
 }
 
+func TestPrimitivePtr(t *testing.T) {
+	vm := New()
+	s := "test"
+	vm.Set("s", &s)
+	res, err := vm.RunString(`s instanceof String && s == "test"`) // note non-strict equality
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := res.ToBoolean(); !v {
+		t.Fatalf("value: %#v", res)
+	}
+	s = "test1"
+	res, err = vm.RunString(`s == "test1"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := res.ToBoolean(); !v {
+		t.Fatalf("value: %#v", res)
+	}
+}
+
 func ExampleTagFieldNameMapper() {
 	vm := New()
 	vm.SetFieldNameMapper(TagFieldNameMapper("json", true))
