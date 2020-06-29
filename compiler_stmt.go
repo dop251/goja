@@ -140,13 +140,10 @@ func (c *compiler) compileTryStatement(v *ast.TryStatement) {
 					code[pc] = setLocalP(remap(uint32(instr)))
 				}
 			}
+			c.p.code[start+1] = pop
 			if catchVarIdx, exists := m[0]; exists {
 				c.p.code[start] = setLocal(catchVarIdx)
-				c.p.code[start+1] = pop
 				catchOffset--
-			} else {
-				c.p.code[start+1] = nil
-				catchOffset++
 			}
 		} else {
 			c.scope.accessed = true

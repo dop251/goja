@@ -2021,6 +2021,22 @@ func TestEvalCallee(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestTryEmptyCatchStackLeak(t *testing.T) {
+	const SCRIPT = `
+	(function() {
+		var f;
+		// Make sure the outer function is not stashless as retStashless masks all stack leaks.
+		(function() {
+			f++;
+		})();
+		try {
+			throw new Error();
+		} catch(e) {}
+	})();
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
 // FIXME
 /*
 func TestDummyCompile(t *testing.T) {
