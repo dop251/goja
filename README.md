@@ -124,7 +124,8 @@ A map type with methods is converted into a host object where properties are met
 the map values are not accessible. This is to avoid ambiguity between m\["Property"\] and m.Property.
 
 Any other type is converted to a generic reflect based host object. Depending on the underlying type it behaves similar
-to a Number, String, Boolean or Object.
+to a Number, String, Boolean or Object. This includes pointers to primitive types (*string, *int, etc...).
+Internally they remain pointers, so changes to the pointed values will be reflected in JS.
 
 Note that these conversions wrap the original value which means any changes made inside JS
 are reflected on the value and calling Export() returns the original value. This applies to all
