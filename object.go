@@ -25,6 +25,7 @@ const (
 	classError    = "Error"
 	classRegExp   = "RegExp"
 	classDate     = "Date"
+	classJSON     = "JSON"
 
 	classArrayIterator  = "Array Iterator"
 	classMapIterator    = "Map Iterator"
