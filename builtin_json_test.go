@@ -47,6 +47,20 @@ func TestJSONMarshalObjectCircular(t *testing.T) {
 	}
 }
 
+func TestJSONParseReviver(t *testing.T) {
+	// example from
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse
+	const SCRIPT = `
+	JSON.parse('{"p": 5}', function(key, value) {
+	  return typeof value === 'number'
+        ? value * 2 // return value * 2 for numbers
+	    : value     // return everything else unchanged
+	 })["p"]
+	`
+
+	testScript1(SCRIPT, intToValue(10), t)
+}
+
 func BenchmarkJSONStringify(b *testing.B) {
 	b.StopTimer()
 	vm := New()
