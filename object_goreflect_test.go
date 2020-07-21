@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -986,6 +987,18 @@ func TestPrimitivePtr(t *testing.T) {
 	}
 	if v := res.ToBoolean(); !v {
 		t.Fatalf("value: %#v", res)
+	}
+}
+
+func TestStringer(t *testing.T) {
+	vm := New()
+	vm.Set("e", errors.New("test"))
+	res, err := vm.RunString("e.toString()")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := res.Export(); v != "test" {
+		t.Fatalf("v: %v", v)
 	}
 }
 
