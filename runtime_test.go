@@ -752,6 +752,23 @@ func TestToValueFloat(t *testing.T) {
 	}
 }
 
+func TestToValueInterface(t *testing.T) {
+
+	f := func(i interface{}) bool {
+		return i == t
+	}
+	vm := New()
+	vm.Set("f", f)
+	vm.Set("t", t)
+	v, err := vm.RunString(`f(t)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != valueTrue {
+		t.Fatalf("v: %v", v)
+	}
+}
+
 func TestJSONEscape(t *testing.T) {
 	const SCRIPT = `
 	var a = "\\+1";

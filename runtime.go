@@ -1480,11 +1480,11 @@ func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, erro
 		}
 	}
 
-	if typeValue.AssignableTo(typ) {
+	if typ == typeValue {
 		return reflect.ValueOf(v), nil
 	}
 
-	if typeObject.AssignableTo(typ) {
+	if typ == typeObject {
 		if obj, ok := v.(*Object); ok {
 			return reflect.ValueOf(obj), nil
 		}
