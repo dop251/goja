@@ -309,10 +309,13 @@ func (o *objectGoReflect) _toString() Value {
 			return stringFalse
 		}
 	}
-	switch v := o.value.Interface().(type) {
+	switch v := o.origValue.Interface().(type) {
 	case fmt.Stringer:
 		return newStringValue(v.String())
+	case error:
+		return newStringValue(v.Error())
 	}
+
 	return stringObjectObject
 }
 
