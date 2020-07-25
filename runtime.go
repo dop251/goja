@@ -1111,16 +1111,22 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	return
 }
 
-func (r *Runtime) CaptureCallStack(n int) []StackFrame {
-	m := len(r.vm.callStack)
-	if n > 0 {
-		m -= m - n
-	} else {
-		m = 0
+// CaptureCallStack appends the current call stack frames to the stack slice (which may be nil) up to the specified depth.
+// The most recent frame will be the first one.
+// If depth <= 0 or more than the number of available frames, returns the entire stack.
+func (r *Runtime) CaptureCallStack(depth int, stack []StackFrame) []StackFrame {
+	l := len(r.vm.callStack)
+	var offset int
+	if depth > 0 {
+		offset = l - depth + 1
+		if offset < 0 {
+			offset = 0
+		}
 	}
-	stackFrames := make([]StackFrame, 0)
-	stackFrames = r.vm.captureStack(stackFrames, m)
-	return stackFrames
+	if stack == nil {
+		stack = make([]StackFrame, 0, l-offset+1)
+	}
+	return r.vm.captureStack(stack, offset)
 }
 
 // Interrupt a running JavaScript. The corresponding Go call will return an *InterruptedError containing v.
