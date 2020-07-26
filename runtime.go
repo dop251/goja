@@ -1874,7 +1874,7 @@ func createDataPropertyOrThrow(o *Object, p Value, v Value) {
 }
 
 func toPropertyKey(key Value) Value {
-	return key.ToPrimitiveString()
+	return key.ToString()
 }
 
 func (r *Runtime) getVStr(v Value, p unistring.String) Value {

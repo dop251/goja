@@ -57,7 +57,7 @@ type Value interface {
 	ToInteger() int64
 	toString() valueString
 	string() unistring.String
-	ToPrimitiveString() Value
+	ToString() Value
 	String() string
 	ToFloat() float64
 	ToNumber() Value
@@ -155,7 +155,7 @@ func (i valueInt) string() unistring.String {
 	return unistring.String(i.String())
 }
 
-func (i valueInt) ToPrimitiveString() Value {
+func (i valueInt) ToString() Value {
 	return i
 }
 
@@ -241,7 +241,7 @@ func (b valueBool) toString() valueString {
 	return stringFalse
 }
 
-func (b valueBool) ToPrimitiveString() Value {
+func (b valueBool) ToString() Value {
 	return b
 }
 
@@ -337,7 +337,7 @@ func (n valueNull) string() unistring.String {
 	return stringNull.string()
 }
 
-func (n valueNull) ToPrimitiveString() Value {
+func (n valueNull) ToString() Value {
 	return n
 }
 
@@ -349,7 +349,7 @@ func (u valueUndefined) toString() valueString {
 	return stringUndefined
 }
 
-func (u valueUndefined) ToPrimitiveString() Value {
+func (u valueUndefined) ToString() Value {
 	return u
 }
 
@@ -447,7 +447,7 @@ func (p *valueProperty) string() unistring.String {
 	return ""
 }
 
-func (p *valueProperty) ToPrimitiveString() Value {
+func (p *valueProperty) ToString() Value {
 	return _undefined
 }
 
@@ -556,7 +556,7 @@ func (f valueFloat) string() unistring.String {
 	return unistring.String(f.String())
 }
 
-func (f valueFloat) ToPrimitiveString() Value {
+func (f valueFloat) ToString() Value {
 	return f
 }
 
@@ -663,8 +663,8 @@ func (o *Object) string() unistring.String {
 	return o.toPrimitiveString().string()
 }
 
-func (o *Object) ToPrimitiveString() Value {
-	return o.toPrimitiveString().ToPrimitiveString()
+func (o *Object) ToString() Value {
+	return o.toPrimitiveString().ToString()
 }
 
 func (o *Object) String() string {
@@ -819,7 +819,7 @@ func (o valueUnresolved) string() unistring.String {
 	return ""
 }
 
-func (o valueUnresolved) ToPrimitiveString() Value {
+func (o valueUnresolved) ToString() Value {
 	o.throw()
 	return nil
 }
@@ -892,7 +892,7 @@ func (s *valueSymbol) toString() valueString {
 	panic(typeError("Cannot convert a Symbol value to a string"))
 }
 
-func (s *valueSymbol) ToPrimitiveString() Value {
+func (s *valueSymbol) ToString() Value {
 	return s
 }
 

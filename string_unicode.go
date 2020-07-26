@@ -155,7 +155,7 @@ func (s unicodeString) toString() valueString {
 	return s
 }
 
-func (s unicodeString) ToPrimitiveString() Value {
+func (s unicodeString) ToString() Value {
 	return s
 }
 

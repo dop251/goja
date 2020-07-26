@@ -224,7 +224,7 @@ func (r *Runtime) writeItemLocaleString(item Value, buf *strings.Builder) {
 				strVal := c(FunctionCall{
 					This: item,
 				})
-				buf.WriteString(strVal.ToPrimitiveString().String())
+				buf.WriteString(strVal.ToString().String())
 				return
 			}
 		}

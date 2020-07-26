@@ -108,7 +108,7 @@ func (s asciiString) toString() valueString {
 	return s
 }
 
-func (s asciiString) ToPrimitiveString() Value {
+func (s asciiString) ToString() Value {
 	return s
 }
 
