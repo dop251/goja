@@ -24,8 +24,18 @@ type unicodeRuneReader struct {
 	pos int
 }
 
+type utf16RuneReader struct {
+	s   unicodeString
+	pos int
+}
+
 type runeReaderReplace struct {
 	wrapped io.RuneReader
+}
+
+type valueStringBuilder struct {
+	asciiBuilder   strings.Builder
+	unicodeBuilder unicodeStringBuilder
 }
 
 type unicodeStringBuilder struct {
@@ -34,7 +44,7 @@ type unicodeStringBuilder struct {
 }
 
 var (
-	InvalidRuneError = errors.New("Invalid rune")
+	InvalidRuneError = errors.New("invalid rune")
 )
 
 func (rr runeReaderReplace) ReadRune() (r rune, size int, err error) {
@@ -43,6 +53,17 @@ func (rr runeReaderReplace) ReadRune() (r rune, size int, err error) {
 		err = nil
 		r = utf8.RuneError
 	}
+	return
+}
+
+func (rr *utf16RuneReader) ReadRune() (r rune, size int, err error) {
+	if rr.pos < len(rr.s) {
+		r = rune(rr.s[rr.pos])
+		size++
+		rr.pos++
+		return
+	}
+	err = io.EOF
 	return
 }
 
@@ -92,8 +113,8 @@ func (b *unicodeStringBuilder) ensureStarted(initialSize int) {
 	}
 }
 
-func (b *unicodeStringBuilder) writeString(s valueString) {
-	b.ensureStarted(int(s.length()))
+func (b *unicodeStringBuilder) WriteString(s valueString) {
+	b.ensureStarted(s.length())
 	switch s := s.(type) {
 	case unicodeString:
 		b.buf = append(b.buf, s[1:]...)
@@ -107,7 +128,7 @@ func (b *unicodeStringBuilder) writeString(s valueString) {
 	}
 }
 
-func (b *unicodeStringBuilder) string() valueString {
+func (b *unicodeStringBuilder) String() valueString {
 	if b.unicode {
 		return unicodeString(b.buf)
 	}
@@ -121,7 +142,7 @@ func (b *unicodeStringBuilder) string() valueString {
 	return asciiString(buf)
 }
 
-func (b *unicodeStringBuilder) writeRune(r rune) {
+func (b *unicodeStringBuilder) WriteRune(r rune) {
 	if r <= 0xFFFF {
 		b.ensureStarted(1)
 		b.buf = append(b.buf, uint16(r))
@@ -134,10 +155,69 @@ func (b *unicodeStringBuilder) writeRune(r rune) {
 	}
 }
 
-func (b *unicodeStringBuilder) writeASCII(bytes []byte) {
+func (b *unicodeStringBuilder) writeASCIIString(bytes string) {
 	b.ensureStarted(len(bytes))
 	for _, c := range bytes {
 		b.buf = append(b.buf, uint16(c))
+	}
+}
+
+func (b *valueStringBuilder) ascii() bool {
+	return len(b.unicodeBuilder.buf) == 0
+}
+
+func (b *valueStringBuilder) WriteString(s valueString) {
+	if ascii, ok := s.(asciiString); ok {
+		if b.ascii() {
+			b.asciiBuilder.WriteString(string(ascii))
+		} else {
+			b.unicodeBuilder.writeASCIIString(string(ascii))
+		}
+	} else {
+		b.switchToUnicode(s.length())
+		b.unicodeBuilder.WriteString(s)
+	}
+}
+
+func (b *valueStringBuilder) WriteRune(r rune) {
+	if r < utf8.RuneSelf {
+		if b.ascii() {
+			b.asciiBuilder.WriteByte(byte(r))
+		} else {
+			b.unicodeBuilder.WriteRune(r)
+		}
+	} else {
+		var extraLen int
+		if r <= 0xFFFF {
+			extraLen = 1
+		} else {
+			extraLen = 2
+		}
+		b.switchToUnicode(extraLen)
+		b.unicodeBuilder.WriteRune(r)
+	}
+}
+
+func (b *valueStringBuilder) String() valueString {
+	if b.ascii() {
+		return asciiString(b.asciiBuilder.String())
+	}
+	return b.unicodeBuilder.String()
+}
+
+func (b *valueStringBuilder) Grow(n int) {
+	if b.ascii() {
+		b.asciiBuilder.Grow(n)
+	} else {
+		b.unicodeBuilder.Grow(n)
+	}
+}
+
+func (b *valueStringBuilder) switchToUnicode(extraLen int) {
+	if b.ascii() {
+		b.unicodeBuilder.Grow(b.asciiBuilder.Len() + extraLen)
+		b.unicodeBuilder.writeASCIIString(b.asciiBuilder.String())
+		b.asciiBuilder.Reset()
 	}
 }
 
@@ -145,6 +225,24 @@ func (s unicodeString) reader(start int) io.RuneReader {
 	return &unicodeRuneReader{
 		s: s[start+1:],
 	}
+}
+
+func (s unicodeString) utf16Reader(start int) io.RuneReader {
+	return &utf16RuneReader{
+		s: s[start+1:],
+	}
+}
+
+func (s unicodeString) runes() []rune {
+	return utf16.Decode(s[1:])
+}
+
+func (s unicodeString) utf16Runes() []rune {
+	runes := make([]rune, len(s)-1)
+	for i, ch := range s[1:] {
+		runes[i] = rune(ch)
+	}
+	return runes
 }
 
 func (s unicodeString) ToInteger() int64 {

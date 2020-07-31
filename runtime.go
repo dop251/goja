@@ -23,6 +23,8 @@ import (
 
 const (
 	sqrt1_2 float64 = math.Sqrt2 / 2
+
+	deoptimiseRegexp = false
 )
 
 var (

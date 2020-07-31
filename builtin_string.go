@@ -67,20 +67,6 @@ func (r *Runtime) builtin_newString(args []Value, proto *Object) *Object {
 	return r._newString(s, proto)
 }
 
-func searchSubstringUTF8(str, search string) (ret [][]int) {
-	searchPos := 0
-	l := len(str)
-	if searchPos < l {
-		p := strings.Index(str[searchPos:], search)
-		if p != -1 {
-			p += searchPos
-			searchPos = p + len(search)
-			ret = append(ret, []int{p, searchPos})
-		}
-	}
-	return
-}
-
 func (r *Runtime) stringproto_toStringValueOf(this Value, funcName string) Value {
 	if str, ok := this.(valueString); ok {
 		return str
@@ -132,10 +118,8 @@ func (r *Runtime) string_fromcharcode(call FunctionCall) Value {
 }
 
 func (r *Runtime) string_fromcodepoint(call FunctionCall) Value {
-	var b []byte
-	var sb unicodeStringBuilder
-	unicode := false
-	for i, arg := range call.Arguments {
+	var sb valueStringBuilder
+	for _, arg := range call.Arguments {
 		num := arg.ToNumber()
 		var c rune
 		if numInt, ok := num.(valueInt); ok {
@@ -146,27 +130,9 @@ func (r *Runtime) string_fromcodepoint(call FunctionCall) Value {
 		} else {
 			panic(r.newError(r.global.RangeError, "Invalid code point %s", num))
 		}
-		if c >= utf8.RuneSelf {
-			if !unicode {
-				unicode = true
-				sb.Grow(len(call.Arguments))
-				sb.writeASCII(b[:i])
-				b = nil
-			}
-		}
-		if unicode {
-			sb.writeRune(c)
-		} else {
-			if b == nil {
-				b = make([]byte, 0, len(call.Arguments))
-			}
-			b = append(b, byte(c))
-		}
+		sb.WriteRune(c)
 	}
-	if !unicode {
-		return asciiString(b)
-	}
-	return sb.string()
+	return sb.String()
 }
 
 func (r *Runtime) string_raw(call FunctionCall) Value {
@@ -176,17 +142,17 @@ func (r *Runtime) string_raw(call FunctionCall) Value {
 	if literalSegments <= 0 {
 		return stringEmpty
 	}
-	var stringElements unicodeStringBuilder
+	var stringElements valueStringBuilder
 	nextIndex := int64(0)
 	numberOfSubstitutions := int64(len(call.Arguments) - 1)
 	for {
 		nextSeg := nilSafe(raw.self.getIdx(valueInt(nextIndex), nil)).toString()
-		stringElements.writeString(nextSeg)
+		stringElements.WriteString(nextSeg)
 		if nextIndex+1 == literalSegments {
-			return stringElements.string()
+			return stringElements.String()
 		}
 		if nextIndex < numberOfSubstitutions {
-			stringElements.writeString(nilSafe(call.Arguments[nextIndex+1]).toString())
+			stringElements.WriteString(nilSafe(call.Arguments[nextIndex+1]).toString())
 		}
 		nextIndex++
 	}
@@ -475,17 +441,17 @@ func (r *Runtime) stringproto_padEnd(call FunctionCall) Value {
 	}
 	var sb unicodeStringBuilder
 	sb.Grow(toInt(maxLength))
-	sb.writeString(s)
+	sb.WriteString(s)
 	fl := filler.length()
 	for remaining >= fl {
-		sb.writeString(filler)
+		sb.WriteString(filler)
 		remaining -= fl
 	}
 	if remaining > 0 {
-		sb.writeString(filler.substring(0, remaining))
+		sb.WriteString(filler.substring(0, remaining))
 	}
 
-	return sb.string()
+	return sb.String()
 }
 
 func (r *Runtime) stringproto_padStart(call FunctionCall) Value {
@@ -529,15 +495,15 @@ func (r *Runtime) stringproto_padStart(call FunctionCall) Value {
 	sb.Grow(toInt(maxLength))
 	fl := filler.length()
 	for remaining >= fl {
-		sb.writeString(filler)
+		sb.WriteString(filler)
 		remaining -= fl
 	}
 	if remaining > 0 {
-		sb.writeString(filler.substring(0, remaining))
+		sb.WriteString(filler.substring(0, remaining))
 	}
-	sb.writeString(s)
+	sb.WriteString(s)
 
-	return sb.string()
+	return sb.String()
 }
 
 func (r *Runtime) stringproto_repeat(call FunctionCall) Value {
@@ -567,9 +533,90 @@ func (r *Runtime) stringproto_repeat(call FunctionCall) Value {
 	var sb unicodeStringBuilder
 	sb.Grow(s.length() * num)
 	for i := 0; i < num; i++ {
-		sb.writeString(s)
+		sb.WriteString(s)
 	}
-	return sb.string()
+	return sb.String()
+}
+
+func getReplaceValue(replaceValue Value) (str valueString, rcall func(FunctionCall) Value) {
+	if replaceValue, ok := replaceValue.(*Object); ok {
+		if c, ok := replaceValue.self.assertCallable(); ok {
+			rcall = c
+			return
+		}
+	}
+	str = replaceValue.toString()
+	return
+}
+
+func stringReplace(s valueString, found [][]int, newstring valueString, rcall func(FunctionCall) Value) Value {
+	if len(found) == 0 {
+		return s
+	}
+
+	var str string
+	var isASCII bool
+	if astr, ok := s.(asciiString); ok {
+		str = string(astr)
+		isASCII = true
+	}
+
+	var buf valueStringBuilder
+
+	lastIndex := 0
+	lengthS := s.length()
+	if rcall != nil {
+		for _, item := range found {
+			if item[0] != lastIndex {
+				buf.WriteString(s.substring(lastIndex, item[0]))
+			}
+			matchCount := len(item) / 2
+			argumentList := make([]Value, matchCount+2)
+			for index := 0; index < matchCount; index++ {
+				offset := 2 * index
+				if item[offset] != -1 {
+					if isASCII {
+						argumentList[index] = asciiString(str[item[offset]:item[offset+1]])
+					} else {
+						argumentList[index] = s.substring(item[offset], item[offset+1])
+					}
+				} else {
+					argumentList[index] = _undefined
+				}
+			}
+			argumentList[matchCount] = valueInt(item[0])
+			argumentList[matchCount+1] = s
+			replacement := rcall(FunctionCall{
+				This:      _undefined,
+				Arguments: argumentList,
+			}).toString()
+			buf.WriteString(replacement)
+			lastIndex = item[1]
+		}
+	} else {
+		for _, item := range found {
+			if item[0] != lastIndex {
+				buf.WriteString(s.substring(lastIndex, item[0]))
+			}
+			matchCount := len(item) / 2
+			writeSubstitution(s, item[0], matchCount, func(idx int) valueString {
+				if item[idx*2] != -1 {
+					if isASCII {
+						return asciiString(str[item[idx*2]:item[idx*2+1]])
+					}
+					return s.substring(item[idx*2], item[idx*2+1])
+				}
+				return stringEmpty
+			}, newstring, &buf)
+			lastIndex = item[1]
+		}
+	}
+
+	if lastIndex != lengthS {
+		buf.WriteString(s.substring(lastIndex, lengthS))
+	}
+
+	return buf.String()
 }
 
 func (r *Runtime) stringproto_replace(call FunctionCall) Value {
@@ -586,142 +633,15 @@ func (r *Runtime) stringproto_replace(call FunctionCall) Value {
 	}
 
 	s := call.This.toString()
-	var str string
-	var isASCII bool
-	if astr, ok := s.(asciiString); ok {
-		str = string(astr)
-		isASCII = true
-	} else {
-		str = s.String()
-	}
-
 	var found [][]int
-
-	if searchValue, ok := searchValue.(*Object); ok {
-		if regexp, ok := searchValue.self.(*regexpObject); ok {
-			find := 1
-			if regexp.global {
-				find = -1
-			}
-			if isASCII {
-				found = regexp.pattern.FindAllSubmatchIndexASCII(str, find)
-			} else {
-				found = regexp.pattern.FindAllSubmatchIndexUTF8(str, find)
-			}
-			if found == nil {
-				return s
-			}
-		}
+	searchStr := searchValue.toString()
+	pos := s.index(searchStr, 0)
+	if pos != -1 {
+		found = append(found, []int{pos, pos + searchStr.length()})
 	}
 
-	if found == nil {
-		found = searchSubstringUTF8(str, searchValue.String())
-	}
-
-	if len(found) == 0 {
-		return s
-	}
-
-	var buf bytes.Buffer
-	lastIndex := 0
-
-	var rcall func(FunctionCall) Value
-
-	if replaceValue, ok := replaceValue.(*Object); ok {
-		if c, ok := replaceValue.self.assertCallable(); ok {
-			rcall = c
-		}
-	}
-
-	if rcall != nil {
-		for _, item := range found {
-			if item[0] != lastIndex {
-				buf.WriteString(str[lastIndex:item[0]])
-			}
-			matchCount := len(item) / 2
-			argumentList := make([]Value, matchCount+2)
-			for index := 0; index < matchCount; index++ {
-				offset := 2 * index
-				if item[offset] != -1 {
-					if isASCII {
-						argumentList[index] = asciiString(str[item[offset]:item[offset+1]])
-					} else {
-						argumentList[index] = newStringValue(str[item[offset]:item[offset+1]])
-					}
-				} else {
-					argumentList[index] = _undefined
-				}
-			}
-			argumentList[matchCount] = valueInt(item[0])
-			argumentList[matchCount+1] = s
-			replacement := rcall(FunctionCall{
-				This:      _undefined,
-				Arguments: argumentList,
-			}).String()
-			buf.WriteString(replacement)
-			lastIndex = item[1]
-		}
-	} else {
-		newstring := replaceValue.String()
-
-		for _, item := range found {
-			if item[0] != lastIndex {
-				buf.WriteString(str[lastIndex:item[0]])
-			}
-			matches := len(item) / 2
-			for i := 0; i < len(newstring); i++ {
-				if newstring[i] == '$' && i < len(newstring)-1 {
-					ch := newstring[i+1]
-					switch ch {
-					case '$':
-						buf.WriteByte('$')
-					case '`':
-						buf.WriteString(str[0:item[0]])
-					case '\'':
-						buf.WriteString(str[item[1]:])
-					case '&':
-						buf.WriteString(str[item[0]:item[1]])
-					default:
-						matchNumber := 0
-						l := 0
-						for _, ch := range newstring[i+1:] {
-							if ch >= '0' && ch <= '9' {
-								m := matchNumber*10 + int(ch-'0')
-								if m >= matches {
-									break
-								}
-								matchNumber = m
-								l++
-							} else {
-								break
-							}
-						}
-						if l > 0 {
-							offset := 2 * matchNumber
-							if offset < len(item) && item[offset] != -1 {
-								buf.WriteString(str[item[offset]:item[offset+1]])
-							}
-							i += l - 1
-						} else {
-							buf.WriteByte('$')
-							buf.WriteByte(ch)
-						}
-
-					}
-					i++
-				} else {
-					buf.WriteByte(newstring[i])
-				}
-			}
-			lastIndex = item[1]
-		}
-	}
-
-	if lastIndex != len(str) {
-		buf.WriteString(str[lastIndex:])
-	}
-
-	return newStringValue(buf.String())
+	str, rcall := getReplaceValue(replaceValue)
+	return stringReplace(s, found, str, rcall)
 }
 
 func (r *Runtime) stringproto_search(call FunctionCall) Value {

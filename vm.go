@@ -1272,14 +1272,11 @@ func (n *newArraySparse) exec(vm *vm) {
 }
 
 type newRegexp struct {
-	pattern regexpPattern
-	src     valueString
-
-	global, ignoreCase, multiline, sticky bool
+	pattern *regexpPattern
 }
 
 func (n *newRegexp) exec(vm *vm) {
-	vm.push(vm.r.newRegExpp(n.pattern, n.src, n.global, n.ignoreCase, n.multiline, n.sticky, vm.r.global.RegExpPrototype))
+	vm.push(vm.r.newRegExpp(n.pattern, vm.r.global.RegExpPrototype))
 	vm.pc++
 }
 

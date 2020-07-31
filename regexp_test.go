@@ -190,6 +190,54 @@ func TestEscapeNonASCII(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestRegexpUTF16(t *testing.T) {
+	const SCRIPT = `
+	var str = "\uD800\uDC00";
+
+	if (!/\uD800/g.test(str)) {
+		throw new Error("Test 1 failed");
+	}
+	if (!/\uD800/.test(str)) {
+		throw new Error("Test 2 failed");
+	}
+
+	var re = /\uD800/;
+
+	var res = str.replace(re, "X");
+	if (res.length !== 2 || res[0] !== "X" || res[1] !== "\uDC00") {
+		throw new Error("Test 3 failed");
+	}
+
+	res = str.split(re);
+	if (res.length !== 2 || res[0] !== "" || res[1] !== "\uDC00") {
+    	throw new Error("Test 4 failed");
+	}
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestRegexpUnicode(t *testing.T) {
+	const SCRIPT = `
+	/*var re = /\uD800/u;
+	if (re.test("\uD800\uDC00")) {
+		throw new Error("Test 1 failed");
+	}
+
+	re = /\uFFFD/u;
+	if (re.test("\uD800\uDC00")) {
+		throw new Error("Test 2 failed");
+	}*/
+
+	re = /\uD800\uDC00/u;
+	if (!re.test("\uD800\uDC00")) {
+		throw new Error("Test 3 failed");
+	}
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)
