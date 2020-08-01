@@ -36,11 +36,7 @@ type arrayRuneReader struct {
 func (rd *arrayRuneReader) ReadRune() (r rune, size int, err error) {
 	if rd.pos < len(rd.runes) {
 		r = rd.runes[rd.pos]
-		if r <= 0xFFFF {
-			size = 1
-		} else {
-			size = 2
-		}
+		size = 1
 		rd.pos++
 	} else {
 		err = io.EOF
@@ -49,7 +45,8 @@ func (rd *arrayRuneReader) ReadRune() (r rune, size int, err error) {
 }
 
 type regexpPattern struct {
-	src                                            string
+	src string
+
 	global, ignoreCase, multiline, sticky, unicode bool
 
 	regexpWrapper  *regexpWrapper
@@ -125,9 +122,18 @@ func (p *regexpPattern) findAllSubmatchIndex(s valueString, limit int) [][]int {
 		return p.regexpWrapper.findAllSubmatchIndex(s.String(), limit)
 	}
 
-	// unicode string
+	if limit == 1 {
+		result := p.regexpWrapper.findSubmatchIndex(s, p.unicode)
+		if result == nil {
+			return nil
+		}
+		return [][]int{result}
+	}
+
+	// Unfortunately Go's regexp library lacks FindAllReaderSubmatchIndex(), so we have to use a UTF-8 string as an
+	// input.
 	if p.unicode {
-		// try to convert s to UTF8
+		// Try to convert s to UTF-8. If it does not contain any invalid UTF-16 we can do the matching in UTF-8.
 		pm, str := buildUTF8PosMap(s)
 		if pm != nil {
 			res := p.regexpWrapper.findAllSubmatchIndex(str, limit)
@@ -182,7 +188,7 @@ func (r *regexp2Wrapper) findSubmatchIndexUTF16(s valueString, start int) (resul
 
 func (r *regexp2Wrapper) findSubmatchIndexUnicode(s valueString, start int) (result []int) {
 	wrapped := (*regexp2.Regexp)(r)
-	posMap, runes := buildPosMap(s.reader(0), s.length())
+	posMap, runes := buildPosMap(&lenientUtf16Decoder{utf16Reader: s.utf16Reader(0)}, s.length())
 	match, err := wrapped.FindRunesMatchStartingAt(runes, start)
 	if err != nil {
 		return
@@ -244,9 +250,8 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUTF16(s valueString, n int) [][]int
 }
 
 func buildPosMap(rd io.RuneReader, l int) (posMap []int, runes []rune) {
-	posMap = make([]int, l+1)
+	posMap = make([]int, 0, l+1)
 	curPos := 0
-	curRuneIdx := 0
 	runes = make([]rune, 0, l)
 	for {
 		rn, size, err := rd.ReadRune()
@@ -254,11 +259,10 @@ func buildPosMap(rd io.RuneReader, l int) (posMap []int, runes []rune) {
 			break
 		}
 		runes = append(runes, rn)
-		posMap[curRuneIdx] = curPos
-		curRuneIdx++
+		posMap = append(posMap, curPos)
 		curPos += size
 	}
-	posMap[curRuneIdx] = curPos
+	posMap = append(posMap, curPos)
 	return
 }
 
@@ -268,7 +272,7 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUnicode(s unicodeString, n int) [][
 		n = len(s) + 1
 	}
 	results := make([][]int, 0, n)
-	posMap, runes := buildPosMap(s.reader(0), s.length())
+	posMap, runes := buildPosMap(&lenientUtf16Decoder{utf16Reader: s.utf16Reader(0)}, s.length())
 
 	match, err := wrapped.FindRunesMatch(runes)
 	if err != nil {
@@ -320,7 +324,7 @@ func (r *regexpWrapper) findAllSubmatchIndex(s string, limit int) (results [][]i
 func (r *regexpWrapper) findSubmatchIndex(s valueString, fullUnicode bool) (result []int) {
 	wrapped := (*regexp.Regexp)(r)
 	if fullUnicode {
-		posMap, runes := buildPosMap(s.reader(0), s.length())
+		posMap, runes := buildPosMap(&lenientUtf16Decoder{utf16Reader: s.utf16Reader(0)}, s.length())
 		res := wrapped.FindReaderSubmatchIndex(&arrayRuneReader{runes: runes})
 		for i, item := range res {
 			res[i] = posMap[item]

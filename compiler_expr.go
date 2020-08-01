@@ -1445,7 +1445,7 @@ func (e *compiledRegexpLiteral) emitGetter(putOnStack bool) {
 			e.c.throwSyntaxError(e.offset, err.Error())
 		}
 
-		e.c.emit(&newRegexp{pattern: pattern})
+		e.c.emit(&newRegexp{pattern: pattern, src: newStringValue(e.expr.Pattern)})
 	}
 }
 

@@ -5,6 +5,8 @@ import (
 	"github.com/dop251/goja/parser"
 	"regexp"
 	"strings"
+	"unicode/utf16"
+	"unicode/utf8"
 )
 
 func (r *Runtime) newRegexpObject(proto *Object) *regexpObject {
@@ -20,13 +22,100 @@ func (r *Runtime) newRegexpObject(proto *Object) *regexpObject {
 	return o
 }
 
-func (r *Runtime) newRegExpp(pattern *regexpPattern, proto *Object) *Object {
+func (r *Runtime) newRegExpp(pattern *regexpPattern, patternStr valueString, proto *Object) *Object {
 	o := r.newRegexpObject(proto)
 
 	o.pattern = pattern
-	o.source = newStringValue(pattern.src)
+	o.source = patternStr
 
 	return o.val
+}
+
+func decodeHex(s string) (int, bool) {
+	var hex int
+	for i := 0; i < len(s); i++ {
+		var n byte
+		chr := s[i]
+		switch {
+		case '0' <= chr && chr <= '9':
+			n = chr - '0'
+		case 'a' <= chr && chr <= 'f':
+			n = chr - 'a' + 10
+		case 'A' <= chr && chr <= 'F':
+			n = chr - 'A' + 10
+		default:
+			return 0, false
+		}
+		hex = hex*16 + int(n)
+	}
+	return hex, true
+}
+
+func writeHex4(b *strings.Builder, i int) {
+	b.WriteByte(hex[i>>12])
+	b.WriteByte(hex[(i>>8)&0xF])
+	b.WriteByte(hex[(i>>4)&0xF])
+	b.WriteByte(hex[i&0xF])
+}
+
+// Convert any valid surrogate pairs in the form of \uXXXX\uXXXX to unicode characters
+func convertRegexpToUnicode(patternStr string) string {
+	var sb strings.Builder
+	pos := 0
+	for i := 0; i < len(patternStr)-11; {
+		r, size := utf8.DecodeRuneInString(patternStr[i:])
+		if r == '\\' {
+			i++
+			if patternStr[i] == 'u' && patternStr[i+5] == '\\' && patternStr[i+6] == 'u' {
+				if first, ok := decodeHex(patternStr[i+1 : i+5]); ok {
+					if isUTF16FirstSurrogate(rune(first)) {
+						if second, ok := decodeHex(patternStr[i+7 : i+11]); ok {
+							if isUTF16SecondSurrogate(rune(second)) {
+								r = utf16.DecodeRune(rune(first), rune(second))
+								sb.WriteString(patternStr[pos : i-1])
+								sb.WriteRune(r)
+								i += 11
+								pos = i
+								continue
+							}
+						}
+					}
+				}
+			}
+			i++
+		} else {
+			i += size
+		}
+	}
+	if pos > 0 {
+		sb.WriteString(patternStr[pos:])
+		return sb.String()
+	}
+	return patternStr
+}
+
+// Convert any extended unicode characters to UTF-16 in the form of \uXXXX\uXXXX
+func convertRegexpToUtf16(patternStr string) string {
+	var sb strings.Builder
+	pos := 0
+	for i := 0; i < len(patternStr); {
+		r, size := utf8.DecodeRuneInString(patternStr[i:])
+		if r > 0xFFFF {
+			sb.WriteString(patternStr[pos:i])
+			first, second := utf16.EncodeRune(r)
+			sb.WriteString(`\u`)
+			writeHex4(&sb, int(first))
+			sb.WriteString(`\u`)
+			writeHex4(&sb, int(second))
+			pos = i + size
+		}
+		i += size
+	}
+	if pos > 0 {
+		sb.WriteString(patternStr[pos:])
+		return sb.String()
+	}
+	return patternStr
 }
 
 func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
@@ -76,6 +165,12 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 		}
 	}
 
+	if unicode {
+		patternStr = convertRegexpToUnicode(patternStr)
+	} else {
+		patternStr = convertRegexpToUtf16(patternStr)
+	}
+
 	re2Str, err1 := parser.TransformRegExp(patternStr)
 	if err1 == nil {
 		re2flags := ""
@@ -120,7 +215,7 @@ func (r *Runtime) newRegExp(patternStr valueString, flags string, proto *Object)
 	if err != nil {
 		panic(r.newSyntaxError(err.Error(), -1))
 	}
-	return r.newRegExpp(pattern, proto)
+	return r.newRegExpp(pattern, patternStr, proto)
 }
 
 func (r *Runtime) builtin_newRegExp(args []Value, proto *Object) *Object {
@@ -644,7 +739,7 @@ func (r *Runtime) regexpproto_stdReplacerGeneric(rxObj *Object, s, replaceStr va
 		nCaptures := max(toLength(obj.self.getStr("length", nil))-1, 0)
 		matched := nilSafe(obj.self.getIdx(valueInt(0), nil)).toString()
 		matchLength := matched.length()
-		position := toInt(max(min(obj.self.getStr("index", nil).ToInteger(), int64(lengthS)), 0))
+		position := toInt(max(min(nilSafe(obj.self.getStr("index", nil)).ToInteger(), int64(lengthS)), 0))
 		var captures []Value
 		if rcall != nil {
 			captures = make([]Value, 0, nCaptures+3)

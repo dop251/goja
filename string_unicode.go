@@ -29,8 +29,11 @@ type utf16RuneReader struct {
 	pos int
 }
 
-type runeReaderReplace struct {
-	wrapped io.RuneReader
+// passes through invalid surrogate pairs
+type lenientUtf16Decoder struct {
+	utf16Reader io.RuneReader
+	prev        rune
+	prevSet     bool
 }
 
 type valueStringBuilder struct {
@@ -47,15 +50,6 @@ var (
 	InvalidRuneError = errors.New("invalid rune")
 )
 
-func (rr runeReaderReplace) ReadRune() (r rune, size int, err error) {
-	r, size, err = rr.wrapped.ReadRune()
-	if err == InvalidRuneError {
-		err = nil
-		r = utf8.RuneError
-	}
-	return
-}
-
 func (rr *utf16RuneReader) ReadRune() (r rune, size int, err error) {
 	if rr.pos < len(rr.s) {
 		r = rune(rr.s[rr.pos])
@@ -64,6 +58,37 @@ func (rr *utf16RuneReader) ReadRune() (r rune, size int, err error) {
 		return
 	}
 	err = io.EOF
+	return
+}
+
+func (rr *lenientUtf16Decoder) ReadRune() (r rune, size int, err error) {
+	if rr.prevSet {
+		r = rr.prev
+		size = 1
+		rr.prevSet = false
+	} else {
+		r, size, err = rr.utf16Reader.ReadRune()
+		if err != nil {
+			return
+		}
+	}
+	if isUTF16FirstSurrogate(r) {
+		second, _, err1 := rr.utf16Reader.ReadRune()
+		if err1 != nil {
+			if err1 != io.EOF {
+				err = err1
+			}
+			return
+		}
+		if isUTF16SecondSurrogate(second) {
+			r = utf16.DecodeRune(r, second)
+			size++
+		} else {
+			rr.prev = second
+			rr.prevSet = true
+		}
+	}
+
 	return
 }
 

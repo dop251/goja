@@ -200,17 +200,25 @@ func TestRegexpUTF16(t *testing.T) {
 	if (!/\uD800/.test(str)) {
 		throw new Error("Test 2 failed");
 	}
+	if (!/𐀀/.test(str)) {
+		throw new Error("Test 3 failed");
+	}
 
 	var re = /\uD800/;
 
 	var res = str.replace(re, "X");
 	if (res.length !== 2 || res[0] !== "X" || res[1] !== "\uDC00") {
-		throw new Error("Test 3 failed");
+		throw new Error("Test 4 failed");
 	}
 
 	res = str.split(re);
 	if (res.length !== 2 || res[0] !== "" || res[1] !== "\uDC00") {
-    	throw new Error("Test 4 failed");
+		throw new Error("Test 5 failed");
+	}
+
+	var res = "a\uD800\uDC00b".split(/\uD800/g);
+	if (res.length !== 2 || res[0] !== "a" || res[1] !== "\uDC00b") {
+		throw new Error("Test 6 failed");
 	}
 	`
 
@@ -219,7 +227,8 @@ func TestRegexpUTF16(t *testing.T) {
 
 func TestRegexpUnicode(t *testing.T) {
 	const SCRIPT = `
-	/*var re = /\uD800/u;
+
+	var re = /\uD800/u;
 	if (re.test("\uD800\uDC00")) {
 		throw new Error("Test 1 failed");
 	}
@@ -227,15 +236,85 @@ func TestRegexpUnicode(t *testing.T) {
 	re = /\uFFFD/u;
 	if (re.test("\uD800\uDC00")) {
 		throw new Error("Test 2 failed");
-	}*/
+	}
 
 	re = /\uD800\uDC00/u;
 	if (!re.test("\uD800\uDC00")) {
 		throw new Error("Test 3 failed");
 	}
+
+	re = /\uD800/u;
+	if (!re.test("\uD800")) {
+		throw new Error("Test 4 failed");
+	}
+
+	var res = 'aaa'.match(/^a/g);
+	if (res.length !== 1 || res[0] !== 'a') {
+		throw new Error("Test 5 failed");
+	}
+
+	re = /(?=)a/; // a hack to use regexp2
+	if (re.exec('\ud83d\ude02a').index !== 2) {
+		throw new Error("Test 6 failed");
+	}
+
+	if (/./.exec('\ud83d\ude02')[0] !== '\ud83d') {
+		throw new Error("Test 7 failed");
+	}
+
+	var res = "a\uD800\uDC00b".split(/\uD800/gu);
+	if (res.length !== 1 || res[0] !== "a\uD800\uDC00b") {
+		throw new Error("Test 8 failed");
+	}
+
+	/*re = RegExp("\\p{L}", "u");
+	if (!re.test("A")) {
+		throw new Error("Test 9 failed");
+	}*/
 	`
 
 	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestConvertRegexpToUnicode(t *testing.T) {
+	if s := convertRegexpToUnicode(`test\uD800\u0C00passed`); s != `test\uD800\u0C00passed` {
+		t.Fatal(s)
+	}
+	if s := convertRegexpToUnicode(`test\uD800\uDC00passed`); s != `test𐀀passed` {
+		t.Fatal(s)
+	}
+	if s := convertRegexpToUnicode(`test\u0023passed`); s != `test\u0023passed` {
+		t.Fatal(s)
+	}
+	if s := convertRegexpToUnicode(`test\u0passed`); s != `test\u0passed` {
+		t.Fatal(s)
+	}
+	if s := convertRegexpToUnicode(`test\uD800passed`); s != `test\uD800passed` {
+		t.Fatal(s)
+	}
+	if s := convertRegexpToUnicode(`test\uD800`); s != `test\uD800` {
+		t.Fatal(s)
+	}
+	if s := convertRegexpToUnicode(`test\uD80`); s != `test\uD80` {
+		t.Fatal(s)
+	}
+	if s := convertRegexpToUnicode(`\\uD800\uDC00passed`); s != `\\uD800\uDC00passed` {
+		t.Fatal(s)
+	}
+	if s := convertRegexpToUnicode(`testpassed`); s != `testpassed` {
+		t.Fatal(s)
+	}
+}
+
+func TestRegexp2Unicode(t *testing.T) {
+	r, err := compileRegexp2(`\p{L}`, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := r.findSubmatchIndex(newStringValue("A"), 0, true)
+	if res == nil {
+		t.Fatal("no match")
+	}
 }
 
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {

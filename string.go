@@ -112,7 +112,7 @@ func (r *Runtime) createStringIterator(s valueString) Value {
 	o := &Object{runtime: r}
 
 	si := &stringIterObject{
-		reader: s.reader(0),
+		reader: &lenientUtf16Decoder{utf16Reader: s.utf16Reader(0)},
 	}
 	si.class = classStringIterator
 	si.val = o
