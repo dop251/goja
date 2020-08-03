@@ -37,7 +37,10 @@ var (
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
-		"test/annexB/built-ins/escape/escape-above-astral.js":         true, // \u{xxxxx}
+
+		// \u{xxxxx}
+		"test/annexB/built-ins/escape/escape-above-astral.js": true,
+		"test/built-ins/RegExp/prototype/source/value-u.js":   true,
 
 		// SharedArrayBuffer
 		"test/built-ins/ArrayBuffer/prototype/slice/this-is-sharedarraybuffer.js": true,
@@ -103,13 +106,9 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/ArrayBuffer/regular-subclassing.js":                 true,
 		"test/built-ins/ArrayBuffer/isView/arg-is-typedarray-subclass-instance.js":                                   true,
 		"test/built-ins/ArrayBuffer/isView/arg-is-dataview-subclass-instance.js":                                     true,
-
-		// full unicode regexp flag
-		"test/built-ins/RegExp/prototype/Symbol.match/u-advance-after-empty.js":               true,
-		"test/built-ins/RegExp/prototype/Symbol.match/get-unicode-error.js":                   true,
-		"test/built-ins/RegExp/prototype/Symbol.match/builtin-success-u-return-val-groups.js": true,
-		"test/built-ins/RegExp/prototype/Symbol.match/builtin-infer-unicode.js":               true,
-		"test/built-ins/RegExp/unicode_identity_escape.js":                                    true,
+		"test/language/statements/class/subclass/builtin-objects/RegExp/super-must-be-called.js":                     true,
+		"test/language/statements/class/subclass/builtin-objects/RegExp/regular-subclassing.js":                      true,
+		"test/language/statements/class/subclass/builtin-objects/RegExp/lastIndex.js":                                true,
 
 		// object literals
 		"test/built-ins/Array/from/source-object-iterator-1.js":                   true,
@@ -144,6 +143,10 @@ var (
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_alpha.js":  true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape.js":        true,
 		"test/built-ins/RegExp/unicode_restricted_brackets.js":               true,
+		"test/built-ins/RegExp/unicode_restricted_character_class_escape.js": true,
+
+		// Promise
+		"test/built-ins/Symbol/species/builtin-getter-name.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -167,6 +170,7 @@ var (
 		"20.3",
 		"21.1",
 		"21.2.5.6",
+		"21.2",
 		"22.1",
 		"22.2",
 		"23.1",
@@ -304,6 +308,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	_262.Set("createRealm", ctx.throwIgnorableTestError)
 	vm.Set("$262", _262)
 	vm.Set("IgnorableTestError", ignorableTestError)
+	vm.Set("print", t.Log)
 	vm.RunProgram(sabStub)
 	err, early := ctx.runTC39Script(name, src, meta.Includes, vm)
 

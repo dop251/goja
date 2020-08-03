@@ -121,13 +121,14 @@ type global struct {
 	thrower         *Object
 	throwerProperty Value
 
-	regexpProtoExec Value
-	weakSetAdder    *Object
-	weakMapAdder    *Object
-	mapAdder        *Object
-	setAdder        *Object
-	arrayValues     *Object
-	arrayToString   *Object
+	stdRegexpProto *guardedObject
+
+	weakSetAdder  *Object
+	weakMapAdder  *Object
+	mapAdder      *Object
+	setAdder      *Object
+	arrayValues   *Object
+	arrayToString *Object
 }
 
 type Flag int
@@ -408,9 +409,28 @@ func newBaseObjectObj(obj, proto *Object, class string) *baseObject {
 	return o
 }
 
+func newGuardedObj(proto *Object, class string) *guardedObject {
+	return &guardedObject{
+		baseObject: baseObject{
+			class:      class,
+			extensible: true,
+			prototype:  proto,
+		},
+	}
+}
+
 func (r *Runtime) newBaseObject(proto *Object, class string) (o *baseObject) {
 	v := &Object{runtime: r}
 	return newBaseObjectObj(v, proto, class)
+}
+
+func (r *Runtime) newGuardedObject(proto *Object, class string) (o *guardedObject) {
+	v := &Object{runtime: r}
+	o = newGuardedObj(proto, class)
+	v.self = o
+	o.val = v
+	o.init()
+	return
 }
 
 func (r *Runtime) NewObject() (v *Object) {

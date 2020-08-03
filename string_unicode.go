@@ -240,9 +240,31 @@ func (b *valueStringBuilder) Grow(n int) {
 
 func (b *valueStringBuilder) switchToUnicode(extraLen int) {
 	if b.ascii() {
-		b.unicodeBuilder.Grow(b.asciiBuilder.Len() + extraLen)
+		b.unicodeBuilder.ensureStarted(b.asciiBuilder.Len() + extraLen)
 		b.unicodeBuilder.writeASCIIString(b.asciiBuilder.String())
 		b.asciiBuilder.Reset()
+	}
+}
+
+func (b *valueStringBuilder) WriteSubstring(source valueString, start int, end int) {
+	if ascii, ok := source.(asciiString); ok {
+		if b.ascii() {
+			b.asciiBuilder.WriteString(string(ascii[start:end]))
+			return
+		}
+	}
+	uc := false
+	for i := start; i < end; i++ {
+		if source.charAt(i) >= utf8.RuneSelf {
+			uc = true
+			break
+		}
+	}
+	if uc {
+		b.switchToUnicode(end - start + 1)
+		for i := start; i < end; i++ {
+			b.unicodeBuilder.buf = append(b.unicodeBuilder.buf, uint16(source.charAt(i)))
+		}
 	}
 }
 

@@ -192,80 +192,48 @@ func TestEscapeNonASCII(t *testing.T) {
 
 func TestRegexpUTF16(t *testing.T) {
 	const SCRIPT = `
+/*var re;
+re = eval('/' + /\u{1d306}/u.source + '/u');
+assert.sameValue(re.test('\ud834\udf06'), true);*/
+
 	var str = "\uD800\uDC00";
 
-	if (!/\uD800/g.test(str)) {
-		throw new Error("Test 1 failed");
-	}
-	if (!/\uD800/.test(str)) {
-		throw new Error("Test 2 failed");
-	}
-	if (!/𐀀/.test(str)) {
-		throw new Error("Test 3 failed");
-	}
+	assert(/\uD800/g.test(str), "#1");
+	assert(/\uD800/.test(str), "#2");
+	assert(/𐀀/.test(str), "#3");
 
 	var re = /\uD800/;
 
-	var res = str.replace(re, "X");
-	if (res.length !== 2 || res[0] !== "X" || res[1] !== "\uDC00") {
-		throw new Error("Test 4 failed");
-	}
+	assert(compareArray(str.replace(re, "X"), ["X", "\uDC00"]), "#4");
+	assert(compareArray(str.split(re), ["", "\uDC00"]), "#5");
+	assert(compareArray("a\uD800\uDC00b".split(/\uD800/g), ["a", "\uDC00b"]), "#6");
+	assert(compareArray("a\uD800\uDC00b".split(/(?:)/g), ["a", "\uD800", "\uDC00", "b"]), "#7");
 
-	res = str.split(re);
-	if (res.length !== 2 || res[0] !== "" || res[1] !== "\uDC00") {
-		throw new Error("Test 5 failed");
-	}
+	re = /(?=)a/; // a hack to use regexp2
+	assert.sameValue(re.exec('\ud83d\ude02a').index, 2, "#8");
 
-	var res = "a\uD800\uDC00b".split(/\uD800/g);
-	if (res.length !== 2 || res[0] !== "a" || res[1] !== "\uDC00b") {
-		throw new Error("Test 6 failed");
-	}
+	assert.sameValue(/./.exec('\ud83d\ude02')[0], '\ud83d', "#9");
 	`
 
-	testScript1(SCRIPT, _undefined, t)
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
 func TestRegexpUnicode(t *testing.T) {
 	const SCRIPT = `
 
-	var re = /\uD800/u;
-	if (re.test("\uD800\uDC00")) {
-		throw new Error("Test 1 failed");
-	}
+	assert(!/\uD800/u.test("\uD800\uDC00"), "#1");
+	assert(!/\uFFFD/u.test("\uD800\uDC00"), "#2");
 
-	re = /\uFFFD/u;
-	if (re.test("\uD800\uDC00")) {
-		throw new Error("Test 2 failed");
-	}
+	assert(/\uD800\uDC00/u.test("\uD800\uDC00"), "#3");
 
-	re = /\uD800\uDC00/u;
-	if (!re.test("\uD800\uDC00")) {
-		throw new Error("Test 3 failed");
-	}
+	assert(/\uD800/u.test("\uD800"), "#4");
 
-	re = /\uD800/u;
-	if (!re.test("\uD800")) {
-		throw new Error("Test 4 failed");
-	}
+	assert(compareArray("a\uD800\uDC00b".split(/\uD800/gu), ["a\uD800\uDC00b"]), "#5");
 
-	var res = 'aaa'.match(/^a/g);
-	if (res.length !== 1 || res[0] !== 'a') {
-		throw new Error("Test 5 failed");
-	}
+	assert(compareArray("a\uD800\uDC00b".split(/(?:)/gu), ["a", "𐀀", "b"]), "#6");
 
-	re = /(?=)a/; // a hack to use regexp2
-	if (re.exec('\ud83d\ude02a').index !== 2) {
-		throw new Error("Test 6 failed");
-	}
-
-	if (/./.exec('\ud83d\ude02')[0] !== '\ud83d') {
-		throw new Error("Test 7 failed");
-	}
-
-	var res = "a\uD800\uDC00b".split(/\uD800/gu);
-	if (res.length !== 1 || res[0] !== "a\uD800\uDC00b") {
-		throw new Error("Test 8 failed");
-	}
+	var re = eval('/' + /\ud834\udf06/u.source + '/u');
+	assert(re.test('\ud834\udf06'), "#9");
 
 	/*re = RegExp("\\p{L}", "u");
 	if (!re.test("A")) {
@@ -273,7 +241,7 @@ func TestRegexpUnicode(t *testing.T) {
 	}*/
 	`
 
-	testScript1(SCRIPT, _undefined, t)
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
 func TestConvertRegexpToUnicode(t *testing.T) {
@@ -306,15 +274,39 @@ func TestConvertRegexpToUnicode(t *testing.T) {
 	}
 }
 
-func TestRegexp2Unicode(t *testing.T) {
-	r, err := compileRegexp2(`\p{L}`, false, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res := r.findSubmatchIndex(newStringValue("A"), 0, true)
-	if res == nil {
-		t.Fatal("no match")
-	}
+func TestRegexpAssertion(t *testing.T) {
+	const SCRIPT = `
+	var res = 'aaa'.match(/^a/g);
+	res.length === 1 || res[0] === 'a';
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestRegexpUnicodeAdvanceStringIndex(t *testing.T) {
+	const SCRIPT = `
+	// deoptimise RegExp
+	var origExec = RegExp.prototype.exec;
+	RegExp.prototype.exec = function(s) {
+		return origExec.call(this, s);
+	};
+
+	var re = /(?:)/gu;
+	var str = "a\uD800\uDC00b";
+	assert(compareArray(str.split(re), ["a", "𐀀", "b"]), "#1");
+
+	re.lastIndex = 3;
+	assert.sameValue(re.exec(str).index, 3, "#2");
+
+	re.lastIndex = 2;
+	assert.sameValue(re.exec(str).index, 1, "#3");
+
+	re.lastIndex = 4;
+	assert.sameValue(re.exec(str).index, 4, "#4");
+
+	re.lastIndex = 5;
+	assert.sameValue(re.exec(str), null, "#5");
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
