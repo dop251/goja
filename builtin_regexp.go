@@ -210,7 +210,7 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 	return
 }
 
-func (r *Runtime) newRegExp(patternStr valueString, flags string, proto *Object) *Object {
+func (r *Runtime) _newRegExp(patternStr valueString, flags string, proto *Object) *Object {
 	pattern, err := compileRegexp(patternStr.String(), flags)
 	if err != nil {
 		panic(r.newSyntaxError(err.Error(), -1))
@@ -219,43 +219,66 @@ func (r *Runtime) newRegExp(patternStr valueString, flags string, proto *Object)
 }
 
 func (r *Runtime) builtin_newRegExp(args []Value, proto *Object) *Object {
-	var pattern valueString
-	var flags string
+	var patternVal, flagsVal Value
 	if len(args) > 0 {
-		if obj, ok := args[0].(*Object); ok {
-			if rx, ok := obj.self.(*regexpObject); ok {
-				if len(args) < 2 || args[1] == _undefined {
-					return rx.clone()
-				} else {
-					return r.newRegExp(rx.source, args[1].String(), proto)
-				}
-			}
-		}
-		if args[0] != _undefined {
-			pattern = args[0].toString()
-		}
+		patternVal = args[0]
 	}
 	if len(args) > 1 {
-		if a := args[1]; a != _undefined {
-			flags = a.String()
+		flagsVal = args[1]
+	}
+	return r.newRegExp(patternVal, flagsVal, proto)
+}
+
+func (r *Runtime) newRegExp(patternVal, flagsVal Value, proto *Object) *Object {
+	var pattern valueString
+	var flags string
+	if obj, ok := patternVal.(*Object); ok {
+		if rx, ok := obj.self.(*regexpObject); ok {
+			if flagsVal == nil || flagsVal == _undefined {
+				return rx.clone()
+			} else {
+				return r._newRegExp(rx.source, flagsVal.String(), proto)
+			}
+		} else {
+			if isRegexp(patternVal) {
+				pattern = nilSafe(obj.self.getStr("source", nil)).toString()
+				if flagsVal == nil || flagsVal == _undefined {
+					flags = nilSafe(obj.self.getStr("flags", nil)).String()
+				} else {
+					flags = flagsVal.String()
+				}
+				goto exit
+			}
 		}
 	}
+
+	if patternVal != nil && patternVal != _undefined {
+		pattern = patternVal.toString()
+	}
+	if flagsVal != nil && flagsVal != _undefined {
+		flags = flagsVal.String()
+	}
+
 	if pattern == nil {
 		pattern = stringEmpty
 	}
-	return r.newRegExp(pattern, flags, proto)
+exit:
+	return r._newRegExp(pattern, flags, proto)
 }
 
 func (r *Runtime) builtin_RegExp(call FunctionCall) Value {
+	pattern := call.Argument(0)
+	patternIsRegExp := isRegexp(pattern)
 	flags := call.Argument(1)
-	if flags == _undefined {
+	if patternIsRegExp && flags == _undefined {
 		if obj, ok := call.Argument(0).(*Object); ok {
-			if _, ok := obj.self.(*regexpObject); ok {
-				return call.Arguments[0]
+			patternConstructor := obj.self.getStr("constructor", nil)
+			if patternConstructor == r.global.RegExp {
+				return pattern
 			}
 		}
 	}
-	return r.builtin_newRegExp(call.Arguments, r.global.RegExpPrototype)
+	return r.newRegExp(pattern, flags, r.global.RegExpPrototype)
 }
 
 func (r *Runtime) regexpproto_exec(call FunctionCall) Value {

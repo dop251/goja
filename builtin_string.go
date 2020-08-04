@@ -358,7 +358,7 @@ func (r *Runtime) stringproto_match(call FunctionCall) Value {
 	}
 
 	if rx == nil {
-		rx = r.builtin_newRegExp([]Value{regexp}, r.global.RegExpPrototype).self.(*regexpObject)
+		rx = r.newRegExp(regexp, nil, r.global.RegExpPrototype).self.(*regexpObject)
 	}
 
 	if matcher, ok := r.toObject(rx.getSym(symMatch, nil)).self.assertCallable(); ok {
@@ -568,7 +568,7 @@ func stringReplace(s valueString, found [][]int, newstring valueString, rcall fu
 	if rcall != nil {
 		for _, item := range found {
 			if item[0] != lastIndex {
-				buf.WriteString(s.substring(lastIndex, item[0]))
+				buf.WriteSubstring(s, lastIndex, item[0])
 			}
 			matchCount := len(item) / 2
 			argumentList := make([]Value, matchCount+2)
@@ -662,7 +662,7 @@ func (r *Runtime) stringproto_search(call FunctionCall) Value {
 	}
 
 	if rx == nil {
-		rx = r.builtin_newRegExp([]Value{regexp}, r.global.RegExpPrototype).self.(*regexpObject)
+		rx = r.newRegExp(regexp, nil, r.global.RegExpPrototype).self.(*regexpObject)
 	}
 
 	if searcher, ok := r.toObject(rx.getSym(symSearch, nil)).self.assertCallable(); ok {

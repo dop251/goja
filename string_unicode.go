@@ -171,7 +171,9 @@ func (b *unicodeStringBuilder) WriteRune(r rune) {
 	if r <= 0xFFFF {
 		b.ensureStarted(1)
 		b.buf = append(b.buf, uint16(r))
-		b.unicode = r >= utf8.RuneSelf
+		if !b.unicode && r >= utf8.RuneSelf {
+			b.unicode = true
+		}
 	} else {
 		b.ensureStarted(2)
 		first, second := utf16.EncodeRune(r)
@@ -253,19 +255,27 @@ func (b *valueStringBuilder) WriteSubstring(source valueString, start int, end i
 			return
 		}
 	}
-	uc := false
-	for i := start; i < end; i++ {
-		if source.charAt(i) >= utf8.RuneSelf {
-			uc = true
-			break
-		}
-	}
-	if uc {
-		b.switchToUnicode(end - start + 1)
+	us := source.(unicodeString)
+	if b.ascii() {
+		uc := false
 		for i := start; i < end; i++ {
-			b.unicodeBuilder.buf = append(b.unicodeBuilder.buf, uint16(source.charAt(i)))
+			if us.charAt(i) >= utf8.RuneSelf {
+				uc = true
+				break
+			}
+		}
+		if uc {
+			b.switchToUnicode(end - start + 1)
+		} else {
+			b.asciiBuilder.Grow(end - start + 1)
+			for i := start; i < end; i++ {
+				b.asciiBuilder.WriteByte(byte(us.charAt(i)))
+			}
+			return
 		}
 	}
+	b.unicodeBuilder.buf = append(b.unicodeBuilder.buf, us[start+1:end+1]...)
+	b.unicodeBuilder.unicode = true
 }
 
 func (s unicodeString) reader(start int) io.RuneReader {

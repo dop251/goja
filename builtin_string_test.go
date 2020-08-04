@@ -167,3 +167,61 @@ if (result.value !== pair) {
 `
 	testScript1(SCRIPT, _undefined, t)
 }
+
+func TestValueStringBuilder(t *testing.T) {
+	t.Run("substringASCII", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		str := newStringValue("a\U00010000b")
+		sb.WriteSubstring(str, 0, 1)
+		res := sb.String()
+		if res != asciiString("a") {
+			t.Fatal(res)
+		}
+	})
+
+	t.Run("substringASCIIPure", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		str := newStringValue("ab")
+		sb.WriteSubstring(str, 0, 1)
+		res := sb.String()
+		if res != asciiString("a") {
+			t.Fatal(res)
+		}
+	})
+
+	t.Run("substringUnicode", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		str := newStringValue("a\U00010000b")
+		sb.WriteSubstring(str, 1, 3)
+		res := sb.String()
+		if !res.SameAs(unicodeStringFromRunes([]rune{0x10000})) {
+			t.Fatal(res)
+		}
+	})
+
+	t.Run("substringASCIIUnicode", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		str := newStringValue("a\U00010000b")
+		sb.WriteSubstring(str, 0, 2)
+		res := sb.String()
+		if !res.SameAs(unicodeStringFromRunes([]rune{'a', 0xD800})) {
+			t.Fatal(res)
+		}
+	})
+
+	t.Run("substringUnicodeASCII", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		str := newStringValue("a\U00010000b")
+		sb.WriteSubstring(str, 2, 4)
+		res := sb.String()
+		if !res.SameAs(unicodeStringFromRunes([]rune{0xDC00, 'b'})) {
+			t.Fatal(res)
+		}
+	})
+
+}

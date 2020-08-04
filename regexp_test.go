@@ -192,10 +192,6 @@ func TestEscapeNonASCII(t *testing.T) {
 
 func TestRegexpUTF16(t *testing.T) {
 	const SCRIPT = `
-/*var re;
-re = eval('/' + /\u{1d306}/u.source + '/u');
-assert.sameValue(re.test('\ud834\udf06'), true);*/
-
 	var str = "\uD800\uDC00";
 
 	assert(/\uD800/g.test(str), "#1");
