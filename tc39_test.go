@@ -37,7 +37,10 @@ var (
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
-		"test/annexB/built-ins/escape/escape-above-astral.js":         true, // \u{xxxxx}
+
+		// \u{xxxxx}
+		"test/annexB/built-ins/escape/escape-above-astral.js": true,
+		"test/built-ins/RegExp/prototype/source/value-u.js":   true,
 
 		// SharedArrayBuffer
 		"test/built-ins/ArrayBuffer/prototype/slice/this-is-sharedarraybuffer.js": true,
@@ -103,13 +106,9 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/ArrayBuffer/regular-subclassing.js":                 true,
 		"test/built-ins/ArrayBuffer/isView/arg-is-typedarray-subclass-instance.js":                                   true,
 		"test/built-ins/ArrayBuffer/isView/arg-is-dataview-subclass-instance.js":                                     true,
-
-		// full unicode regexp flag
-		"test/built-ins/RegExp/prototype/Symbol.match/u-advance-after-empty.js":               true,
-		"test/built-ins/RegExp/prototype/Symbol.match/get-unicode-error.js":                   true,
-		"test/built-ins/RegExp/prototype/Symbol.match/builtin-success-u-return-val-groups.js": true,
-		"test/built-ins/RegExp/prototype/Symbol.match/builtin-infer-unicode.js":               true,
-		"test/built-ins/RegExp/unicode_identity_escape.js":                                    true,
+		"test/language/statements/class/subclass/builtin-objects/RegExp/super-must-be-called.js":                     true,
+		"test/language/statements/class/subclass/builtin-objects/RegExp/regular-subclassing.js":                      true,
+		"test/language/statements/class/subclass/builtin-objects/RegExp/lastIndex.js":                                true,
 
 		// object literals
 		"test/built-ins/Array/from/source-object-iterator-1.js":                   true,
@@ -133,6 +132,33 @@ var (
 		"test/built-ins/String/raw/template-substitutions-are-appended-on-same-index.js": true,
 		"test/built-ins/String/raw/special-characters.js":                                true,
 		"test/built-ins/String/raw/return-the-string-value-from-template.js":             true,
+
+		// restricted unicode regexp syntax
+		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
+		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
+		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":            true,
+		"test/built-ins/RegExp/unicode_restricted_identity_escape_x.js":              true,
+		"test/built-ins/RegExp/unicode_restricted_identity_escape_u.js":              true,
+		"test/built-ins/RegExp/unicode_restricted_identity_escape_c.js":              true,
+		"test/built-ins/RegExp/unicode_restricted_identity_escape_alpha.js":          true,
+		"test/built-ins/RegExp/unicode_restricted_identity_escape.js":                true,
+		"test/built-ins/RegExp/unicode_restricted_brackets.js":                       true,
+		"test/built-ins/RegExp/unicode_restricted_character_class_escape.js":         true,
+		"test/annexB/built-ins/RegExp/prototype/compile/pattern-string-invalid-u.js": true,
+
+		// Because goja parser works in UTF-8 it is not possible to pass strings containing invalid UTF-16 code points.
+		// This is mitigated by escaping them as \uXXXX, however because of this the RegExp source becomes
+		// `\uXXXX` instead of `<the actual UTF-16 code point of XXXX>`.
+		// The resulting RegExp will work exactly the same, but it causes these two tests to fail.
+		"test/annexB/built-ins/RegExp/RegExp-leading-escape-BMP.js":  true,
+		"test/annexB/built-ins/RegExp/RegExp-trailing-escape-BMP.js": true,
+
+		// Looks like a bug in regexp2: decimal escapes that do not represent a capture are simply ignored instead
+		// of being treated as a character with the specified code.
+		"test/annexB/built-ins/RegExp/RegExp-decimal-escape-not-capturing.js": true,
+
+		// Promise
+		"test/built-ins/Symbol/species/builtin-getter-name.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -155,7 +181,7 @@ var (
 		"20.2",
 		"20.3",
 		"21.1",
-		"21.2.5.6",
+		"21.2",
 		"22.1",
 		"22.2",
 		"23.1",
@@ -181,6 +207,7 @@ var (
 		"sec-math",
 		"sec-arraybuffer-length",
 		"sec-arraybuffer",
+		"sec-regexp",
 	}
 )
 
@@ -293,6 +320,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	_262.Set("createRealm", ctx.throwIgnorableTestError)
 	vm.Set("$262", _262)
 	vm.Set("IgnorableTestError", ignorableTestError)
+	vm.Set("print", t.Log)
 	vm.RunProgram(sabStub)
 	err, early := ctx.runTC39Script(name, src, meta.Includes, vm)
 
@@ -574,6 +602,7 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
 		ctx.runTC39Tests("test/annexB/built-ins/escape")
 		ctx.runTC39Tests("test/annexB/built-ins/unescape")
+		ctx.runTC39Tests("test/annexB/built-ins/RegExp")
 
 		ctx.flush()
 	})

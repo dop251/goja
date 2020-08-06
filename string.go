@@ -56,6 +56,9 @@ type valueString interface {
 	substring(start, end int) valueString
 	compareTo(valueString) int
 	reader(start int) io.RuneReader
+	utf16Reader(start int) io.RuneReader
+	runes() []rune
+	utf16Runes() []rune
 	index(valueString, int) int
 	lastIndex(valueString, int) int
 	toLower() valueString
@@ -101,15 +104,15 @@ func stringFromRune(r rune) valueString {
 	} else {
 		sb.Grow(2)
 	}
-	sb.writeRune(r)
-	return sb.string()
+	sb.WriteRune(r)
+	return sb.String()
 }
 
 func (r *Runtime) createStringIterator(s valueString) Value {
 	o := &Object{runtime: r}
 
 	si := &stringIterObject{
-		reader: s.reader(0),
+		reader: &lenientUtf16Decoder{utf16Reader: s.utf16Reader(0)},
 	}
 	si.class = classStringIterator
 	si.val = o

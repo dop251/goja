@@ -3,7 +3,6 @@ package goja
 import (
 	"math"
 	"sort"
-	"strings"
 )
 
 func (r *Runtime) newArray(prototype *Object) (a *arrayObject) {
@@ -174,32 +173,32 @@ func (r *Runtime) arrayproto_pop(call FunctionCall) Value {
 func (r *Runtime) arrayproto_join(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	l := int(toLength(o.self.getStr("length", nil)))
-	sep := ""
+	var sep valueString = asciiString("")
 	if s := call.Argument(0); s != _undefined {
-		sep = s.toString().String()
+		sep = s.toString()
 	} else {
-		sep = ","
+		sep = asciiString(",")
 	}
 	if l == 0 {
 		return stringEmpty
 	}
 
-	var buf strings.Builder
+	var buf valueStringBuilder
 
 	element0 := o.self.getIdx(valueInt(0), nil)
 	if element0 != nil && element0 != _undefined && element0 != _null {
-		buf.WriteString(element0.String())
+		buf.WriteString(element0.toString())
 	}
 
 	for i := 1; i < l; i++ {
 		buf.WriteString(sep)
 		element := o.self.getIdx(valueInt(int64(i)), nil)
 		if element != nil && element != _undefined && element != _null {
-			buf.WriteString(element.String())
+			buf.WriteString(element.toString())
 		}
 	}
 
-	return newStringValue(buf.String())
+	return buf.String()
 }
 
 func (r *Runtime) arrayproto_toString(call FunctionCall) Value {
@@ -217,14 +216,14 @@ func (r *Runtime) arrayproto_toString(call FunctionCall) Value {
 	})
 }
 
-func (r *Runtime) writeItemLocaleString(item Value, buf *strings.Builder) {
+func (r *Runtime) writeItemLocaleString(item Value, buf *valueStringBuilder) {
 	if item != nil && item != _undefined && item != _null {
 		if f, ok := r.getVStr(item, "toLocaleString").(*Object); ok {
 			if c, ok := f.self.assertCallable(); ok {
 				strVal := c(FunctionCall{
 					This: item,
 				})
-				buf.WriteString(strVal.ToString().String())
+				buf.WriteString(strVal.toString())
 				return
 			}
 		}
@@ -234,11 +233,11 @@ func (r *Runtime) writeItemLocaleString(item Value, buf *strings.Builder) {
 
 func (r *Runtime) arrayproto_toLocaleString(call FunctionCall) Value {
 	array := call.This.ToObject(r)
-	var buf strings.Builder
+	var buf valueStringBuilder
 	if a := r.checkStdArrayObj(array); a != nil {
 		for i, item := range a.values {
 			if i > 0 {
-				buf.WriteByte(',')
+				buf.WriteRune(',')
 			}
 			r.writeItemLocaleString(item, &buf)
 		}
@@ -246,14 +245,14 @@ func (r *Runtime) arrayproto_toLocaleString(call FunctionCall) Value {
 		length := toLength(array.self.getStr("length", nil))
 		for i := int64(0); i < length; i++ {
 			if i > 0 {
-				buf.WriteByte(',')
+				buf.WriteRune(',')
 			}
 			item := array.self.getIdx(valueInt(i), nil)
 			r.writeItemLocaleString(item, &buf)
 		}
 	}
 
-	return newStringValue(buf.String())
+	return buf.String()
 }
 
 func isConcatSpreadable(obj *Object) bool {
@@ -1331,7 +1330,7 @@ func (a *arraySortCtx) sortCompare(x, y Value) int {
 		}
 		return 0
 	}
-	return strings.Compare(x.String(), y.String())
+	return x.toString().compareTo(y.toString())
 }
 
 // sort.Interface

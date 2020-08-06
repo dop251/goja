@@ -5,20 +5,24 @@ import (
 )
 
 func (r *Runtime) builtin_Function(args []Value, proto *Object) *Object {
-	src := "(function anonymous("
+	var sb valueStringBuilder
+	sb.WriteString(asciiString("(function anonymous("))
 	if len(args) > 1 {
-		for _, arg := range args[:len(args)-1] {
-			src += arg.String() + ","
+		ar := args[:len(args)-1]
+		for i, arg := range ar {
+			sb.WriteString(arg.toString())
+			if i < len(ar)-1 {
+				sb.WriteRune(',')
+			}
 		}
-		src = src[:len(src)-1]
 	}
-	body := ""
+	sb.WriteString(asciiString("){"))
 	if len(args) > 0 {
-		body = args[len(args)-1].String()
+		sb.WriteString(args[len(args)-1].toString())
 	}
-	src += "){" + body + "})"
+	sb.WriteString(asciiString("})"))
 
-	ret := r.toObject(r.eval(src, false, false, _undefined))
+	ret := r.toObject(r.eval(sb.String(), false, false, _undefined))
 	ret.self.setProto(proto, true)
 	return ret
 }
@@ -43,9 +47,9 @@ repeat:
 		case *funcObject:
 			name = c.src
 		case *nativeFuncObject:
-			name = c.nameProp.get(call.This).String()
+			name = nilSafe(c.nameProp.get(call.This)).toString().String()
 		case *boundFuncObject:
-			name = c.nameProp.get(call.This).String()
+			name = nilSafe(c.nameProp.get(call.This)).toString().String()
 		case *lazyObject:
 			f.target.self = c.create(obj)
 			goto repeat2

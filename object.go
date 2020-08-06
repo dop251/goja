@@ -252,6 +252,11 @@ type baseObject struct {
 	symValues *orderedMap
 }
 
+type guardedObject struct {
+	baseObject
+	guardedProps map[unistring.String]struct{}
+}
+
 type primitiveValueObject struct {
 	baseObject
 	pValue Value
@@ -1404,4 +1409,43 @@ func (o *Object) getId() uint64 {
 		o.runtime.idSeq++
 	}
 	return o.id
+}
+
+func (o *guardedObject) guard(props ...unistring.String) {
+	if o.guardedProps == nil {
+		o.guardedProps = make(map[unistring.String]struct{})
+	}
+	for _, p := range props {
+		o.guardedProps[p] = struct{}{}
+	}
+}
+
+func (o *guardedObject) check(p unistring.String) {
+	if _, exists := o.guardedProps[p]; exists {
+		o.val.self = &o.baseObject
+	}
+}
+
+func (o *guardedObject) setOwnStr(p unistring.String, v Value, throw bool) bool {
+	res := o.baseObject.setOwnStr(p, v, throw)
+	if res {
+		o.check(p)
+	}
+	return res
+}
+
+func (o *guardedObject) defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool {
+	res := o.baseObject.defineOwnPropertyStr(name, desc, throw)
+	if res {
+		o.check(name)
+	}
+	return res
+}
+
+func (o *guardedObject) deleteStr(name unistring.String, throw bool) bool {
+	res := o.baseObject.deleteStr(name, throw)
+	if res {
+		o.check(name)
+	}
+	return res
 }

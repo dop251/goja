@@ -117,7 +117,7 @@ func (r *Runtime) _encode(uriString valueString, unescaped *[256]bool) valueStri
 			i++
 		}
 	}
-	return asciiString(string(buf))
+	return asciiString(buf)
 }
 
 func (r *Runtime) _decode(sv valueString, reservedSet *[256]bool) valueString {

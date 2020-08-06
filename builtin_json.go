@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/dop251/goja/unistring"
 )
@@ -14,7 +15,7 @@ import (
 const hex = "0123456789abcdef"
 
 func (r *Runtime) builtinJSON_parse(call FunctionCall) Value {
-	d := json.NewDecoder(bytes.NewBufferString(call.Argument(0).String()))
+	d := json.NewDecoder(bytes.NewBufferString(call.Argument(0).toString().String()))
 
 	value, err := r.builtinJSON_decodeValue(d)
 	if err != nil {
@@ -456,7 +457,7 @@ func (ctx *_builtinJSON_stringifyContext) jo(object *Object) {
 
 func (ctx *_builtinJSON_stringifyContext) quote(str valueString) {
 	ctx.buf.WriteByte('"')
-	reader := str.reader(0)
+	reader := &lenientUtf16Decoder{utf16Reader: str.utf16Reader(0)}
 	for {
 		r, _, err := reader.ReadRune()
 		if err != nil {
@@ -482,7 +483,15 @@ func (ctx *_builtinJSON_stringifyContext) quote(str valueString) {
 				ctx.buf.WriteByte(hex[r>>4])
 				ctx.buf.WriteByte(hex[r&0xF])
 			} else {
-				ctx.buf.WriteRune(r)
+				if utf16.IsSurrogate(r) {
+					ctx.buf.WriteString(`\u`)
+					ctx.buf.WriteByte(hex[r>>12])
+					ctx.buf.WriteByte(hex[(r>>8)&0xF])
+					ctx.buf.WriteByte(hex[(r>>4)&0xF])
+					ctx.buf.WriteByte(hex[r&0xF])
+				} else {
+					ctx.buf.WriteRune(r)
+				}
 			}
 		}
 	}

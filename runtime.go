@@ -23,6 +23,8 @@ import (
 
 const (
 	sqrt1_2 float64 = math.Sqrt2 / 2
+
+	deoptimiseRegexp = false
 )
 
 var (
@@ -119,13 +121,14 @@ type global struct {
 	thrower         *Object
 	throwerProperty Value
 
-	regexpProtoExec Value
-	weakSetAdder    *Object
-	weakMapAdder    *Object
-	mapAdder        *Object
-	setAdder        *Object
-	arrayValues     *Object
-	arrayToString   *Object
+	stdRegexpProto *guardedObject
+
+	weakSetAdder  *Object
+	weakMapAdder  *Object
+	mapAdder      *Object
+	setAdder      *Object
+	arrayValues   *Object
+	arrayToString *Object
 }
 
 type Flag int
@@ -406,9 +409,28 @@ func newBaseObjectObj(obj, proto *Object, class string) *baseObject {
 	return o
 }
 
+func newGuardedObj(proto *Object, class string) *guardedObject {
+	return &guardedObject{
+		baseObject: baseObject{
+			class:      class,
+			extensible: true,
+			prototype:  proto,
+		},
+	}
+}
+
 func (r *Runtime) newBaseObject(proto *Object, class string) (o *baseObject) {
 	v := &Object{runtime: r}
 	return newBaseObjectObj(v, proto, class)
+}
+
+func (r *Runtime) newGuardedObject(proto *Object, class string) (o *guardedObject) {
+	v := &Object{runtime: r}
+	o = newGuardedObj(proto, class)
+	v.self = o
+	o.val = v
+	o.init()
+	return
 }
 
 func (r *Runtime) NewObject() (v *Object) {
@@ -665,25 +687,31 @@ func (r *Runtime) builtin_newBoolean(args []Value, proto *Object) *Object {
 }
 
 func (r *Runtime) error_toString(call FunctionCall) Value {
+	var nameStr, msgStr valueString
 	obj := call.This.ToObject(r).self
-	msg := obj.getStr("message", nil)
 	name := obj.getStr("name", nil)
-	var nameStr, msgStr string
-	if name != nil && name != _undefined {
-		nameStr = name.String()
-	}
-	if msg != nil && msg != _undefined {
-		msgStr = msg.String()
-	}
-	if nameStr != "" && msgStr != "" {
-		return newStringValue(fmt.Sprintf("%s: %s", name.String(), msgStr))
+	if name == nil || name == _undefined {
+		nameStr = asciiString("Error")
 	} else {
-		if nameStr != "" {
-			return name.toString()
-		} else {
-			return msg.toString()
-		}
+		nameStr = name.toString()
 	}
+	msg := obj.getStr("message", nil)
+	if msg == nil || msg == _undefined {
+		msgStr = stringEmpty
+	} else {
+		msgStr = msg.toString()
+	}
+	if nameStr.length() == 0 {
+		return msgStr
+	}
+	if msgStr.length() == 0 {
+		return nameStr
+	}
+	var sb valueStringBuilder
+	sb.WriteString(nameStr)
+	sb.WriteString(asciiString(": "))
+	sb.WriteString(msgStr)
+	return sb.String()
 }
 
 func (r *Runtime) builtin_Error(args []Value, proto *Object) *Object {
@@ -707,8 +735,8 @@ func (r *Runtime) builtin_thrower(FunctionCall) Value {
 	return nil
 }
 
-func (r *Runtime) eval(src string, direct, strict bool, this Value) Value {
-
+func (r *Runtime) eval(srcVal valueString, direct, strict bool, this Value) Value {
+	src := escapeInvalidUtf16(srcVal)
 	p, err := r.compile("<eval>", src, strict, true)
 	if err != nil {
 		panic(err)
@@ -742,7 +770,7 @@ func (r *Runtime) builtin_eval(call FunctionCall) Value {
 		return _undefined
 	}
 	if str, ok := call.Arguments[0].(valueString); ok {
-		return r.eval(str.String(), false, false, r.globalObject)
+		return r.eval(str, false, false, r.globalObject)
 	}
 	return call.Arguments[0]
 }

@@ -993,7 +993,7 @@ func (c *compiler) compileSequenceExpression(v *ast.SequenceExpression) compiled
 
 func (c *compiler) emitThrow(v Value) {
 	if o, ok := v.(*Object); ok {
-		t := o.self.getStr("name", nil).String()
+		t := nilSafe(o.self.getStr("name", nil)).toString().String()
 		switch t {
 		case "TypeError":
 			c.emit(getVar1(t))
@@ -1008,7 +1008,7 @@ func (c *compiler) emitThrow(v Value) {
 			return
 		}
 	}
-	panic(fmt.Errorf("Unknown exception type thrown while evaliating constant expression: %s", v.String()))
+	panic(fmt.Errorf("unknown exception type thrown while evaliating constant expression: %s", v.String()))
 }
 
 func (c *compiler) emitConst(expr compiledExpr, putOnStack bool) {
@@ -1440,18 +1440,12 @@ func (c *compiler) compileArrayLiteral(v *ast.ArrayLiteral) compiledExpr {
 
 func (e *compiledRegexpLiteral) emitGetter(putOnStack bool) {
 	if putOnStack {
-		pattern, global, ignoreCase, multiline, sticky, err := compileRegexp(e.expr.Pattern, e.expr.Flags)
+		pattern, err := compileRegexp(e.expr.Pattern, e.expr.Flags)
 		if err != nil {
 			e.c.throwSyntaxError(e.offset, err.Error())
 		}
 
-		e.c.emit(&newRegexp{pattern: pattern,
-			src:        newStringValue(e.expr.Pattern),
-			global:     global,
-			ignoreCase: ignoreCase,
-			multiline:  multiline,
-			sticky:     sticky,
-		})
+		e.c.emit(&newRegexp{pattern: pattern, src: newStringValue(e.expr.Pattern)})
 	}
 }
 
