@@ -72,7 +72,7 @@ func (r *Runtime) builtin_date(FunctionCall) Value {
 }
 
 func (r *Runtime) date_parse(call FunctionCall) Value {
-	t, set := dateParse(call.Argument(0).String())
+	t, set := dateParse(call.Argument(0).toString().String())
 	if set {
 		return intToValue(timeToMsec(t))
 	}

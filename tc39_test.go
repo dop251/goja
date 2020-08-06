@@ -134,16 +134,28 @@ var (
 		"test/built-ins/String/raw/return-the-string-value-from-template.js":             true,
 
 		// restricted unicode regexp syntax
-		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js": true,
-		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":           true,
-		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":    true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape_x.js":      true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape_u.js":      true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape_c.js":      true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape_alpha.js":  true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape.js":        true,
-		"test/built-ins/RegExp/unicode_restricted_brackets.js":               true,
-		"test/built-ins/RegExp/unicode_restricted_character_class_escape.js": true,
+		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
+		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
+		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":            true,
+		"test/built-ins/RegExp/unicode_restricted_identity_escape_x.js":              true,
+		"test/built-ins/RegExp/unicode_restricted_identity_escape_u.js":              true,
+		"test/built-ins/RegExp/unicode_restricted_identity_escape_c.js":              true,
+		"test/built-ins/RegExp/unicode_restricted_identity_escape_alpha.js":          true,
+		"test/built-ins/RegExp/unicode_restricted_identity_escape.js":                true,
+		"test/built-ins/RegExp/unicode_restricted_brackets.js":                       true,
+		"test/built-ins/RegExp/unicode_restricted_character_class_escape.js":         true,
+		"test/annexB/built-ins/RegExp/prototype/compile/pattern-string-invalid-u.js": true,
+
+		// Because goja parser works in UTF-8 it is not possible to pass strings containing invalid UTF-16 code points.
+		// This is mitigated by escaping them as \uXXXX, however because of this the RegExp source becomes
+		// `\uXXXX` instead of `<the actual UTF-16 code point of XXXX>`.
+		// The resulting RegExp will work exactly the same, but it causes these two tests to fail.
+		"test/annexB/built-ins/RegExp/RegExp-leading-escape-BMP.js":  true,
+		"test/annexB/built-ins/RegExp/RegExp-trailing-escape-BMP.js": true,
+
+		// Looks like a bug in regexp2: decimal escapes that do not represent a capture are simply ignored instead
+		// of being treated as a character with the specified code.
+		"test/annexB/built-ins/RegExp/RegExp-decimal-escape-not-capturing.js": true,
 
 		// Promise
 		"test/built-ins/Symbol/species/builtin-getter-name.js": true,
@@ -195,6 +207,7 @@ var (
 		"sec-math",
 		"sec-arraybuffer-length",
 		"sec-arraybuffer",
+		"sec-regexp",
 	}
 )
 
@@ -589,6 +602,7 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
 		ctx.runTC39Tests("test/annexB/built-ins/escape")
 		ctx.runTC39Tests("test/annexB/built-ins/unescape")
+		ctx.runTC39Tests("test/annexB/built-ins/RegExp")
 
 		ctx.flush()
 	})

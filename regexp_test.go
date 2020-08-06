@@ -209,6 +209,14 @@ func TestRegexpUTF16(t *testing.T) {
 	assert.sameValue(re.exec('\ud83d\ude02a').index, 2, "#8");
 
 	assert.sameValue(/./.exec('\ud83d\ude02')[0], '\ud83d', "#9");
+
+	assert(RegExp("\uD800").test("\uD800"), "#10");
+
+	var cu = 0xD800;
+	var xx = "a\\" + String.fromCharCode(cu);
+	var pattern = eval("/" + xx + "/");
+	assert.sameValue(pattern.source, "a\\\\\\ud800", "Code unit: " + cu.toString(16), "#11");
+	assert(pattern.test("a\\\uD800"), "#12");
 	`
 
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
@@ -270,6 +278,36 @@ func TestConvertRegexpToUnicode(t *testing.T) {
 	}
 }
 
+func TestConvertRegexpToUtf16(t *testing.T) {
+	if s := convertRegexpToUtf16(`𐀀`); s != `\ud800\udc00` {
+		t.Fatal(s)
+	}
+	if s := convertRegexpToUtf16(`\𐀀`); s != `\\\ud800\udc00` {
+		t.Fatal(s)
+	}
+}
+
+func TestEscapeInvalidUtf16(t *testing.T) {
+	if s := escapeInvalidUtf16(asciiString("test")); s != "test" {
+		t.Fatal(s)
+	}
+	if s := escapeInvalidUtf16(newStringValue("test\U00010000")); s != "test\U00010000" {
+		t.Fatal(s)
+	}
+	if s := escapeInvalidUtf16(unicodeStringFromRunes([]rune{'t', 0xD800})); s != "t\\ud800" {
+		t.Fatal(s)
+	}
+	if s := escapeInvalidUtf16(unicodeStringFromRunes([]rune{'t', 0xD800, 'p'})); s != "t\\ud800p" {
+		t.Fatal(s)
+	}
+	if s := escapeInvalidUtf16(unicodeStringFromRunes([]rune{0xD800, 'p'})); s != "\\ud800p" {
+		t.Fatal(s)
+	}
+	if s := escapeInvalidUtf16(unicodeStringFromRunes([]rune{'t', '\\', 0xD800, 'p'})); s != `t\\\ud800p` {
+		t.Fatal(s)
+	}
+}
+
 func TestRegexpAssertion(t *testing.T) {
 	const SCRIPT = `
 	var res = 'aaa'.match(/^a/g);
@@ -303,6 +341,13 @@ func TestRegexpUnicodeAdvanceStringIndex(t *testing.T) {
 	assert.sameValue(re.exec(str), null, "#5");
 	`
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestRegexpInit(t *testing.T) {
+	const SCRIPT = `
+	RegExp(".").lastIndex;
+	`
+	testScript1(SCRIPT, intToValue(0), t)
 }
 
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {

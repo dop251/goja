@@ -1721,7 +1721,7 @@ func (vm *vm) callEval(n int, strict bool) {
 				} else {
 					this = vm.r.globalObject
 				}
-				ret := vm.r.eval(src.String(), true, strict, this)
+				ret := vm.r.eval(src, true, strict, this)
 				vm.stack[vm.sp-n-2] = ret
 			} else {
 				vm.stack[vm.sp-n-2] = srcVal

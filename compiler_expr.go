@@ -993,7 +993,7 @@ func (c *compiler) compileSequenceExpression(v *ast.SequenceExpression) compiled
 
 func (c *compiler) emitThrow(v Value) {
 	if o, ok := v.(*Object); ok {
-		t := o.self.getStr("name", nil).String()
+		t := nilSafe(o.self.getStr("name", nil)).toString().String()
 		switch t {
 		case "TypeError":
 			c.emit(getVar1(t))
@@ -1008,7 +1008,7 @@ func (c *compiler) emitThrow(v Value) {
 			return
 		}
 	}
-	panic(fmt.Errorf("Unknown exception type thrown while evaliating constant expression: %s", v.String()))
+	panic(fmt.Errorf("unknown exception type thrown while evaliating constant expression: %s", v.String()))
 }
 
 func (c *compiler) emitConst(expr compiledExpr, putOnStack bool) {

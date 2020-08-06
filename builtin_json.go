@@ -15,7 +15,7 @@ import (
 const hex = "0123456789abcdef"
 
 func (r *Runtime) builtinJSON_parse(call FunctionCall) Value {
-	d := json.NewDecoder(bytes.NewBufferString(call.Argument(0).String()))
+	d := json.NewDecoder(bytes.NewBufferString(call.Argument(0).toString().String()))
 
 	value, err := r.builtinJSON_decodeValue(d)
 	if err != nil {

@@ -429,6 +429,7 @@ func (s unicodeString) String() string {
 }
 
 func (s unicodeString) compareTo(other valueString) int {
+	// TODO handle invalid UTF-16
 	return strings.Compare(s.String(), other.String())
 }
 

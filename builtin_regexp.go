@@ -98,10 +98,14 @@ func convertRegexpToUnicode(patternStr string) string {
 func convertRegexpToUtf16(patternStr string) string {
 	var sb strings.Builder
 	pos := 0
+	var prevRune rune
 	for i := 0; i < len(patternStr); {
 		r, size := utf8.DecodeRuneInString(patternStr[i:])
 		if r > 0xFFFF {
 			sb.WriteString(patternStr[pos:i])
+			if prevRune == '\\' {
+				sb.WriteRune('\\')
+			}
 			first, second := utf16.EncodeRune(r)
 			sb.WriteString(`\u`)
 			writeHex4(&sb, int(first))
@@ -110,12 +114,69 @@ func convertRegexpToUtf16(patternStr string) string {
 			pos = i + size
 		}
 		i += size
+		prevRune = r
 	}
 	if pos > 0 {
 		sb.WriteString(patternStr[pos:])
 		return sb.String()
 	}
 	return patternStr
+}
+
+// convert any broken UTF-16 surrogate pairs to \uXXXX
+func escapeInvalidUtf16(s valueString) string {
+	if ascii, ok := s.(asciiString); ok {
+		return ascii.String()
+	}
+	var sb strings.Builder
+	rd := &lenientUtf16Decoder{utf16Reader: s.utf16Reader(0)}
+	pos := 0
+	utf8Size := 0
+	var utf8Buf [utf8.UTFMax]byte
+	for {
+		c, size, err := rd.ReadRune()
+		if err != nil {
+			break
+		}
+		if utf16.IsSurrogate(c) {
+			if sb.Len() == 0 {
+				sb.Grow(utf8Size + 7)
+				hrd := s.reader(0)
+				var c rune
+				for p := 0; p < pos; {
+					var size int
+					var err error
+					c, size, err = hrd.ReadRune()
+					if err != nil {
+						// will not happen
+						panic(fmt.Errorf("error while reading string head %q, pos: %d: %w", s.String(), pos, err))
+					}
+					sb.WriteRune(c)
+					p += size
+				}
+				if c == '\\' {
+					sb.WriteRune(c)
+				}
+			}
+			sb.WriteString(`\u`)
+			writeHex4(&sb, int(c))
+		} else {
+			if sb.Len() > 0 {
+				sb.WriteRune(c)
+			} else {
+				utf8Size += utf8.EncodeRune(utf8Buf[:], c)
+				pos += size
+			}
+		}
+	}
+	if sb.Len() > 0 {
+		return sb.String()
+	}
+	return s.String()
+}
+
+func compileRegexpFromValueString(patternStr valueString, flags string) (*regexpPattern, error) {
+	return compileRegexp(escapeInvalidUtf16(patternStr), flags)
 }
 
 func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
@@ -211,7 +272,7 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 }
 
 func (r *Runtime) _newRegExp(patternStr valueString, flags string, proto *Object) *Object {
-	pattern, err := compileRegexp(patternStr.String(), flags)
+	pattern, err := compileRegexpFromValueString(patternStr, flags)
 	if err != nil {
 		panic(r.newSyntaxError(err.Error(), -1))
 	}
@@ -237,15 +298,15 @@ func (r *Runtime) newRegExp(patternVal, flagsVal Value, proto *Object) *Object {
 			if flagsVal == nil || flagsVal == _undefined {
 				return rx.clone()
 			} else {
-				return r._newRegExp(rx.source, flagsVal.String(), proto)
+				return r._newRegExp(rx.source, flagsVal.toString().String(), proto)
 			}
 		} else {
 			if isRegexp(patternVal) {
 				pattern = nilSafe(obj.self.getStr("source", nil)).toString()
 				if flagsVal == nil || flagsVal == _undefined {
-					flags = nilSafe(obj.self.getStr("flags", nil)).String()
+					flags = nilSafe(obj.self.getStr("flags", nil)).toString().String()
 				} else {
-					flags = flagsVal.String()
+					flags = flagsVal.toString().String()
 				}
 				goto exit
 			}
@@ -256,7 +317,7 @@ func (r *Runtime) newRegExp(patternVal, flagsVal Value, proto *Object) *Object {
 		pattern = patternVal.toString()
 	}
 	if flagsVal != nil && flagsVal != _undefined {
-		flags = flagsVal.String()
+		flags = flagsVal.toString().String()
 	}
 
 	if pattern == nil {
@@ -279,6 +340,48 @@ func (r *Runtime) builtin_RegExp(call FunctionCall) Value {
 		}
 	}
 	return r.newRegExp(pattern, flags, r.global.RegExpPrototype)
+}
+
+func (r *Runtime) regexpproto_compile(call FunctionCall) Value {
+	if this, ok := r.toObject(call.This).self.(*regexpObject); ok {
+		var (
+			pattern *regexpPattern
+			source  valueString
+			flags   string
+			err     error
+		)
+		patternVal := call.Argument(0)
+		flagsVal := call.Argument(1)
+		if o, ok := patternVal.(*Object); ok {
+			if p, ok := o.self.(*regexpObject); ok {
+				if flagsVal != _undefined {
+					panic(r.NewTypeError("Cannot supply flags when constructing one RegExp from another"))
+				}
+				this.pattern = p.pattern
+				this.source = p.source
+				goto exit
+			}
+		}
+		if patternVal != _undefined {
+			source = patternVal.toString()
+		} else {
+			source = stringEmpty
+		}
+		if flagsVal != _undefined {
+			flags = flagsVal.toString().String()
+		}
+		pattern, err = compileRegexpFromValueString(source, flags)
+		if err != nil {
+			panic(r.newSyntaxError(err.Error(), -1))
+		}
+		this.pattern = pattern
+		this.source = source
+	exit:
+		this.setOwnStr("lastIndex", intToValue(0), true)
+		return call.This
+	}
+
+	panic(r.NewTypeError("Method RegExp.prototype.compile called on incompatible receiver %s", call.This.toString()))
 }
 
 func (r *Runtime) regexpproto_exec(call FunctionCall) Value {
@@ -304,71 +407,90 @@ func (r *Runtime) regexpproto_test(call FunctionCall) Value {
 }
 
 func (r *Runtime) regexpproto_toString(call FunctionCall) Value {
-	if this, ok := r.toObject(call.This).self.(*regexpObject); ok {
-		var g, i, m, u, y string
+	obj := r.toObject(call.This)
+	if this := r.checkStdRegexp(obj); this != nil {
+		var sb valueStringBuilder
+		sb.WriteRune('/')
+		if !this.writeEscapedSource(&sb) {
+			sb.WriteString(this.source)
+		}
+		sb.WriteRune('/')
 		if this.pattern.global {
-			g = "g"
+			sb.WriteRune('g')
 		}
 		if this.pattern.ignoreCase {
-			i = "i"
+			sb.WriteRune('i')
 		}
 		if this.pattern.multiline {
-			m = "m"
+			sb.WriteRune('m')
 		}
 		if this.pattern.unicode {
-			u = "u"
+			sb.WriteRune('u')
 		}
 		if this.pattern.sticky {
-			y = "y"
+			sb.WriteRune('y')
 		}
-		return newStringValue(fmt.Sprintf("/%s/%s%s%s%s%s", this.source.String(), g, i, m, u, y))
-	} else {
-		r.typeErrorResult(true, "Method RegExp.prototype.toString called on incompatible receiver")
-		return nil
+		return sb.String()
 	}
+	pattern := nilSafe(obj.self.getStr("source", nil)).toString()
+	flags := nilSafe(obj.self.getStr("flags", nil)).toString()
+	var sb valueStringBuilder
+	sb.WriteRune('/')
+	sb.WriteString(pattern)
+	sb.WriteRune('/')
+	sb.WriteString(flags)
+	return sb.String()
+}
+
+func (r *regexpObject) writeEscapedSource(sb *valueStringBuilder) bool {
+	if r.source.length() == 0 {
+		sb.WriteString(asciiString("(?:)"))
+		return true
+	}
+	pos := 0
+	lastPos := 0
+	rd := &lenientUtf16Decoder{utf16Reader: r.source.utf16Reader(0)}
+	for {
+		c, size, err := rd.ReadRune()
+		if err != nil {
+			break
+		}
+		switch c {
+		case '/', '\u000a', '\u000d', '\u2028', '\u2029':
+			sb.WriteSubstring(r.source, lastPos, pos)
+			sb.WriteRune('\\')
+			switch c {
+			case '\u000a':
+				sb.WriteRune('n')
+			case '\u000d':
+				sb.WriteRune('r')
+			default:
+				sb.WriteRune('u')
+				sb.WriteRune(rune(hex[c>>12]))
+				sb.WriteRune(rune(hex[(c>>8)&0xF]))
+				sb.WriteRune(rune(hex[(c>>4)&0xF]))
+				sb.WriteRune(rune(hex[c&0xF]))
+			}
+			lastPos = pos + size
+		}
+		pos += size
+	}
+	if lastPos > 0 {
+		sb.WriteSubstring(r.source, lastPos, r.source.length())
+		return true
+	}
+	return false
 }
 
 func (r *Runtime) regexpproto_getSource(call FunctionCall) Value {
 	if this, ok := r.toObject(call.This).self.(*regexpObject); ok {
-		if this.source.length() == 0 {
-			return asciiString("(?:)")
-		}
 		var sb valueStringBuilder
-		pos := 0
-		lastPos := 0
-		rd := &lenientUtf16Decoder{utf16Reader: this.source.utf16Reader(0)}
-		for {
-			c, size, err := rd.ReadRune()
-			if err != nil {
-				break
-			}
-			switch c {
-			case '/', '\u000a', '\u000d', '\u2028', '\u2029':
-				sb.WriteSubstring(this.source, lastPos, pos)
-				sb.WriteRune('\\')
-				switch c {
-				case '\u000a':
-					sb.WriteRune('n')
-				case '\u000d':
-					sb.WriteRune('r')
-				default:
-					sb.WriteRune('u')
-					sb.WriteRune(rune(hex[c>>12]))
-					sb.WriteRune(rune(hex[(c>>8)&0xF]))
-					sb.WriteRune(rune(hex[(c>>4)&0xF]))
-					sb.WriteRune(rune(hex[c&0xF]))
-				}
-				lastPos = pos + size
-			}
-			pos += size
-		}
-		if lastPos > 0 {
-			sb.WriteSubstring(this.source, lastPos, this.source.length())
+		if this.writeEscapedSource(&sb) {
 			return sb.String()
 		}
 		return this.source
 	} else {
-		r.typeErrorResult(true, "Method RegExp.prototype.source getter called on incompatible receiver %s", call.This.toString())
+		r.typeErrorResult(true, "Method RegExp.prototype.source getter called on incompatible receiver")
 		return nil
 	}
 }
@@ -442,23 +564,40 @@ func (r *Runtime) regexpproto_getFlags(call FunctionCall) Value {
 	var global, ignoreCase, multiline, sticky, unicode bool
 
 	thisObj := r.toObject(call.This)
+	size := 0
 	if v := thisObj.self.getStr("global", nil); v != nil {
 		global = v.ToBoolean()
+		if global {
+			size++
+		}
 	}
 	if v := thisObj.self.getStr("ignoreCase", nil); v != nil {
 		ignoreCase = v.ToBoolean()
+		if ignoreCase {
+			size++
+		}
 	}
 	if v := thisObj.self.getStr("multiline", nil); v != nil {
 		multiline = v.ToBoolean()
+		if multiline {
+			size++
+		}
 	}
 	if v := thisObj.self.getStr("sticky", nil); v != nil {
 		sticky = v.ToBoolean()
+		if sticky {
+			size++
+		}
 	}
 	if v := thisObj.self.getStr("unicode", nil); v != nil {
 		unicode = v.ToBoolean()
+		if unicode {
+			size++
+		}
 	}
 
 	var sb strings.Builder
+	sb.Grow(size)
 	if global {
 		sb.WriteByte('g')
 	}
@@ -960,7 +1099,8 @@ func (r *Runtime) initRegExp() {
 	o := r.newGuardedObject(r.global.ObjectPrototype, classObject)
 	r.global.RegExpPrototype = o.val
 	r.global.stdRegexpProto = o
-	o.setOwnStr("exec", valueProp(r.newNativeFunc(r.regexpproto_exec, nil, "exec", nil, 1), true, false, true), true)
+	o._putProp("compile", r.newNativeFunc(r.regexpproto_compile, nil, "compile", nil, 2), true, false, true)
+	o._putProp("exec", r.newNativeFunc(r.regexpproto_exec, nil, "exec", nil, 1), true, false, true)
 	o._putProp("test", r.newNativeFunc(r.regexpproto_test, nil, "test", nil, 1), true, false, true)
 	o._putProp("toString", r.newNativeFunc(r.regexpproto_toString, nil, "toString", nil, 0), true, false, true)
 	o.setOwnStr("source", &valueProperty{

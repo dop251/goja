@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strings"
 	"unsafe"
 
 	"github.com/dop251/goja/unistring"
@@ -644,23 +643,23 @@ func (r *Runtime) typedArrayProto_join(call FunctionCall) Value {
 	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
 		ta.viewedArrayBuf.ensureNotDetached()
 		s := call.Argument(0)
-		sep := ""
+		sep := stringEmpty
 		if s != _undefined {
-			sep = s.toString().String()
+			sep = s.toString()
 		} else {
-			sep = ","
+			sep = asciiString(",")
 		}
 		l := ta.length
 		if l == 0 {
 			return stringEmpty
 		}
 
-		var buf strings.Builder
+		var buf valueStringBuilder
 
 		ta.viewedArrayBuf.ensureNotDetached()
 		element0 := ta.typedArray.get(0)
 		if element0 != nil && element0 != _undefined && element0 != _null {
-			buf.WriteString(element0.String())
+			buf.WriteString(element0.toString())
 		}
 
 		for i := 1; i < l; i++ {
@@ -668,11 +667,11 @@ func (r *Runtime) typedArrayProto_join(call FunctionCall) Value {
 			buf.WriteString(sep)
 			element := ta.typedArray.get(i)
 			if element != nil && element != _undefined && element != _null {
-				buf.WriteString(element.String())
+				buf.WriteString(element.toString())
 			}
 		}
 
-		return newStringValue(buf.String())
+		return buf.String()
 	}
 	panic(r.NewTypeError("Method TypedArray.prototype.join called on incompatible receiver"))
 }
@@ -1002,16 +1001,16 @@ func (r *Runtime) typedArrayProto_subarray(call FunctionCall) Value {
 func (r *Runtime) typedArrayProto_toLocaleString(call FunctionCall) Value {
 	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
 		length := ta.length
-		var buf strings.Builder
+		var buf valueStringBuilder
 		for i := 0; i < length; i++ {
 			ta.viewedArrayBuf.ensureNotDetached()
 			if i > 0 {
-				buf.WriteByte(',')
+				buf.WriteRune(',')
 			}
 			item := ta.typedArray.get(i)
 			r.writeItemLocaleString(item, &buf)
 		}
-		return newStringValue(buf.String())
+		return buf.String()
 	}
 	panic(r.NewTypeError("Method TypedArray.prototype.toLocaleString called on incompatible receiver %s", call.This.String()))
 }

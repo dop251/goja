@@ -1,7 +1,6 @@
 package goja
 
 import (
-	"bytes"
 	"github.com/dop251/goja/unistring"
 	"math"
 	"strings"
@@ -216,7 +215,8 @@ func (r *Runtime) stringproto_concat(call FunctionCall) Value {
 	}
 
 	if allAscii {
-		buf := bytes.NewBuffer(make([]byte, 0, totalLen))
+		var buf strings.Builder
+		buf.Grow(totalLen)
 		for _, s := range strs {
 			buf.WriteString(s.String())
 		}
@@ -335,8 +335,8 @@ func (r *Runtime) stringproto_lastIndexOf(call FunctionCall) Value {
 
 func (r *Runtime) stringproto_localeCompare(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
-	this := norm.NFD.String(call.This.String())
-	that := norm.NFD.String(call.Argument(0).String())
+	this := norm.NFD.String(call.This.toString().String())
+	that := norm.NFD.String(call.Argument(0).toString().String())
 	return intToValue(int64(r.collator().CompareString(this, that)))
 }
 
@@ -376,7 +376,7 @@ func (r *Runtime) stringproto_normalize(call FunctionCall) Value {
 	s := call.This.toString()
 	var form string
 	if formArg := call.Argument(0); formArg != _undefined {
-		form = formArg.toString().String()
+		form = formArg.toString().toString().String()
 	} else {
 		form = "NFC"
 	}
@@ -743,7 +743,7 @@ func (r *Runtime) stringproto_split(call FunctionCall) Value {
 		return r.newArrayValues([]Value{s})
 	}
 
-	separator := separatorValue.String()
+	separator := separatorValue.toString().String()
 
 	excess := false
 	str := s.String()
@@ -756,6 +756,7 @@ func (r *Runtime) stringproto_split(call FunctionCall) Value {
 		excess = true
 	}
 
+	// TODO handle invalid UTF-16
 	split := strings.SplitN(str, separator, splitLimit)
 
 	if excess && len(split) > limit {
@@ -845,6 +846,7 @@ func (r *Runtime) stringproto_trim(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
 
+	// TODO handle invalid UTF-16
 	return newStringValue(strings.Trim(s.String(), parser.WhitespaceChars))
 }
 
@@ -852,6 +854,7 @@ func (r *Runtime) stringproto_trimEnd(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
 
+	// TODO handle invalid UTF-16
 	return newStringValue(strings.TrimRight(s.String(), parser.WhitespaceChars))
 }
 
@@ -859,6 +862,7 @@ func (r *Runtime) stringproto_trimStart(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
 
+	// TODO handle invalid UTF-16
 	return newStringValue(strings.TrimLeft(s.String(), parser.WhitespaceChars))
 }
 
