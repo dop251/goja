@@ -153,10 +153,6 @@ var (
 		"test/annexB/built-ins/RegExp/RegExp-leading-escape-BMP.js":  true,
 		"test/annexB/built-ins/RegExp/RegExp-trailing-escape-BMP.js": true,
 
-		// Looks like a bug in regexp2: decimal escapes that do not represent a capture are simply ignored instead
-		// of being treated as a character with the specified code.
-		"test/annexB/built-ins/RegExp/RegExp-decimal-escape-not-capturing.js": true,
-
 		// Promise
 		"test/built-ins/Symbol/species/builtin-getter-name.js": true,
 	}
