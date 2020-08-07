@@ -15,8 +15,9 @@ Features
 
  * Full ECMAScript 5.1 support (yes, including regex and strict mode).
  * Passes nearly all [tc39 tests](https://github.com/tc39/test262) tagged with es5id. The goal is to pass all of them. Note, the last working commit is https://github.com/tc39/test262/commit/1ba3a7c4a93fc93b3d0d7e4146f59934a896837d. The next commit made use of template strings which goja does not support.
- * Capable of running Babel (up to v7), Typescript compiler and pretty much anything written in ES5.
+ * Capable of running Babel, Typescript compiler and pretty much anything written in ES5.
  * Sourcemaps.
+ * Some ES6 functionality, still work in progress, see https://github.com/dop251/goja/milestone/1?closed=1
  
 FAQ
 ---
@@ -57,14 +58,16 @@ and it includes an event loop.
 
 ### Can you implement (feature X from ES6 or higher)?
 
-There is now an es6 branch. This is work in progress and all new ES6 features will go there. Every commit
+Some ES6 functionality has been implemented. So far this is mostly built-ins, not syntax enhancements.
+See https://github.com/dop251/goja/milestone/1 for more details.
+
+The ongoing work is done in the es6 branch which is merged into master when appropriate. Every commit
 in this branch represents a relatively stable state (i.e. it compiles and passes all enabled tc39 tests),
 however because the version of tc39 tests I use is quite old, it may be not as well tested as the ES5.1
 functionality. Because ES6 is a superset of ES5.1 it should not break your existing code.
 
 I will be adding features in their dependency order and as quickly as my time allows. Please do not ask
-for ETA. Eventually it will be merged into master. If you wish to implement a new feature please contact
-me first and read the section below.
+for ETA. Features that are open in the [milestone](https://github.com/dop251/goja/milestone/1) are either in progress or will be worked on next.
 
 ### How do I contribute?
 
@@ -78,9 +81,8 @@ do not just base it on a couple of examples that work fine.
 Current Status
 --------------
 
- * API is still work in progress and is subject to change.
+ * There should be no breaking changes in the API, however it may be extended.
  * Some of the AnnexB functionality is missing.
- * No typed arrays yet.
 
 Basic Example
 -------------
