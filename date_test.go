@@ -377,3 +377,18 @@ func TestDateMaxValues(t *testing.T) {
 	`
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
+
+func TestDateExport(t *testing.T) {
+	const SCRIPT = `
+	new Date(0)
+	`
+	v, err := New().RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vv := v.Export()
+	_, ok := vv.(time.Time)
+	if !ok {
+		t.Fatalf("Expected time.Time, got %T", vv)
+	}
+}
