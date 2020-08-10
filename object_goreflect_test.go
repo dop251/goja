@@ -1089,7 +1089,7 @@ func TestGoReflectSymbols(t *testing.T) {
 }
 
 func TestGoReflectSymbolEqualityQuirk(t *testing.T) {
-	type Field struct{
+	type Field struct {
 	}
 	type S struct {
 		Field *Field
