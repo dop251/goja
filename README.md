@@ -10,10 +10,12 @@ performance.
 
 This project was largely inspired by [otto](https://github.com/robertkrimen/otto).
 
+Minimum required Go version is 1.14.
+
 Features
 --------
 
- * Full ECMAScript 5.1 support (yes, including regex and strict mode).
+ * Full ECMAScript 5.1 support (including regex and strict mode).
  * Passes nearly all [tc39 tests](https://github.com/tc39/test262) tagged with es5id. The goal is to pass all of them. Note, the last working commit is https://github.com/tc39/test262/commit/1ba3a7c4a93fc93b3d0d7e4146f59934a896837d. The next commit made use of template strings which goja does not support.
  * Capable of running Babel, Typescript compiler and pretty much anything written in ES5.
  * Sourcemaps.
@@ -34,11 +36,11 @@ You can find some benchmarks [here](https://github.com/dop251/goja/issues/2).
 It greatly depends on your usage scenario. If most of the work is done in javascript
 (for example crypto or any other heavy calculations) you are definitely better off with V8.
 
-If you need a scripting language that drives an engine written in Go so
+If you need a scripting language that drives an engine written in Go so that
 you need to make frequent calls between Go and javascript passing complex data structures
 then the cgo overhead may outweigh the benefits of having a faster javascript engine.
 
-Because it's written in pure Go there are no external dependencies, it's very easy to build and it
+Because it's written in pure Go there are no cgo dependencies, it's very easy to build and it
 should run on any platform supported by Go.
 
 It gives you a much better control over execution environment so can be useful for research.
@@ -53,7 +55,7 @@ it's not possible to pass object values between runtimes.
 
 setTimeout() assumes concurrent execution of code which requires an execution
 environment, for example an event loop similar to nodejs or a browser.
-There is a [separate project](https://github.com/dop251/goja_nodejs) aimed at providing some of the NodeJS functionality
+There is a [separate project](https://github.com/dop251/goja_nodejs) aimed at providing some NodeJS functionality,
 and it includes an event loop.
 
 ### Can you implement (feature X from ES6 or higher)?
@@ -67,7 +69,8 @@ however because the version of tc39 tests I use is quite old, it may be not as w
 functionality. Because ES6 is a superset of ES5.1 it should not break your existing code.
 
 I will be adding features in their dependency order and as quickly as my time allows. Please do not ask
-for ETA. Features that are open in the [milestone](https://github.com/dop251/goja/milestone/1) are either in progress or will be worked on next.
+for ETAs. Features that are open in the [milestone](https://github.com/dop251/goja/milestone/1) are either in progress
+or will be worked on next.
 
 ### How do I contribute?
 
@@ -101,37 +104,7 @@ if num := v.Export().(int64); num != 4 {
 Passing Values to JS
 --------------------
 
-Any Go value can be passed to JS using Runtime.ToValue() method. Primitive types (ints and uints, floats, string, bool)
-are converted to the corresponding JavaScript primitives.
-
-*func(FunctionCall) Value* is treated as a native JavaScript function.
-
-*func(ConstructorCall) \*Object* is treated as a JavaScript constructor (see Native Constructors).
-
-*map[string]interface{}* is converted into a host object that largely behaves like a JavaScript Object.
-
-*[]interface{}* is converted into a host object that behaves largely like a JavaScript Array, however it's not extensible
-because extending it can change the pointer so it becomes detached from the original.
-
-**[]interface{}* is same as above, but the array becomes extensible.
-
-A function is wrapped within a native JavaScript function. When called the arguments are automatically converted to
-the appropriate Go types. If conversion is not possible, a TypeError is thrown.
-
-A slice type is converted into a generic reflect based host object that behaves similar to an unexpandable Array.
-
-A map type with numeric or string keys and no methods is converted into a host object where properties are map keys.
-
-A map type with methods is converted into a host object where properties are method names,
-the map values are not accessible. This is to avoid ambiguity between m\["Property"\] and m.Property.
-
-Any other type is converted to a generic reflect based host object. Depending on the underlying type it behaves similar
-to a Number, String, Boolean or Object. This includes pointers to primitive types (*string, *int, etc...).
-Internally they remain pointers, so changes to the pointed values will be reflected in JS.
-
-Note that these conversions wrap the original value which means any changes made inside JS
-are reflected on the value and calling Export() returns the original value. This applies to all
-reflect based types.
+Any Go value can be passed to JS using Runtime.ToValue() method. See the method's [documentation](https://godoc.org/github.com/dop251/goja#Runtime.ToValue) for more details.
 
 Exporting Values from JS
 ------------------------
@@ -144,7 +117,7 @@ Mapping struct field and method names
 -------------------------------------
 By default, the names are passed through as is which means they are capitalised. This does not match
 the standard JavaScript naming convention, so if you need to make your JS code look more natural or if you are
-dealing with a 3rd party library, you can use a FieldNameMapper:
+dealing with a 3rd party library, you can use a [FieldNameMapper](https://godoc.org/github.com/dop251/goja#FieldNameMapper):
 
 ```go
 vm := New()
@@ -158,7 +131,8 @@ fmt.Println(res.Export())
 // Output: 42
 ```
 
-There are two standard mappers: `TagFieldNameMapper` and `UncapFieldNameMapper`, or you can use your own implementation.
+There are two standard mappers: [TagFieldNameMapper](https://godoc.org/github.com/dop251/goja#TagFieldNameMapper) and
+[UncapFieldNameMapper](https://godoc.org/github.com/dop251/goja#UncapFieldNameMapper), or you can use your own implementation.
 
 Native Constructors
 -------------------

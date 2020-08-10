@@ -377,3 +377,22 @@ func TestDateMaxValues(t *testing.T) {
 	`
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
+
+func TestDateExport(t *testing.T) {
+	vm := New()
+	res, err := vm.RunString(`new Date(1000)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exp := res.Export()
+	if d, ok := exp.(time.Time); ok {
+		if d.UnixNano()/1e6 != 1000 {
+			t.Fatalf("Invalid exported date: %v", d)
+		}
+		if loc := d.Location(); loc != time.Local {
+			t.Fatalf("Invalid timezone: %v", loc)
+		}
+	} else {
+		t.Fatalf("Invalid export type: %T", exp)
+	}
+}

@@ -1088,6 +1088,36 @@ func TestGoReflectSymbols(t *testing.T) {
 	}
 }
 
+func TestGoReflectSymbolEqualityQuirk(t *testing.T) {
+	type Field struct{
+	}
+	type S struct {
+		Field *Field
+	}
+	var s = S{
+		Field: &Field{},
+	}
+	vm := New()
+	vm.Set("s", &s)
+	res, err := vm.RunString(`
+	var sym = Symbol(66);
+	var field1 = s.Field;
+	field1[sym] = true;
+	var field2 = s.Field;
+	// Because a wrapper is created every time the property is accessed
+	// field1 and field2 will be different instances of the wrapper.
+	// Symbol properties only exist in the wrapper, they cannot be placed into the original Go value,
+	// hence the following:
+	field1 === field2 && field1[sym] === true && field2[sym] === undefined;
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != valueTrue {
+		t.Fatal(res)
+	}
+}
+
 func TestGoObj__Proto__(t *testing.T) {
 	type S struct {
 		Field int

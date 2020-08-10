@@ -108,7 +108,7 @@ func (d *dateObject) toPrimitive() Value {
 
 func (d *dateObject) export() interface{} {
 	if d.isSet() {
-		return d.time
+		return d.time()
 	}
 	return nil
 }

@@ -1487,6 +1487,31 @@ func TestToValueNilValue(t *testing.T) {
 	}
 }
 
+func TestDateConversion(t *testing.T) {
+	now := time.Now()
+	vm := New()
+	val, err := vm.New(vm.Get("Date").ToObject(vm), vm.ToValue(now.UnixNano()/1e6))
+	if err != nil {
+		t.Fatal(err)
+	}
+	vm.Set("d", val)
+	res, err := vm.RunString(`+d`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exp := res.Export(); exp != now.UnixNano()/1e6 {
+		t.Fatalf("Value does not match: %v", exp)
+	}
+	vm.Set("goval", now)
+	res, err = vm.RunString(`+(new Date(goval.UnixNano()/1e6))`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exp := res.Export(); exp != now.UnixNano()/1e6 {
+		t.Fatalf("Value does not match: %v", exp)
+	}
+}
+
 func TestNativeCtorNewTarget(t *testing.T) {
 	const SCRIPT = `
 	function NewTarget() {

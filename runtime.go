@@ -1176,23 +1176,123 @@ func (r *Runtime) ClearInterrupt() {
 }
 
 /*
-ToValue converts a Go value into JavaScript value.
+ToValue converts a Go value into a JavaScript value of a most appropriate type. Structural types (such as structs, maps
+and slices) are wrapped so that changes are reflected on the original value which can be retrieved using Value.Export().
 
-Primitive types (ints and uints, floats, string, bool) are converted to the corresponding JavaScript primitives.
+Notes on individual types:
 
-func(FunctionCall) Value is treated as a native JavaScript function.
+Primitive types.
+-----
+Primitive types (numbers, string, bool) are converted to the corresponding JavaScript primitives.
 
-map[string]interface{} is converted into a host object that largely behaves like a JavaScript Object.
+Strings.
+-----
+Because of the difference in internal string representation between ECMAScript (which uses UTF-16) and Go (which uses
+UTF-8) conversion from JS to Go may be lossy. In particular, code points that can be part of UTF-16 surrogate pairs
+(0xD800-0xDFFF) cannot be represented in UTF-8 unless they form a valid surrogate pair and are replaced with
+utf8.RuneError.
 
-[]interface{} is converted into a host object that behaves largely like a JavaScript Array, however it's not extensible
-because extending it can change the pointer so it becomes detached from the original.
+Nil.
+-----
+Nil is converted to `null`.
 
-*[]interface{} same as above, but the array becomes extensible.
+Functions.
+-----
+`func(FunctionCall) Value` is treated as a native JavaScript function. This increases performance because there are no
+automatic argument and return value type conversions (which involves reflect).
 
-A function is wrapped within a native JavaScript function. When called the arguments are automatically converted to
-the appropriate Go types. If conversion is not possible, a TypeError is thrown.
+Any other Go function is wrapped so that the arguments are automatically converted into the required Go types and the
+return value is converted to a JavaScript value (using this method).  If conversion is not possible, a TypeError is
+thrown.
 
-A slice type is converted into a generic reflect based host object that behaves similar to an unexpandable Array.
+Functions with multiple return values return an Array. If the last return value is an `error` it is not returned but
+converted into a JS exception. If the error is *Exception, it is thrown as is, otherwise it's wrapped in a GoEerror.
+Note that if there are exactly two return values and the last is an `error`, the function returns the first value as is,
+not an Array.
+
+Structs.
+---
+Structs are converted to Object-like values. Fields and methods are available as properties, their values are
+results of this method (ToValue()) applied to the corresponding Go value.
+
+Field properties are writable (if the struct is addressable) and non-configurable.
+Method properties are non-writable and non-configurable.
+
+Attempt to define a new property or delete an existing property will fail (throw in strict mode) unless it's a Symbol
+property. Symbol properties only exist in the wrapper and do not affect the underlying Go value.
+Note that because a wrapper is created every time a property is accessed it may lead to unexpected results such as this:
+
+```
+type Field struct{
+}
+type S struct {
+	Field *Field
+}
+var s = S{
+	Field: &Field{},
+}
+vm := New()
+vm.Set("s", &s)
+res, err := vm.RunString(`
+var sym = Symbol(66);
+var field1 = s.Field;
+field1[sym] = true;
+var field2 = s.Field;
+field1 === field2; // true, because the equality operation compares the wrapped values, not the wrappers
+field1[sym] === true; // true
+field2[sym] === undefined; // also true
+`)
+```
+
+The same applies to values from maps and slices as well.
+
+time.Time.
+---
+time.Time does not get special treatment and therefore is converted just like any other `struct` providing access to
+all its methods. This is done deliberately instead of converting it to a `Date` because these two types are not fully
+compatible: `time.Time` includes zone, whereas JS `Date` doesn't. Doing the conversion implicitly therefore would
+result in a loss of information.
+
+If you need to convert it to a `Date`, it can be done either in JS:
+```
+var d = new Date(goval.UnixNano()/1e6);
+```
+
+... or in Go:
+
+```
+now := time.Now()
+vm := New()
+val, err := vm.New(vm.Get("Date").ToObject(vm), vm.ToValue(now.UnixNano()/1e6))
+if err != nil {
+	...
+}
+vm.Set("d", val)
+```
+
+Note that Value.Export() for a `Date` value returns time.Time in local timezone.
+
+Maps.
+---
+Maps with string or integer key type are converted into host objects that largely behave like a JavaScript Object.
+
+Maps with methods.
+---
+If a map type has at least one method defined, the properties of the resulting Object represent methods, not map keys.
+This is because in JavaScript there is no distinction between 'object.key` and `object[key]`, unlike Go.
+If access to the map values is required, it can be achieved by defining another method or, if it's not possible, by
+defining an external getter function.
+
+Slices.
+---
+Slices are converted into host objects that behave largely like JavaScript Array. It has the appropriate
+prototype and all the usual methods should work. There are, however, some caveats:
+
+- If the slice is not addressable, the array cannot be extended or shrunk. Any attempt to do so (by setting an index
+beyond the current length or by modifying the length) will result in a TypeError.
+- Converted Arrays may not contain holes (because Go slices cannot). This means that hasOwnProperty(n) will always
+return `true` if n < length. Attempt to delete an item with an index < length will fail. Nil slice elements will be
+converted to `null`. Accessing an element beyond `length` will return `undefined`.
 
 Any other type is converted to a generic reflect based host object. Depending on the underlying type it behaves similar
 to a Number, String, Boolean or Object.
