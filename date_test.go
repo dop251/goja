@@ -10,6 +10,9 @@ function $ERROR(message) {
 	throw new Error(message);
 }
 
+function Test262Error() {
+}
+
 function assert(mustBeTrue, message) {
     if (mustBeTrue === true) {
         return;
@@ -47,7 +50,84 @@ assert.sameValue = function (actual, expected, message) {
     $ERROR(message);
 };
 
+assert.throws = function (expectedErrorConstructor, func, message) {
+  if (typeof func !== "function") {
+    $ERROR('assert.throws requires two arguments: the error constructor ' +
+      'and a function to run');
+    return;
+  }
+  if (message === undefined) {
+    message = '';
+  } else {
+    message += ' ';
+  }
 
+  try {
+    func();
+  } catch (thrown) {
+    if (typeof thrown !== 'object' || thrown === null) {
+      message += 'Thrown value was not an object!';
+      $ERROR(message);
+    } else if (thrown.constructor !== expectedErrorConstructor) {
+      message += 'Expected a ' + expectedErrorConstructor.name + ' but got a ' + thrown.constructor.name;
+      $ERROR(message);
+    }
+    return;
+  }
+
+  message += 'Expected a ' + expectedErrorConstructor.name + ' to be thrown but no exception was thrown at all';
+  $ERROR(message);
+};
+
+function compareArray(a, b) {
+  if (b.length !== a.length) {
+    return false;
+  }
+
+  for (var i = 0; i < a.length; i++) {
+    if (b[i] !== a[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+`
+
+const TESTLIBX = TESTLIB +
+	`function looksNative(fn) {
+		return /native code/.test(Function.prototype.toString.call(fn));
+	}
+
+	function deepEqual(a, b) {
+		if (typeof a === "object") {
+			if (typeof b === "object") {
+				if (a === b) {
+					return true;
+				}
+				if (Reflect.getPrototypeOf(a) !== Reflect.getPrototypeOf(b)) {
+					return false;
+				}
+				var keysA = Object.keys(a);
+				var keysB = Object.keys(b);
+				if (keysA.length !== keysB.length) {
+					return false;
+				}
+				if (!compareArray(keysA.sort(), keysB.sort())) {
+					return false;
+				}
+				for (var i = 0; i < keysA.length; i++) {
+					var key = keysA[i];
+					if (!deepEqual(a[key], b[key])) {
+						return false;
+					}
+				}
+				return true;
+			} else {
+				return false;
+			}
+		}
+		return assert._isSameValue(a, b);
+	}
 `
 
 func TestDateUTC(t *testing.T) {
@@ -322,4 +402,40 @@ assert.sameValue(Date.parse(aboveRange), NaN, "parse above maximum time value");
 	}
 
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestDateMaxValues(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue((new Date(0)).setUTCMilliseconds(8.64e15), 8.64e15);
+	assert.sameValue((new Date(0)).setUTCSeconds(8640000000000), 8.64e15);
+	assert.sameValue((new Date(0)).setUTCMilliseconds(-8.64e15), -8.64e15);
+	assert.sameValue((new Date(0)).setUTCSeconds(-8640000000000), -8.64e15);
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestDateExport(t *testing.T) {
+	vm := New()
+	res, err := vm.RunString(`new Date(1000)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exp := res.Export()
+	if d, ok := exp.(time.Time); ok {
+		if d.UnixNano()/1e6 != 1000 {
+			t.Fatalf("Invalid exported date: %v", d)
+		}
+		if loc := d.Location(); loc != time.Local {
+			t.Fatalf("Invalid timezone: %v", loc)
+		}
+	} else {
+		t.Fatalf("Invalid export type: %T", exp)
+	}
+}
+
+func TestDateToJSON(t *testing.T) {
+	const SCRIPT = `
+	Date.prototype.toJSON.call({ toISOString: function () { return 1; } })
+	`
+	testScript1(SCRIPT, intToValue(1), t)
 }

@@ -2,9 +2,24 @@ language: go
 go:
   - 1.x
 
+arch:
+  - amd64
+#  - s390x
+
 env:
-  - GIMME_OS=linux GIMME_ARCH=amd64 RACE="-race"
-  - GIMME_OS=linux GIMME_ARCH=386
+  - RACE="-race"
+  - GIMME_ARCH=386
+  - RACE=""
+
+jobs:
+  exclude:
+    - arch: s390x
+      env: GIMME_ARCH=386
+    - arch: s390x
+      env: RACE="-race"
+    - arch: amd64
+      env: RACE=""
+
 
 before_install:
   # use local source tree when testing forks

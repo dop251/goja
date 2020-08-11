@@ -1,6 +1,8 @@
 package goja
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestGoSliceBasic(t *testing.T) {
 	const SCRIPT = `
@@ -69,7 +71,7 @@ func TestGoSliceExpand(t *testing.T) {
 	}
 }
 
-func TestGoSliceProto(t *testing.T) {
+func TestGoSliceProtoMethod(t *testing.T) {
 	const SCRIPT = `
 	a.join(",")
 	`
@@ -83,5 +85,102 @@ func TestGoSliceProto(t *testing.T) {
 	}
 	if s := ret.String(); s != "1,2,3,4" {
 		t.Fatalf("Unexpected result: '%s'", s)
+	}
+}
+
+func TestGoSliceSetLength(t *testing.T) {
+	r := New()
+	a := []interface{}{1, 2, 3, 4}
+	r.Set("a", &a)
+	_, err := r.RunString(`
+	'use strict';
+	a.length = 3;
+	if (a.length !== 3) {
+		throw new Error("length="+a.length);
+	}
+	if (a[3] !== undefined) {
+		throw new Error("a[3](1)="+a[3]);
+	}
+	a.length = 5;
+	if (a.length !== 5) {
+		throw new Error("length="+a.length);
+	}
+	if (a[3] !== null) {
+		throw new Error("a[3](2)="+a[3]);
+	}
+	if (a[4] !== null) {
+		throw new Error("a[4]="+a[4]);
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGoSliceProto(t *testing.T) {
+	r := New()
+	a := []interface{}{1, nil, 3}
+	r.Set("a", &a)
+	_, err := r.RunString(TESTLIB + `
+	var proto = [,2,,4];
+	Object.setPrototypeOf(a, proto);
+	assert.sameValue(a[1], null, "a[1]");
+	assert.sameValue(a[3], 4, "a[3]");
+	var desc = Object.getOwnPropertyDescriptor(a, "1");
+	assert.sameValue(desc.value, null, "desc.value");
+	assert(desc.writable, "writable");
+	assert(desc.enumerable, "enumerable");
+	assert(!desc.configurable, "configurable");
+	var v5;
+	Object.defineProperty(proto, "5", {
+		set: function(v) {
+			v5 = v;
+		}
+	});
+	a[5] = "test";
+	assert.sameValue(v5, "test", "v5");
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
+
+func TestGoSliceProtoProto(t *testing.T) {
+	r := New()
+	a := []interface{}{1, nil, 3}
+	proto := []interface{}{1, 2, 3, 4}
+	r.Set("a", &a)
+	r.Set("proto", proto)
+	_, err := r.RunString(`
+	"use strict";
+	var protoproto = Object.create(null);
+	Object.defineProperty(protoproto, "3", {
+		value: 42
+	});
+	Object.setPrototypeOf(proto, protoproto);
+	Object.setPrototypeOf(a, proto);
+	a[3] = 11;
+	if (a[3] !== 11) {
+		throw new Error("a[3]=" + a[3]);
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGoSliceDelete(t *testing.T) {
+	r := New()
+	a := []interface{}{1, nil, 3}
+	r.Set("a", a)
+	v, err := r.RunString(`
+	!delete a[0] && !delete a[1] && delete a[3];
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != valueTrue {
+		t.Fatalf("not true: %v", v)
 	}
 }

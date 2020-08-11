@@ -88,3 +88,140 @@ assert.sameValue('A—', String.fromCharCode(65, 0x2014));
 
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
+
+func TestStringMatchSym(t *testing.T) {
+	const SCRIPT = `
+function Prefix(p) {
+	this.p = p;
+}
+
+Prefix.prototype[Symbol.match] = function(s) {
+	return s.substring(0, this.p.length) === this.p;
+}
+
+var prefix1 = new Prefix("abc");
+var prefix2 = new Prefix("def");
+
+"abc123".match(prefix1) === true && "abc123".match(prefix2) === false &&
+"def123".match(prefix1) === false && "def123".match(prefix2) === true;
+`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestGenericSplitter(t *testing.T) {
+	const SCRIPT = `
+function MyRegexp(pattern, flags) {
+	if (pattern instanceof MyRegexp) {
+		pattern = pattern.wrapped;
+	}
+	this.wrapped = new RegExp(pattern, flags);
+}
+
+MyRegexp.prototype.exec = function() {
+	return this.wrapped.exec.apply(this.wrapped, arguments);
+}
+
+Object.defineProperty(MyRegexp.prototype, "lastIndex", {
+	get: function() {
+		return this.wrapped.lastIndex;
+	},
+	set: function(v) {
+		this.wrapped.lastIndex = v;
+	}
+});
+
+Object.defineProperty(MyRegexp.prototype, "flags", {
+	get: function() {
+		return this.wrapped.flags;
+	}
+});
+
+MyRegexp[Symbol.species] = MyRegexp;
+MyRegexp.prototype[Symbol.split] = RegExp.prototype[Symbol.split];
+
+var r = new MyRegexp(/ /);
+var res = "a b c".split(r);
+res.length === 3 && res[0] === "a" && res[1] === "b" && res[2] === "c";
+`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestStringIterSurrPair(t *testing.T) {
+	const SCRIPT = `
+var lo = '\uD834';
+var hi = '\uDF06';
+var pair = lo + hi;
+var string = 'a' + pair + 'b' + lo + pair + hi + lo;
+var iterator = string[Symbol.iterator]();
+var result;
+
+result = iterator.next();
+if (result.value !== 'a') {
+	throw new Error("at 0: " + result.value);
+}
+result = iterator.next();
+if (result.value !== pair) {
+	throw new Error("at 1: " + result.value);
+}
+
+`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestValueStringBuilder(t *testing.T) {
+	t.Run("substringASCII", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		str := newStringValue("a\U00010000b")
+		sb.WriteSubstring(str, 0, 1)
+		res := sb.String()
+		if res != asciiString("a") {
+			t.Fatal(res)
+		}
+	})
+
+	t.Run("substringASCIIPure", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		str := newStringValue("ab")
+		sb.WriteSubstring(str, 0, 1)
+		res := sb.String()
+		if res != asciiString("a") {
+			t.Fatal(res)
+		}
+	})
+
+	t.Run("substringUnicode", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		str := newStringValue("a\U00010000b")
+		sb.WriteSubstring(str, 1, 3)
+		res := sb.String()
+		if !res.SameAs(unicodeStringFromRunes([]rune{0x10000})) {
+			t.Fatal(res)
+		}
+	})
+
+	t.Run("substringASCIIUnicode", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		str := newStringValue("a\U00010000b")
+		sb.WriteSubstring(str, 0, 2)
+		res := sb.String()
+		if !res.SameAs(unicodeStringFromRunes([]rune{'a', 0xD800})) {
+			t.Fatal(res)
+		}
+	})
+
+	t.Run("substringUnicodeASCII", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		str := newStringValue("a\U00010000b")
+		sb.WriteSubstring(str, 2, 4)
+		res := sb.String()
+		if !res.SameAs(unicodeStringFromRunes([]rune{0xDC00, 'b'})) {
+			t.Fatal(res)
+		}
+	})
+
+}

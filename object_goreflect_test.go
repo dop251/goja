@@ -25,7 +25,7 @@ func TestGoReflectGet(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if s, ok := v.assertString(); ok {
+	if s, ok := v.(valueString); ok {
 		if s.String() != "42" {
 			t.Fatalf("Unexpected string: %s", s)
 		}
@@ -489,14 +489,14 @@ func TestGoReflectEmbeddedStruct(t *testing.T) {
 
 type jsonTagNamer struct{}
 
-func (jsonTagNamer) FieldName(t reflect.Type, field reflect.StructField) string {
+func (jsonTagNamer) FieldName(_ reflect.Type, field reflect.StructField) string {
 	if jsonTag := field.Tag.Get("json"); jsonTag != "" {
 		return jsonTag
 	}
 	return field.Name
 }
 
-func (jsonTagNamer) MethodName(t reflect.Type, method reflect.Method) string {
+func (jsonTagNamer) MethodName(_ reflect.Type, method reflect.Method) string {
 	return method.Name
 }
 
@@ -590,11 +590,11 @@ func TestGoReflectCustomObjNaming(t *testing.T) {
 
 type fieldNameMapper1 struct{}
 
-func (fieldNameMapper1) FieldName(t reflect.Type, f reflect.StructField) string {
+func (fieldNameMapper1) FieldName(_ reflect.Type, f reflect.StructField) string {
 	return strings.ToLower(f.Name)
 }
 
-func (fieldNameMapper1) MethodName(t reflect.Type, m reflect.Method) string {
+func (fieldNameMapper1) MethodName(_ reflect.Type, m reflect.Method) string {
 	return m.Name
 }
 
@@ -674,7 +674,7 @@ func TestStructNonAddressable(t *testing.T) {
 type testFieldMapper struct {
 }
 
-func (testFieldMapper) FieldName(t reflect.Type, f reflect.StructField) string {
+func (testFieldMapper) FieldName(_ reflect.Type, f reflect.StructField) string {
 	if tag := f.Tag.Get("js"); tag != "" {
 		if tag == "-" {
 			return ""
@@ -685,7 +685,7 @@ func (testFieldMapper) FieldName(t reflect.Type, f reflect.StructField) string {
 	return f.Name
 }
 
-func (testFieldMapper) MethodName(t reflect.Type, m reflect.Method) string {
+func (testFieldMapper) MethodName(_ reflect.Type, m reflect.Method) string {
 	return m.Name
 }
 
@@ -794,7 +794,7 @@ func TestDefinePropertyUnexportedJsName(t *testing.T) {
 		throw new Error("Unexpected value: " + f.field);
 	}
 	if (f.hasOwnProperty("unexported")) {
-		throw new Error("hasOwnProporty('unexported') is true");
+		throw new Error("hasOwnProperty('unexported') is true");
 	}
 	var thrown;
 	try {
@@ -813,11 +813,11 @@ func TestDefinePropertyUnexportedJsName(t *testing.T) {
 
 type fieldNameMapperToLower struct{}
 
-func (fieldNameMapperToLower) FieldName(t reflect.Type, f reflect.StructField) string {
+func (fieldNameMapperToLower) FieldName(_ reflect.Type, f reflect.StructField) string {
 	return strings.ToLower(f.Name)
 }
 
-func (fieldNameMapperToLower) MethodName(t reflect.Type, m reflect.Method) string {
+func (fieldNameMapperToLower) MethodName(_ reflect.Type, m reflect.Method) string {
 	return strings.ToLower(m.Name)
 }
 
@@ -1024,4 +1024,148 @@ func ExampleUncapFieldNameMapper() {
 	res, _ := vm.RunString(`s.test + " and " + s.method("passed too")`)
 	fmt.Println(res.Export())
 	// Output: passed and passed too
+}
+
+func TestGoReflectWithProto(t *testing.T) {
+	type S struct {
+		Field int
+	}
+	var s S
+	vm := New()
+	vm.Set("s", &s)
+	_, err := vm.RunString(TESTLIB + `
+	(function() {
+	'use strict';
+	var proto = {
+		Field: "protoField",
+		test: 42
+	};
+	var test1Holder;
+	Object.defineProperty(proto, "test1", {
+		set: function(v) {
+			test1Holder = v;
+		},
+		get: function() {
+			return test1Holder;
+		}
+	});
+	Object.setPrototypeOf(s, proto);
+	assert.sameValue(s.Field, 0, "s.Field");
+	s.Field = 2;
+	assert.sameValue(s.Field, 2, "s.Field");
+	assert.sameValue(s.test, 42, "s.test");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(s, "test", {value: 43});
+	});
+	test1Holder = 1;
+	assert.sameValue(s.test1, 1, "s.test1");
+	s.test1 = 2;
+	assert.sameValue(test1Holder, 2, "test1Holder");
+	})();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGoReflectSymbols(t *testing.T) {
+	type S struct {
+		Field int
+	}
+	var s S
+	vm := New()
+	vm.Set("s", &s)
+	_, err := vm.RunString(`
+	'use strict';
+	var sym = Symbol(66);
+	s[sym] = "Test";
+	if (s[sym] !== "Test") {
+		throw new Error("s[sym]=" + s[sym]);
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGoReflectSymbolEqualityQuirk(t *testing.T) {
+	type Field struct {
+	}
+	type S struct {
+		Field *Field
+	}
+	var s = S{
+		Field: &Field{},
+	}
+	vm := New()
+	vm.Set("s", &s)
+	res, err := vm.RunString(`
+	var sym = Symbol(66);
+	var field1 = s.Field;
+	field1[sym] = true;
+	var field2 = s.Field;
+	// Because a wrapper is created every time the property is accessed
+	// field1 and field2 will be different instances of the wrapper.
+	// Symbol properties only exist in the wrapper, they cannot be placed into the original Go value,
+	// hence the following:
+	field1 === field2 && field1[sym] === true && field2[sym] === undefined;
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != valueTrue {
+		t.Fatal(res)
+	}
+}
+
+func TestGoObj__Proto__(t *testing.T) {
+	type S struct {
+		Field int
+	}
+	vm := New()
+	vm.Set("s", S{})
+	vm.Set("m", map[string]interface{}{})
+	vm.Set("mr", map[int]string{})
+	vm.Set("a", []interface{}{})
+	vm.Set("ar", []string{})
+	_, err := vm.RunString(`
+	function f(s, expectedCtor, prefix) {
+		if (s.__proto__ !== expectedCtor.prototype) {
+			throw new Error(prefix + ": __proto__: " + s.__proto__);
+		}
+		s.__proto__ = null;
+		if (s.__proto__ !== undefined) { // as there is no longer a prototype, there is no longer the __proto__ property
+			throw new Error(prefix + ": __proto__ is not undefined: " + s.__proto__);
+		}
+		var proto = Object.getPrototypeOf(s);
+		if (proto !== null) {
+			throw new Error(prefix + ": proto is not null: " + proto);
+		}
+	}
+	f(s, Object, "struct");
+	f(m, Object, "simple map");
+	f(mr, Object, "reflect map");
+	f(a, Array, "slice");
+	f(ar, Array, "reflect slice");
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGoReflectUnicodeProps(t *testing.T) {
+	type S struct {
+		Тест string
+	}
+	vm := New()
+	var s S
+	vm.Set("s", &s)
+	_, err := vm.RunString(`
+	if (!s.hasOwnProperty("Тест")) {
+		throw new Error("hasOwnProperty");
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
