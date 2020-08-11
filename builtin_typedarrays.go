@@ -643,7 +643,7 @@ func (r *Runtime) typedArrayProto_join(call FunctionCall) Value {
 	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
 		ta.viewedArrayBuf.ensureNotDetached()
 		s := call.Argument(0)
-		sep := stringEmpty
+		var sep valueString
 		if s != _undefined {
 			sep = s.toString()
 		} else {

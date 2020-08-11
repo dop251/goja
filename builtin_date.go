@@ -147,8 +147,6 @@ func (r *Runtime) dateproto_toJSON(call FunctionCall) Value {
 		if math.IsNaN(f) || math.IsInf(f, 0) {
 			return _null
 		}
-	} else if _, ok := tv.(valueInt); !ok {
-		return _null
 	}
 
 	if toISO, ok := obj.self.getStr("toISOString", nil).(*Object); ok {

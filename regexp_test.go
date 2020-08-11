@@ -350,6 +350,15 @@ func TestRegexpInit(t *testing.T) {
 	testScript1(SCRIPT, intToValue(0), t)
 }
 
+func TestRegexpToString(t *testing.T) {
+	const SCRIPT = `
+	RegExp.prototype.toString.call({
+	source: 'foo',
+    flags: 'bar'});
+	`
+	testScript1(SCRIPT, asciiString("/foo/bar"), t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)

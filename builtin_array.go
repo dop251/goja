@@ -173,7 +173,7 @@ func (r *Runtime) arrayproto_pop(call FunctionCall) Value {
 func (r *Runtime) arrayproto_join(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	l := int(toLength(o.self.getStr("length", nil)))
-	var sep valueString = asciiString("")
+	var sep valueString
 	if s := call.Argument(0); s != _undefined {
 		sep = s.toString()
 	} else {
@@ -334,9 +334,14 @@ func (r *Runtime) arrayproto_sort(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 
 	var compareFn func(FunctionCall) Value
-
-	if arg, ok := call.Argument(0).(*Object); ok {
-		compareFn, _ = arg.self.assertCallable()
+	arg := call.Argument(0)
+	if arg != _undefined {
+		if arg, ok := call.Argument(0).(*Object); ok {
+			compareFn, _ = arg.self.assertCallable()
+		}
+		if compareFn == nil {
+			panic(r.NewTypeError("The comparison function must be either a function or undefined"))
+		}
 	}
 
 	ctx := arraySortCtx{

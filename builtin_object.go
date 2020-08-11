@@ -453,12 +453,15 @@ func (r *Runtime) object_assign(call FunctionCall) Value {
 		for _, arg := range call.Arguments[1:] {
 			if arg != _undefined && arg != _null {
 				source := arg.ToObject(r)
-				for _, key := range source.self.ownPropertyKeys(false, nil) {
+				for _, key := range source.self.ownPropertyKeys(true, nil) {
 					p := source.getOwnProp(key)
 					if p == nil {
 						continue
 					}
 					if v, ok := p.(*valueProperty); ok {
+						if !v.enumerable {
+							continue
+						}
 						p = v.get(source)
 					}
 					to.setOwn(key, p, true)

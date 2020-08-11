@@ -109,6 +109,22 @@ func TestDefinePropertiesSymbol(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestObjectAssign(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue(Object.assign({ b: 1 }, { get a() {
+          Object.defineProperty(this, "b", {
+            value: 3,
+            enumerable: false
+          });
+        }, b: 2 }).b, 1, "#1");
+
+	assert.sameValue(Object.assign({ b: 1 }, { get a() {
+          delete this.b;
+        }, b: 2 }).b, 1, "#2");
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 func BenchmarkPut(b *testing.B) {
 	v := &Object{}
 

@@ -91,7 +91,43 @@ function compareArray(a, b) {
   }
   return true;
 }
+`
 
+const TESTLIBX = TESTLIB +
+	`function looksNative(fn) {
+		return /native code/.test(Function.prototype.toString.call(fn));
+	}
+
+	function deepEqual(a, b) {
+		if (typeof a === "object") {
+			if (typeof b === "object") {
+				if (a === b) {
+					return true;
+				}
+				if (Reflect.getPrototypeOf(a) !== Reflect.getPrototypeOf(b)) {
+					return false;
+				}
+				var keysA = Object.keys(a);
+				var keysB = Object.keys(b);
+				if (keysA.length !== keysB.length) {
+					return false;
+				}
+				if (!compareArray(keysA.sort(), keysB.sort())) {
+					return false;
+				}
+				for (var i = 0; i < keysA.length; i++) {
+					var key = keysA[i];
+					if (!deepEqual(a[key], b[key])) {
+						return false;
+					}
+				}
+				return true;
+			} else {
+				return false;
+			}
+		}
+		return assert._isSameValue(a, b);
+	}
 `
 
 func TestDateUTC(t *testing.T) {
@@ -395,4 +431,11 @@ func TestDateExport(t *testing.T) {
 	} else {
 		t.Fatalf("Invalid export type: %T", exp)
 	}
+}
+
+func TestDateToJSON(t *testing.T) {
+	const SCRIPT = `
+	Date.prototype.toJSON.call({ toISOString: function () { return 1; } })
+	`
+	testScript1(SCRIPT, intToValue(1), t)
 }
