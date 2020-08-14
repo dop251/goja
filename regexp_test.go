@@ -359,6 +359,13 @@ func TestRegexpToString(t *testing.T) {
 	testScript1(SCRIPT, asciiString("/foo/bar"), t)
 }
 
+func TestRegexpEscapeSource(t *testing.T) {
+	const SCRIPT = `
+	/href="(.+?)(\/.*\/\S+?)\/"/.source;
+	`
+	testScript1(SCRIPT, asciiString(`href="(.+?)(\/.*\/\S+?)\/"`), t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)
