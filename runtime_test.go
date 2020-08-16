@@ -553,7 +553,7 @@ func TestRuntime_ExportToTime(t *testing.T) {
 	}
 }
 
-func TestRuntime_ExportToFunc(t *testing.T) {
+func ExampleRuntime_ExportTo_func() {
 	const SCRIPT = `
 	function f(param) {
 		return +param + 2;
@@ -563,18 +563,20 @@ func TestRuntime_ExportToFunc(t *testing.T) {
 	vm := New()
 	_, err := vm.RunString(SCRIPT)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 
 	var fn func(string) string
-	vm.ExportTo(vm.Get("f"), &fn)
-
-	if res := fn("40"); res != "42" {
-		t.Fatalf("Unexpected value: %q", res)
+	err = vm.ExportTo(vm.Get("f"), &fn)
+	if err != nil {
+		panic(err)
 	}
+
+	fmt.Println(fn("40")) // note, _this_ value in the function will be undefined.
+	// Output: 42
 }
 
-func TestRuntime_ExportToFuncThrow(t *testing.T) {
+func ExampleRuntime_ExportTo_funcThrow() {
 	const SCRIPT = `
 	function f(param) {
 		throw new Error("testing");
@@ -584,26 +586,39 @@ func TestRuntime_ExportToFuncThrow(t *testing.T) {
 	vm := New()
 	_, err := vm.RunString(SCRIPT)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 
 	var fn func(string) (string, error)
 	err = vm.ExportTo(vm.Get("f"), &fn)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
+	}
+	_, err = fn("")
+
+	fmt.Println(err)
+	// Output: Error: testing at f (<eval>:3:9(4))
+}
+
+func ExampleRuntime_ExportTo_funcVariadic() {
+	const SCRIPT = `
+	function f() {
+		return Array.prototype.join.call(arguments, ",");
+	}
+	`
+	vm := New()
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		panic(err)
 	}
 
-	if _, err := fn("40"); err != nil {
-		if ex, ok := err.(*Exception); ok {
-			if msg := ex.Error(); msg != "Error: testing at f (<eval>:3:9(4))" {
-				t.Fatalf("Msg: %q", msg)
-			}
-		} else {
-			t.Fatalf("Error is not *Exception (%T): %v", err, err)
-		}
-	} else {
-		t.Fatal("Expected error")
+	var fn func(args ...interface{}) string
+	err = vm.ExportTo(vm.Get("f"), &fn)
+	if err != nil {
+		panic(err)
 	}
+	fmt.Println(fn("a", "b", 42))
+	// Output: a,b,42
 }
 
 func TestRuntime_ExportToFuncFail(t *testing.T) {
@@ -681,6 +696,29 @@ func TestRuntime_ExportToObject(t *testing.T) {
 	if v := o.Get("test"); !v.StrictEquals(vm.ToValue(42)) {
 		t.Fatalf("Unexpected value: %v", v)
 	}
+}
+
+func ExampleAssertFunction() {
+	vm := New()
+	_, err := vm.RunString(`
+	function sum(a, b) {
+		return a+b;
+	}
+	`)
+	if err != nil {
+		panic(err)
+	}
+	sum, ok := AssertFunction(vm.Get("sum"))
+	if !ok {
+		panic("Not a function")
+	}
+
+	res, err := sum(Undefined(), vm.ToValue(40), vm.ToValue(2))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(res)
+	// Output: 42
 }
 
 func TestGoFuncError(t *testing.T) {
