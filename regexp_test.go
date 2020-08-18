@@ -381,3 +381,29 @@ func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 		vm.RunProgram(prg)
 	}
 }
+
+func BenchmarkRegexpMatch(b *testing.B) {
+	const SCRIPT = `
+        "a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+        ".match(/[^\r\n]+/g)
+        `
+	b.StopTimer()
+	prg, err := Compile("test.js", SCRIPT, false)
+	if err != nil {
+		b.Fatal(err)
+	}
+	vm := New()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		vm.RunProgram(prg)
+	}
+}
