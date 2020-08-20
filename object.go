@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -228,6 +229,7 @@ type objectImpl interface {
 	enumerate() iterNextFunc
 	enumerateUnfiltered() iterNextFunc
 	export() interface{}
+	exportDepth(depth int) (interface{}, error)
 	exportType() reflect.Type
 	equal(objectImpl) bool
 	ownKeys(all bool, accum []Value) []Value
@@ -959,6 +961,35 @@ func (o *baseObject) export() interface{} {
 	}
 
 	return m
+}
+
+var errNestingTooDeep = errors.New("Nesting too deep")
+
+func (o *baseObject) exportDepth(maxDepth int) (interface{}, error) {
+	if maxDepth == 0 {
+		return nil, errNestingTooDeep
+	}
+
+	m := make(map[string]interface{})
+	for _, itemName := range o.ownKeys(false, nil) {
+		itemNameStr := itemName.String()
+		v := o.val.self.getStr(itemName.string(), nil)
+		if v != nil {
+			if obj, ok := v.(*Object); ok {
+				var err error
+				m[itemNameStr], err = obj.self.exportDepth(maxDepth - 1)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				m[itemNameStr] = v.Export()
+			}
+		} else {
+			m[itemNameStr] = nil
+		}
+	}
+
+	return m, nil
 }
 
 func (o *baseObject) exportType() reflect.Type {

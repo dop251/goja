@@ -1,6 +1,9 @@
 package goja
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestArray1(t *testing.T) {
 	r := &Runtime{}
@@ -123,6 +126,17 @@ func TestObjectAssign(t *testing.T) {
         }, b: 2 }).b, 1, "#2");
 	`
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestObjectExportDepth(t *testing.T) {
+	r := New()
+	o := r.NewObject()
+
+	o.DefineDataProperty("o", o, FLAG_TRUE, FLAG_TRUE, FLAG_TRUE)
+	_, err := o.ExportDepth(10)
+	if !errors.Is(err, errNestingTooDeep) {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 }
 
 func BenchmarkPut(b *testing.B) {

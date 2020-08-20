@@ -241,6 +241,12 @@ func (o *lazyObject) export() interface{} {
 	return obj.export()
 }
 
+func (o *lazyObject) exportDepth(depth int) (interface{}, error) {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.exportDepth(depth)
+}
+
 func (o *lazyObject) exportType() reflect.Type {
 	obj := o.create(o.val)
 	o.val.self = obj

@@ -724,6 +724,12 @@ func (o *Object) Export() interface{} {
 	return o.self.export()
 }
 
+// ExportDepth exports the object with a maximum depth of nested fields.
+// When exporting an object with a nested field depth beyond the given limit, this method returns an error.
+func (o *Object) ExportDepth(depth int) (interface{}, error) {
+	return o.self.exportDepth(depth)
+}
+
 func (o *Object) ExportType() reflect.Type {
 	return o.self.exportType()
 }
