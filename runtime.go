@@ -1567,41 +1567,57 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 }
 
 func (r *Runtime) toReflectValue(v Value, typ reflect.Type) (reflect.Value, error) {
+	var ok bool
 	switch typ.Kind() {
 	case reflect.String:
 		return reflect.ValueOf(v.String()).Convert(typ), nil
 	case reflect.Bool:
 		return reflect.ValueOf(v.ToBoolean()).Convert(typ), nil
 	case reflect.Int:
-		i, _ := toInt64(v)
-		return reflect.ValueOf(int(i)).Convert(typ), nil
+		if i, ok := toInt64(v); ok {
+			return reflect.ValueOf(int(i)).Convert(typ), nil
+		}
 	case reflect.Int64:
-		i, _ := toInt64(v)
-		return reflect.ValueOf(i).Convert(typ), nil
+		if i, ok := toInt64(v); ok {
+			return reflect.ValueOf(i).Convert(typ), nil
+		}
 	case reflect.Int32:
-		i, _ := toInt64(v)
-		return reflect.ValueOf(int32(i)).Convert(typ), nil
+		if i, ok := toInt64(v); ok {
+			return reflect.ValueOf(int32(i)).Convert(typ), nil
+		}
 	case reflect.Int16:
-		i, _ := toInt64(v)
-		return reflect.ValueOf(int16(i)).Convert(typ), nil
+		if i, ok := toInt64(v); ok {
+			return reflect.ValueOf(int16(i)).Convert(typ), nil
+		}
 	case reflect.Int8:
-		i, _ := toInt64(v)
-		return reflect.ValueOf(int8(i)).Convert(typ), nil
+		if i, ok := toInt64(v); ok {
+			return reflect.ValueOf(int8(i)).Convert(typ), nil
+		}
 	case reflect.Uint:
-		i, _ := toInt64(v)
-		return reflect.ValueOf(uint(i)).Convert(typ), nil
+		if i, ok := toInt64(v); ok {
+			return reflect.ValueOf(uint(i)).Convert(typ), nil
+		}
 	case reflect.Uint64:
-		i, _ := toInt64(v)
-		return reflect.ValueOf(uint64(i)).Convert(typ), nil
+		if i, ok := toInt64(v); ok {
+			return reflect.ValueOf(uint64(i)).Convert(typ), nil
+		}
 	case reflect.Uint32:
-		i, _ := toInt64(v)
-		return reflect.ValueOf(uint32(i)).Convert(typ), nil
+		if i, ok := toInt64(v); ok {
+			return reflect.ValueOf(uint32(i)).Convert(typ), nil
+		}
 	case reflect.Uint16:
-		i, _ := toInt64(v)
-		return reflect.ValueOf(uint16(i)).Convert(typ), nil
+		if i, ok := toInt64(v); ok {
+			return reflect.ValueOf(uint16(i)).Convert(typ), nil
+		}
 	case reflect.Uint8:
-		i, _ := toInt64(v)
-		return reflect.ValueOf(uint8(i)).Convert(typ), nil
+		if i, ok := toInt64(v); ok {
+			return reflect.ValueOf(uint8(i)).Convert(typ), nil
+		}
+	default:
+		ok = true
+	}
+	if !ok {
+		return reflect.Value{}, fmt.Errorf("impossible conversation from %s to %s", v.ExportType().Kind(), typ.Kind())
 	}
 
 	if typ == typeCallable {
