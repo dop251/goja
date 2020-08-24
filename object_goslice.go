@@ -318,7 +318,7 @@ func (o *objectGoSlice) ownKeys(_ bool, accum []Value) []Value {
 	return accum
 }
 
-func (o *objectGoSlice) export() interface{} {
+func (o *objectGoSlice) export(*objectExportCtx) interface{} {
 	return *o.data
 }
 

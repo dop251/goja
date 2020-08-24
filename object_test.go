@@ -1,6 +1,9 @@
 package goja
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestArray1(t *testing.T) {
 	r := &Runtime{}
@@ -123,6 +126,119 @@ func TestObjectAssign(t *testing.T) {
         }, b: 2 }).b, 1, "#2");
 	`
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestExportCircular(t *testing.T) {
+	vm := New()
+	o := vm.NewObject()
+	o.Set("o", o)
+	v := o.Export()
+	if m, ok := v.(map[string]interface{}); ok {
+		if reflect.ValueOf(m["o"]).Pointer() != reflect.ValueOf(v).Pointer() {
+			t.Fatal("Unexpected value")
+		}
+	} else {
+		t.Fatal("Unexpected type")
+	}
+
+	res, err := vm.RunString(`var a = []; a[0] = a;`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v = res.Export()
+	if a, ok := v.([]interface{}); ok {
+		if reflect.ValueOf(a[0]).Pointer() != reflect.ValueOf(v).Pointer() {
+			t.Fatal("Unexpected value")
+		}
+	} else {
+		t.Fatal("Unexpected type")
+	}
+}
+
+type test_s struct {
+	S *test_s1
+}
+type test_s1 struct {
+	S *test_s
+}
+
+func TestExportToCircular(t *testing.T) {
+	vm := New()
+	o := vm.NewObject()
+	o.Set("o", o)
+	var m map[string]interface{}
+	err := vm.ExportTo(o, &m)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type K string
+	type T map[K]T
+	var m1 T
+	err = vm.ExportTo(o, &m1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type A []A
+	var a A
+	res, err := vm.RunString("var a = []; a[0] = a;")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = vm.ExportTo(res, &a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if &a[0] != &a[0][0] {
+		t.Fatal("values do not match")
+	}
+
+	o = vm.NewObject()
+	o.Set("S", o)
+	var s test_s
+	err = vm.ExportTo(o, &s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.S.S != &s {
+		t.Fatalf("values do not match: %v, %v", s.S.S, &s)
+	}
+
+	type test_s2 struct {
+		S  interface{}
+		S1 *test_s2
+	}
+
+	var s2 test_s2
+	o.Set("S1", o)
+
+	err = vm.ExportTo(o, &s2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if m, ok := s2.S.(map[string]interface{}); ok {
+		if reflect.ValueOf(m["S"]).Pointer() != reflect.ValueOf(m).Pointer() {
+			t.Fatal("Unexpected m.S")
+		}
+	} else {
+		t.Fatalf("Unexpected s2.S type: %T", s2.S)
+	}
+	if s2.S1 != &s2 {
+		t.Fatal("Unexpected s2.S1")
+	}
+
+	o1 := vm.NewObject()
+	o1.Set("S", o)
+	o1.Set("S1", o)
+	err = vm.ExportTo(o1, &s2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s2.S1.S1 != s2.S1 {
+		t.Fatal("Unexpected s2.S1.S1")
+	}
 }
 
 func BenchmarkPut(b *testing.B) {

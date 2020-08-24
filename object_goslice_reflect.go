@@ -104,12 +104,11 @@ func (o *objectGoSliceReflect) putIdx(idx int, v Value, throw bool) bool {
 		}
 		o.grow(idx + 1)
 	}
-	val, err := o.val.runtime.toReflectValue(v, o.value.Type().Elem())
+	err := o.val.runtime.toReflectValue(v, o.value.Index(idx), &objectExportCtx{})
 	if err != nil {
 		o.val.runtime.typeErrorResult(throw, "Go type conversion error: %v", err)
 		return false
 	}
-	o.value.Index(idx).Set(val)
 	return true
 }
 
