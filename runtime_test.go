@@ -3,6 +3,7 @@ package goja
 import (
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -288,6 +289,139 @@ func TestInterrupt(t *testing.T) {
 	if err == nil {
 		t.Fatal("Err is nil")
 	}
+}
+
+func TestRuntime_ExportToNumbers(t *testing.T) {
+	vm := New()
+	t.Run("int8/no overflow", func(t *testing.T) {
+		var i8 int8
+		err := vm.ExportTo(vm.ToValue(-123), &i8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i8 != -123 {
+			t.Fatalf("i8: %d", i8)
+		}
+	})
+
+	t.Run("int8/overflow", func(t *testing.T) {
+		var i8 int8
+		err := vm.ExportTo(vm.ToValue(333), &i8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i8 != 77 {
+			t.Fatalf("i8: %d", i8)
+		}
+	})
+
+	t.Run("int64/uint64", func(t *testing.T) {
+		var ui64 uint64
+		err := vm.ExportTo(vm.ToValue(-1), &ui64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ui64 != math.MaxUint64 {
+			t.Fatalf("ui64: %d", ui64)
+		}
+	})
+
+	t.Run("int8/float", func(t *testing.T) {
+		var i8 int8
+		err := vm.ExportTo(vm.ToValue(333.9234), &i8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i8 != 77 {
+			t.Fatalf("i8: %d", i8)
+		}
+	})
+
+	t.Run("int8/object", func(t *testing.T) {
+		var i8 int8
+		err := vm.ExportTo(vm.NewObject(), &i8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i8 != 0 {
+			t.Fatalf("i8: %d", i8)
+		}
+	})
+
+	t.Run("int/object_cust_valueOf", func(t *testing.T) {
+		var i int
+		obj, err := vm.RunString(`
+		({
+			valueOf: function() { return 42; }
+		})
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = vm.ExportTo(obj, &i)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i != 42 {
+			t.Fatalf("i: %d", i)
+		}
+	})
+
+	t.Run("float32/no_trunc", func(t *testing.T) {
+		var f float32
+		err := vm.ExportTo(vm.ToValue(1.234567), &f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f != 1.234567 {
+			t.Fatalf("f: %f", f)
+		}
+	})
+
+	t.Run("float32/trunc", func(t *testing.T) {
+		var f float32
+		err := vm.ExportTo(vm.ToValue(1.234567890), &f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f != float32(1.234567890) {
+			t.Fatalf("f: %f", f)
+		}
+	})
+
+	t.Run("float64", func(t *testing.T) {
+		var f float64
+		err := vm.ExportTo(vm.ToValue(1.234567), &f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f != 1.234567 {
+			t.Fatalf("f: %f", f)
+		}
+	})
+
+	t.Run("float32/object", func(t *testing.T) {
+		var f float32
+		err := vm.ExportTo(vm.NewObject(), &f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f == f { // expecting NaN
+			t.Fatalf("f: %f", f)
+		}
+	})
+
+	t.Run("float64/object", func(t *testing.T) {
+		var f float64
+		err := vm.ExportTo(vm.NewObject(), &f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f == f { // expecting NaN
+			t.Fatalf("f: %f", f)
+		}
+	})
+
 }
 
 func TestRuntime_ExportToSlice(t *testing.T) {

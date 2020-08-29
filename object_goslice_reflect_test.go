@@ -63,13 +63,13 @@ func TestGoSliceReflectSet(t *testing.T) {
 		t.Fatalf("a[0] = %d, expected 33", a[0])
 	}
 	if a[1] != 77 {
-		t.Fatalf("a[1] = %d, expected 77", a[0])
+		t.Fatalf("a[1] = %d, expected 77", a[1])
 	}
 	if a[2] != 42 {
-		t.Fatalf("a[2] = %d, expected 42", a[0])
+		t.Fatalf("a[2] = %d, expected 42", a[2])
 	}
 	if a[3] != 0 {
-		t.Fatalf("a[3] = %d, expected 0", a[0])
+		t.Fatalf("a[3] = %d, expected 0", a[3])
 	}
 }
 

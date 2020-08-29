@@ -164,7 +164,7 @@ func (i valueInt) String() string {
 }
 
 func (i valueInt) ToFloat() float64 {
-	return float64(int64(i))
+	return float64(i)
 }
 
 func (i valueInt) ToBoolean() bool {
