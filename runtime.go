@@ -1707,13 +1707,21 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 			dst.Set(reflect.ValueOf(exportValue(v, ctx)).Convert(typ))
 			return nil
 		}
-		if typ == typeTime && et.Kind() == reflect.String {
-			tme, ok := dateParse(v.String())
-			if !ok {
-				return fmt.Errorf("could not convert string %v to %v", v, typ)
+		if typ == typeTime {
+			if obj, ok := v.(*Object); ok {
+				if d, ok := obj.self.(*dateObject); ok {
+					dst.Set(reflect.ValueOf(d.time()))
+					return nil
+				}
 			}
-			dst.Set(reflect.ValueOf(tme))
-			return nil
+			if et.Kind() == reflect.String {
+				tme, ok := dateParse(v.String())
+				if !ok {
+					return fmt.Errorf("could not convert string %v to %v", v, typ)
+				}
+				dst.Set(reflect.ValueOf(tme))
+				return nil
+			}
 		}
 	}
 

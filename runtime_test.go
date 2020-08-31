@@ -685,6 +685,24 @@ func TestRuntime_ExportToTime(t *testing.T) {
 	if str != "2018-08-13T15:02:13+02:00" {
 		t.Fatalf("Unexpected value: '%s'", str)
 	}
+
+	d, err := vm.RunString(`new Date(1000)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ti = time.Time{}
+	err = vm.ExportTo(d, &ti)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ti.UnixNano() != 1000*1e6 {
+		t.Fatal(ti)
+	}
+	if ti.Location() != time.Local {
+		t.Fatalf("Wrong location: %v", ti)
+	}
 }
 
 func ExampleRuntime_ExportTo_func() {
