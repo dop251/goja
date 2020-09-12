@@ -37,10 +37,9 @@ func TestWeakSetExpiry(t *testing.T) {
 	}
 	runtime.GC()
 	runtime.GC()
+	vm.RunString("true") // this will trigger dead keys removal
 	wso := vm.Get("s").ToObject(vm).self.(*weakSetObject)
-	wso.s.Lock()
 	l := len(wso.s.data)
-	wso.s.Unlock()
 	if l > 0 {
 		t.Fatal("Object has not been removed")
 	}

@@ -24,10 +24,9 @@ func TestWeakMapExpiry(t *testing.T) {
 	}
 	runtime.GC()
 	runtime.GC()
+	vm.RunString("true") // this will trigger dead keys removal
 	wmo := vm.Get("m").ToObject(vm).self.(*weakMapObject)
-	wmo.m.Lock()
 	l := len(wmo.m.data)
-	wmo.m.Unlock()
 	if l > 0 {
 		t.Fatal("Object has not been removed")
 	}
