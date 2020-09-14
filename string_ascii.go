@@ -41,11 +41,7 @@ func (s asciiString) utf16Reader(start int) io.RuneReader {
 }
 
 func (s asciiString) runes() []rune {
-	runes := make([]rune, len(s))
-	for i := 0; i < len(s); i++ {
-		runes[i] = rune(s[i])
-	}
-	return runes
+	return []rune(s)
 }
 
 func (s asciiString) utf16Runes() []rune {
