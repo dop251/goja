@@ -1,7 +1,7 @@
 package goja
 
 import (
-	"github.com/dop251/goja/parser"
+	"github.com/packing/goja/parser"
 	"testing"
 )
 

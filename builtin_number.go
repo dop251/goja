@@ -3,7 +3,7 @@ package goja
 import (
 	"math"
 
-	"github.com/dop251/goja/ftoa"
+	"github.com/packing/goja/ftoa"
 )
 
 func (r *Runtime) numberproto_valueOf(call FunctionCall) Value {

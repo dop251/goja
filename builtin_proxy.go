@@ -3,7 +3,7 @@ package goja
 import (
 	"fmt"
 
-	"github.com/dop251/goja/unistring"
+	"github.com/packing/goja/unistring"
 )
 
 func (r *Runtime) newNativeProxyHandler(nativeHandler *ProxyTrapConfig) *Object {

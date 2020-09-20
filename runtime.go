@@ -16,9 +16,9 @@ import (
 
 	"golang.org/x/text/collate"
 
-	js_ast "github.com/dop251/goja/ast"
-	"github.com/dop251/goja/parser"
-	"github.com/dop251/goja/unistring"
+	js_ast "github.com/packing/goja/ast"
+	"github.com/packing/goja/parser"
+	"github.com/packing/goja/unistring"
 )
 
 const (
@@ -323,6 +323,10 @@ func (e *Exception) Error() string {
 
 func (e *Exception) Value() Value {
 	return e.val
+}
+
+func (e *Exception) Stacks() []StackFrame {
+	return e.stack
 }
 
 func (r *Runtime) addToGlobal(name string, value Value) {

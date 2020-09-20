@@ -2,7 +2,7 @@ package goja
 
 import (
 	"errors"
-	"github.com/dop251/goja/unistring"
+	"github.com/packing/goja/unistring"
 	"io"
 	"math"
 	"regexp"

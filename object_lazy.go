@@ -3,7 +3,7 @@ package goja
 import (
 	"reflect"
 
-	"github.com/dop251/goja/unistring"
+	"github.com/packing/goja/unistring"
 )
 
 type lazyObject struct {
