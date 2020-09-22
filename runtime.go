@@ -1641,6 +1641,7 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 
 func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCtx) error {
 	typ := dst.Type()
+
 	switch typ.Kind() {
 	case reflect.String:
 		dst.Set(reflect.ValueOf(v.String()).Convert(typ))
@@ -1686,54 +1687,52 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 		return nil
 	}
 
-	if typ == typeCallable {
+	switch typ {
+	case typeCallable:
 		if fn, ok := AssertFunction(v); ok {
 			dst.Set(reflect.ValueOf(fn))
 			return nil
 		}
-	}
 
-	if typ == typeValue {
+	case typeValue:
 		dst.Set(reflect.ValueOf(v))
 		return nil
-	}
 
-	if typ == typeObject {
+	case typeObject:
 		if obj, ok := v.(*Object); ok {
 			dst.Set(reflect.ValueOf(obj))
 			return nil
 		}
-	}
-
-	{
-		et := v.ExportType()
-		if et == nil || et == reflectTypeNil {
-			dst.Set(reflect.Zero(typ))
-			return nil
-		}
-		if et.AssignableTo(typ) {
-			dst.Set(reflect.ValueOf(exportValue(v, ctx)))
-			return nil
-		} else if et.ConvertibleTo(typ) {
-			dst.Set(reflect.ValueOf(exportValue(v, ctx)).Convert(typ))
-			return nil
-		}
-		if typ == typeTime {
-			if obj, ok := v.(*Object); ok {
-				if d, ok := obj.self.(*dateObject); ok {
-					dst.Set(reflect.ValueOf(d.time()))
-					return nil
-				}
-			}
-			if et.Kind() == reflect.String {
-				tme, ok := dateParse(v.String())
-				if !ok {
-					return fmt.Errorf("could not convert string %v to %v", v, typ)
-				}
-				dst.Set(reflect.ValueOf(tme))
+	case typeTime:
+		if obj, ok := v.(*Object); ok {
+			if d, ok := obj.self.(*dateObject); ok {
+				dst.Set(reflect.ValueOf(d.time()))
 				return nil
 			}
 		}
+		if v.ExportType().Kind() == reflect.String {
+			tme, ok := dateParse(v.String())
+			if !ok {
+				return fmt.Errorf("could not convert string %v to %v", v, typ)
+			}
+			dst.Set(reflect.ValueOf(tme))
+			return nil
+		}
+	}
+
+	et := v.ExportType()
+	if et == nil || et == reflectTypeNil {
+		dst.Set(reflect.Zero(typ))
+		return nil
+	}
+	if typ.Kind() == reflect.Interface && typ.NumMethod() == 0 {
+		vi := v.Export()
+		if vi == nil {
+			dst.Set(reflect.Zero(typ))
+			return nil
+		}
+		dst.Set(reflect.ValueOf(vi))
+		return nil
 	}
 
 	switch typ.Kind() {
@@ -1781,7 +1780,7 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 					kv = reflect.New(keyTyp).Elem()
 					err = r.toReflectValue(itemName, kv, ctx)
 					if err != nil {
-						return fmt.Errorf("could not convert map key %s to %v", itemName.String(), typ)
+						return fmt.Errorf("could not convert map key %s to %v (for %v): %v", itemName.String(), keyTyp, typ, err)
 					}
 				} else {
 					kv = reflect.ValueOf(itemName.String())
@@ -1792,7 +1791,7 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 					vv := reflect.New(elemTyp).Elem()
 					err := r.toReflectValue(ival, vv, ctx)
 					if err != nil {
-						return fmt.Errorf("could not convert map value %v to %v at key %s", ival, typ, itemName.String())
+						return fmt.Errorf("could not convert map value %v to %v (for %v) at key %s: %v", ival, elemTyp, typ, itemName.String(), err)
 					}
 					m.SetMapIndex(kv, vv)
 				} else {
@@ -1848,9 +1847,18 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 			}
 		}
 		if dst.IsNil() {
+			fmt.Printf("setting nil pointer to new elem of elem type %s\n", typ.Elem())
 			dst.Set(reflect.New(typ.Elem()))
 		}
 		return r.toReflectValue(v, dst.Elem(), ctx)
+	}
+
+	if et.AssignableTo(typ) {
+		dst.Set(reflect.ValueOf(exportValue(v, ctx)))
+		return nil
+	} else if et.ConvertibleTo(typ) {
+		dst.Set(reflect.ValueOf(exportValue(v, ctx)).Convert(typ))
+		return nil
 	}
 
 	return fmt.Errorf("could not convert %v to %v", v, typ)

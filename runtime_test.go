@@ -1625,11 +1625,11 @@ func TestObjSetSym(t *testing.T) {
 	var sym = Symbol(true);
 	var p1 = Object.create(null);
 	var p2 = Object.create(p1);
-	
+
 	Object.defineProperty(p1, sym, {
 	value: 42
 	});
-	
+
 	Object.defineProperty(p2, sym, {
 	value: 43,
 	writable: true,
@@ -1646,11 +1646,11 @@ func TestObjSet(t *testing.T) {
 	'use strict';
 	var p1 = Object.create(null);
 	var p2 = Object.create(p1);
-	
+
 	Object.defineProperty(p1, "test", {
 	value: 42
 	});
-	
+
 	Object.defineProperty(p2, "test", {
 	value: 43,
 	writable: true,
