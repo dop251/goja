@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -152,6 +153,37 @@ func TestExportCircular(t *testing.T) {
 		}
 	} else {
 		t.Fatal("Unexpected type")
+	}
+}
+
+func TestExportInPlace(t *testing.T) {
+	vm := New()
+	o, err := vm.RunString(`var obj = {a: "foo", b: 123}; obj;`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := map[string]interface{}{
+		"c": "bar",
+	}
+	addrBefore := fmt.Sprintf("%p", m)
+	err = vm.ExportTo(o, &m)
+	if err != nil {
+		t.Fatal("exporting object into map:", err)
+	}
+	addrAfter := fmt.Sprintf("%p", m)
+
+	if addrBefore != addrAfter {
+		t.Fatal("a new map was created")
+	}
+
+	c, ok := m["c"]
+	if !ok {
+		t.Fatal("element 'c' was discarded during export")
+	}
+
+	if c != "bar" {
+		t.Fatal("element 'c' was modified during export")
 	}
 }
 
