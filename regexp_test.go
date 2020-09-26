@@ -580,3 +580,44 @@ func BenchmarkRegexpMatchCache(b *testing.B) {
 		b.Fatal("not a function")
 	}
 }
+
+func BenchmarkRegexpSingleExec(b *testing.B) {
+	vm := New()
+	regexp := vm.Get("RegExp")
+	f := func(reStr, str string, b *testing.B) {
+		r, err := vm.New(regexp, vm.ToValue(reStr))
+		if err != nil {
+			b.Fatal(err)
+		}
+		exec, ok := AssertFunction(r.Get("exec"))
+		if !ok {
+			b.Fatal("RegExp.exec is not a function")
+		}
+		arg := vm.ToValue(str)
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_, err := exec(r, arg)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+
+	b.Run("Re-ASCII", func(b *testing.B) {
+		f("test", "aaaaaaaaaaaaaaaaaaaaaaaaa testing", b)
+	})
+
+	b.Run("Re2-ASCII", func(b *testing.B) {
+		f("(?=)test", "aaaaaaaaaaaaaaaaaaaaaaaaa testing", b)
+	})
+
+	b.Run("Re-Unicode", func(b *testing.B) {
+		f("test", "aaaaaaaaaaaaaaaaaaaaaaaaa testing 😀", b)
+	})
+
+	b.Run("Re2-Unicode", func(b *testing.B) {
+		f("(?=)test", "aaaaaaaaaaaaaaaaaaaaaaaaa testing 😀", b)
+	})
+
+}

@@ -138,7 +138,7 @@ func (p *regexpPattern) findAllSubmatchIndex(s valueString, start int, limit int
 			return p.regexpWrapper.findAllSubmatchIndex(s.String(), limit, sticky)
 		}
 		if limit == 1 {
-			result := p.regexpWrapper.findSubmatchIndex(s, p.unicode)
+			result := p.regexpWrapper.findSubmatchIndexUnicode(s.(unicodeString), p.unicode)
 			if result == nil {
 				return nil
 			}
@@ -445,7 +445,23 @@ func (r *regexpWrapper) findAllSubmatchIndex(s string, limit int, sticky bool) (
 	return
 }
 
-func (r *regexpWrapper) findSubmatchIndex(s valueString, fullUnicode bool) (result []int) {
+func (r *regexpWrapper) findSubmatchIndex(s valueString, fullUnicode bool) []int {
+	switch s := s.(type) {
+	case asciiString:
+		return r.findSubmatchIndexASCII(string(s))
+	case unicodeString:
+		return r.findSubmatchIndexUnicode(s, fullUnicode)
+	default:
+		panic("Unsupported string type")
+	}
+}
+
+func (r *regexpWrapper) findSubmatchIndexASCII(s string) []int {
+	wrapped := (*regexp.Regexp)(r)
+	return wrapped.FindStringSubmatchIndex(s)
+}
+
+func (r *regexpWrapper) findSubmatchIndexUnicode(s unicodeString, fullUnicode bool) (result []int) {
 	wrapped := (*regexp.Regexp)(r)
 	if fullUnicode {
 		posMap, runes, _, _ := buildPosMap(&lenientUtf16Decoder{utf16Reader: s.utf16Reader(0)}, s.length(), 0)
