@@ -458,6 +458,26 @@ func TestRegexpConsecutiveMatchCache(t *testing.T) {
 
 }
 
+func TestRegexpOverrideSpecies(t *testing.T) {
+	const SCRIPT = `
+	Object.defineProperty(RegExp, Symbol.species, {
+		configurable: true,
+		value: function() {
+			throw "passed";
+		}
+	});
+	try {
+		"ab".split(/a/);
+		throw new Error("Expected error");
+	} catch(e) {
+		if (e !== "passed") {
+			throw e;
+		}
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)
