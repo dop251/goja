@@ -241,6 +241,53 @@ func TestExportToCircular(t *testing.T) {
 	}
 }
 
+func TestExportWrappedMap(t *testing.T) {
+	vm := New()
+	m := map[string]interface{}{
+		"test": "failed",
+	}
+	exported := vm.ToValue(m).Export()
+	if exportedMap, ok := exported.(map[string]interface{}); ok {
+		exportedMap["test"] = "passed"
+		if v := m["test"]; v != "passed" {
+			t.Fatalf("Unexpected m[\"test\"]: %v", v)
+		}
+	} else {
+		t.Fatalf("Unexpected export type: %T", exported)
+	}
+}
+
+func TestExportToWrappedMap(t *testing.T) {
+	vm := New()
+	m := map[string]interface{}{
+		"test": "failed",
+	}
+	var exported map[string]interface{}
+	err := vm.ExportTo(vm.ToValue(m), &exported)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported["test"] = "passed"
+	if v := m["test"]; v != "passed" {
+		t.Fatalf("Unexpected m[\"test\"]: %v", v)
+	}
+}
+
+func TestExportToWrappedMapCustom(t *testing.T) {
+	type CustomMap map[string]bool
+	vm := New()
+	m := CustomMap{}
+	var exported CustomMap
+	err := vm.ExportTo(vm.ToValue(m), &exported)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported["test"] = true
+	if v := m["test"]; v != true {
+		t.Fatalf("Unexpected m[\"test\"]: %v", v)
+	}
+}
+
 func BenchmarkPut(b *testing.B) {
 	v := &Object{}
 
