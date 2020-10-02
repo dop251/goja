@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -286,6 +287,17 @@ func TestExportToWrappedMapCustom(t *testing.T) {
 	if v := m["test"]; v != true {
 		t.Fatalf("Unexpected m[\"test\"]: %v", v)
 	}
+}
+
+func ExampleObject_Delete() {
+	vm := New()
+	obj := vm.NewObject()
+	_ = obj.Set("test", true)
+	before := obj.Get("test")
+	_ = obj.Delete("test")
+	after := obj.Get("test")
+	fmt.Printf("before: %v, after: %v", before, after)
+	// Output: before: true, after: <nil>
 }
 
 func BenchmarkPut(b *testing.B) {
