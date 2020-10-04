@@ -378,7 +378,7 @@ func (self *_RegExp_parser) scanEscape(inClass bool) {
 	return
 
 skip:
-	_, err := self.goRegexp.WriteString(self.str[offset:self.chrOffset])
+	_, err := self.goRegexp.WriteString(self.str[offset-1 : self.chrOffset])
 	if err != nil {
 		self.errors = append(self.errors, err)
 	}

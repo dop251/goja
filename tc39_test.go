@@ -137,8 +137,6 @@ var (
 		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
 		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
 		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":            true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape_x.js":              true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape_u.js":              true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_c.js":              true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_alpha.js":          true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape.js":                true,
