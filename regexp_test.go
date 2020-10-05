@@ -204,6 +204,7 @@ func TestRegexpUTF16(t *testing.T) {
 	assert(compareArray(str.split(re), ["", "\uDC00"]), "#5");
 	assert(compareArray("a\uD800\uDC00b".split(/\uD800/g), ["a", "\uDC00b"]), "#6");
 	assert(compareArray("a\uD800\uDC00b".split(/(?:)/g), ["a", "\uD800", "\uDC00", "b"]), "#7");
+	assert(compareArray("0\x80".split(/(0){0}/g), ["0", undefined, "\x80"]), "#7+");
 
 	re = /(?=)a/; // a hack to use regexp2
 	assert.sameValue(re.exec('\ud83d\ude02a').index, 2, "#8");
@@ -235,6 +236,8 @@ func TestRegexpUnicode(t *testing.T) {
 	assert(compareArray("a\uD800\uDC00b".split(/\uD800/gu), ["a\uD800\uDC00b"]), "#5");
 
 	assert(compareArray("a\uD800\uDC00b".split(/(?:)/gu), ["a", "𐀀", "b"]), "#6");
+
+	assert(compareArray("0\x80".split(/(0){0}/gu), ["0", undefined, "\x80"]), "#7");
 
 	var re = eval('/' + /\ud834\udf06/u.source + '/u');
 	assert(re.test('\ud834\udf06'), "#9");
