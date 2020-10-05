@@ -870,18 +870,17 @@ func parseStringLiteral1(literal string, length int, unicode bool) (unistring.St
 
 	if unicode {
 		if len(chars) != length+1 {
-			panic(fmt.Errorf("unexpected unicode length while parsing '%s'", literal))
+			return "", fmt.Errorf("unexpected unicode length while parsing '%s'", literal)
 		}
 		return unistring.FromUtf16(chars), nil
 	}
 	if sb.Len() != length {
-		panic(fmt.Errorf("unexpected length while parsing '%s'", literal))
+		return "", fmt.Errorf("unexpected length while parsing '%s'", literal)
 	}
 	return unistring.String(sb.String()), nil
 }
 
 func (self *_parser) scanNumericLiteral(decimalPoint bool) (token.Token, string) {
-
 	offset := self.chrOffset
 	tkn := token.NUMBER
 
