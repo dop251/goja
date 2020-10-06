@@ -771,6 +771,7 @@ func TestParser(t *testing.T) {
 
 		//// 11.13.1-1-1
 		test("42 = 42;", "(anonymous): Line 1:1 Invalid left-hand side in assignment")
+		test("s &^= 42;", "(anonymous): Line 1:4 Unexpected token ^=")
 
 		// S11.13.2_A4.2_T1.3
 		test(`
