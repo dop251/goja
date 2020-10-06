@@ -30,7 +30,7 @@ type positionMapItem struct {
 type positionMap []positionMapItem
 
 func (m positionMap) get(src int) int {
-	if src == 0 || src == -1 {
+	if src <= 0 {
 		return src
 	}
 	res := sort.Search(len(m), func(n int) bool { return m[n].src >= src })
