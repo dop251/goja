@@ -769,6 +769,9 @@ func parseStringLiteral1(literal string, length int, unicode bool) (unistring.St
 			var size int
 			value, size = utf8.DecodeRuneInString(str)
 			str = str[size:] // \ + <character>
+			if value == '\u2028' || value == '\u2029' {
+				continue
+			}
 		} else {
 			str = str[2:] // \<character>
 			switch chr {
