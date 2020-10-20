@@ -498,6 +498,19 @@ func TestRegexpInvalidGroup(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestRegexpLookbehindAssertion(t *testing.T) {
+	const SCRIPT = `
+	var re = /(?<=Jack|Tom)Sprat/;
+	assert(re.test("JackSprat"), "#1");
+	assert(!re.test("JohnSprat"), "#2");
+
+	re = /(?<!-)\d+/;
+	assert(re.test("3"), "#3");
+	assert(!re.test("-3"), "#4");
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)

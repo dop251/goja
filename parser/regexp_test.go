@@ -40,6 +40,10 @@ func TestRegExp(t *testing.T) {
 			test("(?U)", "", "Invalid group")
 			test("(?)|(?i)", "", "Invalid group")
 			test("(?P<w>)(?P<w>)(?P<D>)", "", "Invalid group")
+
+			test(`<%([\s\S]+?)%>`, `<%([`+WhitespaceChars+`S]+?)%>`, "S in class")
+
+			test("(?<=y)x", "(?<=y)x", "re2: Invalid (?<) <lookbehind>")
 		}
 
 		{
@@ -50,11 +54,6 @@ func TestRegExp(t *testing.T) {
 				is(result, expect)
 				_, err = regexp.Compile(result)
 				is(err, nil)
-			}
-
-			testErr := func(input string, expectErr string) {
-				_, err := TransformRegExp(input)
-				is(err, expectErr)
 			}
 
 			test("", "")
@@ -108,8 +107,6 @@ func TestRegExp(t *testing.T) {
 			test("\\175", "\\x7d")
 
 			test("\\04", "\\x04")
-
-			testErr(`<%([\s\S]+?)%>`, "S in class")
 
 			test(`(.)^`, "([^\\r\\n])^")
 

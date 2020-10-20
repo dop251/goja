@@ -99,7 +99,9 @@ func (self *_RegExp_parser) scanGroup() {
 			switch {
 			case ch == '=' || ch == '!':
 				self.error(-1, "re2: Invalid (%s) <lookahead>", self.str[self.chrOffset:self.chrOffset+2])
-			case ch != ':' && ch != '<':
+			case ch == '<':
+				self.error(-1, "re2: Invalid (%s) <lookbehind>", self.str[self.chrOffset:self.chrOffset+2])
+			case ch != ':':
 				self.error(-1, "Invalid group")
 				self.invalid = true
 			}
