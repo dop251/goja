@@ -4,6 +4,7 @@ go:
 
 arch:
   - amd64
+  - ppc64le
 #  - s390x
 
 env:
@@ -19,6 +20,10 @@ jobs:
       env: RACE="-race"
     - arch: amd64
       env: RACE=""
+    - arch: ppc64le
+      env: RACE=""
+    - arch: ppc64le
+      env: GIMME_ARCH=386
 
 
 before_install:
