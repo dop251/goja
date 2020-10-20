@@ -489,6 +489,15 @@ func TestRegexpUnicodeEmptyMatch(t *testing.T) {
 	testScript1(`/(0)0|/gu.exec("0\xef").length === 2`, valueTrue, t)
 }
 
+func TestRegexpInvalidGroup(t *testing.T) {
+	const SCRIPT = `
+	["?", "(?)"].forEach(function(s) {
+		assert.throws(SyntaxError, function() {new RegExp(s)}, s);
+	});
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)

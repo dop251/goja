@@ -35,6 +35,11 @@ func TestRegExp(t *testing.T) {
 
 			test("\\0", "\\0", nil)
 
+			test("0:(?)", "", "Invalid group")
+			test("(?)", "", "Invalid group")
+			test("(?U)", "", "Invalid group")
+			test("(?)|(?i)", "", "Invalid group")
+			test("(?P<w>)(?P<w>)(?P<D>)", "", "Invalid group")
 		}
 
 		{
