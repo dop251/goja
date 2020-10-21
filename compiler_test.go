@@ -2097,25 +2097,56 @@ func TestTryEmptyCatchStackLeak(t *testing.T) {
 	testScript1(SCRIPT, _undefined, t)
 }
 
-// FIXME
-/*
-func TestDummyCompile(t *testing.T) {
+func TestFalsyLoopBreak(t *testing.T) {
 	const SCRIPT = `
-'use strict';
-
-for (;false;) {
-    eval = 1;
+	while(false) {
+	  	break;
+	}
+	for(;false;) {
+		break;
+	}
+	undefined;
+	`
+	MustCompile("", SCRIPT, false)
 }
 
+func TestFalsyLoopBreakWithResult(t *testing.T) {
+	const SCRIPT = `
+	while(false) {
+	  break;
+	}
 	`
-	defer func() {
-		if recover() == nil {
-			t.Fatal("Expected panic")
-		}
-	}()
-
 	testScript1(SCRIPT, _undefined, t)
-}*/
+}
+
+func TestDummyCompile(t *testing.T) {
+	const SCRIPT = `
+	'use strict';
+	
+	for (;false;) {
+		eval = 1;
+	}
+	`
+
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestDummyCompileForUpdate(t *testing.T) {
+	const SCRIPT = `
+	'use strict';
+	
+	for (;false;eval=1) {
+	}
+	`
+
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
 
 func BenchmarkCompile(b *testing.B) {
 	f, err := os.Open("testdata/S15.10.2.12_A1_T1.js")
