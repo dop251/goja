@@ -3,8 +3,6 @@ package parser
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -174,10 +172,6 @@ func testMarshalNode(node interface{}) interface{} {
 			}
 			return tmp0
 		}
-	}
-
-	if node != nil {
-		fmt.Fprintf(os.Stderr, "testMarshalNode(%T)\n", node)
 	}
 
 	return nil
@@ -361,8 +355,12 @@ func TestParserAST(t *testing.T) {
       "Right": {
         "Object": [
           {
-            "Key": "abc",
-            "Value": {
+            "Key": {
+               "Idx": 7,
+               "Literal": "abc",
+               "Value": "abc"
+            },
+			"Value": {
               "Literal": true
             }
           }
@@ -594,8 +592,12 @@ func TestParserAST(t *testing.T) {
   {
     "Object": [
       {
-        "Key": "abc",
-        "Value": {
+		"Key": {
+		   "Idx": 77,
+		   "Literal": "abc",
+		   "Value": "abc"
+		},
+		"Value": {
           "Literal": "'def'"
         }
       }
@@ -636,7 +638,11 @@ func TestParserAST(t *testing.T) {
   {
     "Object": [
       {
-        "Key": "abc",
+		"Key": {
+		   "Idx": 8,
+		   "Literal": "abc",
+		   "Value": "abc"
+		},
         "Value": {
           "Function": {
             "BlockStatement": []
@@ -836,13 +842,21 @@ func TestParserAST(t *testing.T) {
       "Right": {
         "Object": [
           {
-            "Key": "\"",
+			"Key": {
+			   "Idx": 21,
+               "Literal": "'\"'",
+               "Value": "\""
+            },
             "Value": {
               "Literal": "\"'\""
             }
           },
           {
-            "Key": "'",
+			"Key": {
+			   "Idx": 43,
+			   "Literal": "\"'\"",
+			   "Value": "'"
+			},
             "Value": {
               "Literal": "'\"'"
             }

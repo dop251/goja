@@ -2148,6 +2148,21 @@ func TestDummyCompileForUpdate(t *testing.T) {
 	}
 }
 
+func TestObjectLiteralWithNumericKeys(t *testing.T) {
+	const SCRIPT = `
+	var o = {1e3: true};
+	var keys = Object.keys(o);
+	var o1 = {get 1e3() {return true;}};
+	var keys1 = Object.keys(o1);
+	var o2 = {1e21: true};
+	var keys2 = Object.keys(o2);
+	keys.length === 1 && keys[0] === "1000" && 
+	keys1.length === 1 && keys1[0] === "1000" && o1[1e3] === true &&
+	keys2.length === 1 && keys2[0] === "1e+21";
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func BenchmarkCompile(b *testing.B) {
 	f, err := os.Open("testdata/S15.10.2.12_A1_T1.js")
 
