@@ -158,7 +158,7 @@ func TestRegexpSInClass(t *testing.T) {
 	testScript1(SCRIPT, valueFalse, t)
 }
 
-func TestRegexpDotMatchSlashR(t *testing.T) {
+func TestRegexpDotMatchCR(t *testing.T) {
 	const SCRIPT = `
 	/./.test("\r");
 	`
@@ -166,9 +166,17 @@ func TestRegexpDotMatchSlashR(t *testing.T) {
 	testScript1(SCRIPT, valueFalse, t)
 }
 
-func TestRegexpDotMatchSlashRInGroup(t *testing.T) {
+func TestRegexpDotMatchCRInGroup(t *testing.T) {
 	const SCRIPT = `
 	/(.)/.test("\r");
+	`
+
+	testScript1(SCRIPT, valueFalse, t)
+}
+
+func TestRegexpDotMatchLF(t *testing.T) {
+	const SCRIPT = `
+	/./.test("\n");
 	`
 
 	testScript1(SCRIPT, valueFalse, t)
@@ -509,6 +517,15 @@ func TestRegexpLookbehindAssertion(t *testing.T) {
 	assert(!re.test("-3"), "#4");
 	`
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestRegexpInvalidUTF8(t *testing.T) {
+	vm := New()
+	// Note that normally vm.ToValue() would replace invalid UTF-8 sequences with RuneError
+	_, err := vm.New(vm.Get("RegExp"), asciiString([]byte{0xAD}))
+	if err == nil {
+		t.Fatal("Expected error")
+	}
 }
 
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
