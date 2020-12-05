@@ -1310,7 +1310,7 @@ Then it can be used in JS as follows:
  var o1 = MyObject(arg); // same thing
  o instanceof MyObject && o1 instanceof MyObject; // true
 
-When a native constructor is called directory (without the new operator) its behavior depends on
+When a native constructor is called directly (without the new operator) its behavior depends on
 this value: if it's an Object, it is passed through, otherwise a new one is created exactly as
 if it was called with the new operator. In either case call.NewTarget will be nil.
 
