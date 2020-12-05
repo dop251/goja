@@ -1713,6 +1713,45 @@ func TestNativeCtorNewTarget(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestNativeCtorNonNewCall(t *testing.T) {
+	vm := New()
+	vm.Set(`Animal`, func(call ConstructorCall) *Object {
+		obj := call.This
+		obj.Set(`name`, call.Argument(0).String())
+		obj.Set(`eat`, func(call FunctionCall) Value {
+			self := call.This.(*Object)
+			return vm.ToValue(fmt.Sprintf("%s eat", self.Get(`name`)))
+		})
+		return nil
+	})
+	v, err := vm.RunString(`
+
+	function __extends(d, b){
+		function __() {
+			this.constructor = d;
+		}
+		d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+	}
+
+	var Cat = (function (_super) {
+		__extends(Cat, _super);
+		function Cat() {
+			return _super.call(this, "cat") || this;
+		}
+		return Cat;
+	}(Animal));
+
+	var cat = new Cat();
+	cat instanceof Cat && cat.eat() === "cat eat";
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != valueTrue {
+		t.Fatal(v)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
