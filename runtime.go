@@ -162,7 +162,7 @@ type Runtime struct {
 	now             Now
 	_collator       *collate.Collator
 
-	symbolRegistry map[unistring.String]*valueSymbol
+	symbolRegistry map[unistring.String]*Symbol
 
 	typeInfoCache   map[reflect.Type]*reflectTypeInfo
 	fieldNameMapper FieldNameMapper
@@ -332,7 +332,7 @@ func (r *Runtime) addToGlobal(name string, value Value) {
 func (r *Runtime) createIterProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 
-	o._putSym(symIterator, valueProp(r.newNativeFunc(r.returnThis, nil, "[Symbol.iterator]", nil, 0), true, false, true))
+	o._putSym(SymIterator, valueProp(r.newNativeFunc(r.returnThis, nil, "[Symbol.iterator]", nil, 0), true, false, true))
 	return o
 }
 
@@ -2124,7 +2124,7 @@ func (r *Runtime) toNumber(v Value) Value {
 func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value, newTarget *Object) *Object {
 	c := o.self.getStr("constructor", nil)
 	if c != nil && c != _undefined {
-		c = r.toObject(c).self.getSym(symSpecies, nil)
+		c = r.toObject(c).self.getSym(SymSpecies, nil)
 	}
 	if c == nil || c == _undefined || c == _null {
 		c = defaultConstructor
@@ -2135,7 +2135,7 @@ func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []
 func (r *Runtime) speciesConstructorObj(o, defaultConstructor *Object) *Object {
 	c := o.self.getStr("constructor", nil)
 	if c != nil && c != _undefined {
-		c = r.toObject(c).self.getSym(symSpecies, nil)
+		c = r.toObject(c).self.getSym(SymSpecies, nil)
 	}
 	if c == nil || c == _undefined || c == _null {
 		return defaultConstructor
@@ -2172,7 +2172,7 @@ func (r *Runtime) getV(v Value, p Value) Value {
 
 func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *Object {
 	if method == nil {
-		method = toMethod(r.getV(obj, symIterator))
+		method = toMethod(r.getV(obj, SymIterator))
 		if method == nil {
 			panic(r.NewTypeError("object is not iterable"))
 		}
@@ -2310,7 +2310,7 @@ func isArray(object *Object) bool {
 
 func isRegexp(v Value) bool {
 	if o, ok := v.(*Object); ok {
-		matcher := o.self.getSym(symMatch, nil)
+		matcher := o.self.getSym(SymMatch, nil)
 		if matcher != nil && matcher != _undefined {
 			return matcher.ToBoolean()
 		}

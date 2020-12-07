@@ -1752,6 +1752,55 @@ func TestNativeCtorNonNewCall(t *testing.T) {
 	}
 }
 
+func ExampleNewSymbol() {
+	sym1 := NewSymbol("66")
+	sym2 := NewSymbol("66")
+	fmt.Printf("%s %s %v", sym1, sym2, sym1.Equals(sym2))
+	// Output: 66 66 false
+}
+
+func ExampleObject_SetSymbol() {
+	type IterResult struct {
+		Done  bool
+		Value Value
+	}
+
+	vm := New()
+	vm.SetFieldNameMapper(UncapFieldNameMapper()) // to use IterResult
+
+	o := vm.NewObject()
+	o.SetSymbol(SymIterator, func() *Object {
+		count := 0
+		iter := vm.NewObject()
+		iter.Set("next", func() IterResult {
+			if count < 10 {
+				count++
+				return IterResult{
+					Value: vm.ToValue(count),
+				}
+			}
+			return IterResult{
+				Done: true,
+			}
+		})
+		return iter
+	})
+	vm.Set("o", o)
+
+	res, err := vm.RunString(`
+	var acc = "";
+	for (var v of o) {
+		acc += v + " ";
+	}
+	acc;
+	`)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(res)
+	// Output: 1 2 3 4 5 6 7 8 9 10
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

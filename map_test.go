@@ -23,8 +23,8 @@ func TestMapHash(t *testing.T) {
 	testMapHashVal(asciiString("Test"), asciiString("Test"), true, t)
 	testMapHashVal(newStringValue("Тест"), newStringValue("Тест"), true, t)
 	testMapHashVal(floatToValue(1.2345), floatToValue(1.2345), true, t)
-	testMapHashVal(symIterator, symToStringTag, false, t)
-	testMapHashVal(symIterator, symIterator, true, t)
+	testMapHashVal(SymIterator, SymToStringTag, false, t)
+	testMapHashVal(SymIterator, SymIterator, true, t)
 
 	// The following tests introduce indeterministic behaviour
 	//testMapHashVal(asciiString("Test"), asciiString("Test1"), false, t)

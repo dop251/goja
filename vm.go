@@ -205,7 +205,7 @@ func (s *valueStack) expand(idx int) {
 
 func stashObjHas(obj *Object, name unistring.String) bool {
 	if obj.self.hasPropertyStr(name) {
-		if unscopables, ok := obj.self.getSym(symUnscopables, nil).(*Object); ok {
+		if unscopables, ok := obj.self.getSym(SymUnscopables, nil).(*Object); ok {
 			if b := unscopables.self.getStr(name, nil); b != nil {
 				return !b.ToBoolean()
 			}
@@ -2356,7 +2356,7 @@ func (_typeof) exec(vm *vm) {
 		r = stringString
 	case valueInt, valueFloat:
 		r = stringNumber
-	case *valueSymbol:
+	case *Symbol:
 		r = stringSymbol
 	default:
 		panic(fmt.Errorf("Unknown type: %T", v))
