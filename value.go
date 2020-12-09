@@ -42,16 +42,22 @@ var (
 )
 
 var (
-	reflectTypeInt    = reflect.TypeOf(int64(0))
-	reflectTypeBool   = reflect.TypeOf(false)
-	reflectTypeNil    = reflect.TypeOf(nil)
-	reflectTypeFloat  = reflect.TypeOf(float64(0))
-	reflectTypeMap    = reflect.TypeOf(map[string]interface{}{})
-	reflectTypeArray  = reflect.TypeOf([]interface{}{})
-	reflectTypeString = reflect.TypeOf("")
+	reflectTypeInt              = reflect.TypeOf(int64(0))
+	reflectTypeBool             = reflect.TypeOf(false)
+	reflectTypeNil              = reflect.TypeOf(nil)
+	reflectTypeFloat            = reflect.TypeOf(float64(0))
+	reflectTypeMap              = reflect.TypeOf(map[string]interface{}{})
+	reflectTypeArray            = reflect.TypeOf([]interface{}{})
+	reflectTypeString           = reflect.TypeOf("")
+	reflectTypeValueUnmarshaler = reflect.TypeOf((*ValueUnmarshaler)(nil)).Elem()
 )
 
 var intCache [256]Value
+
+// ValueUnmarshaler is the interface implemented by types that can unmarshal a JavaScript value of themselves.
+type ValueUnmarshaler interface {
+	UnmarshalValue(v Value, runtime *Runtime) error
+}
 
 type Value interface {
 	ToInteger() int64

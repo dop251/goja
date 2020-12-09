@@ -1892,6 +1892,12 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 		if dst.IsNil() {
 			dst.Set(reflect.New(typ.Elem()))
 		}
+
+		if typ.Implements(reflectTypeValueUnmarshaler) && dst.CanInterface() {
+			unmarshaler := dst.Interface().(ValueUnmarshaler)
+			return unmarshaler.UnmarshalValue(v, r)
+		}
+
 		return r.toReflectValue(v, dst.Elem(), ctx)
 	}
 
@@ -1937,9 +1943,10 @@ func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.
 
 // ExportTo converts a JavaScript value into the specified Go value. The second parameter must be a non-nil pointer.
 // Exporting to an interface{} results in a value of the same type as Export() would produce.
+// Exporting to a value which implements goja.ValueUnmarshaler, calls UnmarshalValue.
 // Exporting to numeric types uses the standard ECMAScript conversion operations, same as used when assigning
 // values to non-clamped typed array items, e.g.
-// https://www.ecma-international.org/ecma-262/10.0/index.html#sec-toint32
+// https://www.ecma-international.org/ecma-262/10.0/index.html#sec-toint32.
 // Returns error if conversion is not possible.
 func (r *Runtime) ExportTo(v Value, target interface{}) error {
 	tval := reflect.ValueOf(target)

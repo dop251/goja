@@ -651,6 +651,63 @@ func TestRuntime_ExportToStructWithPtrValues(t *testing.T) {
 
 }
 
+type loadAverage [3]float64
+
+func (la *loadAverage) UnmarshalValue(v Value, vm *Runtime) error {
+	obj := v.(*Object)
+	forEach, ok := AssertFunction(obj.Get("forEach"))
+	if !ok {
+		return errors.New("value is not iterable")
+	}
+
+	*la = loadAverage{}
+	cb := vm.ToValue(func(val, i Value) {
+		index := int(i.ToInteger())
+		la[index] = val.ToFloat()
+	})
+
+	_, err := forEach(obj, cb)
+	return err
+}
+
+func TestRuntime_ExportToValueUnmarshaler(t *testing.T) {
+	const SCRIPT = `
+		var testData = {
+			LoadAverage: [1,2,3],
+			OtherValue: "foobar"
+		}
+		testData;
+	`
+
+	vm := New()
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type expectValue struct {
+		LoadAverage *loadAverage
+		OtherValue  string
+	}
+
+	expect := expectValue{
+		LoadAverage: &loadAverage{1, 2, 3},
+		OtherValue:  "foobar",
+	}
+	got := new(expectValue)
+	if err := vm.ExportTo(v, &got); err != nil {
+		t.Fatal(err)
+	}
+
+	if *expect.LoadAverage != *got.LoadAverage {
+		t.Fatal("LoadAverage mismatch")
+	}
+
+	if expect.OtherValue != got.OtherValue {
+		t.Fatal("OtherValue mismatch")
+	}
+}
+
 func TestRuntime_ExportToTime(t *testing.T) {
 	const SCRIPT = `
 	var dateStr = "2018-08-13T15:02:13+02:00";
