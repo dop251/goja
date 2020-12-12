@@ -452,6 +452,14 @@ func (r *Runtime) CreateObject(proto *Object) *Object {
 	return r.newBaseObject(proto, classObject).val
 }
 
+func (r *Runtime) NewArray(items ...interface{}) *Object {
+	values := make([]Value, len(items))
+	for i, item := range items {
+		values[i] = r.ToValue(item)
+	}
+	return r.newArrayValues(values)
+}
+
 func (r *Runtime) NewTypeError(args ...interface{}) *Object {
 	msg := ""
 	if len(args) > 0 {

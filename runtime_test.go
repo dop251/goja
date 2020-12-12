@@ -1801,6 +1801,24 @@ func ExampleObject_SetSymbol() {
 	// Output: 1 2 3 4 5 6 7 8 9 10
 }
 
+func ExampleRuntime_NewArray() {
+	vm := New()
+	array := vm.NewArray(1, 2, true)
+	vm.Set("array", array)
+	res, err := vm.RunString(`
+	var acc = "";
+	for (var v of array) {
+		acc += v + " ";
+	}
+	acc;
+	`)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(res)
+	// Output: 1 2 true
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
