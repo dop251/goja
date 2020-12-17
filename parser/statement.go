@@ -586,11 +586,29 @@ func (self *_parser) parseProgram() *ast.Program {
 	}
 }
 
+func extractSourceMapLine(str string) string {
+	for {
+		p := strings.LastIndexByte(str, '\n')
+		line := str[p+1:]
+		if line != "" && line != "})" {
+			if strings.HasPrefix(line, "//# sourceMappingURL=") {
+				return line
+			}
+			break
+		}
+		if p >= 0 {
+			str = str[:p]
+		} else {
+			break
+		}
+	}
+	return ""
+}
+
 func (self *_parser) parseSourceMap() *sourcemap.Consumer {
-	lastLine := self.str[strings.LastIndexByte(self.str, '\n')+1:]
-	if strings.HasPrefix(lastLine, "//# sourceMappingURL") {
-		urlIndex := strings.Index(lastLine, "=")
-		urlStr := lastLine[urlIndex+1:]
+	if smLine := extractSourceMapLine(self.str); smLine != "" {
+		urlIndex := strings.Index(smLine, "=")
+		urlStr := smLine[urlIndex+1:]
 
 		var data []byte
 		if strings.HasPrefix(urlStr, "data:application/json") {

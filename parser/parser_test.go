@@ -1014,3 +1014,20 @@ func TestPosition(t *testing.T) {
 		is(node.(*ast.FunctionLiteral).Source, "function(){ return abc; }")
 	})
 }
+
+func TestExtractSourceMapLine(t *testing.T) {
+	tt(t, func() {
+		is(extractSourceMapLine(""), "")
+		is(extractSourceMapLine("\n"), "")
+		is(extractSourceMapLine(" "), "")
+		is(extractSourceMapLine("1\n2\n3\n4\n"), "")
+
+		src := `"use strict";
+var x = {};
+//# sourceMappingURL=delme.js.map`
+		modSrc := `(function(exports, require, module) {` + src + `
+})`
+		is(extractSourceMapLine(modSrc), "//# sourceMappingURL=delme.js.map")
+		is(extractSourceMapLine(modSrc+"\n\n\n\n"), "//# sourceMappingURL=delme.js.map")
+	})
+}
