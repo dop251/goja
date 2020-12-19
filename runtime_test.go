@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/dop251/goja/parser"
 )
 
 func TestGlobalObjectProto(t *testing.T) {
@@ -1817,6 +1819,33 @@ func ExampleRuntime_NewArray() {
 	}
 	fmt.Println(res)
 	// Output: 1 2 true
+}
+
+func ExampleRuntime_SetParserOptions() {
+	vm := New()
+	vm.SetParserOptions(parser.WithDisableSourceMaps)
+
+	res, err := vm.RunString(`
+	"I did not hang!";
+//# sourceMappingURL=/dev/zero`)
+
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(res.String())
+	// Output: I did not hang!
+}
+
+func TestRuntime_SetParserOptions_Eval(t *testing.T) {
+	vm := New()
+	vm.SetParserOptions(parser.WithDisableSourceMaps)
+
+	_, err := vm.RunString(`
+	eval("//# sourceMappingURL=/dev/zero");
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 /*

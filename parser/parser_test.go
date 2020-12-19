@@ -1031,3 +1031,44 @@ var x = {};
 		is(extractSourceMapLine(modSrc+"\n\n\n\n"), "//# sourceMappingURL=delme.js.map")
 	})
 }
+
+func TestSourceMapOptions(t *testing.T) {
+	tt(t, func() {
+		count := 0
+		requestedPath := ""
+		loader := func(p string) ([]byte, error) {
+			count++
+			requestedPath = p
+			return nil, nil
+		}
+		src := `"use strict";
+var x = {};
+//# sourceMappingURL=delme.js.map`
+		_, err := ParseFile(nil, "delme.js", src, 0, WithSourceMapLoader(loader))
+		is(err, nil)
+		is(count, 1)
+		is(requestedPath, "delme.js.map")
+
+		count = 0
+		_, err = ParseFile(nil, "", src, 0, WithSourceMapLoader(loader))
+		is(err, nil)
+		is(count, 1)
+		is(requestedPath, "delme.js.map")
+
+		count = 0
+		_, err = ParseFile(nil, "delme.js", src, 0, WithDisableSourceMaps)
+		is(err, nil)
+		is(count, 0)
+
+		_, err = ParseFile(nil, "/home/user/src/delme.js", src, 0, WithSourceMapLoader(loader))
+		is(err, nil)
+		is(count, 1)
+		is(requestedPath, "/home/user/src/delme.js.map")
+
+		count = 0
+		_, err = ParseFile(nil, "https://site.com/delme.js", src, 0, WithSourceMapLoader(loader))
+		is(err, nil)
+		is(count, 1)
+		is(requestedPath, "https://site.com/delme.js.map")
+	})
+}
