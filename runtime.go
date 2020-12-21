@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/dop251/goja/file"
 	"go/ast"
 	"hash/maphash"
 	"math"
@@ -193,7 +194,7 @@ func (f *StackFrame) SrcName() string {
 	if f.prg == nil {
 		return "<native>"
 	}
-	return f.prg.src.name
+	return f.prg.src.Name()
 }
 
 func (f *StackFrame) FuncName() string {
@@ -206,12 +207,9 @@ func (f *StackFrame) FuncName() string {
 	return f.funcName.String()
 }
 
-func (f *StackFrame) Position() Position {
+func (f *StackFrame) Position() file.Position {
 	if f.prg == nil || f.prg.src == nil {
-		return Position{
-			0,
-			0,
-		}
+		return file.Position{}
 	}
 	return f.prg.src.Position(f.prg.sourceOffset(f.pc))
 }
@@ -222,13 +220,16 @@ func (f *StackFrame) Write(b *bytes.Buffer) {
 			b.WriteString(n.String())
 			b.WriteString(" (")
 		}
-		if n := f.prg.src.name; n != "" {
-			b.WriteString(n)
+		p := f.Position()
+		if p.Filename != "" {
+			b.WriteString(p.Filename)
 		} else {
 			b.WriteString("<eval>")
 		}
 		b.WriteByte(':')
-		b.WriteString(f.Position().String())
+		b.WriteString(strconv.Itoa(p.Line))
+		b.WriteByte(':')
+		b.WriteString(strconv.Itoa(p.Column))
 		b.WriteByte('(')
 		b.WriteString(strconv.Itoa(f.pc))
 		b.WriteByte(')')

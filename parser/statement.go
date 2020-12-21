@@ -579,12 +579,13 @@ func (self *_parser) parseSourceElements() []ast.Statement {
 func (self *_parser) parseProgram() *ast.Program {
 	self.openScope()
 	defer self.closeScope()
-	return &ast.Program{
+	prg := &ast.Program{
 		Body:            self.parseSourceElements(),
 		DeclarationList: self.scope.declarationList,
 		File:            self.file,
-		SourceMap:       self.parseSourceMap(),
 	}
+	self.file.SetSourceMap(self.parseSourceMap())
+	return prg
 }
 
 func extractSourceMapLine(str string) string {
@@ -624,7 +625,7 @@ func (self *_parser) parseSourceMap() *sourcemap.Consumer {
 			var smUrl *url.URL
 			if smUrl, err = url.Parse(urlStr); err == nil {
 				p := smUrl.Path
-				if !strings.HasPrefix(p, "/") {
+				if !path.IsAbs(p) {
 					baseName := self.file.Name()
 					baseUrl, err1 := url.Parse(baseName)
 					if err1 == nil && baseUrl.Scheme != "" {

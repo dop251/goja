@@ -264,42 +264,6 @@ func (self *_parser) expect(value token.Token) file.Idx {
 	return idx
 }
 
-func lineCount(str string) (int, int) {
-	line, last := 0, -1
-	pair := false
-	for index, chr := range str {
-		switch chr {
-		case '\r':
-			line += 1
-			last = index
-			pair = true
-			continue
-		case '\n':
-			if !pair {
-				line += 1
-			}
-			last = index
-		case '\u2028', '\u2029':
-			line += 1
-			last = index + 2
-		}
-		pair = false
-	}
-	return line, last
-}
-
 func (self *_parser) position(idx file.Idx) file.Position {
-	position := file.Position{}
-	offset := int(idx) - self.base
-	str := self.str[:offset]
-	position.Filename = self.file.Name()
-	line, last := lineCount(str)
-	position.Line = 1 + line
-	if last >= 0 {
-		position.Column = offset - last
-	} else {
-		position.Column = 1 + len(str)
-	}
-
-	return position
+	return self.file.Position(int(idx) - self.base)
 }
