@@ -1278,7 +1278,7 @@ type newRegexp struct {
 }
 
 func (n *newRegexp) exec(vm *vm) {
-	vm.push(vm.r.newRegExpp(n.pattern, n.src, vm.r.global.RegExpPrototype))
+	vm.push(vm.r.newRegExpp(n.pattern.clone(), n.src, vm.r.global.RegExpPrototype))
 	vm.pc++
 }
 

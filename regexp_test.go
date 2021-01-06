@@ -528,6 +528,20 @@ func TestRegexpInvalidUTF8(t *testing.T) {
 	}
 }
 
+// this should not cause data races when run with -race
+func TestRegexpConcurrentLiterals(t *testing.T) {
+	prg := MustCompile("test.js", `var r = /(?<!-)\d+/; r.test("");`, false)
+	go func() {
+		vm := New()
+		_, err := vm.RunProgram(prg)
+		if err != nil {
+			panic(err)
+		}
+	}()
+	vm := New()
+	_, _ = vm.RunProgram(prg)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)
