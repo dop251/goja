@@ -265,3 +265,29 @@ func TestArrayConcat(t *testing.T) {
 	`
 	testScript1(TESTLIBX+SCRIPT, _undefined, t)
 }
+
+func TestArrayFlat(t *testing.T) {
+	const SCRIPT = `
+	var array = [1, [2,3,[4,5,6]], [[[[7,8,9]]]]];
+	assert(deepEqual(array.flat(), [1,2,3,[4,5,6],[[[7,8,9]]]]), '#1');
+	assert(deepEqual(array.flat(1), [1,2,3,[4,5,6],[[[7,8,9]]]]), '#2');
+	assert(deepEqual(array.flat(3), [1,2,3,4,5,6,[7,8,9]]), '#3');
+	assert(deepEqual(array.flat(4), [1,2,3,4,5,6,7,8,9]), '#4');
+	assert(deepEqual(array.flat(10), [1,2,3,4,5,6,7,8,9]), '#5');
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
+
+func TestArrayFlatMap(t *testing.T) {
+	const SCRIPT = `
+	var double = function(x) {
+		if (isNaN(x)) {
+			return x
+		}
+		return x * 2
+	}
+	var array = [1, [2,3,[4,5,6]], [[[[7,8,9]]]]];
+	assert(deepEqual(array.flatMap(double), [2,2,3,[4,5,6],[[[7,8,9]]]]), '#1');
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
