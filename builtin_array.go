@@ -267,6 +267,9 @@ func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 	aLength := toLength(a.self.getStr("length", nil))
 	if obj, ok := item.(*Object); ok && isConcatSpreadable(obj) {
 		length := toLength(obj.self.getStr("length", nil))
+		if aLength+length >= maxInt {
+			panic(r.NewTypeError("Invalid array length"))
+		}
 		for i := int64(0); i < length; i++ {
 			v := obj.self.getIdx(valueInt(i), nil)
 			if v != nil {
@@ -516,9 +519,11 @@ func (r *Runtime) arrayproto_indexOf(call FunctionCall) Value {
 
 	for ; n < length; n++ {
 		idx := valueInt(n)
-		if val := o.self.getIdx(idx, nil); val != nil {
-			if searchElement.StrictEquals(val) {
-				return idx
+		if o.self.hasPropertyIdx(idx) {
+			if val := o.self.getIdx(idx, nil); val != nil {
+				if searchElement.StrictEquals(val) {
+					return idx
+				}
 			}
 		}
 	}
@@ -601,9 +606,11 @@ func (r *Runtime) arrayproto_lastIndexOf(call FunctionCall) Value {
 
 	for k := fromIndex; k >= 0; k-- {
 		idx := valueInt(k)
-		if val := o.self.getIdx(idx, nil); val != nil {
-			if searchElement.StrictEquals(val) {
-				return idx
+		if o.self.hasPropertyIdx(idx) {
+			if val := o.self.getIdx(idx, nil); val != nil {
+				if searchElement.StrictEquals(val) {
+					return idx
+				}
 			}
 		}
 	}
