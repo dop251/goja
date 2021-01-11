@@ -1291,6 +1291,8 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 	bl.setOwnStr("fill", valueTrue, true)
 	bl.setOwnStr("find", valueTrue, true)
 	bl.setOwnStr("findIndex", valueTrue, true)
+	bl.setOwnStr("flat", valueTrue, true)
+	bl.setOwnStr("flatMap", valueTrue, true)
 	bl.setOwnStr("includes", valueTrue, true)
 	bl.setOwnStr("keys", valueTrue, true)
 	bl.setOwnStr("values", valueTrue, true)
