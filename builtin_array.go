@@ -1039,7 +1039,7 @@ func (r *Runtime) flattenIntoArray(target, source *Object, sourceLen, start, dep
 	targetIndex, sourceIndex := start, int64(0)
 	for sourceIndex < sourceLen {
 		p := intToValue(sourceIndex)
-		if source.hasProperty(p) {
+		if source.hasProperty(p.toString()) {
 			element := source.get(p, source)
 			if mapperFunction != nil {
 				element = mapperFunction(FunctionCall{
