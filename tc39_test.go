@@ -111,32 +111,93 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/RegExp/lastIndex.js":                                true,
 
 		// object literals
-		"test/built-ins/Array/from/source-object-iterator-1.js":                   true,
-		"test/built-ins/Array/from/source-object-iterator-2.js":                   true,
-		"test/built-ins/TypedArray/prototype/fill/fill-values-conversion-once.js": true,
-		"test/built-ins/TypedArrays/of/this-is-not-constructor.js":                true,
-		"test/built-ins/TypedArrays/of/argument-number-value-throws.js":           true,
-		"test/built-ins/TypedArrays/from/this-is-not-constructor.js":              true,
-		"test/built-ins/TypedArrays/from/set-value-abrupt-completion.js":          true,
-		"test/built-ins/TypedArrays/from/property-abrupt-completion.js":           true,
-		"test/built-ins/TypedArray/of/this-is-not-constructor.js":                 true,
-		"test/built-ins/TypedArray/from/this-is-not-constructor.js":               true,
-		"test/built-ins/DataView/custom-proto-access-throws.js":                   true,
-		"test/built-ins/DataView/custom-proto-access-throws-sab.js":               true,
+		"test/built-ins/Array/from/source-object-iterator-1.js":                                                true,
+		"test/built-ins/Array/from/source-object-iterator-2.js":                                                true,
+		"test/built-ins/TypedArray/prototype/fill/fill-values-conversion-once.js":                              true,
+		"test/built-ins/TypedArrays/of/this-is-not-constructor.js":                                             true,
+		"test/built-ins/TypedArrays/of/argument-number-value-throws.js":                                        true,
+		"test/built-ins/TypedArrays/from/this-is-not-constructor.js":                                           true,
+		"test/built-ins/TypedArrays/from/set-value-abrupt-completion.js":                                       true,
+		"test/built-ins/TypedArrays/from/property-abrupt-completion.js":                                        true,
+		"test/built-ins/TypedArray/of/this-is-not-constructor.js":                                              true,
+		"test/built-ins/TypedArray/from/this-is-not-constructor.js":                                            true,
+		"test/built-ins/DataView/custom-proto-access-throws.js":                                                true,
+		"test/built-ins/DataView/custom-proto-access-throws-sab.js":                                            true,
+		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":                 true,
+		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":               true,
+		"test/built-ins/Array/prototype/splice/property-traps-order-with-species.js":                           true,
+		"test/built-ins/Date/prototype/toJSON/invoke-abrupt.js":                                                true,
+		"test/built-ins/String/prototype/indexOf/position-tointeger-errors.js":                                 true,
+		"test/built-ins/String/prototype/indexOf/position-tointeger-toprimitive.js":                            true,
+		"test/built-ins/String/prototype/indexOf/position-tointeger-wrapped-values.js":                         true,
+		"test/built-ins/String/prototype/indexOf/searchstring-tostring-errors.js":                              true,
+		"test/built-ins/String/prototype/indexOf/searchstring-tostring-toprimitive.js":                         true,
+		"test/built-ins/String/prototype/indexOf/searchstring-tostring-wrapped-values.js":                      true,
+		"test/built-ins/String/prototype/split/separator-undef-limit-zero.js":                                  true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-cannot-convert-to-primitive-err.js":         true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-toprimitive-call-err.js":                    true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-toprimitive-meth-err.js":                    true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-toprimitive-meth-priority.js":               true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-toprimitive-returns-object-err.js":          true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-tostring-call-err.js":                       true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-tostring-meth-err.js":                       true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-tostring-meth-priority.js":                  true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-tostring-returns-object-err.js":             true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-valueof-call-err.js":                        true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-valueof-meth-err.js":                        true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-valueof-meth-priority.js":                   true,
+		"test/built-ins/String/prototype/trimEnd/this-value-object-valueof-returns-object-err.js":              true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-cannot-convert-to-primitive-err.js":       true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-toprimitive-call-err.js":                  true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-toprimitive-meth-err.js":                  true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-toprimitive-meth-priority.js":             true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-toprimitive-returns-object-err.js":        true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-tostring-call-err.js":                     true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-tostring-meth-err.js":                     true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-tostring-meth-priority.js":                true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-tostring-returns-object-err.js":           true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-valueof-call-err.js":                      true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-valueof-meth-err.js":                      true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-valueof-meth-priority.js":                 true,
+		"test/built-ins/String/prototype/trimStart/this-value-object-valueof-returns-object-err.js":            true,
+		"test/built-ins/TypedArray/prototype/sort/sort-tonumber.js":                                            true,
+		"test/built-ins/TypedArrayConstructors/from/property-abrupt-completion.js":                             true,
+		"test/built-ins/TypedArrayConstructors/from/set-value-abrupt-completion.js":                            true,
+		"test/built-ins/TypedArrayConstructors/from/this-is-not-constructor.js":                                true,
+		"test/built-ins/TypedArrayConstructors/of/argument-number-value-throws.js":                             true,
+		"test/built-ins/TypedArrayConstructors/of/this-is-not-constructor.js":                                  true,
+		"test/built-ins/Array/prototype/flatMap/array-like-objects.js":                                         true,
+		"test/built-ins/Array/prototype/flatMap/array-like-objects-typedarrays.js":                             true,
+		"test/built-ins/Array/prototype/flatMap/array-like-objects-poisoned-length.js":                         true,
+		"test/built-ins/Array/prototype/flatMap/this-value-ctor-object-species.js":                             true,
+		"test/built-ins/Array/prototype/flatMap/this-value-ctor-object-species-custom-ctor.js":                 true,
+		"test/built-ins/Array/prototype/flatMap/this-value-ctor-object-species-custom-ctor-poisoned-throws.js": true,
+		"test/built-ins/Array/prototype/flatMap/this-value-ctor-object-species-bad-throws.js":                  true,
+		"test/built-ins/Array/prototype/flatMap/array-like-objects-nested.js":                                  true,
 
 		// arrow-function
-		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
+		"test/built-ins/Object/prototype/toString/proxy-function.js":            true,
+		"test/built-ins/Array/prototype/pop/throws-with-string-receiver.js":     true,
+		"test/built-ins/Array/prototype/push/throws-with-string-receiver.js":    true,
+		"test/built-ins/Array/prototype/shift/throws-with-string-receiver.js":   true,
+		"test/built-ins/Array/prototype/unshift/throws-with-string-receiver.js": true,
+		"test/built-ins/Date/prototype/toString/non-date-receiver.js":           true,
+		"test/built-ins/Number/prototype/toExponential/range.js":                true,
+		"test/built-ins/Number/prototype/toFixed/range.js":                      true,
+		"test/built-ins/Number/prototype/toPrecision/range.js":                  true,
 
 		// template strings
-		"test/built-ins/String/raw/zero-literal-segments.js":                             true,
-		"test/built-ins/String/raw/template-substitutions-are-appended-on-same-index.js": true,
-		"test/built-ins/String/raw/special-characters.js":                                true,
-		"test/built-ins/String/raw/return-the-string-value-from-template.js":             true,
+		"test/built-ins/String/raw/zero-literal-segments.js":                                           true,
+		"test/built-ins/String/raw/template-substitutions-are-appended-on-same-index.js":               true,
+		"test/built-ins/String/raw/special-characters.js":                                              true,
+		"test/built-ins/String/raw/return-the-string-value-from-template.js":                           true,
+		"test/built-ins/TypedArray/prototype/fill/fill-values-conversion-operations-consistent-nan.js": true,
 
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
 		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
 		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":            true,
+		"test/built-ins/RegExp/unicode_restricted_incomplete_quantifier.js":          true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_x.js":              true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_u.js":              true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_c.js":              true,
@@ -145,6 +206,15 @@ var (
 		"test/built-ins/RegExp/unicode_restricted_brackets.js":                       true,
 		"test/built-ins/RegExp/unicode_restricted_character_class_escape.js":         true,
 		"test/annexB/built-ins/RegExp/prototype/compile/pattern-string-invalid-u.js": true,
+
+		// regexp named groups
+		"test/built-ins/RegExp/prototype/Symbol.replace/named-groups-fn.js":               true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups-err.js":      true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups-prop-err.js": true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups-prop.js":     true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups.js":          true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/result-get-groups-err.js":         true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/result-get-groups-prop-err.js":    true,
 
 		// Because goja parser works in UTF-8 it is not possible to pass strings containing invalid UTF-16 code points.
 		// This is mitigated by escaping them as \uXXXX, however because of this the RegExp source becomes
@@ -155,10 +225,57 @@ var (
 
 		// Promise
 		"test/built-ins/Symbol/species/builtin-getter-name.js": true,
+
+		// x ** y
+		"test/built-ins/Array/prototype/pop/clamps-to-integer-limit.js":                           true,
+		"test/built-ins/Array/prototype/pop/length-near-integer-limit.js":                         true,
+		"test/built-ins/Array/prototype/push/clamps-to-integer-limit.js":                          true,
+		"test/built-ins/Array/prototype/push/length-near-integer-limit.js":                        true,
+		"test/built-ins/Array/prototype/push/throws-if-integer-limit-exceeded.js":                 true,
+		"test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-object.js":    true,
+		"test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-proxy.js":     true,
+		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit.js":                  true,
+		"test/built-ins/Array/prototype/splice/clamps-length-to-integer-limit.js":                 true,
+		"test/built-ins/Array/prototype/splice/length-and-deleteCount-exceeding-integer-limit.js": true,
+		"test/built-ins/Array/prototype/splice/length-exceeding-integer-limit-shrink-array.js":    true,
+		"test/built-ins/Array/prototype/splice/length-near-integer-limit-grow-array.js":           true,
+		"test/built-ins/Array/prototype/splice/throws-if-integer-limit-exceeded.js":               true,
+		"test/built-ins/Array/prototype/unshift/clamps-to-integer-limit.js":                       true,
+		"test/built-ins/Array/prototype/unshift/length-near-integer-limit.js":                     true,
+		"test/built-ins/Array/prototype/unshift/throws-if-integer-limit-exceeded.js":              true,
+		"test/built-ins/String/prototype/split/separator-undef-limit-custom.js":                   true,
+
+		// block-scoped vars
+		"test/built-ins/Array/prototype/sort/stability-11-elements.js":                true,
+		"test/built-ins/Array/prototype/sort/stability-2048-elements.js":              true,
+		"test/built-ins/Array/prototype/sort/stability-5-elements.js":                 true,
+		"test/built-ins/Array/prototype/sort/stability-513-elements.js":               true,
+		"test/built-ins/Date/parse/time-value-maximum-range.js":                       true,
+		"test/built-ins/Date/parse/without-utc-offset.js":                             true,
+		"test/built-ins/Date/parse/zero.js":                                           true,
+		"test/built-ins/Date/prototype/toDateString/format.js":                        true,
+		"test/built-ins/Date/prototype/toString/format.js":                            true,
+		"test/built-ins/Date/prototype/toTimeString/format.js":                        true,
+		"test/built-ins/Date/prototype/toUTCString/format.js":                         true,
+		"test/built-ins/Number/prototype/toString/a-z.js":                             true,
+		"test/built-ins/RegExp/named-groups/functional-replace-global.js":             true,
+		"test/built-ins/RegExp/named-groups/functional-replace-non-global.js":         true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/poisoned-stdlib.js":           true,
+		"test/built-ins/TypedArray/prototype/sort/stability.js":                       true,
+		"test/annexB/built-ins/RegExp/prototype/compile/this-cross-realm-instance.js": true,
+		"test/annexB/built-ins/RegExp/prototype/compile/this-subclass-instance.js":    true,
+		"test/built-ins/Array/prototype/flatMap/proxy-access-count.js":                true,
+		"test/built-ins/Array/prototype/flat/proxy-access-count.js":                   true,
+
+		// generators
+		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js": true,
 	}
 
 	featuresBlackList = []string{
 		"arrow-function",
+		"BigInt",
+		"generators",
+		"String.prototype.replaceAll",
 	}
 
 	es6WhiteList = map[string]bool{}
@@ -329,7 +446,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 			}
 			t.Fatalf("%s: %v", name, err)
 		} else {
-			if meta.Negative.Phase == "early" && !early || meta.Negative.Phase == "runtime" && early {
+			if (meta.Negative.Phase == "early" || meta.Negative.Phase == "parse") && !early || meta.Negative.Phase == "runtime" && early {
 				t.Fatalf("%s: error %v happened at the wrong phase (expected %s)", name, err, meta.Negative.Phase)
 			}
 			var errType string
@@ -440,13 +557,13 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 
 	if hasRaw || !meta.hasFlag("onlyStrict") {
 		//log.Printf("Running normal test: %s", name)
-		//t.Logf("Running normal test: %s", name)
+		t.Logf("Running normal test: %s", name)
 		ctx.runTC39Test(name, src, meta, t)
 	}
 
 	if !hasRaw && !meta.hasFlag("noStrict") {
 		//log.Printf("Running strict test: %s", name)
-		//t.Logf("Running strict test: %s", name)
+		t.Logf("Running strict test: %s", name)
 		ctx.runTC39Test(name, "'use strict';\n"+src, meta, t)
 	}
 
@@ -548,8 +665,9 @@ func (ctx *tc39TestCtx) runTC39Tests(name string) {
 		if file.IsDir() {
 			ctx.runTC39Tests(path.Join(name, file.Name()))
 		} else {
-			if strings.HasSuffix(file.Name(), ".js") {
-				name := path.Join(name, file.Name())
+			fileName := file.Name()
+			if strings.HasSuffix(fileName, ".js") && !strings.HasSuffix(fileName, "_FIXTURE.js") {
+				name := path.Join(name, fileName)
 				ctx.runTest(name, func(t *testing.T) {
 					ctx.runTC39File(name, t)
 				})
@@ -565,8 +683,13 @@ func TestTC39(t *testing.T) {
 	}
 
 	if _, err := os.Stat(tc39BASE); err != nil {
-		t.Skipf("If you want to run tc39 tests, download them from https://github.com/tc39/test262 and put into %s. The last working commit is 1ba3a7c4a93fc93b3d0d7e4146f59934a896837d. (%v)", tc39BASE, err)
+		t.Skipf("If you want to run tc39 tests, download them from https://github.com/tc39/test262 and put into %s. The current working commit is ddfe24afe3043388827aa220ef623b8540958bbd. (%v)", tc39BASE, err)
 	}
+	// at 1ba3a7c4a93fc93b3d0d7e4146f59934a896837d
+	// Tests ignored: 10,453, passed: 14,782
+
+	// at ddfe24afe3043388827aa220ef623b8540958bbd
+	// Tests ignored: 19,244, passed: 14,443
 
 	ctx := &tc39TestCtx{
 		base: tc39BASE,
