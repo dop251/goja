@@ -1047,9 +1047,15 @@ func (r *Runtime) flattenIntoArray(target, source *Object, sourceLen, start, dep
 					Arguments: []Value{element, p, source},
 				})
 			}
-			if depth > 0 && isArray(element.ToObject(r)) {
-				elementLen := toLength(element.ToObject(r).self.getStr("length", nil))
-				targetIndex = r.flattenIntoArray(target, element.ToObject(r), elementLen, targetIndex, depth-1, nil, nil)
+			var elementArray *Object
+			if depth > 0 {
+				if elementObj, ok := element.(*Object); ok && isArray(elementObj) {
+					elementArray = elementObj
+				}
+			}
+			if elementArray != nil {
+				elementLen := toLength(elementArray.self.getStr("length", nil))
+				targetIndex = r.flattenIntoArray(target, elementArray, elementLen, targetIndex, depth-1, nil, nil)
 			} else {
 				if targetIndex >= maxInt-1 {
 					panic(r.NewTypeError("Invalid array length"))
