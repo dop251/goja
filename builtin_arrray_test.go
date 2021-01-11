@@ -287,7 +287,7 @@ func TestArrayFlatMap(t *testing.T) {
 		return x * 2
 	}
 	var array = [1, [2,3,[4,5,6]], [[[[7,8,9]]]]];
-	assert(deepEqual(array.flatMap(double), [2,4,6,[4,5,6],[[[7,8,9]]]]), '#1');
+	assert(deepEqual(array.flatMap(double), [2,2,3,[4,5,6],[[[7,8,9]]]]), '#1');
 	`
 	testScript1(TESTLIBX+SCRIPT, _undefined, t)
 }
