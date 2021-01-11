@@ -1051,9 +1051,8 @@ func (r *Runtime) flattenIntoArray(target, source *Object, sourceLen, start, dep
 				elementLen := toLength(element.ToObject(r).self.getStr("length", nil))
 				targetIndex = r.flattenIntoArray(target, element.ToObject(r), elementLen, targetIndex, depth-1, mapperFunction, thisArg)
 			} else {
-				if targetIndex > maxInt {
-					r.typeErrorResult(true, "Invalid array length")
-					panic("unreachable")
+				if targetIndex >= maxInt-1 {
+					panic(r.NewTypeError("Invalid array length"))
 				}
 				createDataPropertyOrThrow(target, intToValue(targetIndex), element)
 				targetIndex++
