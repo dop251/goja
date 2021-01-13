@@ -1848,6 +1848,23 @@ func TestRuntime_SetParserOptions_Eval(t *testing.T) {
 	}
 }
 
+func TestNativeCallWithRuntimeParameter(t *testing.T) {
+	vm := New()
+	vm.Set("f", func(_ FunctionCall, r *Runtime) Value {
+		if r == vm {
+			return valueTrue
+		}
+		return valueFalse
+	})
+	ret, err := vm.RunString(`f()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ret != valueTrue {
+		t.Fatal(ret)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
