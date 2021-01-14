@@ -323,6 +323,7 @@ var (
 		"sec-regexp",
 		"sec-string.prototype.trimLeft",
 		"sec-string.prototype.trimRight",
+		"sec-object.getownpropertydescriptors",
 	}
 )
 

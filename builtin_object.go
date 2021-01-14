@@ -74,6 +74,19 @@ func (r *Runtime) object_getOwnPropertyDescriptor(call FunctionCall) Value {
 	return r.valuePropToDescriptorObject(o.getOwnProp(propName))
 }
 
+func (r *Runtime) object_getOwnPropertyDescriptors(call FunctionCall) Value {
+	o := call.Argument(0).ToObject(r)
+	ownKeys := o.self.ownPropertyKeys(true, nil)
+	result := r.newBaseObject(r.global.ObjectPrototype, classObject).val
+	for _, key := range ownKeys {
+		descriptor := r.valuePropToDescriptorObject(o.getOwnProp(key))
+		if descriptor != _undefined {
+			createDataPropertyOrThrow(result, key, descriptor)
+		}
+	}
+	return result
+}
+
 func (r *Runtime) object_getOwnPropertyNames(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
 
@@ -519,6 +532,7 @@ func (r *Runtime) initObject() {
 	o._putProp("defineProperty", r.newNativeFunc(r.object_defineProperty, nil, "defineProperty", nil, 3), true, false, true)
 	o._putProp("defineProperties", r.newNativeFunc(r.object_defineProperties, nil, "defineProperties", nil, 2), true, false, true)
 	o._putProp("getOwnPropertyDescriptor", r.newNativeFunc(r.object_getOwnPropertyDescriptor, nil, "getOwnPropertyDescriptor", nil, 2), true, false, true)
+	o._putProp("getOwnPropertyDescriptors", r.newNativeFunc(r.object_getOwnPropertyDescriptors, nil, "getOwnPropertyDescriptors", nil, 1), true, false, true)
 	o._putProp("getPrototypeOf", r.newNativeFunc(r.object_getPrototypeOf, nil, "getPrototypeOf", nil, 1), true, false, true)
 	o._putProp("is", r.newNativeFunc(r.object_is, nil, "is", nil, 2), true, false, true)
 	o._putProp("getOwnPropertyNames", r.newNativeFunc(r.object_getOwnPropertyNames, nil, "getOwnPropertyNames", nil, 1), true, false, true)
