@@ -75,6 +75,14 @@ func (p Proxy) Revoke() {
 	p.proxy.revoke()
 }
 
+func (p Proxy) Handler() *Object {
+	return p.proxy.handler
+}
+
+func (p Proxy) Target() *Object {
+	return p.proxy.target
+}
+
 func (p Proxy) toValue(r *Runtime) Value {
 	if p.proxy == nil {
 		return _null
