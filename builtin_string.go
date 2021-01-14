@@ -942,6 +942,8 @@ func (r *Runtime) initString() {
 	o._putProp("trim", r.newNativeFunc(r.stringproto_trim, nil, "trim", nil, 0), true, false, true)
 	o._putProp("trimEnd", r.newNativeFunc(r.stringproto_trimEnd, nil, "trimEnd", nil, 0), true, false, true)
 	o._putProp("trimStart", r.newNativeFunc(r.stringproto_trimStart, nil, "trimStart", nil, 0), true, false, true)
+	o._putProp("trimRight", r.newNativeFunc(r.stringproto_trimEnd, nil, "trimEnd", nil, 0), true, false, true)
+	o._putProp("trimLeft", r.newNativeFunc(r.stringproto_trimStart, nil, "trimStart", nil, 0), true, false, true)
 	o._putProp("valueOf", r.newNativeFunc(r.stringproto_valueOf, nil, "valueOf", nil, 0), true, false, true)
 
 	o._putSym(SymIterator, valueProp(r.newNativeFunc(r.stringproto_iterator, nil, "[Symbol.iterator]", nil, 0), true, false, true))

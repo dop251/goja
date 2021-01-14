@@ -321,6 +321,8 @@ var (
 		"sec-arraybuffer-length",
 		"sec-arraybuffer",
 		"sec-regexp",
+		"sec-string.prototype.trimLeft",
+		"sec-string.prototype.trimRight",
 	}
 )
 
@@ -719,6 +721,8 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/language/white-space")
 		ctx.runTC39Tests("test/built-ins")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimLeft")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimRight")
 		ctx.runTC39Tests("test/annexB/built-ins/escape")
 		ctx.runTC39Tests("test/annexB/built-ins/unescape")
 		ctx.runTC39Tests("test/annexB/built-ins/RegExp")
