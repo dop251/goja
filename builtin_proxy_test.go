@@ -54,7 +54,7 @@ func TestProxy_Object_native_proxy_getPrototypeOf(t *testing.T) {
 
 	_, err := runtime.RunString(TESTLIB + SCRIPT)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 }
 
@@ -138,7 +138,7 @@ func TestProxy_native_proxy_isExtensible(t *testing.T) {
 
 	val, err := runtime.RunString(SCRIPT)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	if val.ToBoolean() {
 		t.Fatal()
@@ -200,7 +200,7 @@ func TestProxy_native_proxy_preventExtensions(t *testing.T) {
 
 	val, err := runtime.RunString(SCRIPT)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	if val.ToBoolean() {
 		t.Fatal()
@@ -304,7 +304,7 @@ func TestProxy_native_proxy_getOwnPropertyDescriptor(t *testing.T) {
 
 	val, err := runtime.RunString(SCRIPT)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
 	if c, ok := val.(*Object).self.assertCallable(); ok {
@@ -317,6 +317,23 @@ func TestProxy_native_proxy_getOwnPropertyDescriptor(t *testing.T) {
 		}
 	} else {
 		t.Fatal("not a function")
+	}
+}
+
+func TestProxy_native_proxy_getOwnPropertyDescriptor_non_existing(t *testing.T) {
+	vm := New()
+	proxy := vm.NewProxy(vm.NewObject(), &ProxyTrapConfig{
+		GetOwnPropertyDescriptor: func(target *Object, prop string) (propertyDescriptor PropertyDescriptor) {
+			return // empty PropertyDescriptor
+		},
+	})
+	vm.Set("proxy", proxy)
+	res, err := vm.RunString(`Object.getOwnPropertyDescriptor(proxy, "foo") === undefined`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != valueTrue {
+		t.Fatal(res)
 	}
 }
 
@@ -373,7 +390,7 @@ func TestProxy_native_proxy_defineProperty(t *testing.T) {
 
 	val, err := runtime.RunString(SCRIPT)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	if s := val.String(); s != "321tset" {
 		t.Fatalf("val: %s", s)
