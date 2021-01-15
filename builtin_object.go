@@ -368,6 +368,12 @@ func (r *Runtime) object_keys(call FunctionCall) Value {
 	return r.newArrayValues(obj.self.ownKeys(false, nil))
 }
 
+func (r *Runtime) object_entries(call FunctionCall) Value {
+	obj := call.Argument(0).ToObject(r)
+
+	return r.newArrayValues(obj.self.ownEntries(false, nil))
+}
+
 func (r *Runtime) objectproto_hasOwnProperty(call FunctionCall) Value {
 	p := toPropertyKey(call.Argument(0))
 	o := call.This.ToObject(r)
@@ -545,6 +551,7 @@ func (r *Runtime) initObject() {
 	o._putProp("isFrozen", r.newNativeFunc(r.object_isFrozen, nil, "isFrozen", nil, 1), true, false, true)
 	o._putProp("isExtensible", r.newNativeFunc(r.object_isExtensible, nil, "isExtensible", nil, 1), true, false, true)
 	o._putProp("keys", r.newNativeFunc(r.object_keys, nil, "keys", nil, 1), true, false, true)
+	o._putProp("entries", r.newNativeFunc(r.object_entries, nil, "entries", nil, 1), true, false, true)
 	o._putProp("setPrototypeOf", r.newNativeFunc(r.object_setPrototypeOf, nil, "setPrototypeOf", nil, 2), true, false, true)
 
 	r.addToGlobal("Object", r.global.Object)

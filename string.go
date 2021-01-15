@@ -309,6 +309,15 @@ func (s *stringObject) ownKeys(all bool, accum []Value) []Value {
 	return s.baseObject.ownKeys(all, accum)
 }
 
+func (s *stringObject) ownEntries(all bool, accum []Value) []Value {
+	for i := 0; i < s.length; i++ {
+		arr := s.prototype.runtime.newArrayObject()
+		setArrayValues(arr, []Value{asciiString(strconv.Itoa(i)), s._getIdx(i)})
+		accum = append(accum, arr.val)
+	}
+	return s.baseObject.ownEntries(all, accum)
+}
+
 func (s *stringObject) deleteStr(name unistring.String, throw bool) bool {
 	if i := strToGoIdx(name); i >= 0 && i < s.length {
 		s.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of a String", i)

@@ -249,6 +249,7 @@ type objectImpl interface {
 	exportType() reflect.Type
 	equal(objectImpl) bool
 	ownKeys(all bool, accum []Value) []Value
+	ownEntries(all bool, accum []Value) []Value
 	ownSymbols(all bool, accum []Value) []Value
 	ownPropertyKeys(all bool, accum []Value) []Value
 
@@ -1152,6 +1153,31 @@ func (o *baseObject) ownKeys(all bool, keys []Value) []Value {
 		}
 	}
 	return keys
+}
+
+func (o *baseObject) ownEntries(all bool, entries []Value) []Value {
+	if len(o.propNames) > o.lastSortedPropLen {
+		o.fixPropOrder()
+	}
+	if all {
+		for _, k := range o.propNames {
+			arr := o.val.runtime.NewArray(stringValueFromRaw(k), o.getStr(k, nil))
+			entries = append(entries, arr)
+		}
+	} else {
+		for _, k := range o.propNames {
+			prop := o.values[k]
+			if prop == nil {
+				continue
+			}
+			if prop, ok := prop.(*valueProperty); ok && !prop.enumerable {
+				continue
+			}
+			arr := o.val.runtime.NewArray(stringValueFromRaw(k), o.getStr(k, nil))
+			entries = append(entries, arr)
+		}
+	}
+	return entries
 }
 
 func (o *baseObject) ownSymbols(all bool, accum []Value) []Value {

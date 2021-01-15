@@ -365,7 +365,7 @@ func (p *proxyObject) proxyGetOwnPropertyDescriptor(name Value) (Value, bool) {
 
 		if resultDesc.Writable == FLAG_TRUE && resultDesc.Configurable == FLAG_TRUE &&
 			resultDesc.Enumerable == FLAG_TRUE {
-			return resultDesc.Value, true
+			return resultDesc.jsDescriptor, true
 		}
 		return r.toValueProp(trapResultObj), true
 	}
@@ -773,6 +773,32 @@ func (p *proxyObject) ownKeys(all bool, _ []Value) []Value { // we can assume ac
 	}
 
 	return p.target.self.ownKeys(all, nil)
+}
+
+func (p *proxyObject) ownEntries(all bool, _ []Value) []Value { // we can assume accum is empty
+	var keys []Value
+	var ok bool
+	if keys, ok = p.proxyOwnKeys(); !ok {
+		keys = p.target.self.ownKeys(all, nil)
+	}
+
+	entries := make([]Value, 0, len(keys))
+	for _, k := range keys {
+		desc, ok := p.proxyGetOwnPropertyDescriptor(k)
+		if !ok {
+			desc = propToValueProp(p.target.getOwnProp(k))
+		}
+		if desc.ToObject(p.target.runtime).Get("enumerable").ToBoolean() {
+			arr := p.prototype.runtime.newArrayObject()
+			v, ok := p.proxyGet(k, nil)
+			if !ok {
+				v = p.target.get(k, nil)
+			}
+			setArrayValues(arr, []Value{k, v})
+			entries = append(entries, arr.val)
+		}
+	}
+	return entries
 }
 
 func (p *proxyObject) ownSymbols(all bool, accum []Value) []Value {

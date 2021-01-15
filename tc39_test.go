@@ -269,6 +269,10 @@ var (
 
 		// generators
 		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js": true,
+
+		// duplicate checks in Proxy
+		"test/built-ins/Proxy/ownKeys/return-duplicate-symbol-entries-throws.js": true,
+		"test/built-ins/Proxy/ownKeys/return-duplicate-entries-throws.js":        true,
 	}
 
 	featuresBlackList = []string{
@@ -323,7 +327,10 @@ var (
 		"sec-regexp",
 		"sec-string.prototype.trimLeft",
 		"sec-string.prototype.trimRight",
+		"sec-object.getownpropertydescriptor",
 		"sec-object.getownpropertydescriptors",
+		"sec-object.entries",
+		"sec-proxy-object-internal-methods-and-internal-slots-ownpropertykeys",
 	}
 )
 
