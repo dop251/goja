@@ -1865,6 +1865,42 @@ func TestNativeCallWithRuntimeParameter(t *testing.T) {
 	}
 }
 
+func TestNestedEnumerate(t *testing.T) {
+	const SCRIPT = `
+	var o = {baz: true, foo: true, bar: true};
+	var res = "";
+	for (var i in o) {
+		delete o.baz;
+		Object.defineProperty(o, "hidden", {value: true, configurable: true});
+		for (var j in o) {
+			Object.defineProperty(o, "0", {value: true, configurable: true});
+			Object.defineProperty(o, "1", {value: true, configurable: true});
+			for (var k in o) {}
+			res += i + "-" + j + " ";
+		}
+	}
+	assert(compareArray(Reflect.ownKeys(o), ["0","1","foo","bar","hidden"]), "keys");
+	res;
+	`
+	testScript1(TESTLIB+SCRIPT, asciiString("baz-foo baz-bar foo-foo foo-bar bar-foo bar-bar "), t)
+}
+
+func TestAbandonedEnumerate(t *testing.T) {
+	const SCRIPT = `
+	var o = {baz: true, foo: true, bar: true};
+	var res = "";
+	for (var i in o) {
+		delete o.baz;
+		for (var j in o) {
+			res += i + "-" + j + " ";
+			break;
+		}
+	}
+	res;
+	`
+	testScript1(SCRIPT, asciiString("baz-foo foo-foo bar-foo "), t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

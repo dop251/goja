@@ -316,6 +316,7 @@ var (
 		"sec-%typedarray%",
 		"sec-string",
 		"sec-date",
+		"sec-json",
 		"sec-number",
 		"sec-math",
 		"sec-arraybuffer-length",
@@ -323,7 +324,9 @@ var (
 		"sec-regexp",
 		"sec-string.prototype.trimLeft",
 		"sec-string.prototype.trimRight",
+		"sec-object.getownpropertydescriptor",
 		"sec-object.getownpropertydescriptors",
+		"sec-object.entries",
 	}
 )
 
@@ -692,7 +695,7 @@ func TestTC39(t *testing.T) {
 	// Tests ignored: 10,453, passed: 14,782
 
 	// at ddfe24afe3043388827aa220ef623b8540958bbd
-	// Tests ignored: 19,244, passed: 14,443
+	// Tests ignored: 19,212, passed: 14,483
 
 	ctx := &tc39TestCtx{
 		base: tc39BASE,

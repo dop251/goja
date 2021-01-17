@@ -31,9 +31,6 @@ func (i *proxyPropIter) next() (propIterItem, iterNextFunc) {
 			return propIterItem{name: name.string(), value: prop}, i.next
 		}
 	}
-	if proto := i.p.proto(); proto != nil {
-		return proto.self.enumerateUnfiltered()()
-	}
 	return propIterItem{}, nil
 }
 
@@ -596,7 +593,7 @@ func (p *proxyObject) proxyOwnKeys() ([]Value, bool) {
 	return nil, false
 }
 
-func (p *proxyObject) enumerateUnfiltered() iterNextFunc {
+func (p *proxyObject) enumerateOwnKeys() iterNextFunc {
 	return (&proxyPropIter{
 		p:     p,
 		names: p.ownKeys(true, nil),
