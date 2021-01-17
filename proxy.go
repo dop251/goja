@@ -566,6 +566,9 @@ func (p *proxyObject) proxyOwnKeys() ([]Value, bool) {
 					panic(p.val.runtime.NewTypeError("%s is not a valid property name", item.String()))
 				}
 			}
+			if _, exists := keySet[item]; exists {
+				panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap returned duplicate entries"))
+			}
 			keyList = append(keyList, item)
 			keySet[item] = struct{}{}
 		}
