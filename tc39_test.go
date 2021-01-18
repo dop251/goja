@@ -327,6 +327,7 @@ var (
 		"sec-object.getownpropertydescriptor",
 		"sec-object.getownpropertydescriptors",
 		"sec-object.entries",
+		"sec-object.values",
 		"sec-proxy-object-internal-methods-and-internal-slots-ownpropertykeys",
 	}
 )
@@ -696,7 +697,7 @@ func TestTC39(t *testing.T) {
 	// Tests ignored: 10,453, passed: 14,782
 
 	// at ddfe24afe3043388827aa220ef623b8540958bbd
-	// Tests ignored: 19,183, passed: 14,512
+	// Tests ignored: 19,164, passed: 14,529
 
 	ctx := &tc39TestCtx{
 		base: tc39BASE,

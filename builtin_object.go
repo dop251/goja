@@ -384,6 +384,21 @@ func (r *Runtime) object_entries(call FunctionCall) Value {
 	return r.newArrayValues(values)
 }
 
+func (r *Runtime) object_values(call FunctionCall) Value {
+	obj := call.Argument(0).ToObject(r)
+
+	var values []Value
+	iter := &enumerableIter{
+		wrapped: obj.self.enumerateOwnKeys(),
+	}
+
+	for item, next := iter.next(); next != nil; item, next = next() {
+		values = append(values, obj.self.getStr(item.name, nil))
+	}
+
+	return r.newArrayValues(values)
+}
+
 func (r *Runtime) objectproto_hasOwnProperty(call FunctionCall) Value {
 	p := toPropertyKey(call.Argument(0))
 	o := call.This.ToObject(r)
@@ -563,6 +578,7 @@ func (r *Runtime) initObject() {
 	o._putProp("isExtensible", r.newNativeFunc(r.object_isExtensible, nil, "isExtensible", nil, 1), true, false, true)
 	o._putProp("keys", r.newNativeFunc(r.object_keys, nil, "keys", nil, 1), true, false, true)
 	o._putProp("setPrototypeOf", r.newNativeFunc(r.object_setPrototypeOf, nil, "setPrototypeOf", nil, 2), true, false, true)
+	o._putProp("values", r.newNativeFunc(r.object_values, nil, "values", nil, 1), true, false, true)
 
 	r.addToGlobal("Object", r.global.Object)
 }
