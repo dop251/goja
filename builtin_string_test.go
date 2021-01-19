@@ -108,6 +108,25 @@ var prefix2 = new Prefix("def");
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestStringMatchAllSym(t *testing.T) {
+	const SCRIPT = `
+function Prefix(p) {
+	this.p = p;
+}
+
+Prefix.prototype[Symbol.matchAll] = function(s) {
+	return s.substring(0, this.p.length) === this.p;
+}
+
+var prefix1 = new Prefix("abc");
+var prefix2 = new Prefix("def");
+
+"abc123".matchAll(prefix1) === true && "abc123".matchAll(prefix2) === false &&
+"def123".matchAll(prefix1) === false && "def123".matchAll(prefix2) === true;
+`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func TestGenericSplitter(t *testing.T) {
 	const SCRIPT = `
 function MyRegexp(pattern, flags) {
@@ -223,5 +242,4 @@ func TestValueStringBuilder(t *testing.T) {
 			t.Fatal(res)
 		}
 	})
-
 }
