@@ -174,6 +174,8 @@ var (
 		"test/built-ins/Array/prototype/flatMap/this-value-ctor-object-species-custom-ctor-poisoned-throws.js": true,
 		"test/built-ins/Array/prototype/flatMap/this-value-ctor-object-species-bad-throws.js":                  true,
 		"test/built-ins/Array/prototype/flatMap/array-like-objects-nested.js":                                  true,
+		"test/built-ins/Proxy/getPrototypeOf/instanceof-target-not-extensible-not-same-proto-throws.js":        true,
+		"test/built-ins/Proxy/getPrototypeOf/instanceof-custom-return-accepted.js":                             true,
 
 		// arrow-function
 		"test/built-ins/Object/prototype/toString/proxy-function.js":            true,
@@ -534,11 +536,17 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		if skip {
 			if meta.Esid != "" {
 				for _, prefix := range esIdPrefixWhiteList {
-					if strings.HasPrefix(meta.Esid, prefix) &&
-						(len(meta.Esid) == len(prefix) || meta.Esid[len(prefix)] == '.') {
-
-						skip = false
-						break
+					if strings.HasSuffix(prefix, "*") {
+						if strings.HasPrefix(meta.Esid, prefix[:len(prefix)-1]) {
+							skip = false
+							break
+						}
+					} else {
+						if strings.HasPrefix(meta.Esid, prefix) &&
+							(len(meta.Esid) == len(prefix) || meta.Esid[len(prefix)] == '.') {
+							skip = false
+							break
+						}
 					}
 				}
 			}
@@ -693,11 +701,6 @@ func TestTC39(t *testing.T) {
 	if _, err := os.Stat(tc39BASE); err != nil {
 		t.Skipf("If you want to run tc39 tests, download them from https://github.com/tc39/test262 and put into %s. The current working commit is ddfe24afe3043388827aa220ef623b8540958bbd. (%v)", tc39BASE, err)
 	}
-	// at 1ba3a7c4a93fc93b3d0d7e4146f59934a896837d
-	// Tests ignored: 10,453, passed: 14,782
-
-	// at ddfe24afe3043388827aa220ef623b8540958bbd
-	// Tests ignored: 19,164, passed: 14,529
 
 	ctx := &tc39TestCtx{
 		base: tc39BASE,
