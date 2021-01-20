@@ -609,6 +609,27 @@ func TestRegexpOverrideSpecies(t *testing.T) {
 	testScript1(SCRIPT, _undefined, t)
 }
 
+func TestRegexpSymbolMatchAllCallsIsRegexp(t *testing.T) {
+	// This is tc39's test/built-ins/RegExp/prototype/Symbol.matchAll/isregexp-this-throws.js
+	const SCRIPT = `
+	var a = new Object();
+	Object.defineProperty(a, Symbol.match, {
+		get: function() {
+			throw "passed";
+		}
+	});
+	try {
+		RegExp.prototype[Symbol.matchAll].call(a, '');
+		throw new Error("Expected error");
+	} catch(e) {
+		if (e !== "passed") {
+			throw e;
+		}
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
 func TestRegexp2InvalidEscape(t *testing.T) {
 	testScript1(`/(?=)\x0/.test("x0")`, valueTrue, t)
 }
