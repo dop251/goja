@@ -630,6 +630,39 @@ func TestRegexpSymbolMatchAllCallsIsRegexp(t *testing.T) {
 	testScript1(SCRIPT, _undefined, t)
 }
 
+func TestRegexpMatchAllConstructor(t *testing.T) {
+	// This is tc39's test/built-ins/RegExp/prototype/Symbol.matchAll/species-constuctor.js
+	const SCRIPT = `
+	var callCount = 0;
+	var callArgs;
+	var regexp = /\d/u;
+	var obj = {}
+	Object.defineProperty(obj, Symbol.species, {
+		value: function() {
+		  callCount++;
+		  callArgs = arguments;
+		  return /\w/g;
+		}
+	});
+	regexp.constructor = obj;
+	var str = 'a*b';
+	var iter = regexp[Symbol.matchAll](str);
+
+	assert.sameValue(callCount, 1);
+	assert.sameValue(callArgs.length, 2);
+	assert.sameValue(callArgs[0], regexp);
+	assert.sameValue(callArgs[1], 'u');
+
+	var first = iter.next()
+	assert.sameValue(first.done, false);
+	assert.sameValue(first.value.length, 1);
+	assert.sameValue(first.value[0], "a");
+	var second = iter.next()
+	assert.sameValue(second.done, true);
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 func TestRegexp2InvalidEscape(t *testing.T) {
 	testScript1(`/(?=)\x0/.test("x0")`, valueTrue, t)
 }
