@@ -138,7 +138,9 @@ func (p *PropertyDescriptor) toValue(r *Runtime) Value {
 	if p.jsDescriptor != nil {
 		return p.jsDescriptor
 	}
-
+	if p.Empty() {
+		return _undefined
+	}
 	o := r.NewObject()
 	s := o.self
 

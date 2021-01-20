@@ -330,7 +330,7 @@ var (
 		"sec-object.getownpropertydescriptors",
 		"sec-object.entries",
 		"sec-object.values",
-		"sec-proxy-object-internal-methods-and-internal-slots-ownpropertykeys",
+		"sec-proxy-*",
 	}
 )
 

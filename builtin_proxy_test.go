@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"strconv"
 	"testing"
 )
 
@@ -320,6 +321,92 @@ func TestProxy_native_proxy_getOwnPropertyDescriptor(t *testing.T) {
 	}
 }
 
+func TestProxy_native_proxy_getOwnPropertyDescriptorIdx(t *testing.T) {
+	vm := New()
+	a := vm.NewArray()
+	proxy1 := vm.NewProxy(a, &ProxyTrapConfig{
+		GetOwnPropertyDescriptor: func(target *Object, prop string) PropertyDescriptor {
+			panic(vm.NewTypeError("GetOwnPropertyDescriptor was called"))
+		},
+		GetOwnPropertyDescriptorIdx: func(target *Object, prop int) PropertyDescriptor {
+			if prop >= -1 && prop <= 1 {
+				return PropertyDescriptor{
+					Value:        vm.ToValue(prop),
+					Configurable: FLAG_TRUE,
+				}
+			}
+			return PropertyDescriptor{}
+		},
+	})
+
+	proxy2 := vm.NewProxy(a, &ProxyTrapConfig{
+		GetOwnPropertyDescriptor: func(target *Object, prop string) PropertyDescriptor {
+			switch prop {
+			case "-1", "0", "1":
+				return PropertyDescriptor{
+					Value:        vm.ToValue(prop),
+					Configurable: FLAG_TRUE,
+				}
+			}
+			return PropertyDescriptor{}
+		},
+	})
+
+	vm.Set("proxy1", proxy1)
+	vm.Set("proxy2", proxy2)
+	_, err := vm.RunString(TESTLIBX + `
+	var desc;
+	for (var i = -1; i <= 1; i++) {
+		desc = Object.getOwnPropertyDescriptor(proxy1, i);
+		assert(deepEqual(desc, {value: i, writable: false, enumerable: false, configurable: true}), "1. int "+i);
+
+		desc = Object.getOwnPropertyDescriptor(proxy1, ""+i);
+		assert(deepEqual(desc, {value: i, writable: false, enumerable: false, configurable: true}), "1. str "+i);
+
+		desc = Object.getOwnPropertyDescriptor(proxy2, i);
+		assert(deepEqual(desc, {value: ""+i, writable: false, enumerable: false, configurable: true}), "2. int "+i);
+
+		desc = Object.getOwnPropertyDescriptor(proxy2, ""+i);
+		assert(deepEqual(desc, {value: ""+i, writable: false, enumerable: false, configurable: true}), "2. str "+i);
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProxy_native_proxy_getOwnPropertyDescriptorSym(t *testing.T) {
+	vm := New()
+	o := vm.NewObject()
+	sym := NewSymbol("42")
+	vm.Set("sym", sym)
+	proxy := vm.NewProxy(o, &ProxyTrapConfig{
+		GetOwnPropertyDescriptorSym: func(target *Object, s *Symbol) PropertyDescriptor {
+			if target != o {
+				panic(vm.NewTypeError("Invalid target"))
+			}
+			if s == sym {
+				return PropertyDescriptor{
+					Value:        vm.ToValue("passed"),
+					Writable:     FLAG_TRUE,
+					Configurable: FLAG_TRUE,
+				}
+			}
+			return PropertyDescriptor{}
+		},
+	})
+
+	vm.Set("proxy", proxy)
+	_, err := vm.RunString(TESTLIBX + `
+	var desc = Object.getOwnPropertyDescriptor(proxy, sym);
+	assert(deepEqual(desc, {value: "passed", writable: true, enumerable: false, configurable: true}));
+	assert.sameValue(Object.getOwnPropertyDescriptor(proxy, Symbol.iterator), undefined);
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestProxy_native_proxy_getOwnPropertyDescriptor_non_existing(t *testing.T) {
 	vm := New()
 	proxy := vm.NewProxy(vm.NewObject(), &ProxyTrapConfig{
@@ -371,9 +458,17 @@ func TestProxy_proxy_defineProperty(t *testing.T) {
 func TestProxy_native_proxy_defineProperty(t *testing.T) {
 	const SCRIPT = `
 	Object.defineProperty(proxy, "foo", {
-		value: "test123"
+		value: "teststr"
 	});
-	proxy.foo;
+	Object.defineProperty(proxy, "0", {
+		value: "testidx"
+	});
+	Object.defineProperty(proxy, Symbol.toStringTag, {
+		value: "testsym"
+	});
+	assert.sameValue(proxy.foo, "teststr-passed-str");
+	assert.sameValue(proxy[0], "testidx-passed-idx");
+	assert.sameValue(proxy[Symbol.toStringTag], "testsym-passed-sym");
 	`
 
 	runtime := New()
@@ -382,18 +477,23 @@ func TestProxy_native_proxy_defineProperty(t *testing.T) {
 
 	proxy := runtime.NewProxy(target, &ProxyTrapConfig{
 		DefineProperty: func(target *Object, key string, propertyDescriptor PropertyDescriptor) (success bool) {
-			target.Set("foo", "321tset")
+			target.Set(key, propertyDescriptor.Value.String()+"-passed-str")
+			return true
+		},
+		DefinePropertyIdx: func(target *Object, key int, propertyDescriptor PropertyDescriptor) (success bool) {
+			target.Set(strconv.Itoa(key), propertyDescriptor.Value.String()+"-passed-idx")
+			return true
+		},
+		DefinePropertySym: func(target *Object, key *Symbol, propertyDescriptor PropertyDescriptor) (success bool) {
+			target.SetSymbol(key, propertyDescriptor.Value.String()+"-passed-sym")
 			return true
 		},
 	})
 	runtime.Set("proxy", proxy)
 
-	val, err := runtime.RunString(SCRIPT)
+	_, err := runtime.RunString(TESTLIB + SCRIPT)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if s := val.String(); s != "321tset" {
-		t.Fatalf("val: %s", s)
 	}
 }
 
@@ -540,27 +640,58 @@ func TestProxy_proxy_get_json_stringify(t *testing.T) {
 
 func TestProxy_native_proxy_get(t *testing.T) {
 	vm := New()
-	propValue := vm.ToValue("321tset")
+	propValueStr := vm.ToValue("321tset")
+	propValueIdx := vm.ToValue("idx")
+	propValueSym := vm.ToValue("sym")
+	sym := NewSymbol("test")
 	obj := vm.NewObject()
 	proxy := vm.NewProxy(obj, &ProxyTrapConfig{
 		OwnKeys: func(*Object) *Object {
-			return vm.newArrayValues([]Value{vm.ToValue("foo")})
+			return vm.NewArray("0", "foo")
 		},
 		GetOwnPropertyDescriptor: func(target *Object, prop string) (propertyDescriptor PropertyDescriptor) {
 			if prop == "foo" {
 				return PropertyDescriptor{
-					Value:        propValue,
+					Value:        propValueStr,
 					Enumerable:   FLAG_TRUE,
 					Configurable: FLAG_TRUE,
 				}
 			}
-			return PropertyDescriptor{}
+			if prop == "0" {
+				panic(vm.NewTypeError("GetOwnPropertyDescriptor(0) was called"))
+			}
+			return
 		},
-		Get: func(target *Object, property string, receiver *Object) (value Value) {
+		GetOwnPropertyDescriptorIdx: func(target *Object, prop int) (propertyDescriptor PropertyDescriptor) {
+			if prop == 0 {
+				return PropertyDescriptor{
+					Value:        propValueIdx,
+					Enumerable:   FLAG_TRUE,
+					Configurable: FLAG_TRUE,
+				}
+			}
+			return
+		},
+		Get: func(target *Object, property string, receiver Value) (value Value) {
 			if property == "foo" {
-				return propValue
+				return propValueStr
+			}
+			if property == "0" {
+				panic(vm.NewTypeError("Get(0) was called"))
 			}
 			return obj.Get(property)
+		},
+		GetIdx: func(target *Object, property int, receiver Value) (value Value) {
+			if property == 0 {
+				return propValueIdx
+			}
+			return obj.Get(strconv.Itoa(property))
+		},
+		GetSym: func(target *Object, property *Symbol, receiver Value) (value Value) {
+			if property == sym {
+				return propValueSym
+			}
+			return obj.GetSymbol(property)
 		},
 	})
 	vm.Set("proxy", proxy)
@@ -568,7 +699,7 @@ func TestProxy_native_proxy_get(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !res.SameAs(asciiString(`{"foo":"321tset"}`)) {
+	if !res.SameAs(asciiString(`{"0":"idx","foo":"321tset"}`)) {
 		t.Fatalf("res: %v", res)
 	}
 	res, err = vm.RunString(`proxy[Symbol.toPrimitive]`)
@@ -587,12 +718,70 @@ func TestProxy_native_proxy_get(t *testing.T) {
 		t.Fatalf("res: %v", res)
 	}
 
+	if val := vm.ToValue(proxy).(*Object).GetSymbol(sym); val == nil || !val.SameAs(propValueSym) {
+		t.Fatalf("Get(symbol): %v", val)
+	}
+
 	res, err = vm.RunString(`proxy.toString()`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !res.SameAs(asciiString(`[object Object]`)) {
 		t.Fatalf("res: %v", res)
+	}
+}
+
+func TestProxy_native_proxy_set(t *testing.T) {
+	vm := New()
+	propValueStr := vm.ToValue("321tset")
+	propValueIdx := vm.ToValue("idx")
+	propValueSym := vm.ToValue("sym")
+	sym := NewSymbol("test")
+	obj := vm.NewObject()
+	proxy := vm.NewProxy(obj, &ProxyTrapConfig{
+		Set: func(target *Object, property string, value Value, receiver Value) (success bool) {
+			if property == "str" {
+				obj.Set(property, propValueStr)
+				return true
+			}
+			panic(vm.NewTypeError("Setter for unexpected property: %q", property))
+		},
+		SetIdx: func(target *Object, property int, value Value, receiver Value) (success bool) {
+			if property == 0 {
+				obj.Set(strconv.Itoa(property), propValueIdx)
+				return true
+			}
+			panic(vm.NewTypeError("Setter for unexpected idx property: %d", property))
+		},
+		SetSym: func(target *Object, property *Symbol, value Value, receiver Value) (success bool) {
+			if property == sym {
+				obj.SetSymbol(property, propValueSym)
+				return true
+			}
+			panic(vm.NewTypeError("Setter for unexpected sym property: %q", property.String()))
+		},
+	})
+	proxyObj := vm.ToValue(proxy).ToObject(vm)
+	err := proxyObj.Set("str", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = proxyObj.Set("0", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = proxyObj.SetSymbol(sym, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := obj.Get("str"); !propValueStr.SameAs(v) {
+		t.Fatal(v)
+	}
+	if v := obj.Get("0"); !propValueIdx.SameAs(v) {
+		t.Fatal(v)
+	}
+	if v := obj.GetSymbol(sym); !propValueSym.SameAs(v) {
+		t.Fatal(v)
 	}
 }
 
@@ -679,6 +868,94 @@ func TestProxy_proxy_delete(t *testing.T) {
 	`
 
 	testScript1(SCRIPT, asciiString("test"), t)
+}
+
+func TestProxy_native_delete(t *testing.T) {
+	vm := New()
+	sym := NewSymbol("test")
+	obj := vm.NewObject()
+	var strCalled, idxCalled, symCalled, strNegCalled, idxNegCalled, symNegCalled bool
+	proxy := vm.NewProxy(obj, &ProxyTrapConfig{
+		DeleteProperty: func(target *Object, property string) (success bool) {
+			if property == "str" {
+				strCalled = true
+				return true
+			}
+			if property == "strNeg" {
+				strNegCalled = true
+				return false
+			}
+			panic(vm.NewTypeError("DeleteProperty for unexpected property: %q", property))
+		},
+		DeletePropertyIdx: func(target *Object, property int) (success bool) {
+			if property == 0 {
+				idxCalled = true
+				return true
+			}
+			if property == 1 {
+				idxNegCalled = true
+				return false
+			}
+			panic(vm.NewTypeError("DeletePropertyIdx for unexpected idx property: %d", property))
+		},
+		DeletePropertySym: func(target *Object, property *Symbol) (success bool) {
+			if property == sym {
+				symCalled = true
+				return true
+			}
+			if property == SymIterator {
+				symNegCalled = true
+				return false
+			}
+			panic(vm.NewTypeError("DeletePropertySym for unexpected sym property: %q", property.String()))
+		},
+	})
+	proxyObj := vm.ToValue(proxy).ToObject(vm)
+	err := proxyObj.Delete("str")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = proxyObj.Delete("0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = proxyObj.DeleteSymbol(sym)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strCalled {
+		t.Fatal("str")
+	}
+	if !idxCalled {
+		t.Fatal("idx")
+	}
+	if !symCalled {
+		t.Fatal("sym")
+	}
+	vm.Set("proxy", proxy)
+	_, err = vm.RunString(`
+	if (delete proxy.strNeg) {
+		throw new Error("strNeg");
+	}
+	if (delete proxy[1]) {
+		throw new Error("idxNeg");
+	}
+	if (delete proxy[Symbol.iterator]) {
+		throw new Error("symNeg");
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strNegCalled {
+		t.Fatal("strNeg")
+	}
+	if !idxNegCalled {
+		t.Fatal("idxNeg")
+	}
+	if !symNegCalled {
+		t.Fatal("symNeg")
+	}
 }
 
 func TestProxy_target_keys(t *testing.T) {
