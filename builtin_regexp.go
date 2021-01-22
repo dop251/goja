@@ -1201,7 +1201,7 @@ func (r *Runtime) regExpStringIteratorProto_next(call FunctionCall) Value {
 }
 
 func (r *Runtime) createRegExpStringIteratorPrototype(val *Object) objectImpl {
-	o := newBaseObjectObj(val, r.global.ArrayIteratorPrototype, classObject)
+	o := newBaseObjectObj(val, r.global.IteratorPrototype, classObject)
 
 	o._putProp("next", r.newNativeFunc(r.regExpStringIteratorProto_next, nil, "next", nil, 0), true, false, true)
 	o._putSym(SymToStringTag, valueProp(asciiString(classRegExpStringIteratorPrototype), false, false, true))
