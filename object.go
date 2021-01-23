@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"runtime"
 	"sort"
-	"sync"
 
 	"github.com/dop251/goja/unistring"
 )
@@ -41,80 +39,12 @@ var (
 	hintString  Value = asciiString("string")
 )
 
-type weakCollection interface {
-	removeId(uint64)
-}
-
-type weakCollections struct {
-	objId uint64
-	colls []weakCollection
-}
-
-func (r *weakCollections) add(c weakCollection) {
-	for _, ec := range r.colls {
-		if ec == c {
-			return
-		}
-	}
-	r.colls = append(r.colls, c)
-}
-
-func (r *weakCollections) id() uint64 {
-	return r.objId
-}
-
-func (r *weakCollections) remove(c weakCollection) {
-	if cap(r.colls) > 16 && cap(r.colls)>>2 > len(r.colls) {
-		// shrink
-		colls := make([]weakCollection, 0, len(r.colls))
-		for _, coll := range r.colls {
-			if coll != c {
-				colls = append(colls, coll)
-			}
-		}
-		r.colls = colls
-	} else {
-		for i, coll := range r.colls {
-			if coll == c {
-				l := len(r.colls) - 1
-				r.colls[i] = r.colls[l]
-				r.colls[l] = nil
-				r.colls = r.colls[:l]
-				break
-			}
-		}
-	}
-}
-
-func finalizeObjectWeakRefs(r *objectWeakRef) {
-	r.tracker.add(r.id)
-}
-
-type weakRefTracker struct {
-	sync.Mutex
-	list []uint64
-}
-
-func (t *weakRefTracker) add(id uint64) {
-	t.Lock()
-	t.list = append(t.list, id)
-	t.Unlock()
-}
-
-// An object that gets finalized when the corresponding *Object is garbage-collected.
-// It must be ensured that neither the *Object, nor the *Runtime is reachable from this struct,
-// otherwise it will create a circular reference with a Finalizer which will make it not garbage-collectable.
-type objectWeakRef struct {
-	id      uint64
-	tracker *weakRefTracker
-}
-
 type Object struct {
 	id      uint64
 	runtime *Runtime
 	self    objectImpl
 
-	weakRef *objectWeakRef
+	weakRefs map[weakMap]Value
 }
 
 type iterNextFunc func() (propIterItem, iterNextFunc)
@@ -1484,31 +1414,22 @@ func (o *Object) defineOwnProperty(n Value, desc PropertyDescriptor, throw bool)
 	}
 }
 
-func (o *Object) getWeakRef() *objectWeakRef {
-	if o.weakRef == nil {
-		if o.runtime.weakRefTracker == nil {
-			o.runtime.weakRefTracker = &weakRefTracker{}
-		}
-		o.weakRef = &objectWeakRef{
-			id:      o.getId(),
-			tracker: o.runtime.weakRefTracker,
-		}
-		runtime.SetFinalizer(o.weakRef, finalizeObjectWeakRefs)
+func (o *Object) getWeakRefs() map[weakMap]Value {
+	refs := o.weakRefs
+	if refs == nil {
+		refs = make(map[weakMap]Value)
+		o.weakRefs = refs
 	}
-
-	return o.weakRef
+	return refs
 }
 
 func (o *Object) getId() uint64 {
-	for o.id == 0 {
-		if o.runtime.hash == nil {
-			h := o.runtime.getHash()
-			o.runtime.idSeq = h.Sum64()
-		}
-		o.id = o.runtime.idSeq
-		o.runtime.idSeq++
+	id := o.id
+	if id == 0 {
+		id = o.runtime.genId()
+		o.id = id
 	}
-	return o.id
+	return id
 }
 
 func (o *guardedObject) guard(props ...unistring.String) {
