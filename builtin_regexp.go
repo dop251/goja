@@ -806,12 +806,6 @@ func regExpExec(r *Object, s valueString) Value {
 			return r.runtime.regExpExec(execFn, r, s)
 		}
 	}
-	// This is not what the spec says, but I don't know what should be done, and this "works"
-	// Specifically:
-	// 21.2.5.2.1
-	// ...
-	// 5. Perform ? RequireInternalSlot(R, [[RegExpMatcher]]).
-	// 6. Return ? RegExpBuiltinExec(R, S).
 	if rx, ok := r.self.(*regexpObject); ok {
 		return rx.exec(s)
 	}
