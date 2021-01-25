@@ -578,12 +578,12 @@ func (r *regexpObject) test(target valueString) bool {
 	return match
 }
 
-func (r *regexpObject) clone() *Object {
+func (r *regexpObject) clone() *regexpObject {
 	r1 := r.val.runtime.newRegexpObject(r.prototype)
 	r1.source = r.source
 	r1.pattern = r.pattern
 
-	return r1.val
+	return r1
 }
 
 func (r *regexpObject) init() {

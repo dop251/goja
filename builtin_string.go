@@ -358,7 +358,7 @@ func (r *Runtime) stringproto_match(call FunctionCall) Value {
 	}
 
 	if rx == nil {
-		rx = r.newRegExp(regexp, nil, r.global.RegExpPrototype).self.(*regexpObject)
+		rx = r.newRegExp(regexp, nil, r.global.RegExpPrototype)
 	}
 
 	if matcher, ok := r.toObject(rx.getSym(SymMatch, nil)).self.assertCallable(); ok {
@@ -392,7 +392,7 @@ func (r *Runtime) stringproto_matchAll(call FunctionCall) Value {
 		}
 	}
 
-	rx := r.newRegExp(regexp, asciiString("g"), r.global.RegExpPrototype).self.(*regexpObject)
+	rx := r.newRegExp(regexp, asciiString("g"), r.global.RegExpPrototype)
 
 	if matcher, ok := r.toObject(rx.getSym(SymMatchAll, nil)).self.assertCallable(); ok {
 		return matcher(FunctionCall{
@@ -695,7 +695,7 @@ func (r *Runtime) stringproto_search(call FunctionCall) Value {
 	}
 
 	if rx == nil {
-		rx = r.newRegExp(regexp, nil, r.global.RegExpPrototype).self.(*regexpObject)
+		rx = r.newRegExp(regexp, nil, r.global.RegExpPrototype)
 	}
 
 	if searcher, ok := r.toObject(rx.getSym(SymSearch, nil)).self.assertCallable(); ok {

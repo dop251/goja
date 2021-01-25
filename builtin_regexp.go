@@ -22,13 +22,13 @@ func (r *Runtime) newRegexpObject(proto *Object) *regexpObject {
 	return o
 }
 
-func (r *Runtime) newRegExpp(pattern *regexpPattern, patternStr valueString, proto *Object) *Object {
+func (r *Runtime) newRegExpp(pattern *regexpPattern, patternStr valueString, proto *Object) *regexpObject {
 	o := r.newRegexpObject(proto)
 
 	o.pattern = pattern
 	o.source = patternStr
 
-	return o.val
+	return o
 }
 
 func decodeHex(s string) (int, bool) {
@@ -276,7 +276,7 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 	return
 }
 
-func (r *Runtime) _newRegExp(patternStr valueString, flags string, proto *Object) *Object {
+func (r *Runtime) _newRegExp(patternStr valueString, flags string, proto *Object) *regexpObject {
 	pattern, err := compileRegexpFromValueString(patternStr, flags)
 	if err != nil {
 		panic(r.newSyntaxError(err.Error(), -1))
@@ -292,10 +292,10 @@ func (r *Runtime) builtin_newRegExp(args []Value, proto *Object) *Object {
 	if len(args) > 1 {
 		flagsVal = args[1]
 	}
-	return r.newRegExp(patternVal, flagsVal, proto)
+	return r.newRegExp(patternVal, flagsVal, proto).val
 }
 
-func (r *Runtime) newRegExp(patternVal, flagsVal Value, proto *Object) *Object {
+func (r *Runtime) newRegExp(patternVal, flagsVal Value, proto *Object) *regexpObject {
 	var pattern valueString
 	var flags string
 	if isRegexp(patternVal) { // this may have side effects so need to call it anyway
@@ -344,7 +344,7 @@ func (r *Runtime) builtin_RegExp(call FunctionCall) Value {
 			}
 		}
 	}
-	return r.newRegExp(pattern, flags, r.global.RegExpPrototype)
+	return r.newRegExp(pattern, flags, r.global.RegExpPrototype).val
 }
 
 func (r *Runtime) regexpproto_compile(call FunctionCall) Value {
