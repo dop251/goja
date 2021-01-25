@@ -2351,3 +2351,10 @@ func (r *Runtime) genId() (ret uint64) {
 	r.idSeq++
 	return
 }
+
+func strPropToInt(s unistring.String) (int, bool) {
+	if res, err := strconv.Atoi(string(s)); err == nil {
+		return res, true
+	}
+	return 0, false
+}

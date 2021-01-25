@@ -1,8 +1,6 @@
 package goja
 
 import (
-	"strconv"
-
 	"github.com/dop251/goja/unistring"
 )
 
@@ -386,11 +384,4 @@ func (r *Runtime) createProxy(val *Object) objectImpl {
 func (r *Runtime) initProxy() {
 	r.global.Proxy = r.newLazyObject(r.createProxy)
 	r.addToGlobal("Proxy", r.global.Proxy)
-}
-
-func strPropToInt(s unistring.String) (int, bool) {
-	if res, err := strconv.Atoi(string(s)); err == nil {
-		return res, true
-	}
-	return 0, false
 }

@@ -779,11 +779,11 @@ func (o *baseObject) _putSym(s *Symbol, prop Value) {
 	o.symValues.set(s, prop)
 }
 
-func (o *baseObject) tryPrimitive(methodName unistring.String) Value {
-	if method, ok := o.val.self.getStr(methodName, nil).(*Object); ok {
+func (o *Object) tryPrimitive(methodName unistring.String) Value {
+	if method, ok := o.self.getStr(methodName, nil).(*Object); ok {
 		if call, ok := method.self.assertCallable(); ok {
 			v := call(FunctionCall{
-				This: o.val,
+				This: o,
 			})
 			if _, fail := v.(*Object); !fail {
 				return v
@@ -793,7 +793,7 @@ func (o *baseObject) tryPrimitive(methodName unistring.String) Value {
 	return nil
 }
 
-func (o *baseObject) toPrimitiveNumber() Value {
+func (o *Object) genericToPrimitiveNumber() Value {
 	if v := o.tryPrimitive("valueOf"); v != nil {
 		return v
 	}
@@ -802,34 +802,35 @@ func (o *baseObject) toPrimitiveNumber() Value {
 		return v
 	}
 
-	o.val.runtime.typeErrorResult(true, "Could not convert %v to primitive", o)
-	return nil
+	panic(o.runtime.NewTypeError("Could not convert %v to primitive", o.self))
+}
+
+func (o *baseObject) toPrimitiveNumber() Value {
+	return o.val.genericToPrimitiveNumber()
+}
+
+func (o *Object) genericToPrimitiveString() Value {
+	if v := o.tryPrimitive("toString"); v != nil {
+		return v
+	}
+
+	if v := o.tryPrimitive("valueOf"); v != nil {
+		return v
+	}
+
+	panic(o.runtime.NewTypeError("Could not convert %v to primitive", o.self))
+}
+
+func (o *Object) genericToPrimitive() Value {
+	return o.genericToPrimitiveNumber()
 }
 
 func (o *baseObject) toPrimitiveString() Value {
-	if v := o.tryPrimitive("toString"); v != nil {
-		return v
-	}
-
-	if v := o.tryPrimitive("valueOf"); v != nil {
-		return v
-	}
-
-	o.val.runtime.typeErrorResult(true, "Could not convert %v to primitive", o)
-	return nil
+	return o.val.genericToPrimitiveString()
 }
 
 func (o *baseObject) toPrimitive() Value {
-	if v := o.tryPrimitive("valueOf"); v != nil {
-		return v
-	}
-
-	if v := o.tryPrimitive("toString"); v != nil {
-		return v
-	}
-
-	o.val.runtime.typeErrorResult(true, "Could not convert %v to primitive", o)
-	return nil
+	return o.val.genericToPrimitiveNumber()
 }
 
 func (o *Object) tryExoticToPrimitive(hint Value) Value {
@@ -1101,7 +1102,7 @@ func (o *baseObject) equal(objectImpl) bool {
 }
 
 // Reorder property names so that any integer properties are shifted to the beginning of the list
-// in ascending order. This is to conform to ES6 9.1.12.
+// in ascending order. This is to conform to https://262.ecma-international.org/#sec-ordinaryownpropertykeys.
 // Personally I think this requirement is strange. I can sort of understand where they are coming from,
 // this way arrays can be specified just as objects with a 'magic' length property. However, I think
 // it's safe to assume most devs don't use Objects to store integer properties. Therefore, performing

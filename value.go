@@ -843,6 +843,20 @@ func (o *Object) DeleteSymbol(name *Symbol) error {
 	})
 }
 
+// Prototype returns the Object's prototype, same as Object.getPrototypeOf(). If the prototype is null
+// returns nil.
+func (o *Object) Prototype() *Object {
+	return o.self.proto()
+}
+
+// SetPrototype sets the Object's prototype, same as Object.setPrototypeOf(). Setting proto to nil
+// is an equivalent of Object.setPrototypeOf(null).
+func (o *Object) SetPrototype(proto *Object) error {
+	return tryFunc(func() {
+		o.self.setProto(proto, true)
+	})
+}
+
 // MarshalJSON returns JSON representation of the Object. It is equivalent to JSON.stringify(o).
 // Note, this implements json.Marshaler so that json.Marshal() can be used without the need to Export().
 func (o *Object) MarshalJSON() ([]byte, error) {
