@@ -576,16 +576,10 @@ func TestRegexpMatchAll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if regex.self.(*regexpObject).getLastIndex() != 0 {
-		t.Fatal("lastIndex is not 0 (non-unicode)")
-	}
 
 	regex, err = f(true)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if regex.self.(*regexpObject).getLastIndex() != 0 {
-		t.Fatal("lastIndex is not 0 (unicode)")
 	}
 }
 
