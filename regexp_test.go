@@ -557,8 +557,6 @@ func TestRegexpMatchAll(t *testing.T) {
 		expectedMatches[1].input = ' test5test6';
 		assert(deepEqual(matches, expectedMatches), "#3");
 		assert.sameValue(regex.lastIndex, 0, "#3 lastindex");
-
-		return regex;
 	});
 	`
 	vm := New()
@@ -572,12 +570,12 @@ func TestRegexpMatchAll(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	regex, err := f(false)
+	_, err = f(false)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	regex, err = f(true)
+	_, err = f(true)
 	if err != nil {
 		t.Fatal(err)
 	}
