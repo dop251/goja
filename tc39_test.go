@@ -109,24 +109,18 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/RegExp/super-must-be-called.js":                     true,
 		"test/language/statements/class/subclass/builtin-objects/RegExp/regular-subclassing.js":                      true,
 		"test/language/statements/class/subclass/builtin-objects/RegExp/lastIndex.js":                                true,
+		"TestTC39/tc39/test/language/statements/class/definition/fn-name-method.js":                                  true,
 
 		// object literals
 		"test/built-ins/Array/from/source-object-iterator-1.js":                                                true,
 		"test/built-ins/Array/from/source-object-iterator-2.js":                                                true,
-		"test/built-ins/TypedArray/prototype/fill/fill-values-conversion-once.js":                              true,
-		"test/built-ins/TypedArrays/of/this-is-not-constructor.js":                                             true,
 		"test/built-ins/TypedArrays/of/argument-number-value-throws.js":                                        true,
-		"test/built-ins/TypedArrays/from/this-is-not-constructor.js":                                           true,
 		"test/built-ins/TypedArrays/from/set-value-abrupt-completion.js":                                       true,
 		"test/built-ins/TypedArrays/from/property-abrupt-completion.js":                                        true,
-		"test/built-ins/TypedArray/of/this-is-not-constructor.js":                                              true,
-		"test/built-ins/TypedArray/from/this-is-not-constructor.js":                                            true,
-		"test/built-ins/DataView/custom-proto-access-throws.js":                                                true,
 		"test/built-ins/DataView/custom-proto-access-throws-sab.js":                                            true,
 		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":                 true,
 		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":               true,
 		"test/built-ins/Array/prototype/splice/property-traps-order-with-species.js":                           true,
-		"test/built-ins/Date/prototype/toJSON/invoke-abrupt.js":                                                true,
 		"test/built-ins/String/prototype/indexOf/position-tointeger-errors.js":                                 true,
 		"test/built-ins/String/prototype/indexOf/position-tointeger-toprimitive.js":                            true,
 		"test/built-ins/String/prototype/indexOf/position-tointeger-wrapped-values.js":                         true,
@@ -161,21 +155,14 @@ var (
 		"test/built-ins/String/prototype/trimStart/this-value-object-valueof-meth-priority.js":                 true,
 		"test/built-ins/String/prototype/trimStart/this-value-object-valueof-returns-object-err.js":            true,
 		"test/built-ins/TypedArray/prototype/sort/sort-tonumber.js":                                            true,
-		"test/built-ins/TypedArrayConstructors/from/property-abrupt-completion.js":                             true,
-		"test/built-ins/TypedArrayConstructors/from/set-value-abrupt-completion.js":                            true,
-		"test/built-ins/TypedArrayConstructors/from/this-is-not-constructor.js":                                true,
-		"test/built-ins/TypedArrayConstructors/of/argument-number-value-throws.js":                             true,
-		"test/built-ins/TypedArrayConstructors/of/this-is-not-constructor.js":                                  true,
 		"test/built-ins/Array/prototype/flatMap/array-like-objects.js":                                         true,
-		"test/built-ins/Array/prototype/flatMap/array-like-objects-typedarrays.js":                             true,
 		"test/built-ins/Array/prototype/flatMap/array-like-objects-poisoned-length.js":                         true,
 		"test/built-ins/Array/prototype/flatMap/this-value-ctor-object-species.js":                             true,
 		"test/built-ins/Array/prototype/flatMap/this-value-ctor-object-species-custom-ctor.js":                 true,
 		"test/built-ins/Array/prototype/flatMap/this-value-ctor-object-species-custom-ctor-poisoned-throws.js": true,
 		"test/built-ins/Array/prototype/flatMap/this-value-ctor-object-species-bad-throws.js":                  true,
-		"test/built-ins/Array/prototype/flatMap/array-like-objects-nested.js":                                  true,
 		"test/built-ins/Proxy/getPrototypeOf/instanceof-target-not-extensible-not-same-proto-throws.js":        true,
-		"test/built-ins/Proxy/getPrototypeOf/instanceof-custom-return-accepted.js":                             true,
+		"test/language/statements/class/definition/fn-name-method.js":                                          true,
 
 		// arrow-function
 		"test/built-ins/Object/prototype/toString/proxy-function.js":            true,
@@ -271,6 +258,27 @@ var (
 
 		// generators
 		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js": true,
+
+		// computed properties
+		"test/language/expressions/object/__proto__-permitted-dup.js":                     true,
+		"test/language/expressions/object/method-definition/name-name-prop-symbol.js":     true,
+		"test/language/expressions/object/method-definition/name-prop-name-eval-error.js": true,
+		"test/language/expressions/object/accessor-name-computed-yield-id.js":             true,
+		"test/language/expressions/object/accessor-name-computed-in.js":                   true,
+
+		// new should not be usable with object's methods
+		"test/language/expressions/object/method-definition/name-invoke-ctor.js": true,
+
+		// get [Symbol.*]
+		"test/language/expressions/object/prop-def-id-eval-error.js": true,
+
+		// super
+		"test/language/expressions/object/method.js":            true,
+		"test/language/expressions/object/setter-super-prop.js": true,
+		"test/language/expressions/object/getter-super-prop.js": true,
+
+		// eval/arguments can be property names in non strict mode
+		"test/language/expressions/object/properties-names-eval-arguments.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -278,6 +286,9 @@ var (
 		"BigInt",
 		"generators",
 		"String.prototype.replaceAll",
+		"computed-property-names",
+		"default-parameters",
+		"super",
 	}
 
 	es6WhiteList = map[string]bool{}
@@ -285,8 +296,12 @@ var (
 	es6IdWhiteList = []string{
 		"8.1.2.1",
 		"9.5",
+		"12.2.5",
+		"12.2.6.1",
+		"12.2.6.8",
 		"12.9.3",
 		"12.9.4",
+		"14.3.8",
 		"19.1",
 		"19.2",
 		"19.3",
@@ -330,6 +345,7 @@ var (
 		"sec-object.getownpropertydescriptors",
 		"sec-object.entries",
 		"sec-object.values",
+		"sec-object-initializer",
 		"sec-proxy-*",
 	}
 )
