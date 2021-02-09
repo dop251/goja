@@ -121,13 +121,11 @@ func TestObjectShorthandProperties(t *testing.T) {
 	assert.sameValue(a.b, b, "#1");
 	assert.sameValue(a.get(), "c", "#2");
 
-	/* doesn't work
 	var obj = {
 		w\u0069th() { return 42; }
     };
 
 	assert.sameValue(obj['with'](), 42, 'property exists');
-	*/
 	`
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }

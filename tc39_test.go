@@ -110,6 +110,10 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/RegExp/regular-subclassing.js":                      true,
 		"test/language/statements/class/subclass/builtin-objects/RegExp/lastIndex.js":                                true,
 		"TestTC39/tc39/test/language/statements/class/definition/fn-name-method.js":                                  true,
+		"test/language/expressions/object/method-definition/name-invoke-ctor.js":                                     true,
+		"test/language/expressions/object/method.js":                                                                 true,
+		"test/language/expressions/object/setter-super-prop.js":                                                      true,
+		"test/language/expressions/object/getter-super-prop.js":                                                      true,
 
 		// object literals
 		"test/built-ins/Array/from/source-object-iterator-1.js":                                                true,
@@ -266,19 +270,8 @@ var (
 		"test/language/expressions/object/accessor-name-computed-yield-id.js":             true,
 		"test/language/expressions/object/accessor-name-computed-in.js":                   true,
 
-		// new should not be usable with object's methods
-		"test/language/expressions/object/method-definition/name-invoke-ctor.js": true,
-
 		// get [Symbol.*]
 		"test/language/expressions/object/prop-def-id-eval-error.js": true,
-
-		// super
-		"test/language/expressions/object/method.js":            true,
-		"test/language/expressions/object/setter-super-prop.js": true,
-		"test/language/expressions/object/getter-super-prop.js": true,
-
-		// eval/arguments can be property names in non strict mode
-		"test/language/expressions/object/properties-names-eval-arguments.js": true,
 	}
 
 	featuresBlackList = []string{

@@ -2163,6 +2163,70 @@ func TestObjectLiteralWithNumericKeys(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestEscapedObjectPropertyKeys(t *testing.T) {
+	const SCRIPT = `
+	var obj = {
+		w\u0069th: 42
+	};
+	var obj = {
+		with() {42}
+	};
+	`
+
+	_, err := Compile("", SCRIPT, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestObjectLiteralFuncProps(t *testing.T) {
+	const SCRIPT = `
+	(function() {
+		'use strict';
+		var o = {
+			eval: function() {return 1;},
+			arguments() {return 2;},
+			test: function test1() {}
+		}
+		assert.sameValue(o.eval.name, "eval");
+		assert.sameValue(o.arguments.name, "arguments");
+		assert.sameValue(o.eval(), 1);
+		assert.sameValue(o.arguments(), 2);
+		assert.sameValue(o.test.name, "test1");
+	})();
+	`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestFuncName(t *testing.T) {
+	const SCRIPT = `
+	var method = 1;
+	var o = {
+		method: function() {
+			return method;
+		},
+		method1: function method() {
+			return method;
+		}
+	}
+	o.method() === 1 && o.method1() === o.method1;
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestFuncNameAssign(t *testing.T) {
+	const SCRIPT = `
+	var f = function() {};
+	var f1;
+	f1 = function() {};
+	f.name === "f" && f1.name === "f1";
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func BenchmarkCompile(b *testing.B) {
 	f, err := os.Open("testdata/S15.10.2.12_A1_T1.js")
 

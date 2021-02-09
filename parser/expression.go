@@ -189,7 +189,7 @@ func (self *_parser) parseVariableDeclarationList(var_ file.Idx) []ast.Expressio
 	return list
 }
 
-func (self *_parser) parseObjectPropertyKey() (string, ast.Expression, token.Token) {
+func (self *_parser) parseObjectPropertyKey() (unistring.String, ast.Expression, token.Token) {
 	idx, tkn, literal, parsedLiteral := self.idx, self.token, self.literal, self.parsedLiteral
 	var value ast.Expression
 	self.next()
@@ -225,23 +225,21 @@ func (self *_parser) parseObjectPropertyKey() (string, ast.Expression, token.Tok
 				Literal: literal,
 				Value:   unistring.String(literal),
 			}
+			tkn = token.STRING
 		}
 	}
-	return literal, value, tkn
+	return parsedLiteral, value, tkn
 }
 
 func (self *_parser) parseObjectProperty() ast.Property {
 	literal, value, tkn := self.parseObjectPropertyKey()
-	if tkn == token.IDENTIFIER {
+	if tkn == token.IDENTIFIER || tkn == token.STRING {
 		switch {
 		case self.token == token.LEFT_PARENTHESIS:
 			idx := self.idx
 			parameterList := self.parseFunctionParameterList()
 
 			node := &ast.FunctionLiteral{
-				Name: &ast.Identifier{
-					Name: unistring.String(literal), Idx: idx,
-				},
 				Function:      idx,
 				ParameterList: parameterList,
 			}
@@ -249,7 +247,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 
 			return ast.Property{
 				Key:   value,
-				Kind:  "value",
+				Kind:  "method",
 				Value: node,
 			}
 		case self.token == token.COMMA || self.token == token.RIGHT_BRACE: // shorthand property
@@ -257,7 +255,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 				Key:  value,
 				Kind: "value",
 				Value: &ast.Identifier{
-					Name: unistring.String(literal),
+					Name: literal,
 					Idx:  self.idx,
 				},
 			}
