@@ -113,6 +113,23 @@ func TestDefinePropertiesSymbol(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestObjectShorthandProperties(t *testing.T) {
+	const SCRIPT = `
+	var b = 1;
+	var a = {b, get() {return "c"}};
+
+	assert.sameValue(a.b, b, "#1");
+	assert.sameValue(a.get(), "c", "#2");
+
+	var obj = {
+		w\u0069th() { return 42; }
+    };
+
+	assert.sameValue(obj['with'](), 42, 'property exists');
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 func TestObjectAssign(t *testing.T) {
 	const SCRIPT = `
 	assert.sameValue(Object.assign({ b: 1 }, { get a() {
