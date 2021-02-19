@@ -759,31 +759,27 @@ func (r *Runtime) builtin_thrower(FunctionCall) Value {
 
 func (r *Runtime) eval(srcVal valueString, direct, strict bool, this Value) Value {
 	src := escapeInvalidUtf16(srcVal)
-	p, err := r.compile("<eval>", src, strict, true)
+	vm := r.vm
+	p, err := r.compile("<eval>", src, strict, true, !direct || vm.stash == nil)
 	if err != nil {
 		panic(err)
 	}
 
-	vm := r.vm
-
 	vm.pushCtx()
 	vm.prg = p
 	vm.pc = 0
+	vm.args = 0
+	vm.result = _undefined
 	if !direct {
 		vm.stash = nil
 	}
 	vm.sb = vm.sp
 	vm.push(this)
-	if strict {
-		vm.push(valueTrue)
-	} else {
-		vm.push(valueFalse)
-	}
 	vm.run()
+	retval := vm.result
 	vm.popCtx()
 	vm.halt = false
-	retval := vm.stack[vm.sp-1]
-	vm.sp -= 2
+	vm.sp -= 1
 	return retval
 }
 
@@ -1083,14 +1079,14 @@ func New() *Runtime {
 // method. This representation is not linked to a runtime in any way and can be run in multiple runtimes (possibly
 // at the same time).
 func Compile(name, src string, strict bool) (*Program, error) {
-	return compile(name, src, strict, false)
+	return compile(name, src, strict, false, true)
 }
 
 // CompileAST creates an internal representation of the JavaScript code that can be later run using the Runtime.RunProgram()
 // method. This representation is not linked to a runtime in any way and can be run in multiple runtimes (possibly
 // at the same time).
 func CompileAST(prg *js_ast.Program, strict bool) (*Program, error) {
-	return compileAST(prg, strict, false)
+	return compileAST(prg, strict, false, true)
 }
 
 // MustCompile is like Compile but panics if the code cannot be compiled.
@@ -1126,19 +1122,17 @@ func Parse(name, src string, options ...parser.Option) (prg *js_ast.Program, err
 	return
 }
 
-func compile(name, src string, strict, eval bool, parserOptions ...parser.Option) (p *Program, err error) {
+func compile(name, src string, strict, eval, inGlobal bool, parserOptions ...parser.Option) (p *Program, err error) {
 	prg, err := Parse(name, src, parserOptions...)
 	if err != nil {
 		return
 	}
 
-	return compileAST(prg, strict, eval)
+	return compileAST(prg, strict, eval, inGlobal)
 }
 
-func compileAST(prg *js_ast.Program, strict, eval bool) (p *Program, err error) {
+func compileAST(prg *js_ast.Program, strict, eval, inGlobal bool) (p *Program, err error) {
 	c := newCompiler()
-	c.scope.strict = strict
-	c.scope.eval = eval
 
 	defer func() {
 		if x := recover(); x != nil {
@@ -1152,13 +1146,13 @@ func compileAST(prg *js_ast.Program, strict, eval bool) (p *Program, err error) 
 		}
 	}()
 
-	c.compile(prg)
+	c.compile(prg, strict, eval, inGlobal)
 	p = c.p
 	return
 }
 
-func (r *Runtime) compile(name, src string, strict, eval bool) (p *Program, err error) {
-	p, err = compile(name, src, strict, eval, r.parserOptions...)
+func (r *Runtime) compile(name, src string, strict, eval, inGlobal bool) (p *Program, err error) {
+	p, err = compile(name, src, strict, eval, inGlobal, r.parserOptions...)
 	if err != nil {
 		switch x1 := err.(type) {
 		case *CompilerSyntaxError:
@@ -1181,7 +1175,7 @@ func (r *Runtime) RunString(str string) (Value, error) {
 
 // RunScript executes the given string in the global context.
 func (r *Runtime) RunScript(name, src string) (Value, error) {
-	p, err := r.compile(name, src, false, false)
+	p, err := r.compile(name, src, false, false, true)
 
 	if err != nil {
 		return nil, err
@@ -1208,9 +1202,10 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	}
 	r.vm.prg = p
 	r.vm.pc = 0
+	r.vm.result = _undefined
 	ex := r.vm.runTry()
 	if ex == nil {
-		result = r.vm.pop()
+		result = r.vm.result
 	} else {
 		err = ex
 	}
@@ -2212,9 +2207,7 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *Objec
 func returnIter(iter *Object) {
 	retMethod := toMethod(iter.self.getStr("return", nil))
 	if retMethod != nil {
-		_ = tryFunc(func() {
-			retMethod(FunctionCall{This: iter})
-		})
+		iter.runtime.toObject(retMethod(FunctionCall{This: iter}))
 	}
 }
 
@@ -2224,11 +2217,14 @@ func (r *Runtime) iterate(iter *Object, step func(Value)) {
 		if nilSafe(res.self.getStr("done", nil)).ToBoolean() {
 			break
 		}
+		value := nilSafe(res.self.getStr("value", nil))
 		err := tryFunc(func() {
-			step(nilSafe(res.self.getStr("value", nil)))
+			step(value)
 		})
 		if err != nil {
-			returnIter(iter)
+			_ = tryFunc(func() {
+				returnIter(iter)
+			})
 			panic(err)
 		}
 	}

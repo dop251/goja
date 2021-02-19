@@ -117,7 +117,7 @@ func testMarshalNode(node interface{}) interface{} {
 
 	case *ast.ForInStatement:
 		return marshal("ForIn",
-			"Into", marshal("", node.Into),
+			"Into", testMarshalNode(node.Into),
 			"Source", marshal("", node.Source),
 			"Body", marshal("", node.Body),
 		)
@@ -161,6 +161,15 @@ func testMarshalNode(node interface{}) interface{} {
 	case *ast.VariableStatement:
 		return marshal("Var", testMarshalNode(node.List))
 
+	// Special
+	case *ast.ForDeclaration:
+		return marshal("For-Into-Decl", testMarshalNode(node.Binding))
+
+	case *ast.ForIntoVar:
+		return marshal("For-Into-Var", testMarshalNode(node.Binding))
+
+	case *ast.BindingIdentifier:
+		return marshal("Binding-Identifier", "Id", node.Name)
 	}
 
 	{
@@ -815,10 +824,12 @@ func TestParserAST(t *testing.T) {
       "Body": {
         "BlockStatement": []
       },
-      "Into": [
-        "abc",
-        null
-      ],
+      "Into": {
+		"For-Into-Var": [
+           "abc",
+           null
+        ]
+      },
       "Source": {
         "Identifier": "def"
       }

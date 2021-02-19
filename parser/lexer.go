@@ -149,6 +149,7 @@ func isId(tkn token.Token) bool {
 		token.DO,
 
 		token.VAR,
+		token.LET,
 		token.FOR,
 		token.NEW,
 		token.TRY,
@@ -158,6 +159,7 @@ func isId(tkn token.Token) bool {
 		token.VOID,
 		token.WITH,
 
+		token.CONST,
 		token.WHILE,
 		token.BREAK,
 		token.CATCH,
@@ -180,6 +182,14 @@ func isId(tkn token.Token) bool {
 		return true
 	}
 	return false
+}
+
+func (self *_parser) peek() (token.Token, bool) {
+	implicitSemicolon, insertSemicolon, chr, chrOffset, offset := self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
+	tok, _, _, _ := self.scan()
+	semi := self.implicitSemicolon
+	self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset = implicitSemicolon, insertSemicolon, chr, chrOffset, offset
+	return tok, semi
 }
 
 func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unistring.String, idx file.Idx) {
@@ -239,6 +249,15 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 					}
 					return
 
+				case token.LET:
+					// check for identifier
+					tok, semi := self.peek()
+					if tok == token.LEFT_BRACKET {
+						self.insertSemicolon = false
+					} else if semi || tok != token.IDENTIFIER {
+						tkn = token.IDENTIFIER
+					}
+					return
 				case
 					token.THIS,
 					token.BREAK,
@@ -251,6 +270,15 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 						return
 					}
 					self.insertSemicolon = true
+					if tkn == token.LET {
+						// check for identifier
+						tok, semi := self.peek()
+						if tok == token.LEFT_BRACKET {
+							self.insertSemicolon = false
+						} else if semi || tok != token.IDENTIFIER {
+							tkn = token.IDENTIFIER
+						}
+					}
 					return
 
 				default:

@@ -65,10 +65,14 @@ func (self *_parser) parseStatement() ast.Statement {
 		return self.parseWithStatement()
 	case token.VAR:
 		return self.parseVariableStatement()
+	case token.LET:
+		return self.parseLexicalDeclaration(self.token)
+	case token.CONST:
+		return self.parseLexicalDeclaration(self.token)
 	case token.FUNCTION:
-		self.parseFunction(true)
-		// FIXME
-		return &ast.EmptyStatement{}
+		return &ast.FunctionDeclaration{
+			Function: self.parseFunction(true),
+		}
 	case token.SWITCH:
 		return self.parseSwitchStatement()
 	case token.RETURN:
@@ -118,19 +122,22 @@ func (self *_parser) parseTryStatement() ast.Statement {
 	if self.token == token.CATCH {
 		catch := self.idx
 		self.next()
-		self.expect(token.LEFT_PARENTHESIS)
-		if self.token != token.IDENTIFIER {
-			self.expect(token.IDENTIFIER)
-			self.nextStatement()
-			return &ast.BadStatement{From: catch, To: self.idx}
-		} else {
-			identifier := self.parseIdentifier()
-			self.expect(token.RIGHT_PARENTHESIS)
-			node.Catch = &ast.CatchStatement{
-				Catch:     catch,
-				Parameter: identifier,
-				Body:      self.parseBlockStatement(),
+		var parameter *ast.Identifier
+		if self.token == token.LEFT_PARENTHESIS {
+			self.next()
+			if self.token != token.IDENTIFIER {
+				self.expect(token.IDENTIFIER)
+				self.nextStatement()
+				return &ast.BadStatement{From: catch, To: self.idx}
+			} else {
+				parameter = self.parseIdentifier()
+				self.expect(token.RIGHT_PARENTHESIS)
 			}
+		}
+		node.Catch = &ast.CatchStatement{
+			Catch:     catch,
+			Parameter: parameter,
+			Body:      self.parseBlockStatement(),
 		}
 	}
 
@@ -192,11 +199,6 @@ func (self *_parser) parseFunction(declaration bool) *ast.FunctionLiteral {
 	var name *ast.Identifier
 	if self.token == token.IDENTIFIER {
 		name = self.parseIdentifier()
-		if declaration {
-			self.scope.declare(&ast.FunctionDeclaration{
-				Function: node,
-			})
-		}
 	} else if declaration {
 		// Use expect error handling
 		self.expect(token.IDENTIFIER)
@@ -364,7 +366,7 @@ func (self *_parser) parseIterationStatement() ast.Statement {
 	return self.parseStatement()
 }
 
-func (self *_parser) parseForIn(idx file.Idx, into ast.Expression) *ast.ForInStatement {
+func (self *_parser) parseForIn(idx file.Idx, into ast.ForInto) *ast.ForInStatement {
 
 	// Already have consumed "<into> in"
 
@@ -379,11 +381,11 @@ func (self *_parser) parseForIn(idx file.Idx, into ast.Expression) *ast.ForInSta
 	}
 }
 
-func (self *_parser) parseForOf(idx file.Idx, into ast.Expression) *ast.ForOfStatement {
+func (self *_parser) parseForOf(idx file.Idx, into ast.ForInto) *ast.ForOfStatement {
 
 	// Already have consumed "<into> of"
 
-	source := self.parseExpression()
+	source := self.parseAssignmentExpression()
 	self.expect(token.RIGHT_PARENTHESIS)
 
 	return &ast.ForOfStatement{
@@ -394,7 +396,7 @@ func (self *_parser) parseForOf(idx file.Idx, into ast.Expression) *ast.ForOfSta
 	}
 }
 
-func (self *_parser) parseFor(idx file.Idx, initializer ast.Expression) *ast.ForStatement {
+func (self *_parser) parseFor(idx file.Idx, initializer ast.ForLoopInitializer) *ast.ForStatement {
 
 	// Already have consumed "<initializer> ;"
 
@@ -423,74 +425,132 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 	idx := self.expect(token.FOR)
 	self.expect(token.LEFT_PARENTHESIS)
 
-	var left []ast.Expression
+	var initializer ast.ForLoopInitializer
 
 	forIn := false
 	forOf := false
+	var into ast.ForInto
 	if self.token != token.SEMICOLON {
 
 		allowIn := self.scope.allowIn
 		self.scope.allowIn = false
-		if self.token == token.VAR {
-			var_ := self.idx
+		tok := self.token
+		if tok == token.VAR || tok == token.LET || tok == token.CONST {
+			idx := self.idx
 			self.next()
-			list := self.parseVariableDeclarationList(var_)
+			if self.token == token.LET {
+				self.token = token.IDENTIFIER
+			}
+			var list []*ast.VariableExpression
+			if tok == token.VAR {
+				list = self.parseVarDeclarationList(idx)
+			} else {
+				list = self.parseVariableDeclarationList()
+			}
 			if len(list) == 1 {
 				if self.token == token.IN {
 					self.next() // in
 					forIn = true
-				} else if self.token == token.IDENTIFIER {
-					if self.literal == "of" {
-						self.next()
-						forOf = true
+				} else if self.token == token.IDENTIFIER && self.literal == "of" {
+					self.next()
+					forOf = true
+				}
+			}
+			if forIn || forOf {
+				if tok == token.VAR {
+					into = &ast.ForIntoVar{
+						Binding: list[0],
+					}
+				} else {
+					into = &ast.ForDeclaration{
+						Idx:     idx,
+						IsConst: tok == token.CONST,
+						Binding: &ast.BindingIdentifier{
+							Name: list[0].Name,
+							Idx:  list[0].Idx,
+						},
+					}
+				}
+			} else {
+				if tok == token.VAR {
+					initializer = &ast.ForLoopInitializerVarDeclList{
+						List: list,
+					}
+				} else {
+					initializer = &ast.ForLoopInitializerLexicalDecl{
+						LexicalDeclaration: ast.LexicalDeclaration{
+							Idx:   idx,
+							Token: tok,
+							List:  list,
+						},
 					}
 				}
 			}
-			left = list
 		} else {
-			left = append(left, self.parseExpression())
+			expr := self.parseExpression()
 			if self.token == token.IN {
 				self.next()
 				forIn = true
-			} else if self.token == token.IDENTIFIER {
-				if self.literal == "of" {
-					self.next()
-					forOf = true
+			} else if self.token == token.IDENTIFIER && self.literal == "of" {
+				self.next()
+				forOf = true
+			}
+			if forIn || forOf {
+				switch expr.(type) {
+				case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression, *ast.VariableExpression:
+					// These are all acceptable
+				default:
+					self.error(idx, "Invalid left-hand side in for-in or for-of")
+					self.nextStatement()
+					return &ast.BadStatement{From: idx, To: self.idx}
+				}
+				into = &ast.ForIntoExpression{
+					Expression: expr,
+				}
+			} else {
+				initializer = &ast.ForLoopInitializerExpression{
+					Expression: expr,
 				}
 			}
 		}
 		self.scope.allowIn = allowIn
 	}
 
-	if forIn || forOf {
-		switch left[0].(type) {
-		case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression, *ast.VariableExpression:
-			// These are all acceptable
-		default:
-			self.error(idx, "Invalid left-hand side in for-in or for-of")
-			self.nextStatement()
-			return &ast.BadStatement{From: idx, To: self.idx}
-		}
-		if forIn {
-			return self.parseForIn(idx, left[0])
-		}
-		return self.parseForOf(idx, left[0])
+	if forIn {
+		return self.parseForIn(idx, into)
+	}
+	if forOf {
+		return self.parseForOf(idx, into)
 	}
 
 	self.expect(token.SEMICOLON)
-	return self.parseFor(idx, &ast.SequenceExpression{Sequence: left})
+	return self.parseFor(idx, initializer)
 }
 
 func (self *_parser) parseVariableStatement() *ast.VariableStatement {
 
 	idx := self.expect(token.VAR)
 
-	list := self.parseVariableDeclarationList(idx)
+	list := self.parseVarDeclarationList(idx)
 	self.semicolon()
 
 	return &ast.VariableStatement{
 		Var:  idx,
 		List: list,
+	}
+}
+
+func (self *_parser) parseLexicalDeclaration(tok token.Token) *ast.LexicalDeclaration {
+
+	idx := self.expect(tok)
+
+	list := self.parseVariableDeclarationList()
+	self.semicolon()
+
+	return &ast.LexicalDeclaration{
+		Idx:   idx,
+		Token: tok,
+		List:  list,
 	}
 }
 
@@ -558,17 +618,7 @@ func (self *_parser) parseSourceElement() ast.Statement {
 	return self.parseStatement()
 }
 
-func (self *_parser) parseSourceElements() []ast.Statement {
-	body := []ast.Statement(nil)
-
-	for {
-		if self.token != token.STRING {
-			break
-		}
-
-		body = append(body, self.parseSourceElement())
-	}
-
+func (self *_parser) parseSourceElements() (body []ast.Statement) {
 	for self.token != token.EOF {
 		body = append(body, self.parseSourceElement())
 	}
