@@ -141,7 +141,9 @@ func (self *_parser) parseRegExpLiteral() *ast.RegExpLiteral {
 }
 
 func (self *_parser) parseVariableDeclaration(declarationList *[]*ast.VariableExpression) ast.Expression {
-
+	if self.token == token.LET {
+		self.token = token.IDENTIFIER
+	}
 	if self.token != token.IDENTIFIER {
 		idx := self.expect(token.IDENTIFIER)
 		self.nextStatement()
@@ -779,6 +781,9 @@ func (self *_parser) parseConditionlExpression() ast.Expression {
 }
 
 func (self *_parser) parseAssignmentExpression() ast.Expression {
+	if self.token == token.LET {
+		self.token = token.IDENTIFIER
+	}
 	left := self.parseConditionlExpression()
 	var operator token.Token
 	switch self.token {
@@ -829,6 +834,9 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 }
 
 func (self *_parser) parseExpression() ast.Expression {
+	if self.token == token.LET {
+		self.token = token.IDENTIFIER
+	}
 	next := self.parseAssignmentExpression
 	left := next()
 

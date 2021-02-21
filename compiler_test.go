@@ -2579,6 +2579,60 @@ func TestForOfReturn1(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestForOfLet(t *testing.T) {
+	const SCRIPT = `
+	var iterCount = 0;
+	function f() {}
+	for (var let of [23]) {
+		f(let);
+		if (let != 23) {
+			throw new Error("");
+		}
+		iterCount += 1;
+	}
+
+	iterCount;
+`
+	testScript1(SCRIPT, valueInt(1), t)
+}
+
+func TestForOfLetLet(t *testing.T) {
+	const SCRIPT = `
+	for (let let of [23]) {
+	}
+`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
+func TestForHeadLet(t *testing.T) {
+	const SCRIPT = `
+	for (let = 0; let < 2; let++);
+`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestLhsLet(t *testing.T) {
+	const SCRIPT = `
+	let = 1;
+	let;
+	`
+	testScript1(SCRIPT, valueInt(1), t)
+}
+
+func TestLetPostfixASI(t *testing.T) {
+	const SCRIPT = `
+	let
+	++
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
 func TestIteratorReturnNormal(t *testing.T) {
 	const SCRIPT = `
 	var iterable = {};
@@ -3066,6 +3120,42 @@ func TestLetASI1(t *testing.T) {
 	_, err := Compile("", SCRIPT, true)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLetNoASI(t *testing.T) {
+	const SCRIPT = `
+	function f() {}let
+x = 1;
+	`
+
+	_, err := Compile("", SCRIPT, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLetNoASI1(t *testing.T) {
+	const SCRIPT = `
+let
+let = 1;
+	`
+
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
+func TestLetArrayWithNewline(t *testing.T) {
+	const SCRIPT = `
+    with ({}) let
+    [a] = 0;
+	`
+
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected error")
 	}
 }
 

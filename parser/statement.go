@@ -29,6 +29,7 @@ func (self *_parser) parseEmptyStatement() ast.Statement {
 
 func (self *_parser) parseStatementList() (list []ast.Statement) {
 	for self.token != token.RIGHT_BRACE && self.token != token.EOF {
+		self.scope.allowLet = true
 		list = append(list, self.parseStatement())
 	}
 
@@ -66,7 +67,11 @@ func (self *_parser) parseStatement() ast.Statement {
 	case token.VAR:
 		return self.parseVariableStatement()
 	case token.LET:
-		return self.parseLexicalDeclaration(self.token)
+		tok := self.peek()
+		if tok == token.LEFT_BRACKET || self.scope.allowLet && (tok == token.IDENTIFIER || tok == token.LET || tok == token.LEFT_BRACE) {
+			return self.parseLexicalDeclaration(self.token)
+		}
+		self.insertSemicolon = true
 	case token.CONST:
 		return self.parseLexicalDeclaration(self.token)
 	case token.FUNCTION:
@@ -324,7 +329,7 @@ func (self *_parser) parseWithStatement() ast.Statement {
 		Object: self.parseExpression(),
 	}
 	self.expect(token.RIGHT_PARENTHESIS)
-
+	self.scope.allowLet = false
 	node.Body = self.parseStatement()
 
 	return node
@@ -363,6 +368,7 @@ func (self *_parser) parseIterationStatement() ast.Statement {
 	defer func() {
 		self.scope.inIteration = inIteration
 	}()
+	self.scope.allowLet = false
 	return self.parseStatement()
 }
 
@@ -435,12 +441,16 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 		allowIn := self.scope.allowIn
 		self.scope.allowIn = false
 		tok := self.token
+		if tok == token.LET {
+			switch self.peek() {
+			case token.IDENTIFIER, token.LEFT_BRACKET, token.LEFT_BRACE:
+			default:
+				tok = token.IDENTIFIER
+			}
+		}
 		if tok == token.VAR || tok == token.LET || tok == token.CONST {
 			idx := self.idx
 			self.next()
-			if self.token == token.LET {
-				self.token = token.IDENTIFIER
-			}
 			var list []*ast.VariableExpression
 			if tok == token.VAR {
 				list = self.parseVarDeclarationList(idx)
@@ -566,6 +576,7 @@ func (self *_parser) parseDoWhileStatement() ast.Statement {
 	if self.token == token.LEFT_BRACE {
 		node.Body = self.parseBlockStatement()
 	} else {
+		self.scope.allowLet = false
 		node.Body = self.parseStatement()
 	}
 
@@ -603,24 +614,23 @@ func (self *_parser) parseIfStatement() ast.Statement {
 	if self.token == token.LEFT_BRACE {
 		node.Consequent = self.parseBlockStatement()
 	} else {
+		self.scope.allowLet = false
 		node.Consequent = self.parseStatement()
 	}
 
 	if self.token == token.ELSE {
 		self.next()
+		self.scope.allowLet = false
 		node.Alternate = self.parseStatement()
 	}
 
 	return node
 }
 
-func (self *_parser) parseSourceElement() ast.Statement {
-	return self.parseStatement()
-}
-
 func (self *_parser) parseSourceElements() (body []ast.Statement) {
 	for self.token != token.EOF {
-		body = append(body, self.parseSourceElement())
+		self.scope.allowLet = true
+		body = append(body, self.parseStatement())
 	}
 
 	return body
