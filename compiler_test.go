@@ -988,6 +988,13 @@ func TestNestedTryInStashlessFunc(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestEvalLexicalDecl(t *testing.T) {
+	const SCRIPT = `
+	eval("let x = true; x;");
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func TestEvalInCatchInStashlessFunc(t *testing.T) {
 	const SCRIPT = `
 	function f() {
@@ -2798,6 +2805,34 @@ func TestEvalBindingDeleteFunc(t *testing.T) {
 	})();
 	`
 	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestDeleteGlobalLexical(t *testing.T) {
+	const SCRIPT = `
+	let x;
+	delete x;
+	`
+	testScript1(SCRIPT, valueFalse, t)
+}
+
+func TestDeleteGlobalEval(t *testing.T) {
+	const SCRIPT = `
+	eval("var x");
+	delete x;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestGlobalVarNames(t *testing.T) {
+	vm := New()
+	_, err := vm.RunString("(0,eval)('var x')")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = vm.RunString("let x")
+	if err == nil {
+		t.Fatal("Expected error")
+	}
 }
 
 func TestTryResultEmpty(t *testing.T) {

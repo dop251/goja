@@ -101,6 +101,7 @@ func (self *_parser) parseStatement() ast.Statement {
 			}
 		}
 		self.scope.labels = append(self.scope.labels, label) // Push the label
+		self.scope.allowLet = false
 		statement := self.parseStatement()
 		self.scope.labels = self.scope.labels[:len(self.scope.labels)-1] // Pop the label
 		return &ast.LabelledStatement{
@@ -551,8 +552,10 @@ func (self *_parser) parseVariableStatement() *ast.VariableStatement {
 }
 
 func (self *_parser) parseLexicalDeclaration(tok token.Token) *ast.LexicalDeclaration {
-
 	idx := self.expect(tok)
+	if !self.scope.allowLet {
+		self.error(idx, "Lexical declaration cannot appear in a single-statement context")
+	}
 
 	list := self.parseVariableDeclarationList()
 	self.semicolon()

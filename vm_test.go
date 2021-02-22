@@ -15,7 +15,7 @@ func TestVM1(t *testing.T) {
 	vm.prg = &Program{
 		values: []Value{valueInt(2), valueInt(3), asciiString("test")},
 		code: []instruction{
-			&bindVarsGlobal{names: []unistring.String{"v"}},
+			&bindGlobal{vars: []unistring.String{"v"}},
 			newObject,
 			setGlobal("v"),
 			loadVal(2),

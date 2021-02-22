@@ -261,6 +261,14 @@ func (s *stash) initByIdx(idx uint32, v Value) {
 	s.values[idx] = v
 }
 
+func (s *stash) initByName(name unistring.String, v Value) {
+	if idx, exists := s.names[name]; exists {
+		s.values[idx&^maskTyp] = v
+	} else {
+		panic(referenceError(fmt.Sprintf("%s is not defined", name)))
+	}
+}
+
 func (s *stash) getByIdx(idx uint32) Value {
 	return s.values[idx]
 }
@@ -343,6 +351,20 @@ func (s *stash) createBinding(name unistring.String, deletable bool) {
 	}
 }
 
+func (s *stash) createLexBinding(name unistring.String, isConst bool) {
+	if s.names == nil {
+		s.names = make(map[unistring.String]uint32)
+	}
+	if _, exists := s.names[name]; !exists {
+		idx := uint32(len(s.names))
+		if isConst {
+			idx |= maskConst
+		}
+		s.names[name] = idx
+		s.values = append(s.values, nil)
+	}
+}
+
 func (s *stash) deleteBinding(name unistring.String) {
 	delete(s.names, name)
 }
@@ -356,6 +378,7 @@ func (vm *vm) newStash() {
 
 func (vm *vm) init() {
 	vm.sb = -1
+	vm.stash = &vm.r.global.stash
 }
 
 func (vm *vm) run() {
@@ -1606,6 +1629,14 @@ func (s initStash) exec(vm *vm) {
 	vm.sp--
 }
 
+type initGlobal unistring.String
+
+func (s initGlobal) exec(vm *vm) {
+	vm.sp--
+	vm.r.global.stash.initByName(unistring.String(s), vm.stack[vm.sp])
+	vm.pc++
+}
+
 type resolveVar1 unistring.String
 
 func (s resolveVar1) exec(vm *vm) {
@@ -1671,6 +1702,9 @@ func (d deleteGlobal) exec(vm *vm) {
 	var ret bool
 	if vm.r.globalObject.self.hasPropertyStr(name) {
 		ret = vm.r.globalObject.self.deleteStr(name, false)
+		if ret {
+			delete(vm.r.global.varNames, name)
+		}
 	} else {
 		ret = true
 	}
@@ -1716,24 +1750,14 @@ end:
 type setGlobal unistring.String
 
 func (s setGlobal) exec(vm *vm) {
-	v := vm.peek()
-
-	vm.r.globalObject.self.setOwnStr(unistring.String(s), v, false)
+	vm.r.setGlobal(unistring.String(s), vm.peek(), false)
 	vm.pc++
 }
 
 type setGlobalStrict unistring.String
 
 func (s setGlobalStrict) exec(vm *vm) {
-	v := vm.peek()
-
-	name := unistring.String(s)
-	o := vm.r.globalObject.self
-	if o.hasOwnPropertyStr(name) {
-		o.setOwnStr(name, v, true)
-	} else {
-		vm.r.throwReferenceError(name)
-	}
+	vm.r.setGlobal(unistring.String(s), vm.peek(), true)
 	vm.pc++
 }
 
@@ -2554,44 +2578,43 @@ func (n *newFunc) exec(vm *vm) {
 	vm.pc++
 }
 
-func (vm *vm) bindStashVars(names []unistring.String, deletable bool) {
-	var target *stash
+func (vm *vm) alreadyDeclared(name unistring.String) Value {
+	return vm.r.newError(vm.r.global.SyntaxError, "Identifier '%s' has already been declared", name)
+}
+
+func (vm *vm) checkBindVarsGlobal(names []unistring.String) {
+	o := vm.r.globalObject.self
+	sn := vm.r.global.stash.names
 	for _, name := range names {
-		for s := vm.stash; s != nil; s = s.outer {
-			if idx, exists := s.names[name]; exists && idx&maskVar == 0 {
-				panic(vm.r.newError(vm.r.global.SyntaxError, "Identifier '%s' has already been declared", name))
-			}
-			if s.function {
-				target = s
-				break
-			}
+		if !o.hasOwnPropertyStr(name) && !o.isExtensible() {
+			panic(vm.r.NewTypeError("Cannot define global variable '%s', global object is not extensible", name))
 		}
-	}
-	if target == nil {
-		target = vm.stash
-	}
-	for _, name := range names {
-		target.createBinding(name, deletable)
+		if _, exists := sn[name]; exists {
+			panic(vm.alreadyDeclared(name))
+		}
 	}
 }
 
-func (vm *vm) bindVarsGlobal(names []unistring.String, d bool) {
-	o := vm.r.globalObject.self
-	for _, name := range names {
-		if !o.hasOwnPropertyStr(name) {
-			if !o.isExtensible() {
-				panic(vm.r.NewTypeError("Cannot define global variable '%s', global object is not extensible", name))
-			}
-		}
+func (vm *vm) createGlobalVarBindings(names []unistring.String, d bool) {
+	globalVarNames := vm.r.global.varNames
+	if globalVarNames == nil {
+		globalVarNames = make(map[unistring.String]struct{})
+		vm.r.global.varNames = globalVarNames
 	}
+	o := vm.r.globalObject.self
 	for _, name := range names {
 		o._putProp(name, _undefined, true, true, d)
+		globalVarNames[name] = struct{}{}
 	}
 }
 
-func (vm *vm) bindFuncsGlobal(names []unistring.String, d bool) {
+func (vm *vm) checkBindFuncsGlobal(names []unistring.String) {
 	o := vm.r.globalObject.self
+	sn := vm.r.global.stash.names
 	for _, name := range names {
+		if _, exists := sn[name]; exists {
+			panic(vm.alreadyDeclared(name))
+		}
 		prop := o.getOwnPropStr(name)
 		allowed := true
 		switch prop := prop.(type) {
@@ -2604,9 +2627,26 @@ func (vm *vm) bindFuncsGlobal(names []unistring.String, d bool) {
 			panic(vm.r.NewTypeError("Cannot redefine global function '%s'", name))
 		}
 	}
+}
+
+func (vm *vm) checkBindLexGlobal(names []unistring.String) {
+	o := vm.r.globalObject.self
+	s := &vm.r.global.stash
 	for _, name := range names {
-		o._putProp(name, _undefined, true, true, d)
+		if _, exists := vm.r.global.varNames[name]; exists {
+			goto fail
+		}
+		if _, exists := s.names[name]; exists {
+			goto fail
+		}
+		if prop, ok := o.getOwnPropStr(name).(*valueProperty); ok && !prop.configurable {
+			goto fail
+		}
+		continue
+	fail:
+		panic(vm.alreadyDeclared(name))
 	}
+	return
 }
 
 type bindVars struct {
@@ -2615,28 +2655,49 @@ type bindVars struct {
 }
 
 func (d *bindVars) exec(vm *vm) {
-	vm.bindStashVars(d.names, d.deletable)
+	var target *stash
+	for _, name := range d.names {
+		for s := vm.stash; s != nil; s = s.outer {
+			if idx, exists := s.names[name]; exists && idx&maskVar == 0 {
+				panic(vm.alreadyDeclared(name))
+			}
+			if s.function {
+				target = s
+				break
+			}
+		}
+	}
+	if target == nil {
+		target = vm.stash
+	}
+	deletable := d.deletable
+	for _, name := range d.names {
+		target.createBinding(name, deletable)
+	}
 	vm.pc++
 }
 
-type bindVarsGlobal bindVars
+type bindGlobal struct {
+	vars, funcs, lets, consts []unistring.String
 
-func (d *bindVarsGlobal) exec(vm *vm) {
-	vm.bindVarsGlobal(d.names, d.deletable)
-	vm.pc++
+	deletable bool
 }
 
-type bindFuncs bindVars
+func (b *bindGlobal) exec(vm *vm) {
+	vm.checkBindFuncsGlobal(b.funcs)
+	vm.checkBindLexGlobal(b.lets)
+	vm.checkBindLexGlobal(b.consts)
+	vm.checkBindVarsGlobal(b.vars)
 
-func (d *bindFuncs) exec(vm *vm) {
-	vm.bindStashVars(d.names, d.deletable)
-	vm.pc++
-}
-
-type bindFuncsGlobal bindVars
-
-func (d *bindFuncsGlobal) exec(vm *vm) {
-	vm.bindFuncsGlobal(d.names, d.deletable)
+	s := &vm.r.global.stash
+	for _, name := range b.lets {
+		s.createLexBinding(name, false)
+	}
+	for _, name := range b.consts {
+		s.createLexBinding(name, true)
+	}
+	vm.createGlobalVarBindings(b.funcs, b.deletable)
+	vm.createGlobalVarBindings(b.vars, b.deletable)
 	vm.pc++
 }
 

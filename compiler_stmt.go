@@ -726,9 +726,6 @@ func (c *compiler) compileVariableStatement(v *ast.VariableStatement) {
 }
 
 func (c *compiler) compileLexicalDeclaration(v *ast.LexicalDeclaration) {
-	if c.block == nil || (c.block.typ != blockScope && c.block.typ != blockIterScope) {
-		c.throwSyntaxError(int(v.Idx)-1, "Lexical declaration cannot appear in a single-statement context")
-	}
 	for _, e := range v.List {
 		b := c.scope.boundNames[e.Name]
 		if b == nil {
@@ -746,7 +743,11 @@ func (c *compiler) compileLexicalDeclaration(v *ast.LexicalDeclaration) {
 			}
 			c.emit(loadUndef)
 		}
-		b.emitInit()
+		if c.scope.outer != nil {
+			b.emitInit()
+		} else {
+			c.emit(initGlobal(e.Name))
+		}
 	}
 }
 

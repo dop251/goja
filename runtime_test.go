@@ -168,15 +168,65 @@ func TestSetFunc(t *testing.T) {
 	sum(40, 2);
 	`
 	r := New()
-	r.Set("sum", func(call FunctionCall) Value {
+	err := r.Set("sum", func(call FunctionCall) Value {
 		return r.ToValue(call.Argument(0).ToInteger() + call.Argument(1).ToInteger())
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	v, err := r.RunString(SCRIPT)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if i := v.ToInteger(); i != 42 {
 		t.Fatalf("Expected 42, got: %d", i)
+	}
+}
+
+func ExampleRuntime_Set_lexical() {
+	r := New()
+	_, err := r.RunString("let x")
+	if err != nil {
+		panic(err)
+	}
+	err = r.Set("x", 1)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Print(r.Get("x"), r.GlobalObject().Get("x"))
+	// Output: 1 <nil>
+}
+
+func TestRecursiveRun(t *testing.T) {
+	// Make sure that a recursive call to Run*() correctly sets the environment and no stash or stack
+	// corruptions occur.
+	vm := New()
+	vm.Set("f", func() (Value, error) {
+		return vm.RunString("let x = 1; { let z = 100, z1 = 200, z2 = 300, z3 = 400; } x;")
+	})
+	res, err := vm.RunString(`
+	function f1() {
+		let x = 2;
+		eval('');
+		{
+			let y = 3;
+			let res = f();
+			if (x !== 2) { // check for stash corruption
+				throw new Error("x="+x);
+			}
+			if (y !== 3) { // check for stack corruption
+				throw new Error("y="+y);
+			}
+			return res;
+		}
+	};
+	f1();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.SameAs(valueInt(1)) {
+		t.Fatal(res)
 	}
 }
 

@@ -633,6 +633,7 @@ func (c *compiler) compile(in *ast.Program, strict, eval, inGlobal bool) {
 	}
 	scope.strict = strict
 	ownVarScope := eval && strict
+	ownLexScope := !inGlobal || eval
 	if ownVarScope {
 		c.newBlockScope()
 		scope = c.scope
@@ -640,44 +641,51 @@ func (c *compiler) compile(in *ast.Program, strict, eval, inGlobal bool) {
 	}
 	funcs := c.extractFunctions(in.Body)
 	c.createFunctionBindings(funcs)
-	if !ownVarScope {
-		if l := len(scope.bindings); l > 0 {
-			names := make([]unistring.String, l)
-			for i, b := range scope.bindings {
-				names[i] = b.name
-			}
-			if inGlobal {
-				c.emit(&bindFuncsGlobal{names: names, deletable: eval})
-			} else {
-				c.emit(&bindFuncs{names: names, deletable: eval})
-			}
-		}
-	}
-	ll := len(scope.bindings)
+	numFuncs := len(scope.bindings)
 	c.compileDeclList(in.DeclarationList, false)
-	if !ownVarScope {
-		if l := len(scope.bindings) - ll; l > 0 {
-			names := make([]unistring.String, l)
-			for i, b := range scope.bindings[ll:] {
-				names[i] = b.name
-			}
-			if inGlobal {
-				c.emit(&bindVarsGlobal{names: names, deletable: eval})
-			} else {
-				c.emit(&bindVars{names: names, deletable: eval})
-			}
+	numVars := len(scope.bindings) - numFuncs
+	vars := make([]unistring.String, len(scope.bindings))
+	for i, b := range scope.bindings {
+		vars[i] = b.name
+	}
+	if len(vars) > 0 && !ownVarScope && ownLexScope {
+		if inGlobal {
+			c.emit(&bindGlobal{
+				vars:      vars[numFuncs:],
+				funcs:     vars[:numFuncs],
+				deletable: eval,
+			})
+		} else {
+			c.emit(&bindVars{names: vars, deletable: eval})
 		}
 	}
-
 	var enter *enterBlock
-	if c.compileLexicalDeclarations(in.Body, ownVarScope) {
-		c.block = &block{
-			outer:      c.block,
-			typ:        blockScope,
-			needResult: true,
+	if c.compileLexicalDeclarations(in.Body, ownVarScope || !ownLexScope) {
+		if ownLexScope {
+			c.block = &block{
+				outer:      c.block,
+				typ:        blockScope,
+				needResult: true,
+			}
+			enter = &enterBlock{}
+			c.emit(enter)
 		}
-		enter = &enterBlock{}
-		c.emit(enter)
+	}
+	if len(scope.bindings) > 0 && !ownLexScope {
+		var lets, consts []unistring.String
+		for _, b := range c.scope.bindings[numFuncs+numVars:] {
+			if b.isConst {
+				consts = append(consts, b.name)
+			} else {
+				lets = append(lets, b.name)
+			}
+		}
+		c.emit(&bindGlobal{
+			vars:   vars[numFuncs:],
+			funcs:  vars[:numFuncs],
+			lets:   lets,
+			consts: consts,
+		})
 	}
 	c.compileFunctions(funcs)
 	c.compileStatements(in.Body, true)
