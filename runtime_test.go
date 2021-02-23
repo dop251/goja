@@ -1951,6 +1951,26 @@ func TestAbandonedEnumerate(t *testing.T) {
 	testScript1(SCRIPT, asciiString("baz-foo foo-foo bar-foo "), t)
 }
 
+func TestDeclareGlobalFunc(t *testing.T) {
+	const SCRIPT = `
+	var initial;
+
+	Object.defineProperty(this, 'f', {
+	  enumerable: true,
+	  writable: true,
+	  configurable: false
+	});
+
+	(0,eval)('initial = f; function f() { return 2222; }');
+	var desc = Object.getOwnPropertyDescriptor(this, "f");
+	assert(desc.enumerable, "enumerable");
+	assert(desc.writable, "writable");
+	assert(!desc.configurable, "configurable");
+	assert.sameValue(initial(), 2222);
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

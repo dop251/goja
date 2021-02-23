@@ -1930,6 +1930,14 @@ func TestUseUnsuppliedParam(t *testing.T) {
 	testScript1(SCRIPT, asciiString(" 123 456"), t)
 }
 
+func TestForInLetWithInitializer(t *testing.T) {
+	const SCRIPT = `for (let x = 3 in {}) { }`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
 func TestForInLoop(t *testing.T) {
 	const SCRIPT = `
 	function Proto() {}
