@@ -2,6 +2,7 @@ package goja
 
 import (
 	"github.com/dop251/goja/parser"
+	"github.com/dop251/goja/unistring"
 	"testing"
 )
 
@@ -14,7 +15,7 @@ func TestVM1(t *testing.T) {
 	vm.prg = &Program{
 		values: []Value{valueInt(2), valueInt(3), asciiString("test")},
 		code: []instruction{
-			bindName("v"),
+			&bindGlobal{vars: []unistring.String{"v"}},
 			newObject,
 			setGlobal("v"),
 			loadVal(2),
@@ -23,7 +24,7 @@ func TestVM1(t *testing.T) {
 			add,
 			setElem,
 			pop,
-			getVar1("v"),
+			loadDynamic("v"),
 			halt,
 		},
 	}
@@ -264,7 +265,7 @@ fib(35);
 	}
 
 	c := newCompiler()
-	c.compile(prg)
+	c.compile(prg, false, false, true)
 	c.p.dumpCode(b.Logf)
 
 	r := &Runtime{}

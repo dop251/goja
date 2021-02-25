@@ -3,7 +3,6 @@ package goja
 import (
 	"github.com/dop251/goja/parser"
 	"io/ioutil"
-	"os"
 	"testing"
 )
 
@@ -14,7 +13,7 @@ func testScript(script string, expectedResult Value, t *testing.T) {
 	}
 
 	c := newCompiler()
-	c.compile(prg)
+	c.compile(prg, false, false, true)
 
 	r := &Runtime{}
 	r.init()
@@ -23,7 +22,6 @@ func testScript(script string, expectedResult Value, t *testing.T) {
 	vm.prg = c.p
 	vm.prg.dumpCode(t.Logf)
 	vm.run()
-	vm.pop()
 	t.Logf("stack size: %d", len(vm.stack))
 	t.Logf("stashAllocs: %d", vm.stashAllocs)
 
@@ -47,7 +45,7 @@ func testScript1(script string, expectedResult Value, t *testing.T) {
 	}
 
 	c := newCompiler()
-	c.compile(prg)
+	c.compile(prg, false, false, true)
 
 	r := &Runtime{}
 	r.init()
@@ -55,8 +53,9 @@ func testScript1(script string, expectedResult Value, t *testing.T) {
 	vm := r.vm
 	vm.prg = c.p
 	vm.prg.dumpCode(t.Logf)
+	vm.result = _undefined
 	vm.run()
-	v := vm.pop()
+	v := vm.result
 	t.Logf("stack size: %d", len(vm.stack))
 	t.Logf("stashAllocs: %d", vm.stashAllocs)
 
@@ -78,6 +77,42 @@ func TestEmptyProgram(t *testing.T) {
 	`
 
 	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestResultEmptyBlock(t *testing.T) {
+	const SCRIPT = `
+	undefined;
+	{}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestResultVarDecl(t *testing.T) {
+	const SCRIPT = `
+	7; var x = 1;
+	`
+	testScript1(SCRIPT, valueInt(7), t)
+}
+
+func TestResultLexDecl(t *testing.T) {
+	const SCRIPT = `
+	7; {let x = 1};
+	`
+	testScript1(SCRIPT, valueInt(7), t)
+}
+
+func TestResultLexDeclBreak(t *testing.T) {
+	const SCRIPT = `
+	L:{ 7; {let x = 1; break L;}};
+	`
+	testScript1(SCRIPT, valueInt(7), t)
+}
+
+func TestResultLexDeclNested(t *testing.T) {
+	const SCRIPT = `
+	7; {let x = (function() { return eval("8; {let y = 9}")})()};
+	`
+	testScript1(SCRIPT, valueInt(7), t)
 }
 
 func TestErrorProto(t *testing.T) {
@@ -139,7 +174,43 @@ func TestThisNoStrict(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
-func TestCallLessArgs(t *testing.T) {
+func TestNestedFuncVarResolution(t *testing.T) {
+	const SCRIPT = `
+	(function outer() {
+		var v = 42;
+		function inner() {
+			return v;
+		}
+		return inner();
+	})();
+`
+	testScript1(SCRIPT, valueInt(42), t)
+}
+
+func TestNestedFuncVarResolution1(t *testing.T) {
+	const SCRIPT = `
+	function outer(argOuter) {
+		var called = 0;
+	  var inner = function(argInner) {
+		if (arguments.length !== 1) {
+			throw new Error();
+		}
+		called++;
+		if (argOuter !== 1) {
+			throw new Error("argOuter");
+		}
+		if (argInner !== 2) {
+			throw new Error("argInner");
+		}
+	  };
+		inner(2);
+	}
+	outer(1);
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestCallFewerArgs(t *testing.T) {
 	const SCRIPT = `
 function A(a, b, c) {
 	return String(a) + " " + String(b) + " " + String(c);
@@ -148,6 +219,34 @@ function A(a, b, c) {
 var rv = A(1, 2);
 `
 	testScript(SCRIPT, asciiString("1 2 undefined"), t)
+}
+
+func TestCallFewerArgsClosureNoArgs(t *testing.T) {
+	const SCRIPT = `
+	var x;
+	function A(a, b, c) {
+		var y = a;
+		x = function() { return " " + y };
+		return String(a) + " " + String(b) + " " + String(c);
+	}
+
+	var rv = A(1, 2) + x();
+`
+	testScript(SCRIPT, asciiString("1 2 undefined 1"), t)
+}
+
+func TestCallFewerArgsClosureArgs(t *testing.T) {
+	const SCRIPT = `
+	var x;
+	function A(a, b, c) {
+		var y = b;
+		x = function() { return " " + a + " " + y };
+		return String(a) + " " + String(b) + " " + String(c);
+	}
+
+	var rv = A(1, 2) + x();
+`
+	testScript(SCRIPT, asciiString("1 2 undefined 1 2"), t)
 }
 
 func TestCallMoreArgs(t *testing.T) {
@@ -317,7 +416,16 @@ func TestTry(t *testing.T) {
 	var rv = A();
 	`
 	testScript(SCRIPT, intToValue(4), t)
+}
 
+func TestTryOptionalCatchBinding(t *testing.T) {
+	const SCRIPT = `
+	try {
+		throw null;
+	} catch {
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
 }
 
 func TestTryCatch(t *testing.T) {
@@ -335,7 +443,23 @@ func TestTryCatch(t *testing.T) {
 	var rv = A();
 	`
 	testScript(SCRIPT, intToValue(4), t)
+}
 
+func TestTryCatchDirectEval(t *testing.T) {
+	const SCRIPT = `
+	function A() {
+		var x;
+		try {
+			throw 4;
+		} catch(e) {
+			eval("x = e");
+		}
+		return x;
+	}
+
+	var rv = A();
+	`
+	testScript(SCRIPT, intToValue(4), t)
 }
 
 func TestTryExceptionInCatch(t *testing.T) {
@@ -360,6 +484,44 @@ func TestTryExceptionInCatch(t *testing.T) {
 	testScript(SCRIPT, intToValue(5), t)
 }
 
+func TestTryContinueInCatch(t *testing.T) {
+	const SCRIPT = `
+	var c3 = 0, fin3 = 0;
+	while (c3 < 2) {
+		try {
+			throw "ex1";
+		} catch(er1) {
+			c3 += 1;
+			continue;
+		} finally {
+			fin3 = 1;
+		}
+		fin3 = 0;
+	}
+
+	fin3;
+	`
+	testScript1(SCRIPT, intToValue(1), t)
+}
+
+func TestContinueInWith(t *testing.T) {
+	const SCRIPT = `
+	var x;
+	var o = {x: 0};
+	for (var i = 0; i < 2; i++) {
+		with(o) {
+			x = i;
+			if (i === 0) {
+				continue;
+			}
+		}
+		break;
+	}
+	x;
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
 func TestTryContinueInFinally(t *testing.T) {
 	const SCRIPT = `
 	var c3 = 0, fin3 = 0;
@@ -378,6 +540,149 @@ func TestTryContinueInFinally(t *testing.T) {
 	fin3;
 	`
 	testScript1(SCRIPT, intToValue(1), t)
+}
+
+func TestTryBreakFinallyContinue(t *testing.T) {
+	const SCRIPT = `
+	for (var i = 0; i < 3; i++) {
+	  try {
+		break;
+	  } finally {
+		continue;
+	  }
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestTryBreakFinallyContinueWithResult(t *testing.T) {
+	const SCRIPT = `
+	for (var i = 0; i < 3; i++) {
+	  try {
+		true;
+		break;
+	  } finally {
+		continue;
+	  }
+	}
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestTryBreakFinallyContinueWithResult1(t *testing.T) {
+	const SCRIPT = `
+	for (var i = 0; i < 3; i++) {
+	  try {
+		true;
+		break;
+	  } finally {
+		var x = 1;
+		continue;
+	  }
+	}
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestTryBreakFinallyContinueWithResultNested(t *testing.T) {
+	const SCRIPT = `
+LOOP:
+	for (var i = 0; i < 3; i++) {
+	  try {
+		if (true) {
+			false; break;
+		}
+	  } finally {
+		if (true) {
+			true; continue;
+		}
+	  }
+	}
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestTryBreakOuterFinallyContinue(t *testing.T) {
+	const SCRIPT = `
+	let iCount = 0, jCount = 0;
+	OUTER: for (let i = 0; i < 1; i++) {
+		iCount++;
+		for (let j = 0; j < 2; j++) {
+			jCount++;
+			try {
+				break OUTER;
+			} finally {
+				continue;
+			}
+		}
+	}
+	""+iCount+jCount;
+	`
+	testScript1(SCRIPT, asciiString("12"), t)
+}
+
+func TestTryIllegalContinueWithFinallyOverride(t *testing.T) {
+	const SCRIPT = `
+	L: {
+		while (Math.random() > 0.5) {
+			try {
+				continue L;
+			} finally {
+				break;
+			}
+		}
+	}
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestTryIllegalContinueWithFinallyOverrideNoLabel(t *testing.T) {
+	const SCRIPT = `
+	L: {
+		try {
+			continue;
+		} finally {
+			break L;
+		}
+	}
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestTryIllegalContinueWithFinallyOverrideDummy(t *testing.T) {
+	const SCRIPT = `
+	L: {
+		while (false) {
+			try {
+				continue L;
+			} finally {
+				break;
+			}
+		}
+	}
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestTryNoResult(t *testing.T) {
+	const SCRIPT = `
+	true;
+    L:
+    try {
+        break L;
+    } finally {
+    }
+	`
+	testScript1(SCRIPT, _undefined, t)
 }
 
 func TestCatchLexicalEnv(t *testing.T) {
@@ -464,6 +769,27 @@ func TestEmptyTryNoCatch(t *testing.T) {
 	`
 
 	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestTryReturnFromCatch(t *testing.T) {
+	const SCRIPT = `
+	function f(o) {
+		var x = 42;
+
+		function innerf(o) {
+			try {
+				throw o;
+			} catch (e) {
+				return x;
+			}
+		}
+
+		return innerf(o);
+	}
+	f({});
+	`
+
+	testScript1(SCRIPT, valueInt(42), t)
 }
 
 func TestIfElse(t *testing.T) {
@@ -658,6 +984,13 @@ func TestNestedTryInStashlessFunc(t *testing.T) {
 		return ex1 == "ex1" && ex2 == "ex2";
 	}
 	f();
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestEvalLexicalDecl(t *testing.T) {
+	const SCRIPT = `
+	eval("let x = true; x;");
 	`
 	testScript1(SCRIPT, valueTrue, t)
 }
@@ -938,6 +1271,138 @@ func TestEvalFunctionExpr(t *testing.T) {
 	testScript1(SCRIPT, intToValue(42), t)
 }
 
+func TestEvalDirectScope(t *testing.T) {
+	const SCRIPT = `
+	var __10_4_2_1_3 = "str";
+	function testcase() {
+		var __10_4_2_1_3 = "str1";
+		try {
+			throw "error";
+		} catch (e) {
+			var __10_4_2_1_3 = "str2";
+			return eval("__10_4_2_1_3");
+		}
+	}
+	testcase();
+	`
+
+	testScript1(SCRIPT, asciiString("str2"), t)
+}
+
+func TestEvalDirectScope1(t *testing.T) {
+	const SCRIPT = `
+	'use strict';
+	var __10_4_2_1_5 = "str";
+	function testcase() {
+				var __10_4_2_1_5 = "str1";
+				var r = eval("\
+							  var __10_4_2_1_5 = \'str2\'; \
+							  eval(\"\'str2\' === __10_4_2_1_5\")\
+							");
+				return r;
+		}
+	testcase();
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestEvalDirectCreateBinding(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		eval("var x = true");
+		return x;
+	}
+	var res = f();
+	var thrown = false;
+	try {
+		x;
+	} catch(e) {
+		if (e instanceof ReferenceError) {
+			thrown = true;
+		} else {
+			throw e;
+		}
+	}
+	res && thrown;
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestEvalDirectCreateBinding1(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		eval("let x = 1; var y = 2; function f1() {return x};");
+		assert.throws(ReferenceError, function() { x });
+		return ""+y+f1();
+	}
+	f();
+	`
+
+	testScript1(TESTLIB+SCRIPT, asciiString("21"), t)
+}
+
+func TestEvalDirectCreateBinding3(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		let x;
+		try {
+			eval("var y=1, x=2");
+		} catch(e) {}
+		return y;
+	}
+	assert.throws(ReferenceError, f);
+	`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestEvalGlobalStrict(t *testing.T) {
+	const SCRIPT = `
+	'use strict';
+	var evalStr =
+	'for (var x in this) {\n'+
+	'  if ( x === \'Math\' ) {\n'+
+	'  }\n'+
+	'}\n';
+
+	eval(evalStr);
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestEvalEmptyStrict(t *testing.T) {
+	const SCRIPT = `
+	'use strict';
+	eval("");
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestEvalFuncDecl(t *testing.T) {
+	const SCRIPT = `
+	'use strict';
+	var funcA = eval("function __funcA(__arg){return __arg;}; __funcA");
+	typeof funcA;
+	`
+
+	testScript1(SCRIPT, asciiString("function"), t)
+}
+
+func TestGetAfterSet(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		var x = 1;
+		return x;
+	}
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
 func TestForLoopRet(t *testing.T) {
 	const SCRIPT = `
 	for (var i = 0; i < 20; i++) { if (i > 2) {break;} else { i }}
@@ -1203,6 +1668,17 @@ func TestArgumentsDelete(t *testing.T) {
 	testScript1(SCRIPT, intToValue(1), t)
 }
 
+func TestArgumentsInEval(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		return eval("arguments");
+	}
+	f(1)[0];
+	`
+
+	testScript1(SCRIPT, intToValue(1), t)
+}
+
 func TestWith(t *testing.T) {
 	const SCRIPT = `
 	var b = 1;
@@ -1454,6 +1930,14 @@ func TestUseUnsuppliedParam(t *testing.T) {
 	testScript1(SCRIPT, asciiString(" 123 456"), t)
 }
 
+func TestForInLetWithInitializer(t *testing.T) {
+	const SCRIPT = `for (let x = 3 in {}) { }`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
 func TestForInLoop(t *testing.T) {
 	const SCRIPT = `
 	function Proto() {}
@@ -1595,6 +2079,67 @@ func TestSwitchResult1(t *testing.T) {
 	`
 
 	testScript1(SCRIPT, asciiString("two"), t)
+}
+
+func TestSwitchResult2(t *testing.T) {
+	const SCRIPT = `
+	6; switch ("a") { case "a": 7; case "b": }
+	`
+
+	testScript1(SCRIPT, valueInt(7), t)
+}
+
+func TestSwitchResultJumpIntoEmptyEval(t *testing.T) {
+	const SCRIPT = `
+	function t(x) {
+		return eval("switch(x) { case 1: 2; break; case 2: let x = 1; case 3: x+2; break; case 4: default: 9}");
+	}
+	""+t(2)+t();
+	`
+
+	testScript1(SCRIPT, asciiString("39"), t)
+}
+
+func TestSwitchResultJumpIntoEmpty(t *testing.T) {
+	const SCRIPT = `
+	switch(2) { case 1: 2; break; case 2: let x = 1; case 3: x+2; case 4: {let y = 2}; break; default: 9};
+	`
+
+	testScript1(SCRIPT, valueInt(3), t)
+}
+
+func TestSwitchLexical(t *testing.T) {
+	const SCRIPT = `
+	switch (true) { case true: let x = 1; }
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestSwitchBreakOuter(t *testing.T) {
+	const SCRIPT = `
+	LOOP:
+	for (let i = 0; i < 10; i++) {
+		switch (i) {
+		case 0:
+			continue;
+		case 1:
+			let x = 1;
+			continue;
+		case 2:
+			try {
+				x++;
+			} catch (e) {
+				if (e instanceof ReferenceError) {
+					break LOOP;
+				}
+			}
+			throw new Error("Exception was not thrown");
+		}
+	}
+	`
+
+	testScript1(SCRIPT, _undefined, t)
 }
 
 func TestIfBreakResult(t *testing.T) {
@@ -2021,6 +2566,157 @@ func TestForOfReturn(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestForOfReturn1(t *testing.T) {
+	const SCRIPT = `
+	var iterable = {};
+	var iterationCount = 0;
+
+	iterable[Symbol.iterator] = function() {
+	  return {
+		next: function() {
+		  return { done: false, value: null };
+		},
+		get return() {
+		  throw new Test262Error();
+		}
+	  };
+	};
+
+	assert.throws(Test262Error, function() {
+	  for (var x of iterable) {
+		iterationCount += 1;
+		break;
+	  }
+	});
+
+	assert.sameValue(iterationCount, 1, 'The loop body is evaluated');
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestForOfLet(t *testing.T) {
+	const SCRIPT = `
+	var iterCount = 0;
+	function f() {}
+	for (var let of [23]) {
+		f(let);
+		if (let != 23) {
+			throw new Error("");
+		}
+		iterCount += 1;
+	}
+
+	iterCount;
+`
+	testScript1(SCRIPT, valueInt(1), t)
+}
+
+func TestForOfLetLet(t *testing.T) {
+	const SCRIPT = `
+	for (let let of [23]) {
+	}
+`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
+func TestForHeadLet(t *testing.T) {
+	const SCRIPT = `
+	for (let = 0; let < 2; let++);
+`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestLhsLet(t *testing.T) {
+	const SCRIPT = `
+	let = 1;
+	let;
+	`
+	testScript1(SCRIPT, valueInt(1), t)
+}
+
+func TestLetPostfixASI(t *testing.T) {
+	const SCRIPT = `
+	let
+	++
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
+func TestIteratorReturnNormal(t *testing.T) {
+	const SCRIPT = `
+	var iterable = {};
+	var iterationCount = 0;
+
+	iterable[Symbol.iterator] = function() {
+	  return {
+		next: function() {
+		  return { done: ++iterationCount > 2, value: null };
+		},
+		get return() {
+		  throw new Test262Error();
+		}
+	  };
+	};
+
+	for (var x of iterable) {
+	}
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestIteratorReturnErrorNested(t *testing.T) {
+	const SCRIPT = `
+	var returnCalled = {};
+	function iter(id) {
+		return function() {
+			var count = 0;
+			return {
+				next: function () {
+					return {
+						value: null,
+						done: ++count > 2
+					};
+				},
+				return: function () {
+					returnCalled[id] = true;
+					throw new Error(id);
+				}
+			};
+		}
+	}
+	var iterable1 = {};
+	iterable1[Symbol.iterator] = iter("1");
+	var iterable2 = {};
+	iterable2[Symbol.iterator] = iter("2");
+
+	try {
+		for (var i of iterable1) {
+			for (var j of iterable2) {
+				break;
+			}
+		}
+		throw new Error("no exception was thrown");
+	} catch (e) {
+		if (e.message !== "2") {
+			throw e;
+		}
+	}
+	if (!returnCalled["1"]) {
+		throw new Error("no return 1");
+	}
+	if (!returnCalled["2"]) {
+		throw new Error("no return 2");
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
 func TestReturnFromForInLoop(t *testing.T) {
 	const SCRIPT = `
 	(function f() {
@@ -2068,6 +2764,24 @@ func TestWithCallee(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestWithScope(t *testing.T) {
+	const SCRIPT = `
+	function f(o) {
+		var x = 42;
+
+		function innerf(o) {
+			with (o) {
+				return x;
+			}
+		}
+
+		return innerf(o);
+	}
+	f({});
+	`
+	testScript1(SCRIPT, valueInt(42), t)
+}
+
 func TestEvalCallee(t *testing.T) {
 	const SCRIPT = `
 	(function () {
@@ -2081,11 +2795,80 @@ func TestEvalCallee(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestEvalBindingDeleteVar(t *testing.T) {
+	const SCRIPT = `
+	(function () {
+		eval("var x = 1");
+		return x === 1 && delete x;
+	})();
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestEvalBindingDeleteFunc(t *testing.T) {
+	const SCRIPT = `
+	(function () {
+		eval("function x(){}");
+		return typeof x === "function" && delete x;
+	})();
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestDeleteGlobalLexical(t *testing.T) {
+	const SCRIPT = `
+	let x;
+	delete x;
+	`
+	testScript1(SCRIPT, valueFalse, t)
+}
+
+func TestDeleteGlobalEval(t *testing.T) {
+	const SCRIPT = `
+	eval("var x");
+	delete x;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestGlobalVarNames(t *testing.T) {
+	vm := New()
+	_, err := vm.RunString("(0,eval)('var x')")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = vm.RunString("let x")
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
+func TestTryResultEmpty(t *testing.T) {
+	const SCRIPT = `
+	1; try { } finally { }
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestTryResultEmptyCatch(t *testing.T) {
+	const SCRIPT = `
+	1; try { throw null } catch(e) { }
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestTryResultEmptyContinueLoop(t *testing.T) {
+	const SCRIPT = `
+	for (var i = 0; i < 2; i++) { try {throw null;} catch(e) {continue;} 'bad'}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
 func TestTryEmptyCatchStackLeak(t *testing.T) {
 	const SCRIPT = `
 	(function() {
 		var f;
-		// Make sure the outer function is not stashless as retStashless masks all stack leaks.
+		// Make sure the outer function is not stashless.
 		(function() {
 			f++;
 		})();
@@ -2093,6 +2876,16 @@ func TestTryEmptyCatchStackLeak(t *testing.T) {
 			throw new Error();
 		} catch(e) {}
 	})();
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestTryThrowEmptyCatch(t *testing.T) {
+	const SCRIPT = `
+	try {
+		throw new Error();
+	}
+	catch (e) {}
 	`
 	testScript1(SCRIPT, _undefined, t)
 }
@@ -2221,20 +3014,462 @@ func TestFuncNameAssign(t *testing.T) {
 	var f = function() {};
 	var f1;
 	f1 = function() {};
-	f.name === "f" && f1.name === "f1";
+	let f2 = function() {};
+
+	f.name === "f" && f1.name === "f1" && f2.name === "f2";
 	`
 
 	testScript1(SCRIPT, valueTrue, t)
 }
 
-func BenchmarkCompile(b *testing.B) {
-	f, err := os.Open("testdata/S15.10.2.12_A1_T1.js")
+func TestLexicalDeclGlobal(t *testing.T) {
+	const SCRIPT = `
+	if (true) {
+		let it = "be";
+		if (it !== "be") {
+			throw new Error(it);
+		}
+	}
+	let thrown = false;
+	try {
+		it;
+	} catch(e) {
+		if (e instanceof ReferenceError) {
+			thrown = true;
+		}
+	}
+	thrown;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
 
-	data, err := ioutil.ReadAll(f)
+func TestLexicalDeclFunction(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		if (true) {
+			let it = "be";
+			if (it !== "be") {
+				throw new Error(it);
+			}
+		}
+		let thrown = false;
+		try {
+			it;
+		} catch(e) {
+			if (e instanceof ReferenceError) {
+				thrown = true;
+			}
+		}
+		return thrown;
+	}
+	f();
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestLexicalDynamicScope(t *testing.T) {
+	const SCRIPT = `
+	const global = 1;
+	function f() {
+		const func = global + 1;
+		function inner() {
+			function assertThrows(fn) {
+				let thrown = false;
+				try {
+					fn();
+				} catch (e) {
+					if (e instanceof TypeError) {
+						thrown = true;
+					} else {
+						throw e;
+					}
+				}
+				if (!thrown) {
+					throw new Error("Did not throw");
+				}
+			}
+
+			assertThrows(function() {
+				func++;
+			});
+			assertThrows(function() {
+				global++;
+			});
+
+			assertThrows(function() {
+				eval("func++");
+			});
+			assertThrows(function() {
+				eval("global++");
+			});
+
+			return eval("func + 1");
+		}
+		return inner();
+	}
+	f();
+	`
+	testScript1(SCRIPT, valueInt(3), t)
+}
+
+func TestNonStrictLet(t *testing.T) {
+	const SCRIPT = `
+	var let = 1;
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestStrictLet(t *testing.T) {
+	const SCRIPT = `
+	var let = 1;
+	`
+
+	_, err := Compile("", SCRIPT, true)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+}
+
+func TestLetLet(t *testing.T) {
+	const SCRIPT = `
+	let let = 1;
+	`
+
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+}
+
+func TestLetASI(t *testing.T) {
+	const SCRIPT = `
+	while (false) let // ASI
+	x = 1;
+	`
+
+	_, err := Compile("", SCRIPT, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLetASI1(t *testing.T) {
+	const SCRIPT = `
+	let
+	x = 1;
+	`
+
+	_, err := Compile("", SCRIPT, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLetNoASI(t *testing.T) {
+	const SCRIPT = `
+	function f() {}let
+x = 1;
+	`
+
+	_, err := Compile("", SCRIPT, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLetNoASI1(t *testing.T) {
+	const SCRIPT = `
+let
+let = 1;
+	`
+
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
+func TestLetArrayWithNewline(t *testing.T) {
+	const SCRIPT = `
+    with ({}) let
+    [a] = 0;
+	`
+
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
+func TestDynamicUninitedVarAccess(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		var x;
+		return eval("x");
+	}
+	f();
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestLexicalForLoopNoClosure(t *testing.T) {
+	const SCRIPT = `
+	let sum = 0;
+	for (let i = 0; i < 3; i++) {
+		sum += i;
+	}
+	sum;
+	`
+	testScript1(SCRIPT, valueInt(3), t)
+}
+
+func TestLexicalForLoopClosure(t *testing.T) {
+	const SCRIPT = `
+	var f = [];
+	for (let i = 0; i < 3; i++) {
+		f.push(function() {
+			return i;
+		});
+	}
+	f.length === 3 && f[0]() === 0 && f[1]() === 1 && f[2]() === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestLexicalForLoopClosureInNext(t *testing.T) {
+	const SCRIPT = `
+	const a = [];
+	for (let i = 0; i < 5; a.push(function () { return i; }), ++i) { }
+	let res = "";
+	for (let k = 0; k < 5; ++k) {
+		res += ""+a[k]();
+	}
+	res;
+	`
+	testScript1(SCRIPT, asciiString("12345"), t)
+}
+
+func TestVarForLoop(t *testing.T) {
+	const SCRIPT = `
+	var f = [];
+	for (var i = 0, j = 0; i < 3; i++) {
+		f.push(function() {
+			return i;
+		});
+	}
+	f.length === 3 && f[0]() === 3 && f[1]() === 3 && f[2]() === 3;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestLexicalForOfLoop(t *testing.T) {
+	const SCRIPT = `
+	var f = [];
+	for (let i of [0, 1, 2]) {
+		f.push(function() {
+			return i;
+		});
+	}
+	f.length === 3 && f[0]() === 0 && f[1]() === 1 && f[2]() === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestLexicalForOfLoopContBreak(t *testing.T) {
+	const SCRIPT = `
+	const f = [];
+	for (let i of [0, 1, 2, 3, 4, 5]) {
+		if (i % 2) continue;
+		f.push(function() {
+			return i;
+		});
+		if (i > 2) break;
+	}
+	let res = "";
+	f.forEach(function(item) {res += item()});
+	f.length === 3 && res === "024";
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestVarBlockConflict(t *testing.T) {
+	const SCRIPT = `
+	let x;
+	{
+		if (false) {
+			var x;
+		}
+	}
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+}
+
+func TestVarBlockConflictEval(t *testing.T) {
+	const SCRIPT = `
+	assert.throws(SyntaxError, function() {
+		let x;
+		{
+			if (true) {
+				eval("var x");
+			}
+		}
+	});
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestVarBlockNoConflict(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		let x;
+		function ff() {
+			{
+				var x = 3;
+			}
+		}
+		ff();
+	}
+	f();
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestVarBlockNoConflictEval(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		let x;
+		function ff() {
+			{
+				eval("var x = 3");
+			}
+		}
+		ff();
+	}
+	f();
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestVarDeclCorrectScope(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		{
+			let z;
+			eval("var x = 3");
+		}
+		return x;
+	}
+	f();
+	`
+	testScript1(SCRIPT, valueInt(3), t)
+}
+
+func TestLexicalCatch(t *testing.T) {
+	const SCRIPT = `
+	try {
+		throw null;
+	} catch (e) {
+		let x = 1;
+		function f() {}
+		e;
+	}
+	`
+	testScript1(SCRIPT, _null, t)
+}
+
+func TestArgumentsLexicalDecl(t *testing.T) {
+	const SCRIPT = `
+	function f1() {
+		let arguments;
+		return arguments;
+	}
+	f1(42);
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestArgumentsLexicalDeclAssign(t *testing.T) {
+	const SCRIPT = `
+	function f1() {
+		let arguments = arguments;
+		return a;
+	}
+	assert.throws(ReferenceError, function() {
+		f1(42);
+	});
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestLexicalConstModifyFromEval(t *testing.T) {
+	const SCRIPT = `
+	const x = 1;
+	function f() {
+		eval("x = 2");
+	}
+	assert.throws(TypeError, function() {
+		f();
+	});
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestAssignAfterStackExpand(t *testing.T) {
+	// make sure the reference to the variable x does not remain stale after the stack is copied
+	const SCRIPT = `
+	function f() {
+		let sum = 0;
+		for (let i = 0; i < arguments.length; i++) {
+			sum += arguments[i];
+		}
+		return sum;
+	}
+	function testAssignment() {
+	  var x = 0;
+	  var scope = {};
+
+	  with (scope) {
+		x = (scope.x = f(0, 0, 0, 0, 0, 0, 1, 1), 1);
+	  }
+
+	  if (scope.x !== 2) {
+		throw new Error('#1: scope.x === 2. Actual: ' + (scope.x));
+	  }
+	  if (x !== 1) {
+		throw new Error('#2: x === 1. Actual: ' + (x));
+	  }
+	}
+	testAssignment();
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+/*
+func TestBabel(t *testing.T) {
+	src, err := ioutil.ReadFile("babel7.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vm := New()
+	_, err = vm.RunString(string(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = vm.RunString(`var result = Babel.transform("", {presets: ["es2015"]});`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}*/
+
+func BenchmarkCompile(b *testing.B) {
+	data, err := ioutil.ReadFile("testdata/S15.10.2.12_A1_T1.js")
 	if err != nil {
 		b.Fatal(err)
 	}
-	f.Close()
 
 	src := string(data)
 
@@ -2244,5 +3479,4 @@ func BenchmarkCompile(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-
 }
