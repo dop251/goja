@@ -3448,6 +3448,20 @@ func TestAssignAfterStackExpand(t *testing.T) {
 	testScript1(SCRIPT, _undefined, t)
 }
 
+func TestArgAccessFromDynamicStash(t *testing.T) {
+	const SCRIPT = `
+	function f(arg) {
+		function test() {
+			eval("");
+			return a;
+		}
+		return arg;
+	}
+	f(true);
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")

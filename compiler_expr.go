@@ -856,8 +856,11 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		preambleLen += 2
 	}
 
-	if s.argsNeeded {
+	if (s.argsNeeded || s.isDynamic()) && !s.argsInStash {
 		s.moveArgsToStash()
+	}
+
+	if s.argsNeeded {
 		pos := preambleLen - 2
 		delta += 2
 		if s.strict {
@@ -881,7 +884,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	delta++
 	delta = preambleLen - delta
 	var enter instruction
-	if stashSize > 0 || s.argsInStash || s.isDynamic() {
+	if stashSize > 0 || s.argsInStash {
 		enter1 := enterFunc{
 			numArgs:     uint32(paramsCount),
 			argsToStash: s.argsInStash,
