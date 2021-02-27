@@ -1971,6 +1971,20 @@ func TestDeclareGlobalFunc(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestStackOverflowError(t *testing.T) {
+	vm := New()
+	vm.SetMaxCallStackSize(3)
+	_, err := vm.RunString(`
+	function f() {
+		f();
+	}
+	f();
+	`)
+	if _, ok := err.(*StackOverflowError); !ok {
+		t.Fatal(err)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

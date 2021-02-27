@@ -247,9 +247,18 @@ type Exception struct {
 	stack []StackFrame
 }
 
+type uncatchableException struct {
+	stack *[]StackFrame
+	err   error
+}
+
 type InterruptedError struct {
 	Exception
 	iface interface{}
+}
+
+type StackOverflowError struct {
+	Exception
 }
 
 func (e *InterruptedError) Value() interface{} {
@@ -1191,8 +1200,8 @@ func (r *Runtime) RunScript(name, src string) (Value, error) {
 func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	defer func() {
 		if x := recover(); x != nil {
-			if intr, ok := x.(*InterruptedError); ok {
-				err = intr
+			if ex, ok := x.(*uncatchableException); ok {
+				err = ex.err
 			} else {
 				panic(x)
 			}
@@ -1230,6 +1239,8 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 // CaptureCallStack appends the current call stack frames to the stack slice (which may be nil) up to the specified depth.
 // The most recent frame will be the first one.
 // If depth <= 0 or more than the number of available frames, returns the entire stack.
+// This method is not safe for concurrent use and should only be called by a Go function that is
+// called from a running script.
 func (r *Runtime) CaptureCallStack(depth int, stack []StackFrame) []StackFrame {
 	l := len(r.vm.callStack)
 	var offset int
@@ -2026,6 +2037,15 @@ func (r *Runtime) SetParserOptions(opts ...parser.Option) {
 	r.parserOptions = opts
 }
 
+// SetMaxCallStackSize sets the maximum function call depth. When exceeded, a *StackOverflowError is thrown and
+// returned by RunProgram or by a Callable call. This is useful to prevent memory exhaustion caused by an
+// infinite recursion. The default value is math.MaxInt32.
+// This method (as the rest of the Set* methods) is not safe for concurrent use and may only be called
+// from the vm goroutine or when the vm is not running.
+func (r *Runtime) SetMaxCallStackSize(size int) {
+	r.vm.maxCallStackSize = size
+}
+
 // New is an equivalent of the 'new' operator allowing to call it directly from Go.
 func (r *Runtime) New(construct Value, args ...Value) (o *Object, err error) {
 	err = r.try(func() {
@@ -2044,8 +2064,8 @@ func AssertFunction(v Value) (Callable, bool) {
 			return func(this Value, args ...Value) (ret Value, err error) {
 				defer func() {
 					if x := recover(); x != nil {
-						if ex, ok := x.(*InterruptedError); ok {
-							err = ex
+						if ex, ok := x.(*uncatchableException); ok {
+							err = ex.err
 						} else {
 							panic(x)
 						}
