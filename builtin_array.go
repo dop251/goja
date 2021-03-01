@@ -908,8 +908,8 @@ func (r *Runtime) arrayproto_shift(call FunctionCall) Value {
 	}
 
 	lv := valueInt(length - 1)
-	o.self.deleteIdx(lv, true)
-	o.self.setOwnStr("length", lv, true)
+	o.self.deleteIdx(lv, !o.self.isExtensible())
+	o.self.setOwnStr("length", lv, !o.self.isExtensible())
 
 	return first
 }
