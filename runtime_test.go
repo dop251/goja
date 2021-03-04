@@ -1804,6 +1804,33 @@ func TestNativeCtorNonNewCall(t *testing.T) {
 	}
 }
 
+func TestNewWithSliceExtensible(t *testing.T) {
+	const SCRIPT = `
+	a.shift();
+	`
+	a := []interface{}{1, 2, 3, 4}
+	r := New(WithExtensibleGoSlices)
+	r.Set("a", a)
+	v, err := r.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if i := v.ToInteger(); i != 1 {
+		t.Fatalf("Expected 1, got: %d", i)
+	}
+	val := r.Get("a")
+	a, _ = val.Export().([]interface{})
+	if len(a) != 3 {
+		t.Fatalf("Expected 3, got: %d", len(a))
+	}
+	for idx, v := range a {
+		v, _ := v.(int64)
+		if int(v) != idx + 2 {
+			t.Fatalf("Expected %d, got: %d", idx + 2, v)
+		}
+	}
+}
+
 func ExampleNewSymbol() {
 	sym1 := NewSymbol("66")
 	sym2 := NewSymbol("66")

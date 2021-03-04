@@ -159,6 +159,19 @@ type RandSource func() float64
 
 type Now func() time.Time
 
+type options struct {
+	goSliceExtensible bool
+}
+
+type Option func(*options)
+
+// Allows non-addressable slices to be extensible by default.
+// WARN: With this option set, Go slice references manipulated in the runtime will NOT hold if they are shrunk
+// or extended.
+func WithExtensibleGoSlices(opts *options) {
+	opts.goSliceExtensible = true
+}
+
 type Runtime struct {
 	global          global
 	globalObject    *Object
@@ -176,6 +189,8 @@ type Runtime struct {
 	vm    *vm
 	hash  *maphash.Hash
 	idSeq uint64
+
+	opts options
 }
 
 type StackFrame struct {
@@ -1081,8 +1096,11 @@ func (r *Runtime) toBoolean(b bool) Value {
 
 // New creates an instance of a Javascript runtime that can be used to run code. Multiple instances may be created and
 // used simultaneously, however it is not possible to pass JS values across runtimes.
-func New() *Runtime {
+func New(opts ...Option) *Runtime {
 	r := &Runtime{}
+	for _, opt := range opts {
+		opt(&r.opts)
+	}
 	r.init()
 	return r
 }
@@ -1526,6 +1544,7 @@ func (r *Runtime) ToValue(i interface{}) Value {
 				val: obj,
 			},
 			data: &i,
+			sliceExtensible: r.opts.goSliceExtensible,
 		}
 		obj.self = a
 		a.init()
