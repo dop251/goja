@@ -1543,7 +1543,7 @@ func (r *Runtime) ToValue(i interface{}) Value {
 			baseObject: baseObject{
 				val: obj,
 			},
-			data: &i,
+			data:            &i,
 			sliceExtensible: r.opts.goSliceExtensible,
 		}
 		obj.self = a

@@ -90,8 +90,8 @@ func TestGoSliceShift(t *testing.T) {
 	}
 	for idx, v := range a {
 		v, _ := v.(int64)
-		if int(v) != idx + 2 {
-			t.Fatalf("Expected %d, got: %d", idx + 2, v)
+		if int(v) != idx+2 {
+			t.Fatalf("Expected %d, got: %d", idx+2, v)
 		}
 	}
 }
