@@ -1316,7 +1316,7 @@ operator:
 
     // If return value is a non-nil *Object, it will be used instead of call.This
     // This way it is possible to return a Go struct or a map converted
-    // into goja.Value using runtime.ToValue(), however in this case
+    // into goja.Value using ToValue(), however in this case
     // instanceof will not work as expected.
     return nil
  }
@@ -1420,9 +1420,9 @@ prototype and all the usual methods should work. There are, however, some caveat
 - If the slice is not addressable, the array cannot be extended or shrunk. Any attempt to do so (by setting an index
 beyond the current length or by modifying the length) will result in a TypeError.
 
-- Converted Arrays may not contain holes (because Go slices cannot). This means that hasOwnProperty(n) will always
-return `true` if n < length. Attempt to delete an item with an index < length will fail. Nil slice elements will be
-converted to `null`. Accessing an element beyond `length` will return `undefined`.
+- Converted Arrays may not contain holes (because Go slices cannot). This means that hasOwnProperty(n) always
+returns `true` if n < length. Deleting an item with an index < length will set it to a zero value (but the property will
+remain). Nil slice elements are be converted to `null`. Accessing an element beyond `length` returns `undefined`.
 
 Any other type is converted to a generic reflect based host object. Depending on the underlying type it behaves similar
 to a Number, String, Boolean or Object.

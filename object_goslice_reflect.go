@@ -265,12 +265,15 @@ func (o *objectGoSliceReflect) toPrimitive() Value {
 	return o.toPrimitiveString()
 }
 
+func (o *objectGoSliceReflect) _deleteIdx(idx int) {
+	if idx < o.value.Len() {
+		o.value.Index(idx).Set(reflect.Zero(o.value.Type().Elem()))
+	}
+}
+
 func (o *objectGoSliceReflect) deleteStr(name unistring.String, throw bool) bool {
-	if idx := strToIdx64(name); idx >= 0 {
-		if idx < int64(o.value.Len()) {
-			o.val.runtime.typeErrorResult(throw, "Can't delete from Go slice")
-			return false
-		}
+	if idx := strToGoIdx(name); idx >= 0 {
+		o._deleteIdx(idx)
 		return true
 	}
 
@@ -278,12 +281,9 @@ func (o *objectGoSliceReflect) deleteStr(name unistring.String, throw bool) bool
 }
 
 func (o *objectGoSliceReflect) deleteIdx(i valueInt, throw bool) bool {
-	idx := int64(i)
+	idx := toIntStrict(int64(i))
 	if idx >= 0 {
-		if idx < int64(o.value.Len()) {
-			o.val.runtime.typeErrorResult(throw, "Can't delete from Go slice")
-			return false
-		}
+		o._deleteIdx(idx)
 	}
 	return true
 }

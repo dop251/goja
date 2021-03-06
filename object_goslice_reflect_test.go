@@ -295,12 +295,27 @@ func TestGoSliceReflectDelete(t *testing.T) {
 	a := []*Object{{}, nil, {}}
 	r.Set("a", a)
 	v, err := r.RunString(`
-	!delete a[0] && !delete a[1] && delete a[3];
+	delete a[0] && delete a[1] && delete a[3];
 	`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if v != valueTrue {
 		t.Fatalf("not true: %v", v)
+	}
+}
+
+func TestGoSliceReflectPop(t *testing.T) {
+	r := New()
+	a := []string{"1", "", "3"}
+	r.Set("a", &a)
+	v, err := r.RunString(`
+	a.pop()
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.SameAs(asciiString("3")) {
+		t.Fatal(v)
 	}
 }
