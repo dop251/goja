@@ -892,6 +892,17 @@ func (r *Runtime) arrayproto_reverse(call FunctionCall) Value {
 
 func (r *Runtime) arrayproto_shift(call FunctionCall) Value {
 	o := call.This.ToObject(r)
+	if a := r.checkStdArrayObj(o); a != nil {
+		if len(a.values) == 0 {
+			return _undefined
+		}
+		first := a.values[0]
+		copy(a.values, a.values[1:])
+		a.values[len(a.values)-1] = nil
+		a.values = a.values[:len(a.values)-1]
+		a.length--
+		return first
+	}
 	length := toLength(o.self.getStr("length", nil))
 	if length == 0 {
 		o.self.setOwnStr("length", intToValue(0), true)
@@ -899,11 +910,12 @@ func (r *Runtime) arrayproto_shift(call FunctionCall) Value {
 	}
 	first := o.self.getIdx(valueInt(0), nil)
 	for i := int64(1); i < length; i++ {
-		v := o.self.getIdx(valueInt(i), nil)
-		if v != nil {
-			o.self.setOwnIdx(valueInt(i-1), v, true)
+		idxFrom := valueInt(i)
+		idxTo := valueInt(i - 1)
+		if o.self.hasPropertyIdx(idxFrom) {
+			o.self.setOwnIdx(idxTo, nilSafe(o.self.getIdx(idxFrom, nil)), true)
 		} else {
-			o.self.deleteIdx(valueInt(i-1), true)
+			o.self.deleteIdx(idxTo, true)
 		}
 	}
 
