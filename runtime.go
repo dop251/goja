@@ -1278,6 +1278,30 @@ func (r *Runtime) ClearInterrupt() {
 ToValue converts a Go value into a JavaScript value of a most appropriate type. Structural types (such as structs, maps
 and slices) are wrapped so that changes are reflected on the original value which can be retrieved using Value.Export().
 
+WARNING! There are two very important caveats to bear in mind when modifying wrapped Go structs, maps and
+slices.
+
+1. If a slice is passed by value (not as a pointer), resizing the slice does not reflect on the original
+value. Moreover, extending the slice may result in the underlying array being re-allocated and copied.
+For example:
+
+ a := []interface{}{1}
+ vm.Set("a", a)
+ vm.RunString(`a.push(2); a[0] = 0;`)
+ fmt.Println(a[0]) // prints "1"
+
+2. If a regular JavaScript Object is assigned as an element of a wrapped Go struct, map or array, it is
+Export()'ed and therefore copied. This may result in an unexpected behaviour in JavaScript:
+
+ m := map[string]interface{}{}
+ vm.Set("m", m)
+ vm.RunString(`
+ var obj = {test: false};
+ m.obj = obj; // obj gets Export()'ed, i.e. copied to a new map[string]interface{} and then this map is set as m["obj"]
+ obj.test = true; // note, m.obj.test is still false
+ `)
+ fmt.Println(m["obj"].(map[string]interface{})["test"]) // prints "false"
+
 Notes on individual types:
 
 Primitive types
@@ -1415,14 +1439,11 @@ defining an external getter function.
 Slices
 
 Slices are converted into host objects that behave largely like JavaScript Array. It has the appropriate
-prototype and all the usual methods should work. There are, however, some caveats:
-
-- If the slice is not addressable, the array cannot be extended or shrunk. Any attempt to do so (by setting an index
-beyond the current length or by modifying the length) will result in a TypeError.
-
-- Converted Arrays may not contain holes (because Go slices cannot). This means that hasOwnProperty(n) always
-returns `true` if n < length. Deleting an item with an index < length will set it to a zero value (but the property will
-remain). Nil slice elements are be converted to `null`. Accessing an element beyond `length` returns `undefined`.
+prototype and all the usual methods should work. There is, however, a caveat: converted Arrays may not contain holes
+(because Go slices cannot). This means that hasOwnProperty(n) always returns `true` if n < length. Deleting an item with
+an index < length will set it to a zero value (but the property will remain). Nil slice elements are be converted to
+`null`. Accessing an element beyond `length` returns `undefined`. Also see the warning above about passing slices as
+values (as opposed to pointers).
 
 Any other type is converted to a generic reflect based host object. Depending on the underlying type it behaves similar
 to a Number, String, Boolean or Object.
@@ -1539,8 +1560,7 @@ func (r *Runtime) ToValue(i interface{}) Value {
 			baseObject: baseObject{
 				val: obj,
 			},
-			data:            i,
-			sliceExtensible: true,
+			data: i,
 		}
 		obj.self = a
 		a.init()

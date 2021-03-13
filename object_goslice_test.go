@@ -200,6 +200,21 @@ func TestGoSlicePop(t *testing.T) {
 	}
 }
 
+func TestGoSlicePopNoPtr(t *testing.T) {
+	r := New()
+	a := []interface{}{1, nil, 3}
+	r.Set("a", a)
+	v, err := r.RunString(`
+	a.pop()
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.SameAs(intToValue(3)) {
+		t.Fatal(v)
+	}
+}
+
 func TestGoSliceShift(t *testing.T) {
 	r := New()
 	a := []interface{}{1, nil, 3}

@@ -9,16 +9,19 @@ import (
 
 type objectGoSliceReflect struct {
 	objectGoReflect
-	lengthProp      valueProperty
-	sliceExtensible bool
+	lengthProp valueProperty
 }
 
 func (o *objectGoSliceReflect) init() {
 	o.objectGoReflect.init()
 	o.class = classArray
 	o.prototype = o.val.runtime.global.ArrayPrototype
-	o.sliceExtensible = o.value.CanSet()
-	o.lengthProp.writable = o.sliceExtensible
+	if !o.value.CanSet() {
+		value := reflect.Indirect(reflect.New(o.value.Type()))
+		value.Set(o.value)
+		o.value = value
+	}
+	o.lengthProp.writable = true
 	o.updateLen()
 	o.baseObject._put("length", &o.lengthProp)
 }
@@ -98,10 +101,6 @@ func (o *objectGoSliceReflect) getOwnPropIdx(idx valueInt) Value {
 
 func (o *objectGoSliceReflect) putIdx(idx int, v Value, throw bool) bool {
 	if idx >= o.value.Len() {
-		if !o.sliceExtensible {
-			o.val.runtime.typeErrorResult(throw, "Cannot extend a Go unaddressable reflect slice")
-			return false
-		}
 		o.grow(idx + 1)
 	}
 	err := o.val.runtime.toReflectValue(v, o.value.Index(idx), &objectExportCtx{})
@@ -143,16 +142,8 @@ func (o *objectGoSliceReflect) putLength(v Value, throw bool) bool {
 	newLen := toIntStrict(toLength(v))
 	curLen := o.value.Len()
 	if newLen > curLen {
-		if !o.sliceExtensible {
-			o.val.runtime.typeErrorResult(throw, "Cannot extend Go slice")
-			return false
-		}
 		o.grow(newLen)
 	} else if newLen < curLen {
-		if !o.sliceExtensible {
-			o.val.runtime.typeErrorResult(throw, "Cannot shrink Go slice")
-			return false
-		}
 		o.shrink(newLen)
 	}
 	return true

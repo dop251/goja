@@ -319,3 +319,18 @@ func TestGoSliceReflectPop(t *testing.T) {
 		t.Fatal(v)
 	}
 }
+
+func TestGoSliceReflectPopNoPtr(t *testing.T) {
+	r := New()
+	a := []string{"1", "", "3"}
+	r.Set("a", a)
+	v, err := r.RunString(`
+	a.pop()
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.SameAs(asciiString("3")) {
+		t.Fatal(v)
+	}
+}
