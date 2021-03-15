@@ -268,6 +268,12 @@ var (
 		"test/language/statements/for-in/head-var-bound-names-dup.js": true,
 		"test/language/statements/for/head-let-destructuring.js":      true,
 		"test/language/statements/for-in/head-let-destructuring.js":   true,
+
+		// arguments exotic-object specifics
+		"test/language/arguments-object/mapped/nonconfigurable-descriptors-with-param-assign.js":              true,
+		"test/language/arguments-object/mapped/nonconfigurable-descriptors-set-value-with-define-property.js": true,
+		"test/language/arguments-object/mapped/nonconfigurable-descriptors-basic.js":                          true,
+		"test/language/arguments-object/mapped/nonconfigurable-descriptors-set-value-by-arguments.js":         true,
 	}
 
 	featuresBlackList = []string{
@@ -363,6 +369,7 @@ var (
 		"sec-try-*",
 		"sec-strict-mode-of-ecmascript",
 		"sec-let-and-const-declarations*",
+		"sec-arguments-exotic-objects-defineownproperty-p-desc",
 	}
 )
 

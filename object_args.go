@@ -97,7 +97,7 @@ func (a *argumentsObject) defineOwnPropertyStr(name unistring.String, descr Prop
 			configurable: mapped.configurable,
 			writable:     true,
 			enumerable:   mapped.enumerable,
-			value:        mapped.get(a.val),
+			value:        *mapped.v,
 		}
 
 		val, ok := a.baseObject._defineOwnProperty(name, existing, descr, throw)
