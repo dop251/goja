@@ -364,6 +364,7 @@ var (
 		"sec-strict-mode-of-ecmascript",
 		"sec-let-and-const-declarations*",
 		"sec-arguments-exotic-objects-defineownproperty-p-desc",
+		"sec-other-properties-of-the-global-object-globalthis",
 	}
 )
 
