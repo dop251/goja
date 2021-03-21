@@ -1985,6 +1985,11 @@ func TestStackOverflowError(t *testing.T) {
 	}
 }
 
+func Test386Build(t *testing.T) {
+	// this test should fail to compile on 386
+	const test int = math.MinInt64
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
