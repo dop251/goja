@@ -18,7 +18,7 @@ jobs:
       - name: Check formatting
         run: diff -u <(echo -n) <(gofmt -d .)
       - name: Checkout tc39 tests
-        run: .tc39_test262_checkout.sh
+        run: ./.tc39_test262_checkout.sh
       - name: Run tests
         env:
           GOARCH: ${{ matrix.arch }}
