@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -1982,6 +1983,76 @@ func TestStackOverflowError(t *testing.T) {
 	`)
 	if _, ok := err.(*StackOverflowError); !ok {
 		t.Fatal(err)
+	}
+}
+
+func TestStacktraceLocationThrowFromCatch(t *testing.T) {
+	vm := New()
+	_, err := vm.RunString(`
+	function main(arg) {
+		try {
+			if (arg === 1) {
+				return f1();
+			}
+			if (arg === 2) {
+				return f2();
+			}
+			if (arg === 3) {
+				return f3();
+			}
+		} catch (e) {
+			throw e;
+		}
+	}
+	function f1() {}
+	function f2() {
+		throw new Error();
+	}
+	function f3() {}
+	main(2);
+	`)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+	stack := err.(*Exception).stack
+	if len(stack) != 2 {
+		t.Fatalf("Unexpected stack len: %v", stack)
+	}
+	if frame := stack[0]; frame.funcName != "main" || frame.pc != 30 {
+		t.Fatalf("Unexpected stack frame 0: %#v", frame)
+	}
+	if frame := stack[1]; frame.funcName != "" || frame.pc != 7 {
+		t.Fatalf("Unexpected stack frame 1: %#v", frame)
+	}
+}
+
+func TestStacktraceLocationThrowFromGo(t *testing.T) {
+	vm := New()
+	f := func() {
+		panic(vm.ToValue("Test"))
+	}
+	vm.Set("f", f)
+	_, err := vm.RunString(`
+	function main() {
+		return f();
+	}
+	main();
+	`)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+	stack := err.(*Exception).stack
+	if len(stack) != 3 {
+		t.Fatalf("Unexpected stack len: %v", stack)
+	}
+	if frame := stack[0]; !strings.HasSuffix(frame.funcName.String(), "TestStacktraceLocationThrowFromGo.func1") {
+		t.Fatalf("Unexpected stack frame 0: %#v", frame)
+	}
+	if frame := stack[1]; frame.funcName != "main" || frame.pc != 1 {
+		t.Fatalf("Unexpected stack frame 1: %#v", frame)
+	}
+	if frame := stack[2]; frame.funcName != "" || frame.pc != 3 {
+		t.Fatalf("Unexpected stack frame 2: %#v", frame)
 	}
 }
 
