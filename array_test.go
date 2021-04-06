@@ -106,3 +106,15 @@ func BenchmarkArrayPut(b *testing.B) {
 	}
 
 }
+
+func BenchmarkArraySetEmpty(b *testing.B) {
+	r := New()
+	r.Get("Array").(*Object).Get("prototype").String() // materialise Array.prototype
+	a := r.NewArray(0, 0)
+	values := a.self.(*arrayObject).values
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		values[0] = nil
+		a.self.setOwnIdx(0, valueTrue, true)
+	}
+}
