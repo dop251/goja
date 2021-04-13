@@ -193,6 +193,12 @@ func (self *_parser) parseVarDeclarationList(var_ file.Idx) []*ast.VariableExpre
 }
 
 func (self *_parser) parseObjectPropertyKey() (unistring.String, ast.Expression, token.Token) {
+	if self.token == token.LEFT_BRACKET {
+		self.next()
+		expr := self.parseAssignmentExpression()
+		self.expect(token.RIGHT_BRACKET)
+		return "", expr, token.ILLEGAL
+	}
 	idx, tkn, literal, parsedLiteral := self.idx, self.token, self.literal, self.parsedLiteral
 	var value ast.Expression
 	self.next()
@@ -228,7 +234,7 @@ func (self *_parser) parseObjectPropertyKey() (unistring.String, ast.Expression,
 				Literal: literal,
 				Value:   unistring.String(literal),
 			}
-			tkn = token.STRING
+			tkn = token.KEYWORD
 		}
 	}
 	return parsedLiteral, value, tkn
@@ -236,7 +242,7 @@ func (self *_parser) parseObjectPropertyKey() (unistring.String, ast.Expression,
 
 func (self *_parser) parseObjectProperty() ast.Property {
 	literal, value, tkn := self.parseObjectPropertyKey()
-	if tkn == token.IDENTIFIER || tkn == token.STRING {
+	if tkn == token.IDENTIFIER || tkn == token.STRING || tkn == token.KEYWORD || tkn == token.ILLEGAL {
 		switch {
 		case self.token == token.LEFT_PARENTHESIS:
 			idx := self.idx
@@ -248,19 +254,27 @@ func (self *_parser) parseObjectProperty() ast.Property {
 			}
 			self.parseFunctionBlock(node)
 
-			return ast.Property{
+			return &ast.PropertyKeyed{
 				Key:   value,
-				Kind:  "method",
+				Kind:  ast.PropertyKindMethod,
 				Value: node,
 			}
-		case self.token == token.COMMA || self.token == token.RIGHT_BRACE: // shorthand property
-			return ast.Property{
-				Key:  value,
-				Kind: "value",
-				Value: &ast.Identifier{
-					Name: literal,
-					Idx:  self.idx,
-				},
+		case self.token == token.COMMA || self.token == token.RIGHT_BRACE || self.token == token.ASSIGN: // shorthand property
+			if tkn == token.IDENTIFIER || tkn == token.KEYWORD && literal == "let" {
+				var initializer ast.Expression
+				if self.token == token.ASSIGN {
+					// allow the initializer syntax here in case the object literal
+					// needs to be reinterpreted as an assignment pattern, enforce later if it doesn't.
+					self.next()
+					initializer = self.parseExpression()
+				}
+				return &ast.PropertyShort{
+					Name: ast.Identifier{
+						Name: literal,
+						Idx:  value.Idx0(),
+					},
+					Initializer: initializer,
+				}
 			}
 		case literal == "get" && self.token != token.COLON:
 			idx := self.idx
@@ -272,9 +286,9 @@ func (self *_parser) parseObjectProperty() ast.Property {
 				ParameterList: parameterList,
 			}
 			self.parseFunctionBlock(node)
-			return ast.Property{
+			return &ast.PropertyKeyed{
 				Key:   value,
-				Kind:  "get",
+				Kind:  ast.PropertyKindGet,
 				Value: node,
 			}
 		case literal == "set" && self.token != token.COLON:
@@ -289,9 +303,9 @@ func (self *_parser) parseObjectProperty() ast.Property {
 
 			self.parseFunctionBlock(node)
 
-			return ast.Property{
+			return &ast.PropertyKeyed{
 				Key:   value,
-				Kind:  "set",
+				Kind:  ast.PropertyKindSet,
 				Value: node,
 			}
 		}
@@ -299,9 +313,9 @@ func (self *_parser) parseObjectProperty() ast.Property {
 
 	self.expect(token.COLON)
 
-	return ast.Property{
+	return &ast.PropertyKeyed{
 		Key:   value,
-		Kind:  "value",
+		Kind:  ast.PropertyKindValue,
 		Value: self.parseAssignmentExpression(),
 	}
 }
@@ -309,7 +323,16 @@ func (self *_parser) parseObjectProperty() ast.Property {
 func (self *_parser) parseObjectLiteral() ast.Expression {
 	var value []ast.Property
 	idx0 := self.expect(token.LEFT_BRACE)
+	var spread ast.Expression
 	for self.token != token.RIGHT_BRACE && self.token != token.EOF {
+		if self.token == token.ELLIPSIS {
+			self.next()
+			spread = self.parseAssignmentExpression()
+			if self.token != token.RIGHT_BRACE {
+				self.expect(token.COMMA)
+			}
+			break
+		}
 		property := self.parseObjectProperty()
 		value = append(value, property)
 		if self.token != token.RIGHT_BRACE {
@@ -324,6 +347,7 @@ func (self *_parser) parseObjectLiteral() ast.Expression {
 		LeftBrace:  idx0,
 		RightBrace: idx1,
 		Value:      value,
+		Spread:     spread,
 	}
 }
 
@@ -816,17 +840,42 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 	if operator != 0 {
 		idx := self.idx
 		self.next()
-		switch left.(type) {
+		ok := false
+		switch l := left.(type) {
 		case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression:
-		default:
-			self.error(left.Idx0(), "Invalid left-hand side in assignment")
-			self.nextStatement()
-			return &ast.BadExpression{From: idx, To: self.idx}
+			ok = true
+		case *ast.ArrayLiteral:
+			if operator == token.ASSIGN {
+				left = self.reinterpretAsArrayAssignmentPattern(l)
+				ok = true
+			}
+		case *ast.ObjectLiteral:
+			if operator == token.ASSIGN {
+				left = self.reinterpretAsObjectAssignmentPattern(l)
+				ok = true
+			}
 		}
-		return &ast.AssignExpression{
-			Left:     left,
-			Operator: operator,
-			Right:    self.parseAssignmentExpression(),
+		if ok {
+			return &ast.AssignExpression{
+				Left:     left,
+				Operator: operator,
+				Right:    self.parseAssignmentExpression(),
+			}
+		}
+		self.error(left.Idx0(), "Invalid left-hand side in assignment")
+		self.nextStatement()
+		return &ast.BadExpression{From: idx, To: self.idx}
+	}
+
+	if obj, ok := left.(*ast.ObjectLiteral); ok {
+		for _, prop := range obj.Value {
+			if prop, ok := prop.(*ast.PropertyShort); ok {
+				if prop.Initializer != nil {
+					self.error(prop.Name.Idx0(), "Invalid shorthand property initializer")
+					self.nextStatement()
+					return &ast.BadExpression{From: left.Idx0(), To: self.idx}
+				}
+			}
 		}
 	}
 
@@ -855,4 +904,83 @@ func (self *_parser) parseExpression() ast.Expression {
 	}
 
 	return left
+}
+
+func (self *_parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral) *ast.ArrayAssignmentPattern {
+	elts := make([]ast.AssignmentElement, len(left.Value))
+	for i, item := range left.Value {
+		elts[i] = self.reinterpretAsAssignmentElement(item)
+	}
+	return &ast.ArrayAssignmentPattern{
+		LeftBracket:  left.LeftBracket,
+		RightBracket: left.RightBracket,
+		Elements:     elts,
+	}
+}
+
+func (self *_parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) *ast.ObjectAssignmentPattern {
+	props := make([]ast.AssignmentProperty, len(l.Value))
+	for i, prop := range l.Value {
+		var aProp ast.AssignmentProperty
+		switch prop := prop.(type) {
+		case *ast.PropertyKeyed:
+			if prop.Kind == ast.PropertyKindValue {
+				aProp = &ast.AssignmentPropertyKeyed{
+					Key:   prop.Key,
+					Value: self.reinterpretAsAssignmentElement(prop.Value),
+				}
+			}
+		case *ast.PropertyShort:
+			aProp = &ast.AssignmentPropertyShort{
+				Name:        prop.Name,
+				Initializer: prop.Initializer,
+			}
+		}
+		if aProp != nil {
+			props[i] = aProp
+		} else {
+			self.error(prop.Idx0(), "Invalid destructuring assignment target")
+			return nil
+		}
+	}
+	return &ast.ObjectAssignmentPattern{
+		LeftBrace:  l.LeftBrace,
+		RightBrace: l.RightBrace,
+		Properties: props,
+		Rest:       l.Spread,
+	}
+}
+
+func (self *_parser) reinterpretAsAssignmentElement(expr ast.Expression) ast.AssignmentElement {
+	switch expr := expr.(type) {
+	case *ast.AssignExpression:
+		if expr.Operator == token.ASSIGN {
+			return ast.AssignmentElement{
+				Target:      self.reinterpretAsDestructAssignTarget(expr.Left),
+				Initializer: expr.Right,
+			}
+		} else {
+			self.error(expr.Idx0(), "Invalid destructuring assignment target")
+			return ast.AssignmentElement{
+				Target: &ast.BadExpression{From: expr.Idx0(), To: expr.Idx1()},
+			}
+		}
+	default:
+		return ast.AssignmentElement{
+			Target: self.reinterpretAsDestructAssignTarget(expr),
+		}
+	}
+}
+
+func (self *_parser) reinterpretAsDestructAssignTarget(item ast.Expression) ast.Expression {
+	switch item := item.(type) {
+	case *ast.ArrayLiteral:
+		return self.reinterpretAsArrayAssignmentPattern(item)
+	case *ast.ObjectLiteral:
+		return self.reinterpretAsObjectAssignmentPattern(item)
+	case ast.AssignmentPattern, *ast.Identifier, *ast.DotExpression, *ast.BracketExpression:
+		return item
+	}
+	self.error(item.Idx0(), "Invalid destructuring assignment target")
+	return &ast.BadExpression{From: item.Idx0(), To: item.Idx1()}
 }

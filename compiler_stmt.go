@@ -362,7 +362,7 @@ func (c *compiler) compileForInto(into ast.ForInto, needResult bool) (enter *ent
 		c.newBlockScope()
 		enter = &enterBlock{}
 		c.emit(enter)
-		if binding, ok := into.Binding.(*ast.BindingIdentifier); ok {
+		if binding, ok := into.Binding.(*ast.ForBindingIdentifier); ok {
 			b := c.createLexicalBinding(binding.Name, into.IsConst, int(into.Idx)-1)
 			c.enumGetExpr.emitGetter(true)
 			b.emitInit()
@@ -385,7 +385,7 @@ func (c *compiler) compileLabeledForInOfStatement(into ast.ForInto, source ast.E
 	}
 	enterPos := -1
 	if forDecl, ok := into.(*ast.ForDeclaration); ok {
-		if binding, ok := forDecl.Binding.(*ast.BindingIdentifier); ok {
+		if binding, ok := forDecl.Binding.(*ast.ForBindingIdentifier); ok {
 			c.block = &block{
 				typ:        blockScope,
 				outer:      c.block,

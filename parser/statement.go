@@ -479,9 +479,11 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 					into = &ast.ForDeclaration{
 						Idx:     idx,
 						IsConst: tok == token.CONST,
-						Binding: &ast.BindingIdentifier{
-							Name: list[0].Name,
-							Idx:  list[0].Idx,
+						Binding: &ast.ForBindingIdentifier{
+							Identifier: ast.Identifier{
+								Name: list[0].Name,
+								Idx:  list[0].Idx,
+							},
 						},
 					}
 				}

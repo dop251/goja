@@ -17,6 +17,7 @@ var (
 type compiledExpr interface {
 	emitGetter(putOnStack bool)
 	emitSetter(valueExpr compiledExpr, putOnStack bool)
+	emitRef()
 	emitUnary(prepare, body func(), postfix, putOnStack bool)
 	deleteExpr() compiledExpr
 	constant() bool
@@ -58,6 +59,11 @@ type compiledAssignExpr struct {
 	baseCompiledExpr
 	left, right compiledExpr
 	operator    token.Token
+}
+
+type compiledObjectAssignmentPattern struct {
+	baseCompiledExpr
+	expr *ast.ObjectAssignmentPattern
 }
 
 type deleteGlobalExpr struct {
@@ -241,6 +247,8 @@ func (c *compiler) compileExpression(v ast.Expression) compiledExpr {
 		return c.compileNewExpression(v)
 	case *ast.MetaProperty:
 		return c.compileMetaProperty(v)
+	case *ast.ObjectAssignmentPattern:
+		return c.compileObjectAssignmentPattern(v)
 	default:
 		panic(fmt.Errorf("Unknown expression type: %T", v))
 	}
@@ -257,6 +265,10 @@ func (e *baseCompiledExpr) init(c *compiler, idx file.Idx) {
 
 func (e *baseCompiledExpr) emitSetter(compiledExpr, bool) {
 	e.c.throwSyntaxError(e.offset, "Not a valid left-value expression")
+}
+
+func (e *baseCompiledExpr) emitRef() {
+	e.c.throwSyntaxError(e.offset, "Cannot emit reference for this type of expression")
 }
 
 func (e *baseCompiledExpr) deleteExpr() compiledExpr {
@@ -391,8 +403,33 @@ func (c *compiler) emitVarSetter(name unistring.String, offset int, valueExpr co
 	})
 }
 
+func (c *compiler) emitVarRef(name unistring.String, offset int) {
+	if c.scope.strict {
+		c.checkIdentifierLName(name, offset)
+	}
+
+	b, _ := c.scope.lookupName(name)
+	if b != nil {
+		b.emitResolveVar(c.scope.strict)
+	} else {
+		if c.scope.strict {
+			c.emit(resolveVar1Strict(name))
+		} else {
+			c.emit(resolveVar1(name))
+		}
+	}
+}
+
+func (e *compiledVariableExpr) emitRef() {
+	e.c.emitVarRef(e.name, e.offset)
+}
+
 func (e *compiledVariableExpr) emitSetter(valueExpr compiledExpr, putOnStack bool) {
 	e.c.emitVarSetter(e.name, e.offset, valueExpr, putOnStack)
+}
+
+func (e *compiledIdentifierExpr) emitRef() {
+	e.c.emitVarRef(e.name, e.offset)
 }
 
 func (e *compiledIdentifierExpr) emitSetter(valueExpr compiledExpr, putOnStack bool) {
@@ -476,6 +513,15 @@ func (e *compiledDotExpr) emitGetter(putOnStack bool) {
 	}
 }
 
+func (e *compiledDotExpr) emitRef() {
+	e.left.emitGetter(true)
+	if e.c.scope.strict {
+		e.c.emit(getPropRefStrict(e.name))
+	} else {
+		e.c.emit(getPropRef(e.name))
+	}
+}
+
 func (e *compiledDotExpr) emitSetter(valueExpr compiledExpr, putOnStack bool) {
 	e.left.emitGetter(true)
 	valueExpr.emitGetter(true)
@@ -555,6 +601,16 @@ func (e *compiledBracketExpr) emitGetter(putOnStack bool) {
 	e.c.emit(getElem)
 	if !putOnStack {
 		e.c.emit(pop)
+	}
+}
+
+func (e *compiledBracketExpr) emitRef() {
+	e.left.emitGetter(true)
+	e.member.emitGetter(true)
+	if e.c.scope.strict {
+		e.c.emit(getElemRefStrict)
+	} else {
+		e.c.emit(getElemRef)
 	}
 }
 
@@ -1403,35 +1459,79 @@ func (e *compiledObjectLiteral) emitGetter(putOnStack bool) {
 	e.addSrcMap()
 	e.c.emit(newObject)
 	for _, prop := range e.expr.Value {
-		keyExpr := e.c.compileExpression(prop.Key)
-		cl, ok := keyExpr.(*compiledLiteral)
-		if !ok {
-			e.c.throwSyntaxError(e.offset, "non-literal properties in object literal are not supported yet")
-		}
-		key := cl.val.string()
-		valueExpr := e.c.compileExpression(prop.Value)
-		if fn, ok := valueExpr.(*compiledFunctionLiteral); ok {
-			if fn.expr.Name == nil {
-				fn.lhsName = key
+		switch prop := prop.(type) {
+		case *ast.PropertyKeyed:
+			keyExpr := e.c.compileExpression(prop.Key)
+			computed := false
+			var key unistring.String
+			switch keyExpr := keyExpr.(type) {
+			case *compiledLiteral:
+				key = keyExpr.val.string()
+			default:
+				keyExpr.emitGetter(true)
+				computed = true
+				//e.c.throwSyntaxError(e.offset, "non-literal properties in object literal are not supported yet")
 			}
-		}
-		valueExpr.emitGetter(true)
-		switch prop.Kind {
-		case "value":
-			if key == __proto__ {
-				e.c.emit(setProto)
+			valueExpr := e.c.compileExpression(prop.Value)
+			var anonFn *compiledFunctionLiteral
+			if fn, ok := valueExpr.(*compiledFunctionLiteral); ok {
+				if fn.expr.Name == nil {
+					anonFn = fn
+					fn.lhsName = key
+				}
+			}
+			if computed {
+				valueExpr.emitGetter(true)
+				switch prop.Kind {
+				case ast.PropertyKindValue, ast.PropertyKindMethod:
+					if anonFn != nil {
+						e.c.emit(setElem1Named)
+					} else {
+						e.c.emit(setElem1)
+					}
+				case ast.PropertyKindGet:
+					e.c.emit(setPropGetter1)
+				case ast.PropertyKindSet:
+					e.c.emit(setPropSetter1)
+				default:
+					panic(fmt.Errorf("unknown property kind: %s", prop.Kind))
+				}
 			} else {
-				e.c.emit(setProp1(key))
+				if anonFn != nil {
+					anonFn.lhsName = key
+				}
+				valueExpr.emitGetter(true)
+				switch prop.Kind {
+				case ast.PropertyKindValue:
+					if key == __proto__ {
+						e.c.emit(setProto)
+					} else {
+						e.c.emit(setProp1(key))
+					}
+				case ast.PropertyKindMethod:
+					e.c.emit(setProp1(key))
+				case ast.PropertyKindGet:
+					e.c.emit(setPropGetter(key))
+				case ast.PropertyKindSet:
+					e.c.emit(setPropSetter(key))
+				default:
+					panic(fmt.Errorf("unknown property kind: %s", prop.Kind))
+				}
 			}
-		case "method":
+		case *ast.PropertyShort:
+			key := prop.Name.Name
+			if e.c.scope.strict && key == "let" {
+				e.c.throwSyntaxError(e.offset, "'let' cannot be used as a shorthand property in strict mode")
+			}
+			e.c.compileIdentifierExpression(&prop.Name).emitGetter(true)
 			e.c.emit(setProp1(key))
-		case "get":
-			e.c.emit(setPropGetter(key))
-		case "set":
-			e.c.emit(setPropSetter(key))
 		default:
-			panic(fmt.Errorf("unknown property kind: %s", prop.Kind))
+			panic(fmt.Errorf("unknown Property type: %T", prop))
 		}
+	}
+	if e.expr.Spread != nil {
+		e.c.compileExpression(e.expr.Spread).emitGetter(true)
+		e.c.emit(copySpread)
 	}
 	if !putOnStack {
 		e.c.emit(pop)
@@ -1646,4 +1746,90 @@ func (e *compiledEnumGetExpr) emitGetter(putOnStack bool) {
 	if !putOnStack {
 		e.c.emit(pop)
 	}
+}
+
+func (c *compiler) compileObjectAssignmentPattern(v *ast.ObjectAssignmentPattern) compiledExpr {
+	r := &compiledObjectAssignmentPattern{
+		expr: v,
+	}
+	r.init(c, v.Idx0())
+	return r
+}
+
+func (e *compiledObjectAssignmentPattern) emitGetter(putOnStack bool) {
+	if putOnStack {
+		e.c.emit(loadUndef)
+	}
+}
+
+func (c *compiler) emitAssignmentPattern(pattern ast.AssignmentPattern, putOnStack bool) {
+	switch pattern := pattern.(type) {
+	case *ast.ObjectAssignmentPattern:
+		c.emitObjectAssignmentPattern(pattern, putOnStack)
+	case *ast.ArrayAssignmentPattern:
+		c.emitArrayAssignmentPattern(pattern, putOnStack)
+	default:
+		panic(fmt.Errorf("unsupported AssignmentPattern: %T", pattern))
+	}
+}
+
+func (c *compiler) emitObjectAssignmentPattern(pattern *ast.ObjectAssignmentPattern, putOnStack bool) {
+	if pattern.Rest != nil {
+		c.emit(createDestructSrc)
+	} else {
+		c.emit(checkObjectCoercible)
+	}
+	for _, prop := range pattern.Properties {
+		switch prop := prop.(type) {
+		case *ast.AssignmentPropertyShort:
+			c.emit(dup)
+			c.compileIdentifierExpression(&prop.Name).emitRef()
+			c.emit(getProp(prop.Name.Name))
+			if prop.Initializer != nil {
+				mark := len(c.p.code)
+				c.emit(nil)
+				c.compileExpression(prop.Initializer).emitGetter(true)
+				c.p.code[mark] = jdef(len(c.p.code) - mark)
+			}
+			c.emit(putValueP)
+		case *ast.AssignmentPropertyKeyed:
+			c.emit(dup)
+			c.compileExpression(prop.Key).emitGetter(true)
+			pattern, isPattern := prop.Value.Target.(ast.AssignmentPattern)
+			if !isPattern {
+				c.compileExpression(prop.Value.Target).emitRef()
+			}
+			c.emit(getElem)
+			if prop.Value.Initializer != nil {
+				mark := len(c.p.code)
+				c.emit(nil)
+				c.compileExpression(prop.Value.Initializer).emitGetter(true)
+				c.p.code[mark] = jdef(len(c.p.code) - mark)
+			}
+			if isPattern {
+				c.emitAssignmentPattern(pattern, false)
+			} else {
+				c.emit(putValueP)
+			}
+		default:
+			c.throwSyntaxError(int(prop.Idx0()-1), "Unsupported AssignmentProperty type: %T", prop)
+		}
+	}
+	if pattern.Rest != nil {
+		c.compileExpression(pattern.Rest).emitRef()
+		c.emit(copyRest, putValueP, pop)
+	}
+	if !putOnStack {
+		c.emit(pop)
+	}
+}
+
+func (c *compiler) emitArrayAssignmentPattern(pattern *ast.ArrayAssignmentPattern, stack bool) {
+	// TODO: implement
+	panic("not implemented")
+}
+
+func (e *compiledObjectAssignmentPattern) emitSetter(valueExpr compiledExpr, putOnStack bool) {
+	valueExpr.emitGetter(true)
+	e.c.emitObjectAssignmentPattern(e.expr, putOnStack)
 }

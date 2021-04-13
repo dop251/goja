@@ -3462,6 +3462,119 @@ func TestArgAccessFromDynamicStash(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestObjectLiteralSpread(t *testing.T) {
+	const SCRIPT = `
+	let src = {prop1: 1};
+	Object.defineProperty(src, "prop2", {value: 2, configurable: true});
+	Object.defineProperty(src, "prop3", {value: 3, enumerable: true, configurable: true});
+	let target = {prop4: 4, ...src};
+	assert(deepEqual(target, {prop1: 1, prop3: 3, prop4: 4}));
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
+
+func TestObjectAssignmentPattern(t *testing.T) {
+	const SCRIPT = `
+	let a, b, c;
+	({a, b, c=3} = {a: 1, b: 2});
+	assert.sameValue(a, 1, "a");
+	assert.sameValue(b, 2, "b");
+	assert.sameValue(c, 3, "c");
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestObjectAssignmentPatternNested(t *testing.T) {
+	const SCRIPT = `
+	let a, b, c, d;
+	({a, b, c: {d} = 3} = {a: 1, b: 2, c: {d: 4}});
+	assert.sameValue(a, 1, "a");
+	assert.sameValue(b, 2, "b");
+	assert.sameValue(c, undefined, "c");
+	assert.sameValue(d, 4, "d");
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestObjectAssignmentPatternEvalOrder(t *testing.T) {
+	const SCRIPT = `
+	let trace = "";
+
+	function src() {
+	    trace += "src(),";
+		return {
+			get a() {
+				trace += "get a,";
+				return "a";
+			}
+		}
+	}
+	
+	function prop1() {
+		trace += "prop1(),"
+		return "a";
+	}
+	
+	function prop2() {
+		trace += "prop2(),";
+		return "b";
+	}
+	
+	function target() {
+		trace += "target(),"
+		return {};
+	}
+	
+	let a, b;
+	
+	({[prop1()]: target().a, [prop2()]: b} = src());
+	trace;
+	`
+	testScript1(SCRIPT, asciiString("src(),prop1(),target(),get a,prop2(),"), t)
+}
+
+func TestObjectAssignPatternRest(t *testing.T) {
+	const SCRIPT = `
+	let a, b, c, d;
+	({a, b, c, ...d} = {a: 1, b: 2, d: 4});
+	assert.sameValue(a, 1, "a");
+	assert.sameValue(b, 2, "b");
+	assert.sameValue(c, undefined, "c");
+	assert(deepEqual(d, {d: 4}), "d");
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
+
+func TestObjLiteralShorthandWithInitializer(t *testing.T) {
+	const SCRIPT = `
+	o = {a=1};
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+}
+
+func TestObjLiteralShorthandLetStringLit(t *testing.T) {
+	const SCRIPT = `
+	o = {"let"};
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+}
+
+func TestObjLiteralComputedKeys(t *testing.T) {
+	const SCRIPT = `
+	let o = {
+		get [Symbol.toString]() {
+		}
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")

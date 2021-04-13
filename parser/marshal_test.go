@@ -143,7 +143,7 @@ func testMarshalNode(node interface{}) interface{} {
 			"Name", node.Label.Name,
 			"Statement", testMarshalNode(node.Statement),
 		)
-	case ast.Property:
+	case *ast.PropertyKeyed:
 		return marshal("",
 			"Key", node.Key,
 			"Value", testMarshalNode(node.Value),
@@ -168,8 +168,6 @@ func testMarshalNode(node interface{}) interface{} {
 	case *ast.ForIntoVar:
 		return marshal("For-Into-Var", testMarshalNode(node.Binding))
 
-	case *ast.BindingIdentifier:
-		return marshal("Binding-Identifier", "Id", node.Name)
 	}
 
 	{

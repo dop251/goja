@@ -1227,6 +1227,37 @@ func (j jump) exec(vm *vm) {
 	vm.pc += int(j)
 }
 
+type _getElemRef struct{}
+
+var getElemRef _getElemRef
+
+func (_getElemRef) exec(vm *vm) {
+	obj := vm.stack[vm.sp-2].ToObject(vm.r)
+	propName := toPropertyKey(vm.stack[vm.sp-1])
+	vm.refStack = append(vm.refStack, &objRef{
+		base: obj.self,
+		name: propName.string(),
+	})
+	vm.sp -= 2
+	vm.pc++
+}
+
+type _getElemRefStrict struct{}
+
+var getElemRefStrict _getElemRefStrict
+
+func (_getElemRefStrict) exec(vm *vm) {
+	obj := vm.stack[vm.sp-2].ToObject(vm.r)
+	propName := toPropertyKey(vm.stack[vm.sp-1])
+	vm.refStack = append(vm.refStack, &objRef{
+		base:   obj.self,
+		name:   propName.string(),
+		strict: true,
+	})
+	vm.sp -= 2
+	vm.pc++
+}
+
 type _setElem struct{}
 
 var setElem _setElem
@@ -1240,6 +1271,39 @@ func (_setElem) exec(vm *vm) {
 
 	vm.sp -= 2
 	vm.stack[vm.sp-1] = val
+	vm.pc++
+}
+
+type _setElem1 struct{}
+
+var setElem1 _setElem1
+
+func (_setElem1) exec(vm *vm) {
+	obj := vm.stack[vm.sp-3].ToObject(vm.r)
+	propName := toPropertyKey(vm.stack[vm.sp-2])
+	val := vm.stack[vm.sp-1]
+
+	obj.setOwn(propName, val, true)
+
+	vm.sp -= 2
+	vm.pc++
+}
+
+type _setElem1Named struct{}
+
+var setElem1Named _setElem1Named
+
+func (_setElem1Named) exec(vm *vm) {
+	obj := vm.stack[vm.sp-3].ToObject(vm.r)
+	propName := toPropertyKey(vm.stack[vm.sp-2])
+	val := vm.stack[vm.sp-1]
+	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
+		Value:        propName,
+		Configurable: FLAG_TRUE,
+	}, true)
+	obj.setOwn(propName, val, true)
+
+	vm.sp -= 2
 	vm.pc++
 }
 
@@ -1339,6 +1403,29 @@ func (d deletePropStrict) exec(vm *vm) {
 	vm.pc++
 }
 
+type getPropRef unistring.String
+
+func (p getPropRef) exec(vm *vm) {
+	vm.refStack = append(vm.refStack, &objRef{
+		base: vm.stack[vm.sp-1].ToObject(vm.r).self,
+		name: unistring.String(p),
+	})
+	vm.sp--
+	vm.pc++
+}
+
+type getPropRefStrict unistring.String
+
+func (p getPropRefStrict) exec(vm *vm) {
+	vm.refStack = append(vm.refStack, &objRef{
+		base:   vm.stack[vm.sp-1].ToObject(vm.r).self,
+		name:   unistring.String(p),
+		strict: true,
+	})
+	vm.sp--
+	vm.pc++
+}
+
 type setProp unistring.String
 
 func (p setProp) exec(vm *vm) {
@@ -1407,6 +1494,10 @@ type setPropGetter unistring.String
 func (s setPropGetter) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
 	val := vm.stack[vm.sp-1]
+	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
+		Value:        asciiString("get ").concat(stringValueFromRaw(val.string())),
+		Configurable: FLAG_TRUE,
+	}, true)
 
 	descr := PropertyDescriptor{
 		Getter:       val,
@@ -1426,6 +1517,11 @@ func (s setPropSetter) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
 	val := vm.stack[vm.sp-1]
 
+	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
+		Value:        asciiString("set ").concat(stringValueFromRaw(val.string())),
+		Configurable: FLAG_TRUE,
+	}, true)
+
 	descr := PropertyDescriptor{
 		Setter:       val,
 		Configurable: FLAG_TRUE,
@@ -1435,6 +1531,57 @@ func (s setPropSetter) exec(vm *vm) {
 	obj.self.defineOwnPropertyStr(unistring.String(s), descr, false)
 
 	vm.sp--
+	vm.pc++
+}
+
+type _setPropGetter1 struct{}
+
+var setPropGetter1 _setPropGetter1
+
+func (s _setPropGetter1) exec(vm *vm) {
+	obj := vm.r.toObject(vm.stack[vm.sp-3])
+	propName := toPropertyKey(vm.stack[vm.sp-2])
+	val := vm.stack[vm.sp-1]
+	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
+		Value:        asciiString("get ").concat(stringValueFromRaw(val.string())),
+		Configurable: FLAG_TRUE,
+	}, true)
+
+	descr := PropertyDescriptor{
+		Getter:       val,
+		Configurable: FLAG_TRUE,
+		Enumerable:   FLAG_TRUE,
+	}
+
+	obj.defineOwnProperty(propName, descr, false)
+
+	vm.sp -= 2
+	vm.pc++
+}
+
+type _setPropSetter1 struct{}
+
+var setPropSetter1 _setPropSetter1
+
+func (s _setPropSetter1) exec(vm *vm) {
+	obj := vm.r.toObject(vm.stack[vm.sp-3])
+	propName := toPropertyKey(vm.stack[vm.sp-2])
+	val := vm.stack[vm.sp-1]
+
+	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
+		Value:        asciiString("set ").concat(stringValueFromRaw(val.string())),
+		Configurable: FLAG_TRUE,
+	}, true)
+
+	descr := PropertyDescriptor{
+		Setter:       val,
+		Configurable: FLAG_TRUE,
+		Enumerable:   FLAG_TRUE,
+	}
+
+	obj.defineOwnProperty(propName, descr, false)
+
+	vm.sp -= 2
 	vm.pc++
 }
 
@@ -2353,7 +2500,7 @@ func (vm *vm) _nativeCall(f *nativeFuncObject, n int) {
 	if f.f != nil {
 		vm.pushCtx()
 		vm.prg = nil
-		vm.funcName = f.nameProp.get(nil).string()
+		vm.funcName = nilSafe(f.getStr("name", nil)).string()
 		ret := f.f(FunctionCall{
 			Arguments: vm.stack[vm.sp-n : vm.sp],
 			This:      vm.stack[vm.sp-n-2],
@@ -2830,6 +2977,17 @@ func (j jneq1) exec(vm *vm) {
 	if !vm.stack[vm.sp-1].ToBoolean() {
 		vm.pc += int(j)
 	} else {
+		vm.pc++
+	}
+}
+
+type jdef int32
+
+func (j jdef) exec(vm *vm) {
+	if vm.stack[vm.sp-1] != _undefined {
+		vm.pc += int(j)
+	} else {
+		vm.sp--
 		vm.pc++
 	}
 }
@@ -3392,4 +3550,60 @@ var throwAssignToConst _throwAssignToConst
 
 func (_throwAssignToConst) exec(vm *vm) {
 	panic(errAssignToConst)
+}
+
+func (r *Runtime) copyDataProperties(target, source Value) {
+	targetObj := r.toObject(target)
+	if source == _null || source == _undefined {
+		return
+	}
+	sourceObj := source.ToObject(r)
+	iter := &enumerableIter{
+		wrapped: sourceObj.self.enumerateOwnKeys(),
+	}
+
+	for item, next := iter.next(); next != nil; item, next = next() {
+		v := nilSafe(sourceObj.self.getStr(item.name, nil))
+		createDataPropertyOrThrow(targetObj, stringValueFromRaw(item.name), v)
+	}
+}
+
+type _copySpread struct{}
+
+var copySpread _copySpread
+
+func (_copySpread) exec(vm *vm) {
+	vm.r.copyDataProperties(vm.stack[vm.sp-2], vm.stack[vm.sp-1])
+	vm.sp--
+	vm.pc++
+}
+
+type _copyRest struct{}
+
+var copyRest _copyRest
+
+func (_copyRest) exec(vm *vm) {
+	vm.push(vm.r.NewObject())
+	vm.r.copyDataProperties(vm.stack[vm.sp-1], vm.stack[vm.sp-2])
+	vm.pc++
+}
+
+type _createDestructSrc struct{}
+
+var createDestructSrc _createDestructSrc
+
+func (_createDestructSrc) exec(vm *vm) {
+	v := vm.stack[vm.sp-1]
+	vm.r.checkObjectCoercible(v)
+	vm.push(vm.r.newDestructKeyedSource(v))
+	vm.pc++
+}
+
+type _checkObjectCoercible struct{}
+
+var checkObjectCoercible _checkObjectCoercible
+
+func (_checkObjectCoercible) exec(vm *vm) {
+	vm.r.checkObjectCoercible(vm.stack[vm.sp-1])
+	vm.pc++
 }

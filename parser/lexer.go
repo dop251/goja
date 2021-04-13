@@ -297,7 +297,17 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 					insertSemicolon = true
 					tkn, literal = self.scanNumericLiteral(true)
 				} else {
-					tkn = token.PERIOD
+					if self.chr == '.' {
+						self.read()
+						if self.chr == '.' {
+							self.read()
+							tkn = token.ELLIPSIS
+						} else {
+							tkn = token.ILLEGAL
+						}
+					} else {
+						tkn = token.PERIOD
+					}
 				}
 			case ',':
 				tkn = token.COMMA
@@ -351,10 +361,15 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 			case '>':
 				tkn = self.switch6(token.GREATER, token.GREATER_OR_EQUAL, '>', token.SHIFT_RIGHT, token.SHIFT_RIGHT_ASSIGN, '>', token.UNSIGNED_SHIFT_RIGHT, token.UNSIGNED_SHIFT_RIGHT_ASSIGN)
 			case '=':
-				tkn = self.switch2(token.ASSIGN, token.EQUAL)
-				if tkn == token.EQUAL && self.chr == '=' {
+				if self.chr == '>' {
 					self.read()
-					tkn = token.STRICT_EQUAL
+					tkn = token.ARROW
+				} else {
+					tkn = self.switch2(token.ASSIGN, token.EQUAL)
+					if tkn == token.EQUAL && self.chr == '=' {
+						self.read()
+						tkn = token.STRICT_EQUAL
+					}
 				}
 			case '!':
 				tkn = self.switch2(token.NOT, token.NOT_EQUAL)

@@ -876,7 +876,19 @@ func TestParser(t *testing.T) {
         `, nil)
 
 		test("'ё\\\u2029'", nil)
+
+		test(`[a, b] = [1, 2]`, nil)
+		test(`({"a b": {}} = {})`, nil)
 	})
+}
+
+func TestParseDestruct(t *testing.T) {
+	parser := newParser("", `({a: (a.b), ...spread,} = {})`)
+	prg, err := parser.parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = prg
 }
 
 func Test_parseStringLiteral(t *testing.T) {
