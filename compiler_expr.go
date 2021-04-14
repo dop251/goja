@@ -63,7 +63,7 @@ type compiledAssignExpr struct {
 
 type compiledObjectAssignmentPattern struct {
 	baseCompiledExpr
-	expr *ast.ObjectAssignmentPattern
+	expr *ast.ObjectPattern
 }
 
 type deleteGlobalExpr struct {
@@ -213,7 +213,7 @@ func (c *compiler) compileExpression(v ast.Expression) compiledExpr {
 		return c.compileArrayLiteral(v)
 	case *ast.RegExpLiteral:
 		return c.compileRegexpLiteral(v)
-	case *ast.VariableExpression:
+	case *ast.Binding:
 		return c.compileVariableExpression(v)
 	case *ast.BinaryExpression:
 		return c.compileBinaryExpression(v)
@@ -247,7 +247,7 @@ func (c *compiler) compileExpression(v ast.Expression) compiledExpr {
 		return c.compileNewExpression(v)
 	case *ast.MetaProperty:
 		return c.compileMetaProperty(v)
-	case *ast.ObjectAssignmentPattern:
+	case *ast.ObjectPattern:
 		return c.compileObjectAssignmentPattern(v)
 	default:
 		panic(fmt.Errorf("Unknown expression type: %T", v))
@@ -1443,16 +1443,22 @@ func (e *compiledVariableExpr) emitGetter(putOnStack bool) {
 	}
 }
 
-func (c *compiler) compileVariableExpression(v *ast.VariableExpression) compiledExpr {
-	r := &compiledVariableExpr{
-		name:        v.Name,
-		initializer: c.compileExpression(v.Initializer),
+func (c *compiler) compileVariableExpression(v *ast.Binding) compiledExpr {
+	switch target := v.Target.(type) {
+	case *ast.Identifier:
+		r := &compiledVariableExpr{
+			name:        target.Name,
+			initializer: c.compileExpression(v.Initializer),
+		}
+		if fn, ok := r.initializer.(*compiledFunctionLiteral); ok {
+			fn.lhsName = target.Name
+		}
+		r.init(c, v.Idx0())
+		return r
+	default:
+		c.throwSyntaxError(int(target.Idx0()-1), "Unsupported binding target: %T", target)
+		panic("unreachable")
 	}
-	if fn, ok := r.initializer.(*compiledFunctionLiteral); ok {
-		fn.lhsName = v.Name
-	}
-	r.init(c, v.Idx0())
-	return r
 }
 
 func (e *compiledObjectLiteral) emitGetter(putOnStack bool) {
@@ -1525,13 +1531,12 @@ func (e *compiledObjectLiteral) emitGetter(putOnStack bool) {
 			}
 			e.c.compileIdentifierExpression(&prop.Name).emitGetter(true)
 			e.c.emit(setProp1(key))
+		case *ast.PropertySpread:
+			e.c.compileExpression(prop.Expression).emitGetter(true)
+			e.c.emit(copySpread)
 		default:
 			panic(fmt.Errorf("unknown Property type: %T", prop))
 		}
-	}
-	if e.expr.Spread != nil {
-		e.c.compileExpression(e.expr.Spread).emitGetter(true)
-		e.c.emit(copySpread)
 	}
 	if !putOnStack {
 		e.c.emit(pop)
@@ -1748,7 +1753,7 @@ func (e *compiledEnumGetExpr) emitGetter(putOnStack bool) {
 	}
 }
 
-func (c *compiler) compileObjectAssignmentPattern(v *ast.ObjectAssignmentPattern) compiledExpr {
+func (c *compiler) compileObjectAssignmentPattern(v *ast.ObjectPattern) compiledExpr {
 	r := &compiledObjectAssignmentPattern{
 		expr: v,
 	}
@@ -1762,18 +1767,30 @@ func (e *compiledObjectAssignmentPattern) emitGetter(putOnStack bool) {
 	}
 }
 
-func (c *compiler) emitAssignmentPattern(pattern ast.AssignmentPattern, putOnStack bool) {
+func (c *compiler) emitAssignmentPattern(pattern ast.Pattern, binding, putOnStack bool) {
 	switch pattern := pattern.(type) {
-	case *ast.ObjectAssignmentPattern:
-		c.emitObjectAssignmentPattern(pattern, putOnStack)
-	case *ast.ArrayAssignmentPattern:
+	case *ast.ObjectPattern:
+		c.emitObjectPattern(pattern, binding, putOnStack)
+	case *ast.ArrayPattern:
 		c.emitArrayAssignmentPattern(pattern, putOnStack)
 	default:
-		panic(fmt.Errorf("unsupported AssignmentPattern: %T", pattern))
+		panic(fmt.Errorf("unsupported Pattern: %T", pattern))
 	}
 }
 
-func (c *compiler) emitObjectAssignmentPattern(pattern *ast.ObjectAssignmentPattern, putOnStack bool) {
+func (c *compiler) emitInitBinding(name unistring.String) {
+	b := c.scope.boundNames[name]
+	if b == nil {
+		panic(fmt.Errorf("undeclared lexical binding: %s", name))
+	}
+	if c.scope.outer != nil {
+		b.emitInit()
+	} else {
+		c.emit(initGlobal(name))
+	}
+}
+
+func (c *compiler) emitObjectPattern(pattern *ast.ObjectPattern, binding bool, putOnStack bool) {
 	if pattern.Rest != nil {
 		c.emit(createDestructSrc)
 	} else {
@@ -1781,9 +1798,11 @@ func (c *compiler) emitObjectAssignmentPattern(pattern *ast.ObjectAssignmentPatt
 	}
 	for _, prop := range pattern.Properties {
 		switch prop := prop.(type) {
-		case *ast.AssignmentPropertyShort:
+		case *ast.PropertyShort:
 			c.emit(dup)
-			c.compileIdentifierExpression(&prop.Name).emitRef()
+			if !binding {
+				c.compileIdentifierExpression(&prop.Name).emitRef()
+			}
 			c.emit(getProp(prop.Name.Name))
 			if prop.Initializer != nil {
 				mark := len(c.p.code)
@@ -1791,25 +1810,41 @@ func (c *compiler) emitObjectAssignmentPattern(pattern *ast.ObjectAssignmentPatt
 				c.compileExpression(prop.Initializer).emitGetter(true)
 				c.p.code[mark] = jdef(len(c.p.code) - mark)
 			}
-			c.emit(putValueP)
-		case *ast.AssignmentPropertyKeyed:
+			if binding {
+				c.emitInitBinding(prop.Name.Name)
+			} else {
+				c.emit(putValueP)
+			}
+		case *ast.PropertyKeyed:
 			c.emit(dup)
 			c.compileExpression(prop.Key).emitGetter(true)
-			pattern, isPattern := prop.Value.Target.(ast.AssignmentPattern)
-			if !isPattern {
-				c.compileExpression(prop.Value.Target).emitRef()
+			var target ast.Expression
+			var initializer ast.Expression
+			if e, ok := prop.Value.(*ast.AssignExpression); ok {
+				target = e.Left
+				initializer = e.Right
+			} else {
+				target = prop.Value
+			}
+			pattern, isPattern := target.(ast.Pattern)
+			if !isPattern && !binding {
+				c.compileExpression(target).emitRef()
 			}
 			c.emit(getElem)
-			if prop.Value.Initializer != nil {
+			if initializer != nil {
 				mark := len(c.p.code)
 				c.emit(nil)
-				c.compileExpression(prop.Value.Initializer).emitGetter(true)
+				c.compileExpression(initializer).emitGetter(true)
 				c.p.code[mark] = jdef(len(c.p.code) - mark)
 			}
 			if isPattern {
-				c.emitAssignmentPattern(pattern, false)
+				c.emitAssignmentPattern(pattern, binding, false)
 			} else {
-				c.emit(putValueP)
+				if binding {
+					c.emitInitBinding(target.(*ast.Identifier).Name)
+				} else {
+					c.emit(putValueP)
+				}
 			}
 		default:
 			c.throwSyntaxError(int(prop.Idx0()-1), "Unsupported AssignmentProperty type: %T", prop)
@@ -1824,12 +1859,12 @@ func (c *compiler) emitObjectAssignmentPattern(pattern *ast.ObjectAssignmentPatt
 	}
 }
 
-func (c *compiler) emitArrayAssignmentPattern(pattern *ast.ArrayAssignmentPattern, stack bool) {
+func (c *compiler) emitArrayAssignmentPattern(pattern *ast.ArrayPattern, stack bool) {
 	// TODO: implement
 	panic("not implemented")
 }
 
 func (e *compiledObjectAssignmentPattern) emitSetter(valueExpr compiledExpr, putOnStack bool) {
 	valueExpr.emitGetter(true)
-	e.c.emitObjectAssignmentPattern(e.expr, putOnStack)
+	e.c.emitObjectPattern(e.expr, false, putOnStack)
 }

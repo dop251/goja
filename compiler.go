@@ -788,12 +788,17 @@ func (c *compiler) compileFunctionsGlobal(list []*ast.FunctionDeclaration) {
 
 func (c *compiler) compileVarDecl(v *ast.VariableDeclaration, inFunc bool) {
 	for _, item := range v.List {
-		if c.scope.strict {
-			c.checkIdentifierLName(item.Name, int(item.Idx)-1)
-			c.checkIdentifierName(item.Name, int(item.Idx)-1)
-		}
-		if !inFunc || item.Name != "arguments" {
-			c.scope.bindName(item.Name)
+		switch target := item.Target.(type) {
+		case *ast.Identifier:
+			if c.scope.strict {
+				c.checkIdentifierLName(target.Name, int(target.Idx)-1)
+				c.checkIdentifierName(target.Name, int(target.Idx)-1)
+			}
+			if !inFunc || target.Name != "arguments" {
+				c.scope.bindName(target.Name)
+			}
+		default:
+			c.throwSyntaxError(int(target.Idx0()-1), "unsupported var binding target: %T", target)
 		}
 	}
 }

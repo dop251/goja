@@ -452,7 +452,7 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 		if tok == token.VAR || tok == token.LET || tok == token.CONST {
 			idx := self.idx
 			self.next()
-			var list []*ast.VariableExpression
+			var list []*ast.Binding
 			if tok == token.VAR {
 				list = self.parseVarDeclarationList(idx)
 			} else {
@@ -479,12 +479,7 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 					into = &ast.ForDeclaration{
 						Idx:     idx,
 						IsConst: tok == token.CONST,
-						Binding: &ast.ForBindingIdentifier{
-							Identifier: ast.Identifier{
-								Name: list[0].Name,
-								Idx:  list[0].Idx,
-							},
-						},
+						Target:  list[0].Target,
 					}
 				}
 			} else {
@@ -513,7 +508,7 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 			}
 			if forIn || forOf {
 				switch expr.(type) {
-				case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression, *ast.VariableExpression:
+				case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression, *ast.Binding:
 					// These are all acceptable
 				default:
 					self.error(idx, "Invalid left-hand side in for-in or for-of")

@@ -3418,6 +3418,15 @@ func TestLexicalConstModifyFromEval(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestLexicalStrictNames(t *testing.T) {
+	const SCRIPT = `let eval = 1;`
+
+	_, err := Compile("", SCRIPT, true)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+}
+
 func TestAssignAfterStackExpand(t *testing.T) {
 	// make sure the reference to the variable x does not remain stale after the stack is copied
 	const SCRIPT = `
@@ -3541,6 +3550,25 @@ func TestObjectAssignPatternRest(t *testing.T) {
 	assert.sameValue(b, 2, "b");
 	assert.sameValue(c, undefined, "c");
 	assert(deepEqual(d, {d: 4}), "d");
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
+
+func TestObjectBindPattern(t *testing.T) {
+	const SCRIPT = `
+	let {a, b, c, ...d} = {a: 1, b: 2, d: 4};
+	assert.sameValue(a, 1, "a");
+	assert.sameValue(b, 2, "b");
+	assert.sameValue(c, undefined, "c");
+	assert(deepEqual(d, {d: 4}), "d");
+
+	/*var { x: y, } = { x: 23 };
+	
+	assert.sameValue(y, 23);
+	
+	assert.throws(ReferenceError, function() {
+	  x;
+	});*/
 	`
 	testScript1(TESTLIBX+SCRIPT, _undefined, t)
 }

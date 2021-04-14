@@ -98,8 +98,9 @@ func testMarshalNode(node interface{}) interface{} {
 	case *ast.StringLiteral:
 		return marshal("Literal", node.Literal)
 
-	case *ast.VariableExpression:
-		return []interface{}{node.Name, testMarshalNode(node.Initializer)}
+	case *ast.Binding:
+		return marshal("Binding", "Target", testMarshalNode(node.Target),
+			"Initializer", testMarshalNode(node.Initializer))
 
 	// Statement
 
@@ -163,7 +164,7 @@ func testMarshalNode(node interface{}) interface{} {
 
 	// Special
 	case *ast.ForDeclaration:
-		return marshal("For-Into-Decl", testMarshalNode(node.Binding))
+		return marshal("For-Into-Decl", testMarshalNode(node.Target))
 
 	case *ast.ForIntoVar:
 		return marshal("For-Into-Var", testMarshalNode(node.Binding))
@@ -713,32 +714,36 @@ func TestParserAST(t *testing.T) {
         })()
         ---
 [
-  {
-    "Var": [
-      [
-        "abc",
-        {
-          "Call": {
-            "ArgumentList": [],
-            "Callee": {
-              "Call": {
-                "ArgumentList": [
-                  {
-                    "Function": {
-                      "BlockStatement": []
-                    }
+   {
+      "Var": [
+         {
+            "Binding": {
+               "Initializer": {
+                  "Call": {
+                     "ArgumentList": [],
+                     "Callee": {
+                        "Call": {
+                           "ArgumentList": [
+                              {
+                                 "Function": {
+                                    "BlockStatement": []
+                                 }
+                              }
+                           ],
+                           "Callee": {
+                              "Literal": 1
+                           }
+                        }
+                     }
                   }
-                ],
-                "Callee": {
-                  "Literal": 1
-                }
-              }
+               },
+               "Target": {
+                  "Identifier": "abc"
+               }
             }
-          }
-        }
+         }
       ]
-    ]
-  }
+   }
 ]
         `)
 
@@ -817,22 +822,26 @@ func TestParserAST(t *testing.T) {
         }
         ---
 [
-  {
-    "ForIn": {
-      "Body": {
-        "BlockStatement": []
-      },
-      "Into": {
-		"For-Into-Var": [
-           "abc",
-           null
-        ]
-      },
-      "Source": {
-        "Identifier": "def"
-      }
-    }
-  }
+   {
+	  "ForIn": {
+		 "Body": {
+			"BlockStatement": []
+		 },
+		 "Into": {
+			"For-Into-Var": {
+			   "Binding": {
+				  "Initializer": null,
+				  "Target": {
+					 "Identifier": "abc"
+				  }
+			   }
+			}
+		 },
+		 "Source": {
+			"Identifier": "def"
+		 }
+	  }
+   }
 ]
         `)
 
