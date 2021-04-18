@@ -19,9 +19,9 @@ type PropertyKind string
 
 const (
 	PropertyKindValue  PropertyKind = "value"
-	PropertyKindGet                 = "get"
-	PropertyKindSet                 = "set"
-	PropertyKindMethod              = "method"
+	PropertyKindGet    PropertyKind = "get"
+	PropertyKindSet    PropertyKind = "set"
+	PropertyKindMethod PropertyKind = "method"
 )
 
 // All nodes implement the Node interface.

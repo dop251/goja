@@ -252,7 +252,7 @@ func (c *compiler) compileLabeledForStatement(v *ast.ForStatement, needResult bo
 		enterIterBlock = c.compileForHeadLexDecl(&init.LexicalDeclaration, needResult)
 	case *ast.ForLoopInitializerVarDeclList:
 		for _, expr := range init.List {
-			c.compileVariableExpression(expr).emitGetter(false)
+			c.compileVarBinding(expr)
 		}
 	case *ast.ForLoopInitializerExpression:
 		c.compileExpression(init.Expression).emitGetter(false)
@@ -713,50 +713,121 @@ func (c *compiler) compileReturnStatement(v *ast.ReturnStatement) {
 	c.emit(ret)
 }
 
+func (c *compiler) checkVarConflict(name unistring.String, offset int) {
+	for sc := c.scope; sc != nil; sc = sc.outer {
+		if b, exists := sc.boundNames[name]; exists && !b.isVar {
+			c.throwSyntaxError(offset, "Identifier '%s' has already been declared", name)
+		}
+		if sc.function {
+			break
+		}
+	}
+}
+
+func (c *compiler) emitVarAssign(name unistring.String, offset int, init compiledExpr) {
+	c.checkVarConflict(name, offset)
+	if init != nil {
+		c.emitVarRef(name, offset)
+		c.emitNamed(init, name)
+		c.emit(putValueP)
+	}
+}
+
 func (c *compiler) compileVarBinding(expr *ast.Binding) {
 	switch target := expr.Target.(type) {
 	case *ast.Identifier:
-		for sc := c.scope; sc != nil; sc = sc.outer {
-			if b, exists := sc.boundNames[target.Name]; exists && !b.isVar {
-				c.throwSyntaxError(int(target.Idx)-1, "Identifier '%s' has already been declared", target.Name)
-			}
-			if sc.function {
-				break
-			}
-		}
-		c.compileExpression(expr).emitGetter(false)
+		c.emitVarAssign(target.Name, int(target.Idx)-1, c.compileExpression(expr.Initializer))
+	case ast.Pattern:
+		c.compileExpression(expr.Initializer).emitGetter(true)
+		c.emitPattern(target, c.emitPatternVarAssign, false)
 	default:
 		c.throwSyntaxError(int(target.Idx0()-1), "unsupported variable binding target: %T", target)
 	}
 }
 
+type compiledPatternInitExpr struct {
+	baseCompiledExpr
+	emitSrc func()
+	def     compiledExpr
+}
+
+func (e *compiledPatternInitExpr) emitGetter(putOnStack bool) {
+	if !putOnStack {
+		return
+	}
+	e.emitSrc()
+	if e.def != nil {
+		mark := len(e.c.p.code)
+		e.c.emit(nil)
+		e.def.emitGetter(true)
+		e.c.p.code[mark] = jdef(len(e.c.p.code) - mark)
+	}
+}
+
+func (e *compiledPatternInitExpr) emitNamed(name unistring.String) {
+	e.emitSrc()
+	if e.def != nil {
+		mark := len(e.c.p.code)
+		e.c.emit(nil)
+		e.c.emitNamed(e.def, name)
+		e.c.p.code[mark] = jdef(len(e.c.p.code) - mark)
+	}
+}
+
+func (c *compiler) compilePatternInitExpr(emitSrc func(), def ast.Expression, idx file.Idx) compiledExpr {
+	r := &compiledPatternInitExpr{
+		emitSrc: emitSrc,
+		def:     c.compileExpression(def),
+	}
+	r.init(c, idx)
+	return r
+}
+
+func (c *compiler) emitLexicalAssign(name unistring.String, offset int, init compiledExpr, tok token.Token) {
+	b := c.scope.boundNames[name]
+	if b == nil {
+		panic("Lexical declaration for an unbound name")
+	}
+	if init != nil {
+		c.emitNamed(init, name)
+	} else {
+		if tok == token.CONST {
+			c.throwSyntaxError(offset, "Missing initializer in const declaration")
+		}
+		c.emit(loadUndef)
+	}
+	if c.scope.outer != nil {
+		b.emitInit()
+	} else {
+		c.emit(initGlobal(name))
+	}
+}
+
+func (c *compiler) emitPatternVarAssign(target, init compiledExpr) {
+	id := target.(*compiledIdentifierExpr)
+	c.emitVarAssign(id.name, id.offset, init)
+}
+
+func (c *compiler) emitPatternLexicalAssign(target, init compiledExpr, tok token.Token) {
+	id := target.(*compiledIdentifierExpr)
+	c.emitLexicalAssign(id.name, id.offset, init, tok)
+}
+
+func (c *compiler) emitPatternAssign(target, init compiledExpr) {
+	target.emitRef()
+	init.emitGetter(true)
+	c.emit(putValueP)
+}
+
 func (c *compiler) compileLexicalBinding(expr *ast.Binding, tok token.Token) {
 	switch target := expr.Target.(type) {
 	case *ast.Identifier:
-		b := c.scope.boundNames[target.Name]
-		if b == nil {
-			panic("Lexical declaration for an unbound name")
-		}
-		if expr.Initializer != nil {
-			initializer := c.compileExpression(expr.Initializer)
-			if fn, ok := initializer.(*compiledFunctionLiteral); ok {
-				fn.lhsName = target.Name
-			}
-			initializer.emitGetter(true)
-		} else {
-			if tok == token.CONST {
-				c.throwSyntaxError(int(expr.Idx1())-1, "Missing initializer in const declaration")
-			}
-			c.emit(loadUndef)
-		}
-		if c.scope.outer != nil {
-			b.emitInit()
-		} else {
-			c.emit(initGlobal(target.Name))
-		}
-	case *ast.ObjectPattern:
+		c.emitLexicalAssign(target.Name, int(target.Idx)-1, c.compileExpression(expr.Initializer), tok)
+	case ast.Pattern:
 		c.compileExpression(expr.Initializer).emitGetter(true)
-		c.emitObjectPattern(target, true, false)
+		c.emitPattern(target, func(target, init compiledExpr) {
+			c.emitPatternLexicalAssign(target, init, tok)
+		}, false)
 	default:
 		c.throwSyntaxError(int(target.Idx0()-1), "unsupported lexical binding target: %T", target)
 	}
@@ -866,68 +937,6 @@ func (c *compiler) compileGenericLabeledStatement(v ast.Statement, needResult bo
 	}
 	c.compileStatement(v, needResult)
 	c.leaveBlock()
-}
-
-func (c *compiler) createLexicalBinding(name unistring.String, isConst bool, offset int) *binding {
-	if name == "let" {
-		c.throwSyntaxError(offset, "let is disallowed as a lexically bound name")
-	}
-	if c.scope.strict {
-		c.checkIdentifierLName(name, offset)
-		c.checkIdentifierName(name, offset)
-	}
-	b, _ := c.scope.bindNameLexical(name, true, offset)
-	b.isConst = isConst
-	return b
-}
-
-func (c *compiler) createLexicalBindings(lex *ast.LexicalDeclaration) {
-	for _, d := range lex.List {
-		switch target := d.Target.(type) {
-		case *ast.Identifier:
-			c.createLexicalBinding(target.Name, lex.Token == token.CONST, int(target.Idx)-1)
-		case *ast.ObjectPattern:
-			for _, prop := range target.Properties {
-				switch prop := prop.(type) {
-				case *ast.PropertyShort:
-					c.createLexicalBinding(prop.Name.Name, lex.Token == token.CONST, int(prop.Name.Idx)-1)
-				case *ast.PropertyKeyed:
-					switch target := prop.Value.(type) {
-					case *ast.Identifier:
-						c.createLexicalBinding(target.Name, lex.Token == token.CONST, int(target.Idx)-1)
-					case *ast.AssignExpression:
-						if id, ok := target.Left.(*ast.Identifier); ok {
-							c.createLexicalBinding(id.Name, lex.Token == token.CONST, int(id.Idx)-1)
-						} else {
-							goto fail
-						}
-					default:
-						goto fail
-					}
-				default:
-					goto fail
-				}
-			}
-		default:
-			goto fail
-		}
-		continue
-	fail:
-		c.throwSyntaxError(int(d.Idx0()-1), "unsupported lexical binding target: %T", d)
-	}
-}
-
-func (c *compiler) compileLexicalDeclarations(list []ast.Statement, scopeDeclared bool) bool {
-	for _, st := range list {
-		if lex, ok := st.(*ast.LexicalDeclaration); ok {
-			if !scopeDeclared {
-				c.newBlockScope()
-				scopeDeclared = true
-			}
-			c.createLexicalBindings(lex)
-		}
-	}
-	return scopeDeclared
 }
 
 func (c *compiler) compileBlockStatement(v *ast.BlockStatement, needResult bool) {

@@ -2,6 +2,7 @@ package goja
 
 import (
 	"fmt"
+	"github.com/dop251/goja/token"
 	"sort"
 
 	"github.com/dop251/goja/ast"
@@ -710,7 +711,7 @@ func (c *compiler) compile(in *ast.Program, strict, eval, inGlobal bool) {
 
 func (c *compiler) compileDeclList(v []*ast.VariableDeclaration, inFunc bool) {
 	for _, value := range v {
-		c.compileVarDecl(value, inFunc)
+		c.createVarBindings(value, inFunc)
 	}
 }
 
@@ -786,7 +787,17 @@ func (c *compiler) compileFunctionsGlobal(list []*ast.FunctionDeclaration) {
 	}
 }
 
-func (c *compiler) compileVarDecl(v *ast.VariableDeclaration, inFunc bool) {
+func (c *compiler) createVarBinding(name unistring.String, offset int, inFunc bool) {
+	if c.scope.strict {
+		c.checkIdentifierLName(name, offset)
+		c.checkIdentifierName(name, offset)
+	}
+	if !inFunc || name != "arguments" {
+		c.scope.bindName(name)
+	}
+}
+
+func (c *compiler) createVarBindings(v *ast.VariableDeclaration, inFunc bool) {
 	for _, item := range v.List {
 		switch target := item.Target.(type) {
 		case *ast.Identifier:
@@ -797,10 +808,97 @@ func (c *compiler) compileVarDecl(v *ast.VariableDeclaration, inFunc bool) {
 			if !inFunc || target.Name != "arguments" {
 				c.scope.bindName(target.Name)
 			}
+		case *ast.ObjectPattern:
+			for _, prop := range target.Properties {
+				switch prop := prop.(type) {
+				case *ast.PropertyShort:
+					c.createVarBinding(prop.Name.Name, int(prop.Name.Idx)-1, inFunc)
+				case *ast.PropertyKeyed:
+					switch target := prop.Value.(type) {
+					case *ast.Identifier:
+						c.createVarBinding(target.Name, int(target.Idx)-1, inFunc)
+					case *ast.AssignExpression:
+						if id, ok := target.Left.(*ast.Identifier); ok {
+							c.createVarBinding(id.Name, int(id.Idx)-1, inFunc)
+						} else {
+							goto fail
+						}
+					default:
+						goto fail
+					}
+				default:
+					goto fail
+				}
+			}
 		default:
-			c.throwSyntaxError(int(target.Idx0()-1), "unsupported var binding target: %T", target)
+			goto fail
+		}
+		continue
+	fail:
+		c.throwSyntaxError(int(item.Idx0()-1), "unsupported var binding target: %T", item.Target)
+	}
+}
+
+func (c *compiler) createLexicalBinding(name unistring.String, isConst bool, offset int) *binding {
+	if name == "let" {
+		c.throwSyntaxError(offset, "let is disallowed as a lexically bound name")
+	}
+	if c.scope.strict {
+		c.checkIdentifierLName(name, offset)
+		c.checkIdentifierName(name, offset)
+	}
+	b, _ := c.scope.bindNameLexical(name, true, offset)
+	b.isConst = isConst
+	return b
+}
+
+func (c *compiler) createLexicalBindings(lex *ast.LexicalDeclaration) {
+	for _, d := range lex.List {
+		switch target := d.Target.(type) {
+		case *ast.Identifier:
+			c.createLexicalBinding(target.Name, lex.Token == token.CONST, int(target.Idx)-1)
+		case *ast.ObjectPattern:
+			for _, prop := range target.Properties {
+				switch prop := prop.(type) {
+				case *ast.PropertyShort:
+					c.createLexicalBinding(prop.Name.Name, lex.Token == token.CONST, int(prop.Name.Idx)-1)
+				case *ast.PropertyKeyed:
+					switch target := prop.Value.(type) {
+					case *ast.Identifier:
+						c.createLexicalBinding(target.Name, lex.Token == token.CONST, int(target.Idx)-1)
+					case *ast.AssignExpression:
+						if id, ok := target.Left.(*ast.Identifier); ok {
+							c.createLexicalBinding(id.Name, lex.Token == token.CONST, int(id.Idx)-1)
+						} else {
+							goto fail
+						}
+					default:
+						goto fail
+					}
+				default:
+					goto fail
+				}
+			}
+		default:
+			goto fail
+		}
+		continue
+	fail:
+		c.throwSyntaxError(int(d.Idx0()-1), "unsupported lexical binding target: %T", d.Target)
+	}
+}
+
+func (c *compiler) compileLexicalDeclarations(list []ast.Statement, scopeDeclared bool) bool {
+	for _, st := range list {
+		if lex, ok := st.(*ast.LexicalDeclaration); ok {
+			if !scopeDeclared {
+				c.newBlockScope()
+				scopeDeclared = true
+			}
+			c.createLexicalBindings(lex)
 		}
 	}
+	return scopeDeclared
 }
 
 func (c *compiler) compileFunction(v *ast.FunctionDeclaration) {

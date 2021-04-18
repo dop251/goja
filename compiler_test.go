@@ -3508,6 +3508,7 @@ func TestObjectAssignmentPatternNested(t *testing.T) {
 func TestObjectAssignmentPatternEvalOrder(t *testing.T) {
 	const SCRIPT = `
 	let trace = "";
+	let target_obj = {};
 
 	function src() {
 	    trace += "src(),";
@@ -3531,12 +3532,15 @@ func TestObjectAssignmentPatternEvalOrder(t *testing.T) {
 	
 	function target() {
 		trace += "target(),"
-		return {};
+		return target_obj;
 	}
 	
 	let a, b;
 	
 	({[prop1()]: target().a, [prop2()]: b} = src());
+	if (target_obj.a !== "a") {
+		throw new Error("target_obj.a="+target_obj.a);
+	}
 	trace;
 	`
 	testScript1(SCRIPT, asciiString("src(),prop1(),target(),get a,prop2(),"), t)
@@ -3562,13 +3566,13 @@ func TestObjectBindPattern(t *testing.T) {
 	assert.sameValue(c, undefined, "c");
 	assert(deepEqual(d, {d: 4}), "d");
 
-	/*var { x: y, } = { x: 23 };
+	var { x: y, } = { x: 23 };
 	
 	assert.sameValue(y, 23);
 	
 	assert.throws(ReferenceError, function() {
 	  x;
-	});*/
+	});
 	`
 	testScript1(TESTLIBX+SCRIPT, _undefined, t)
 }

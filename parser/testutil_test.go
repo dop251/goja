@@ -44,7 +44,6 @@ func is(a, b interface{}) {
 	as := fmt.Sprintf("%v", a)
 	bs := fmt.Sprintf("%v", b)
 	if as != bs {
-		fmt.Println(a)
 		panic(fmt.Errorf("%+v(%T) != %+v(%T)", a, a, b, b))
 	}
 }
