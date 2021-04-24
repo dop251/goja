@@ -3607,6 +3607,73 @@ func TestObjLiteralComputedKeys(t *testing.T) {
 	testScript1(SCRIPT, _undefined, t)
 }
 
+func TestArrayAssignPattern(t *testing.T) {
+	const SCRIPT = `
+	let a, b;
+	([a, b] = [1, 2]);
+	a === 1 && b === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestArrayAssignPattern1(t *testing.T) {
+	const SCRIPT = `
+	let a, b;
+	([a = 3, b = 2] = [1]);
+	a === 1 && b === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestArrayAssignPatternElision(t *testing.T) {
+	const SCRIPT = `
+	let a, b;
+	([a,, b] = [1, 4, 2]);
+	a === 1 && b === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestArrayBindingPattern(t *testing.T) {
+	const SCRIPT = `
+	let [a, b] = [1, 2];
+	a === 1 && b === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestArrayBindingPatternRestPattern(t *testing.T) {
+	const SCRIPT = `
+	const [a, b, ...[c, d]] = [1, 2, 3, 4];
+	a === 1 && b === 2 && c === 3 && d === 4;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestForVarPattern(t *testing.T) {
+	const SCRIPT = `
+	var o = {a: 1};
+	var trace = "";
+	for (var [key, value] of Object.entries(o)) {
+		trace += key+":"+value;
+	}
+	trace;
+	`
+	testScript1(SCRIPT, asciiString("a:1"), t)
+}
+
+func TestForLexPattern(t *testing.T) {
+	const SCRIPT = `
+	var o = {a: 1};
+	var trace = "";
+	for (const [key, value] of Object.entries(o)) {
+		trace += key+":"+value;
+	}
+	trace;
+	`
+	testScript1(SCRIPT, asciiString("a:1"), t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")

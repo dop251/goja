@@ -1711,12 +1711,28 @@ type newArraySparse struct {
 
 func (n *newArraySparse) exec(vm *vm) {
 	values := make([]Value, n.l)
-	copy(values, vm.stack[vm.sp-int(n.l):vm.sp])
+	copy(values, vm.stack[vm.sp-n.l:vm.sp])
 	arr := vm.r.newArrayObject()
 	setArrayValues(arr, values)
 	arr.objCount = n.objCount
-	vm.sp -= int(n.l) - 1
+	vm.sp -= n.l - 1
 	vm.stack[vm.sp-1] = arr.val
+	vm.pc++
+}
+
+type _newArrayFromIter struct{}
+
+var newArrayFromIter _newArrayFromIter
+
+func (_newArrayFromIter) exec(vm *vm) {
+	var values []Value
+	vm.r.iterate(vm.iterStack[len(vm.iterStack)-1].iter, func(val Value) {
+		values = append(values, val)
+	})
+	vm.push(vm.r.newArrayValues(values))
+	l := len(vm.iterStack) - 1
+	vm.iterStack[l] = iterStackItem{}
+	vm.iterStack = vm.iterStack[:l]
 	vm.pc++
 }
 
@@ -3489,6 +3505,17 @@ func (_enumPopClose) exec(vm *vm) {
 	vm.pc++
 }
 
+type _iterateP struct{}
+
+var iterateP _iterateP
+
+func (_iterateP) exec(vm *vm) {
+	iter := vm.r.getIterator(vm.stack[vm.sp-1], nil)
+	vm.iterStack = append(vm.iterStack, iterStackItem{iter: iter})
+	vm.sp--
+	vm.pc++
+}
+
 type _iterate struct{}
 
 var iterate _iterate
@@ -3496,7 +3523,6 @@ var iterate _iterate
 func (_iterate) exec(vm *vm) {
 	iter := vm.r.getIterator(vm.stack[vm.sp-1], nil)
 	vm.iterStack = append(vm.iterStack, iterStackItem{iter: iter})
-	vm.sp--
 	vm.pc++
 }
 

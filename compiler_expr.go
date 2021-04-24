@@ -66,6 +66,11 @@ type compiledObjectAssignmentPattern struct {
 	expr *ast.ObjectPattern
 }
 
+type compiledArrayAssignmentPattern struct {
+	baseCompiledExpr
+	expr *ast.ArrayPattern
+}
+
 type deleteGlobalExpr struct {
 	baseCompiledExpr
 	name unistring.String
@@ -241,6 +246,8 @@ func (c *compiler) compileExpression(v ast.Expression) compiledExpr {
 		return c.compileMetaProperty(v)
 	case *ast.ObjectPattern:
 		return c.compileObjectAssignmentPattern(v)
+	case *ast.ArrayPattern:
+		return c.compileArrayAssignmentPattern(v)
 	default:
 		panic(fmt.Errorf("Unknown expression type: %T", v))
 	}
@@ -1719,6 +1726,20 @@ func (e *compiledObjectAssignmentPattern) emitGetter(putOnStack bool) {
 	}
 }
 
+func (c *compiler) compileArrayAssignmentPattern(v *ast.ArrayPattern) compiledExpr {
+	r := &compiledArrayAssignmentPattern{
+		expr: v,
+	}
+	r.init(c, v.Idx0())
+	return r
+}
+
+func (e *compiledArrayAssignmentPattern) emitGetter(putOnStack bool) {
+	if putOnStack {
+		e.c.emit(loadUndef)
+	}
+}
+
 func (c *compiler) emitNamed(expr compiledExpr, name unistring.String) {
 	if en, ok := expr.(interface {
 		emitNamed(name unistring.String)
@@ -1738,12 +1759,24 @@ func (c *compiler) emitPattern(pattern ast.Pattern, emitter func(target, init co
 	switch pattern := pattern.(type) {
 	case *ast.ObjectPattern:
 		c.emitObjectPattern(pattern, emitter, putOnStack)
+	case *ast.ArrayPattern:
+		c.emitArrayPattern(pattern, emitter, putOnStack)
 	default:
 		panic(fmt.Errorf("unsupported Pattern: %T", pattern))
 	}
 }
 
-func (c *compiler) emitObjectPattern(pattern *ast.ObjectPattern, emitter func(target, init compiledExpr), putOnStack bool) {
+func (c *compiler) emitAssign(target ast.Expression, init compiledExpr, emitAssignSimple func(target, init compiledExpr)) {
+	pattern, isPattern := target.(ast.Pattern)
+	if isPattern {
+		init.emitGetter(true)
+		c.emitPattern(pattern, emitAssignSimple, false)
+	} else {
+		emitAssignSimple(c.compileExpression(target), init)
+	}
+}
+
+func (c *compiler) emitObjectPattern(pattern *ast.ObjectPattern, emitAssign func(target, init compiledExpr), putOnStack bool) {
 	if pattern.Rest != nil {
 		c.emit(createDestructSrc)
 	} else {
@@ -1753,7 +1786,7 @@ func (c *compiler) emitObjectPattern(pattern *ast.ObjectPattern, emitter func(ta
 		switch prop := prop.(type) {
 		case *ast.PropertyShort:
 			c.emit(dup)
-			emitter(c.compileIdentifierExpression(&prop.Name), c.compilePatternInitExpr(func() {
+			emitAssign(c.compileIdentifierExpression(&prop.Name), c.compilePatternInitExpr(func() {
 				c.emit(getProp(prop.Name.Name))
 			}, prop.Initializer, prop.Idx0()))
 		case *ast.PropertyKeyed:
@@ -1767,36 +1800,186 @@ func (c *compiler) emitObjectPattern(pattern *ast.ObjectPattern, emitter func(ta
 			} else {
 				target = prop.Value
 			}
-			pattern, isPattern := target.(ast.Pattern)
-			if isPattern {
-				c.compilePatternInitExpr(func() {
-					c.emit(getElem)
-				}, initializer, prop.Idx0()).emitGetter(true)
-				c.emitPattern(pattern, emitter, false)
-			} else {
-				emitter(c.compileExpression(target), c.compilePatternInitExpr(func() {
-					c.emit(getElem)
-				}, initializer, prop.Idx0()))
-			}
+			c.emitAssign(target, c.compilePatternInitExpr(func() {
+				c.emit(getElem)
+			}, initializer, prop.Idx0()), emitAssign)
 		default:
 			c.throwSyntaxError(int(prop.Idx0()-1), "Unsupported AssignmentProperty type: %T", prop)
 		}
 	}
 	if pattern.Rest != nil {
-		c.compileExpression(pattern.Rest).emitRef()
-		c.emit(copyRest, putValueP, pop)
+		emitAssign(c.compileExpression(pattern.Rest), c.compileEmitterExpr(func() {
+			c.emit(copyRest)
+		}, pattern.Rest.Idx0()))
+		c.emit(pop)
 	}
 	if !putOnStack {
 		c.emit(pop)
 	}
 }
 
-func (c *compiler) emitArrayAssignmentPattern(pattern *ast.ArrayPattern, stack bool) {
-	// TODO: implement
-	panic("not implemented")
+func (c *compiler) emitArrayPattern(pattern *ast.ArrayPattern, emitAssign func(target, init compiledExpr), putOnStack bool) {
+	var marks []int
+	c.emit(iterate)
+	for _, elt := range pattern.Elements {
+		switch elt := elt.(type) {
+		case nil:
+			marks = append(marks, len(c.p.code))
+			c.emit(nil)
+		case *ast.Identifier:
+			emitAssign(c.compileIdentifierExpression(elt), c.compilePatternInitExpr(func() {
+				marks = append(marks, len(c.p.code))
+				c.emit(nil, enumGet)
+			}, nil, elt.Idx0()))
+		case *ast.AssignExpression:
+			c.emitAssign(elt.Left, c.compilePatternInitExpr(func() {
+				marks = append(marks, len(c.p.code))
+				c.emit(nil, enumGet)
+			}, elt.Right, elt.Idx0()), emitAssign)
+		case ast.Pattern:
+			c.compilePatternInitExpr(func() {
+				marks = append(marks, len(c.p.code))
+				c.emit(nil, enumGet)
+			}, nil, elt.Idx0()).emitGetter(true)
+			c.emitPattern(elt, emitAssign, false)
+		default:
+			c.throwSyntaxError(int(elt.Idx0()-1), "Unsupported AssignmentProperty type: %T", elt)
+		}
+	}
+	if pattern.Rest != nil {
+		c.emitAssign(pattern.Rest, c.compileEmitterExpr(func() {
+			c.emit(newArrayFromIter)
+		}, pattern.Rest.Idx0()), emitAssign)
+	} else {
+		c.emit(enumPopClose)
+	}
+	mark1 := len(c.p.code)
+	c.emit(nil)
+
+	for i, elt := range pattern.Elements {
+		switch elt := elt.(type) {
+		case nil:
+			c.p.code[marks[i]] = iterNext(len(c.p.code) - marks[i])
+		case *ast.Identifier:
+			emitAssign(c.compileIdentifierExpression(elt), c.compileEmitterExpr(func() {
+				c.p.code[marks[i]] = iterNext(len(c.p.code) - marks[i])
+				c.emit(loadUndef)
+			}, elt.Idx0()))
+		case *ast.AssignExpression:
+			c.emitAssign(elt.Left, c.compileNamedEmitterExpr(func(name unistring.String) {
+				c.p.code[marks[i]] = iterNext(len(c.p.code) - marks[i])
+				c.emitNamed(c.compileExpression(elt.Right), name)
+			}, elt.Idx0()), emitAssign)
+		case ast.Pattern:
+			c.compilePatternInitExpr(func() {
+				c.p.code[marks[i]] = iterNext(len(c.p.code) - marks[i])
+				c.emit(loadUndef)
+			}, nil, elt.Idx0()).emitGetter(true)
+			c.emitPattern(elt, emitAssign, false)
+		default:
+			c.throwSyntaxError(int(elt.Idx0()-1), "Unsupported AssignmentProperty type: %T", elt)
+		}
+	}
+	c.emit(enumPop)
+	if pattern.Rest != nil {
+		c.emitAssign(pattern.Rest, c.compileExpression(
+			&ast.ArrayLiteral{
+				LeftBracket:  pattern.Rest.Idx0(),
+				RightBracket: pattern.Rest.Idx0(),
+			}), emitAssign)
+	}
+	c.p.code[mark1] = jump(len(c.p.code) - mark1)
+
+	if !putOnStack {
+		c.emit(pop)
+	}
 }
 
 func (e *compiledObjectAssignmentPattern) emitSetter(valueExpr compiledExpr, putOnStack bool) {
 	valueExpr.emitGetter(true)
 	e.c.emitObjectPattern(e.expr, e.c.emitPatternAssign, putOnStack)
+}
+
+func (e *compiledArrayAssignmentPattern) emitSetter(valueExpr compiledExpr, putOnStack bool) {
+	valueExpr.emitGetter(true)
+	e.c.emitArrayPattern(e.expr, e.c.emitPatternAssign, putOnStack)
+}
+
+type compiledPatternInitExpr struct {
+	baseCompiledExpr
+	emitSrc func()
+	def     compiledExpr
+}
+
+func (e *compiledPatternInitExpr) emitGetter(putOnStack bool) {
+	if !putOnStack {
+		return
+	}
+	e.emitSrc()
+	if e.def != nil {
+		mark := len(e.c.p.code)
+		e.c.emit(nil)
+		e.def.emitGetter(true)
+		e.c.p.code[mark] = jdef(len(e.c.p.code) - mark)
+	}
+}
+
+func (e *compiledPatternInitExpr) emitNamed(name unistring.String) {
+	e.emitSrc()
+	if e.def != nil {
+		mark := len(e.c.p.code)
+		e.c.emit(nil)
+		e.c.emitNamed(e.def, name)
+		e.c.p.code[mark] = jdef(len(e.c.p.code) - mark)
+	}
+}
+
+func (c *compiler) compilePatternInitExpr(emitSrc func(), def ast.Expression, idx file.Idx) compiledExpr {
+	r := &compiledPatternInitExpr{
+		emitSrc: emitSrc,
+		def:     c.compileExpression(def),
+	}
+	r.init(c, idx)
+	return r
+}
+
+type compiledEmitterExpr struct {
+	baseCompiledExpr
+	emitter      func()
+	namedEmitter func(name unistring.String)
+}
+
+func (e *compiledEmitterExpr) emitGetter(putOnStack bool) {
+	if e.emitter != nil {
+		e.emitter()
+	} else {
+		e.namedEmitter("")
+	}
+	if !putOnStack {
+		e.c.emit(pop)
+	}
+}
+
+func (e *compiledEmitterExpr) emitNamed(name unistring.String) {
+	if e.namedEmitter != nil {
+		e.namedEmitter(name)
+	} else {
+		e.emitter()
+	}
+}
+
+func (c *compiler) compileEmitterExpr(emitter func(), idx file.Idx) *compiledEmitterExpr {
+	r := &compiledEmitterExpr{
+		emitter: emitter,
+	}
+	r.init(c, idx)
+	return r
+}
+
+func (c *compiler) compileNamedEmitterExpr(namedEmitter func(unistring.String), idx file.Idx) *compiledEmitterExpr {
+	r := &compiledEmitterExpr{
+		namedEmitter: namedEmitter,
+	}
+	r.init(c, idx)
+	return r
 }

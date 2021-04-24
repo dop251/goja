@@ -145,7 +145,6 @@ func (self *_parser) parseVariableDeclaration(declarationList *[]*ast.Binding) a
 		self.token = token.IDENTIFIER
 	}
 	var target ast.BindingTarget
-	requireInit := false
 	switch self.token {
 	case token.IDENTIFIER:
 		target = &ast.Identifier{
@@ -155,10 +154,8 @@ func (self *_parser) parseVariableDeclaration(declarationList *[]*ast.Binding) a
 		self.next()
 	case token.LEFT_BRACKET:
 		target = self.parseArrayBindingPattern()
-		requireInit = true
 	case token.LEFT_BRACE:
 		target = self.parseObjectBindingPattern()
-		requireInit = true
 	default:
 		idx := self.expect(token.IDENTIFIER)
 		self.nextStatement()
@@ -173,14 +170,9 @@ func (self *_parser) parseVariableDeclaration(declarationList *[]*ast.Binding) a
 		*declarationList = append(*declarationList, node)
 	}
 
-	if requireInit {
-		self.expect(token.ASSIGN)
+	if self.token == token.ASSIGN {
+		self.next()
 		node.Initializer = self.parseAssignmentExpression()
-	} else {
-		if self.token == token.ASSIGN {
-			self.next()
-			node.Initializer = self.parseAssignmentExpression()
-		}
 	}
 
 	return node
@@ -288,7 +280,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 					// allow the initializer syntax here in case the object literal
 					// needs to be reinterpreted as an assignment pattern, enforce later if it doesn't.
 					self.next()
-					initializer = self.parseExpression()
+					initializer = self.parseAssignmentExpression()
 				}
 				return &ast.PropertyShort{
 					Name: ast.Identifier{
@@ -373,7 +365,14 @@ func (self *_parser) parseArrayLiteral() *ast.ArrayLiteral {
 			value = append(value, nil)
 			continue
 		}
-		value = append(value, self.parseAssignmentExpression())
+		if self.token == token.ELLIPSIS {
+			self.next()
+			value = append(value, &ast.PropertySpread{
+				Expression: self.parseAssignmentExpression(),
+			})
+		} else {
+			value = append(value, self.parseAssignmentExpression())
+		}
 		if self.token != token.RIGHT_BRACKET {
 			self.expect(token.COMMA)
 		}
@@ -919,24 +918,60 @@ func (self *_parser) parseExpression() ast.Expression {
 }
 
 func (self *_parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral) *ast.ArrayPattern {
-	for i, item := range left.Value {
-		left.Value[i] = self.reinterpretAsAssignmentElement(item)
+	value := left.Value
+	var rest ast.Expression
+	for i, item := range value {
+		if spread, ok := item.(*ast.PropertySpread); ok {
+			if i != len(value)-1 {
+				self.error(item.Idx0(), "Rest element must be last element")
+				return nil
+			}
+			// TODO: make sure there is no trailing comma
+			rest = spread.Expression
+			value = value[:len(value)-1]
+		} else {
+			value[i] = self.reinterpretAsAssignmentElement(item)
+		}
 	}
 	return &ast.ArrayPattern{
 		LeftBracket:  left.LeftBracket,
 		RightBracket: left.RightBracket,
-		Elements:     left.Value,
+		Elements:     value,
+		Rest:         rest,
 	}
 }
 
+func (self *_parser) reinterpretArrayAssignPatternAsBinding(pattern *ast.ArrayPattern) *ast.ArrayPattern {
+	for i, item := range pattern.Elements {
+		pattern.Elements[i] = self.reinterpretAsDestructBindingTarget(item)
+	}
+	if pattern.Rest != nil {
+		pattern.Rest = self.reinterpretAsDestructBindingTarget(pattern.Rest)
+	}
+	return pattern
+}
+
 func (self *_parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) *ast.ArrayPattern {
-	for i, item := range left.Value {
-		left.Value[i] = self.reinterpretAsBindingElement(item)
+	value := left.Value
+	var rest ast.Expression
+	for i, item := range value {
+		if spread, ok := item.(*ast.PropertySpread); ok {
+			if i != len(value)-1 {
+				self.error(item.Idx0(), "Rest element must be last element")
+				return nil
+			}
+			// TODO: make sure there is no trailing comma
+			rest = self.reinterpretAsDestructBindingTarget(spread.Expression)
+			value = value[:len(value)-1]
+		} else {
+			value[i] = self.reinterpretAsBindingElement(item)
+		}
 	}
 	return &ast.ArrayPattern{
 		LeftBracket:  left.LeftBracket,
 		RightBracket: left.RightBracket,
-		Elements:     left.Value,
+		Elements:     value,
+		Rest:         rest,
 	}
 }
 
@@ -946,6 +981,18 @@ func (self *_parser) parseArrayBindingPattern() *ast.ArrayPattern {
 
 func (self *_parser) parseObjectBindingPattern() *ast.ObjectPattern {
 	return self.reinterpretAsObjectBindingPattern(self.parseObjectLiteral())
+}
+
+func (self *_parser) reinterpretArrayObjectPatternAsBinding(pattern *ast.ObjectPattern) *ast.ObjectPattern {
+	for _, prop := range pattern.Properties {
+		if keyed, ok := prop.(*ast.PropertyKeyed); ok {
+			keyed.Value = self.reinterpretAsBindingElement(keyed.Value)
+		}
+	}
+	if pattern.Rest != nil {
+		pattern.Rest = self.reinterpretAsBindingRestElement(pattern.Rest)
+	}
+	return pattern
 }
 
 func (self *_parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) *ast.ObjectPattern {
@@ -1052,6 +1099,8 @@ func (self *_parser) reinterpretAsBindingElement(expr ast.Expression) ast.Expres
 
 func (self *_parser) reinterpretAsDestructAssignTarget(item ast.Expression) ast.Expression {
 	switch item := item.(type) {
+	case nil:
+		return nil
 	case *ast.ArrayLiteral:
 		return self.reinterpretAsArrayAssignmentPattern(item)
 	case *ast.ObjectLiteral:
@@ -1065,6 +1114,12 @@ func (self *_parser) reinterpretAsDestructAssignTarget(item ast.Expression) ast.
 
 func (self *_parser) reinterpretAsDestructBindingTarget(item ast.Expression) ast.BindingTarget {
 	switch item := item.(type) {
+	case nil:
+		return nil
+	case *ast.ArrayPattern:
+		return self.reinterpretArrayAssignPatternAsBinding(item)
+	case *ast.ObjectPattern:
+		return self.reinterpretArrayObjectPatternAsBinding(item)
 	case *ast.ArrayLiteral:
 		return self.reinterpretAsArrayBindingPattern(item)
 	case *ast.ObjectLiteral:

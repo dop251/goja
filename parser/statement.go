@@ -483,6 +483,7 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 					}
 				}
 			} else {
+				self.ensurePatternInit(list)
 				if tok == token.VAR {
 					initializer = &ast.ForLoopInitializerVarDeclList{
 						List: list,
@@ -538,11 +539,23 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 	return self.parseFor(idx, initializer)
 }
 
+func (self *_parser) ensurePatternInit(list []*ast.Binding) {
+	for _, item := range list {
+		if _, ok := item.Target.(ast.Pattern); ok {
+			if item.Initializer == nil {
+				self.error(item.Idx1(), "Missing initializer in destructuring declaration")
+				break
+			}
+		}
+	}
+}
+
 func (self *_parser) parseVariableStatement() *ast.VariableStatement {
 
 	idx := self.expect(token.VAR)
 
 	list := self.parseVarDeclarationList(idx)
+	self.ensurePatternInit(list)
 	self.semicolon()
 
 	return &ast.VariableStatement{
@@ -558,6 +571,7 @@ func (self *_parser) parseLexicalDeclaration(tok token.Token) *ast.LexicalDeclar
 	}
 
 	list := self.parseVariableDeclarationList()
+	self.ensurePatternInit(list)
 	self.semicolon()
 
 	return &ast.LexicalDeclaration{

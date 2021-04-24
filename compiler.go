@@ -787,7 +787,7 @@ func (c *compiler) compileFunctionsGlobal(list []*ast.FunctionDeclaration) {
 	}
 }
 
-func (c *compiler) createVarBinding(name unistring.String, offset int, inFunc bool) {
+func (c *compiler) createVarIdBinding(name unistring.String, offset int, inFunc bool) {
 	if c.scope.strict {
 		c.checkIdentifierLName(name, offset)
 		c.checkIdentifierName(name, offset)
@@ -797,49 +797,47 @@ func (c *compiler) createVarBinding(name unistring.String, offset int, inFunc bo
 	}
 }
 
-func (c *compiler) createVarBindings(v *ast.VariableDeclaration, inFunc bool) {
-	for _, item := range v.List {
-		switch target := item.Target.(type) {
-		case *ast.Identifier:
-			if c.scope.strict {
-				c.checkIdentifierLName(target.Name, int(target.Idx)-1)
-				c.checkIdentifierName(target.Name, int(target.Idx)-1)
+func (c *compiler) createVarBinding(target ast.Expression, inFunc bool) {
+	switch target := target.(type) {
+	case *ast.Identifier:
+		c.createVarIdBinding(target.Name, int(target.Idx)-1, inFunc)
+	case *ast.ObjectPattern:
+		for _, prop := range target.Properties {
+			switch prop := prop.(type) {
+			case *ast.PropertyShort:
+				c.createVarIdBinding(prop.Name.Name, int(prop.Name.Idx)-1, inFunc)
+			case *ast.PropertyKeyed:
+				c.createVarBinding(prop.Value, inFunc)
+			default:
+				c.throwSyntaxError(int(target.Idx0()-1), "unsupported var binding target: %T", prop)
 			}
-			if !inFunc || target.Name != "arguments" {
-				c.scope.bindName(target.Name)
-			}
-		case *ast.ObjectPattern:
-			for _, prop := range target.Properties {
-				switch prop := prop.(type) {
-				case *ast.PropertyShort:
-					c.createVarBinding(prop.Name.Name, int(prop.Name.Idx)-1, inFunc)
-				case *ast.PropertyKeyed:
-					switch target := prop.Value.(type) {
-					case *ast.Identifier:
-						c.createVarBinding(target.Name, int(target.Idx)-1, inFunc)
-					case *ast.AssignExpression:
-						if id, ok := target.Left.(*ast.Identifier); ok {
-							c.createVarBinding(id.Name, int(id.Idx)-1, inFunc)
-						} else {
-							goto fail
-						}
-					default:
-						goto fail
-					}
-				default:
-					goto fail
-				}
-			}
-		default:
-			goto fail
 		}
-		continue
-	fail:
-		c.throwSyntaxError(int(item.Idx0()-1), "unsupported var binding target: %T", item.Target)
+		if target.Rest != nil {
+			c.createVarBinding(target.Rest, inFunc)
+		}
+	case *ast.ArrayPattern:
+		for _, elt := range target.Elements {
+			if elt != nil {
+				c.createVarBinding(elt, inFunc)
+			}
+		}
+		if target.Rest != nil {
+			c.createVarBinding(target.Rest, inFunc)
+		}
+	case *ast.AssignExpression:
+		c.createVarBinding(target.Left, inFunc)
+	default:
+		c.throwSyntaxError(int(target.Idx0()-1), "unsupported var binding target: %T", target)
 	}
 }
 
-func (c *compiler) createLexicalBinding(name unistring.String, isConst bool, offset int) *binding {
+func (c *compiler) createVarBindings(v *ast.VariableDeclaration, inFunc bool) {
+	for _, item := range v.List {
+		c.createVarBinding(item.Target, inFunc)
+	}
+}
+
+func (c *compiler) createLexicalIdBinding(name unistring.String, isConst bool, offset int) *binding {
 	if name == "let" {
 		c.throwSyntaxError(offset, "let is disallowed as a lexically bound name")
 	}
@@ -852,39 +850,43 @@ func (c *compiler) createLexicalBinding(name unistring.String, isConst bool, off
 	return b
 }
 
+func (c *compiler) createLexicalBinding(target ast.Expression, isConst bool) {
+	switch target := target.(type) {
+	case *ast.Identifier:
+		c.createLexicalIdBinding(target.Name, isConst, int(target.Idx)-1)
+	case *ast.ObjectPattern:
+		for _, prop := range target.Properties {
+			switch prop := prop.(type) {
+			case *ast.PropertyShort:
+				c.createLexicalIdBinding(prop.Name.Name, isConst, int(prop.Name.Idx)-1)
+			case *ast.PropertyKeyed:
+				c.createLexicalBinding(prop.Value, isConst)
+			default:
+				c.throwSyntaxError(int(target.Idx0()-1), "unsupported lexical binding target: %T", prop)
+			}
+		}
+		if target.Rest != nil {
+			c.createLexicalBinding(target.Rest, isConst)
+		}
+	case *ast.ArrayPattern:
+		for _, elt := range target.Elements {
+			if elt != nil {
+				c.createLexicalBinding(elt, isConst)
+			}
+		}
+		if target.Rest != nil {
+			c.createLexicalBinding(target.Rest, isConst)
+		}
+	case *ast.AssignExpression:
+		c.createLexicalBinding(target.Left, isConst)
+	default:
+		c.throwSyntaxError(int(target.Idx0()-1), "unsupported lexical binding target: %T", target)
+	}
+}
+
 func (c *compiler) createLexicalBindings(lex *ast.LexicalDeclaration) {
 	for _, d := range lex.List {
-		switch target := d.Target.(type) {
-		case *ast.Identifier:
-			c.createLexicalBinding(target.Name, lex.Token == token.CONST, int(target.Idx)-1)
-		case *ast.ObjectPattern:
-			for _, prop := range target.Properties {
-				switch prop := prop.(type) {
-				case *ast.PropertyShort:
-					c.createLexicalBinding(prop.Name.Name, lex.Token == token.CONST, int(prop.Name.Idx)-1)
-				case *ast.PropertyKeyed:
-					switch target := prop.Value.(type) {
-					case *ast.Identifier:
-						c.createLexicalBinding(target.Name, lex.Token == token.CONST, int(target.Idx)-1)
-					case *ast.AssignExpression:
-						if id, ok := target.Left.(*ast.Identifier); ok {
-							c.createLexicalBinding(id.Name, lex.Token == token.CONST, int(id.Idx)-1)
-						} else {
-							goto fail
-						}
-					default:
-						goto fail
-					}
-				default:
-					goto fail
-				}
-			}
-		default:
-			goto fail
-		}
-		continue
-	fail:
-		c.throwSyntaxError(int(d.Idx0()-1), "unsupported lexical binding target: %T", d.Target)
+		c.createLexicalBinding(d.Target, lex.Token == token.CONST)
 	}
 }
 

@@ -350,6 +350,9 @@ func (c *compiler) compileForInto(into ast.ForInto, needResult bool) (enter *ent
 		switch target := into.Binding.Target.(type) {
 		case *ast.Identifier:
 			c.compileIdentifierExpression(target).emitSetter(&c.enumGetExpr, false)
+		case ast.Pattern:
+			c.emit(enumGet)
+			c.emitPattern(target, c.emitPatternVarAssign, false)
 		default:
 			c.throwSyntaxError(int(target.Idx0()-1), "unsupported for-in var target: %T", target)
 		}
@@ -364,11 +367,18 @@ func (c *compiler) compileForInto(into ast.ForInto, needResult bool) (enter *ent
 		c.newBlockScope()
 		enter = &enterBlock{}
 		c.emit(enter)
-		if binding, ok := into.Target.(*ast.Identifier); ok {
-			b := c.createLexicalBinding(binding.Name, into.IsConst, int(into.Idx)-1)
-			c.enumGetExpr.emitGetter(true)
+		switch target := into.Target.(type) {
+		case *ast.Identifier:
+			b := c.createLexicalIdBinding(target.Name, into.IsConst, int(into.Idx)-1)
+			c.emit(enumGet)
 			b.emitInit()
-		} else {
+		case ast.Pattern:
+			c.createLexicalBinding(target, into.IsConst)
+			c.emit(enumGet)
+			c.emitPattern(target, func(target, init compiledExpr) {
+				c.emitPatternLexicalAssign(target, init, into.IsConst)
+			}, false)
+		default:
 			c.throwSyntaxError(int(into.Idx)-1, "Unsupported ForBinding: %T", into.Target)
 		}
 	default:
@@ -387,19 +397,15 @@ func (c *compiler) compileLabeledForInOfStatement(into ast.ForInto, source ast.E
 	}
 	enterPos := -1
 	if forDecl, ok := into.(*ast.ForDeclaration); ok {
-		if binding, ok := forDecl.Target.(*ast.Identifier); ok {
-			c.block = &block{
-				typ:        blockScope,
-				outer:      c.block,
-				needResult: false,
-			}
-			c.newBlockScope()
-			enterPos = len(c.p.code)
-			c.emit(jump(1))
-			c.createLexicalBinding(binding.Name, forDecl.IsConst, int(forDecl.Idx)-1)
-		} else {
-			c.throwSyntaxError(int(forDecl.Idx)-1, "Unsupported ForBinding: %T", forDecl.Target)
+		c.block = &block{
+			typ:        blockScope,
+			outer:      c.block,
+			needResult: false,
 		}
+		c.newBlockScope()
+		enterPos = len(c.p.code)
+		c.emit(jump(1))
+		c.createLexicalBinding(forDecl.Target, forDecl.IsConst)
 	}
 	c.compileExpression(source).emitGetter(true)
 	if enterPos != -1 {
@@ -423,7 +429,7 @@ func (c *compiler) compileLabeledForInOfStatement(into ast.ForInto, source ast.E
 		c.popScope()
 	}
 	if iter {
-		c.emit(iterate)
+		c.emit(iterateP)
 	} else {
 		c.emit(enumerate)
 	}
@@ -745,45 +751,7 @@ func (c *compiler) compileVarBinding(expr *ast.Binding) {
 	}
 }
 
-type compiledPatternInitExpr struct {
-	baseCompiledExpr
-	emitSrc func()
-	def     compiledExpr
-}
-
-func (e *compiledPatternInitExpr) emitGetter(putOnStack bool) {
-	if !putOnStack {
-		return
-	}
-	e.emitSrc()
-	if e.def != nil {
-		mark := len(e.c.p.code)
-		e.c.emit(nil)
-		e.def.emitGetter(true)
-		e.c.p.code[mark] = jdef(len(e.c.p.code) - mark)
-	}
-}
-
-func (e *compiledPatternInitExpr) emitNamed(name unistring.String) {
-	e.emitSrc()
-	if e.def != nil {
-		mark := len(e.c.p.code)
-		e.c.emit(nil)
-		e.c.emitNamed(e.def, name)
-		e.c.p.code[mark] = jdef(len(e.c.p.code) - mark)
-	}
-}
-
-func (c *compiler) compilePatternInitExpr(emitSrc func(), def ast.Expression, idx file.Idx) compiledExpr {
-	r := &compiledPatternInitExpr{
-		emitSrc: emitSrc,
-		def:     c.compileExpression(def),
-	}
-	r.init(c, idx)
-	return r
-}
-
-func (c *compiler) emitLexicalAssign(name unistring.String, offset int, init compiledExpr, tok token.Token) {
+func (c *compiler) emitLexicalAssign(name unistring.String, offset int, init compiledExpr, isConst bool) {
 	b := c.scope.boundNames[name]
 	if b == nil {
 		panic("Lexical declaration for an unbound name")
@@ -791,7 +759,7 @@ func (c *compiler) emitLexicalAssign(name unistring.String, offset int, init com
 	if init != nil {
 		c.emitNamed(init, name)
 	} else {
-		if tok == token.CONST {
+		if isConst {
 			c.throwSyntaxError(offset, "Missing initializer in const declaration")
 		}
 		c.emit(loadUndef)
@@ -808,9 +776,9 @@ func (c *compiler) emitPatternVarAssign(target, init compiledExpr) {
 	c.emitVarAssign(id.name, id.offset, init)
 }
 
-func (c *compiler) emitPatternLexicalAssign(target, init compiledExpr, tok token.Token) {
+func (c *compiler) emitPatternLexicalAssign(target, init compiledExpr, isConst bool) {
 	id := target.(*compiledIdentifierExpr)
-	c.emitLexicalAssign(id.name, id.offset, init, tok)
+	c.emitLexicalAssign(id.name, id.offset, init, isConst)
 }
 
 func (c *compiler) emitPatternAssign(target, init compiledExpr) {
@@ -819,14 +787,14 @@ func (c *compiler) emitPatternAssign(target, init compiledExpr) {
 	c.emit(putValueP)
 }
 
-func (c *compiler) compileLexicalBinding(expr *ast.Binding, tok token.Token) {
+func (c *compiler) compileLexicalBinding(expr *ast.Binding, isConst bool) {
 	switch target := expr.Target.(type) {
 	case *ast.Identifier:
-		c.emitLexicalAssign(target.Name, int(target.Idx)-1, c.compileExpression(expr.Initializer), tok)
+		c.emitLexicalAssign(target.Name, int(target.Idx)-1, c.compileExpression(expr.Initializer), isConst)
 	case ast.Pattern:
 		c.compileExpression(expr.Initializer).emitGetter(true)
 		c.emitPattern(target, func(target, init compiledExpr) {
-			c.emitPatternLexicalAssign(target, init, tok)
+			c.emitPatternLexicalAssign(target, init, isConst)
 		}, false)
 	default:
 		c.throwSyntaxError(int(target.Idx0()-1), "unsupported lexical binding target: %T", target)
@@ -840,8 +808,9 @@ func (c *compiler) compileVariableStatement(v *ast.VariableStatement) {
 }
 
 func (c *compiler) compileLexicalDeclaration(v *ast.LexicalDeclaration) {
+	isConst := v.Token == token.CONST
 	for _, e := range v.List {
-		c.compileLexicalBinding(e, v.Token)
+		c.compileLexicalBinding(e, isConst)
 	}
 }
 
