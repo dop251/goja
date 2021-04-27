@@ -242,4 +242,14 @@ func TestValueStringBuilder(t *testing.T) {
 			t.Fatal(res)
 		}
 	})
+
+	t.Run("concatSubstringUnicodeASCII", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		sb.WriteString(newStringValue("юникод"))
+		sb.WriteSubstring(asciiString(" ascii"), 0, 6)
+		if res := sb.String(); !res.SameAs(newStringValue("юникод ascii")) {
+			t.Fatal(res)
+		}
+	})
 }
