@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"strings"
+
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
@@ -251,7 +253,7 @@ func (self *_parser) parseObjectPropertyKey() (unistring.String, ast.Expression,
 func (self *_parser) parseObjectProperty() ast.Property {
 	if self.token == token.ELLIPSIS {
 		self.next()
-		return &ast.PropertySpread{
+		return &ast.SpreadElement{
 			Expression: self.parseAssignmentExpression(),
 		}
 	}
@@ -367,7 +369,7 @@ func (self *_parser) parseArrayLiteral() *ast.ArrayLiteral {
 		}
 		if self.token == token.ELLIPSIS {
 			self.next()
-			value = append(value, &ast.PropertySpread{
+			value = append(value, &ast.SpreadElement{
 				Expression: self.parseAssignmentExpression(),
 			})
 		} else {
@@ -917,16 +919,22 @@ func (self *_parser) parseExpression() ast.Expression {
 	return left
 }
 
+func (self *_parser) checkComma(from, to file.Idx) {
+	if pos := strings.IndexByte(self.str[int(from)-self.base:int(to)-self.base], ','); pos >= 0 {
+		self.error(from+file.Idx(pos), "Comma is not allowed here")
+	}
+}
+
 func (self *_parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral) *ast.ArrayPattern {
 	value := left.Value
 	var rest ast.Expression
 	for i, item := range value {
-		if spread, ok := item.(*ast.PropertySpread); ok {
+		if spread, ok := item.(*ast.SpreadElement); ok {
 			if i != len(value)-1 {
 				self.error(item.Idx0(), "Rest element must be last element")
 				return nil
 			}
-			// TODO: make sure there is no trailing comma
+			self.checkComma(spread.Expression.Idx1(), left.RightBracket)
 			rest = spread.Expression
 			value = value[:len(value)-1]
 		} else {
@@ -955,12 +963,12 @@ func (self *_parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) *a
 	value := left.Value
 	var rest ast.Expression
 	for i, item := range value {
-		if spread, ok := item.(*ast.PropertySpread); ok {
+		if spread, ok := item.(*ast.SpreadElement); ok {
 			if i != len(value)-1 {
 				self.error(item.Idx0(), "Rest element must be last element")
 				return nil
 			}
-			// TODO: make sure there is no trailing comma
+			self.checkComma(spread.Expression.Idx1(), left.RightBracket)
 			rest = self.reinterpretAsDestructBindingTarget(spread.Expression)
 			value = value[:len(value)-1]
 		} else {
@@ -1008,7 +1016,7 @@ func (self *_parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) 
 			}
 		case *ast.PropertyShort:
 			ok = true
-		case *ast.PropertySpread:
+		case *ast.SpreadElement:
 			if i != len(expr.Value)-1 {
 				self.error(prop.Idx0(), "Rest element must be last element")
 				return nil
@@ -1044,7 +1052,7 @@ func (self *_parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) 
 			}
 		case *ast.PropertyShort:
 			ok = true
-		case *ast.PropertySpread:
+		case *ast.SpreadElement:
 			if i != len(l.Value)-1 {
 				self.error(prop.Idx0(), "Rest element must be last element")
 				return nil

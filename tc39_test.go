@@ -245,10 +245,8 @@ var (
 		"async-iteration",
 		"BigInt",
 		"class",
-		//"destructuring-binding",
 		"generators",
 		"String.prototype.replaceAll",
-		"computed-property-names",
 		"default-parameters",
 		"super",
 	}

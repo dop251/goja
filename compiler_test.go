@@ -3482,6 +3482,16 @@ func TestObjectLiteralSpread(t *testing.T) {
 	testScript1(TESTLIBX+SCRIPT, _undefined, t)
 }
 
+func TestArrayLiteralSpread(t *testing.T) {
+	const SCRIPT = `
+	let a1 = [1, 2];
+	let a2 = [3, 4];
+	let a = [...a1, 0, ...a2, 1];
+	assert(compareArray(a, [1, 2, 0, 3, 4, 1]));
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 func TestObjectAssignmentPattern(t *testing.T) {
 	const SCRIPT = `
 	let a, b, c;
@@ -3544,6 +3554,66 @@ func TestObjectAssignmentPatternEvalOrder(t *testing.T) {
 	trace;
 	`
 	testScript1(SCRIPT, asciiString("src(),prop1(),target(),get a,prop2(),"), t)
+}
+
+func TestArrayAssignmentPatternEvalOrder(t *testing.T) {
+	const SCRIPT = `
+	let trace = "";
+
+	let src_arr = {
+		[Symbol.iterator]: function() {
+			let done = false;
+			return {
+				next: function() {
+					trace += "next,";
+					if (!done) {
+						done = true;
+						return {value: 0};
+					}
+					return {done: true};
+				},
+				return: function() {
+					trace += "return,";
+				}
+			}
+		}
+	}
+
+	function src() {
+		trace += "src(),";
+		return src_arr;
+	}
+
+	let tgt = {
+		get a() {
+			trace += "get a,";
+			return "a";
+		},
+		get b() {
+			trace += "get b,";
+			return "b";
+		}
+	}
+
+	function target() {
+		trace += "target(),";
+		return tgt;
+	}
+
+	function default_a() {
+		trace += "default a,";
+		return "def_a";
+	}
+
+	function default_b() {
+		trace += "default b,";
+		return "def_b";
+	}
+
+	([target().a = default_a(), target().b = default_b()] = src());
+	trace;
+	`
+	testScript1(SCRIPT, asciiString("src(),target(),next,target(),next,default b,"), t)
 }
 
 func TestObjectAssignPatternRest(t *testing.T) {
@@ -3672,6 +3742,26 @@ func TestForLexPattern(t *testing.T) {
 	trace;
 	`
 	testScript1(SCRIPT, asciiString("a:1"), t)
+}
+
+func TestBindingPatternRestTrailingComma(t *testing.T) {
+	const SCRIPT = `
+	const [a, b, ...rest,] = [];
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+}
+
+func TestAssignPatternRestTrailingComma(t *testing.T) {
+	const SCRIPT = `
+	([a, b, ...rest,] = []);
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
 }
 
 /*

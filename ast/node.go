@@ -187,7 +187,7 @@ type (
 		Value Expression
 	}
 
-	PropertySpread struct {
+	SpreadElement struct {
 		Expression
 	}
 
@@ -490,9 +490,9 @@ func (*ObjectPattern) _bindingTarget() {}
 
 func (*BadExpression) _bindingTarget() {}
 
-func (*PropertyShort) _property()  {}
-func (*PropertyKeyed) _property()  {}
-func (*PropertySpread) _property() {}
+func (*PropertyShort) _property() {}
+func (*PropertyKeyed) _property() {}
+func (*SpreadElement) _property() {}
 
 func (*Identifier) _bindingTarget() {}
 
@@ -570,9 +570,8 @@ func (self *PropertyKeyed) Idx0() file.Idx                 { return self.Key.Idx
 // Idx1 //
 // ==== //
 
-func (self *ArrayLiteral) Idx1() file.Idx          { return self.RightBracket }
-func (self *ArrayPattern) Idx1() file.Idx          { return self.RightBracket }
-func (self *ObjectPattern) Idx1() file.Idx         { return self.RightBrace }
+func (self *ArrayLiteral) Idx1() file.Idx          { return self.RightBracket + 1 }
+func (self *ArrayPattern) Idx1() file.Idx          { return self.RightBracket + 1 }
 func (self *AssignExpression) Idx1() file.Idx      { return self.Right.Idx1() }
 func (self *BadExpression) Idx1() file.Idx         { return self.To }
 func (self *BinaryExpression) Idx1() file.Idx      { return self.Right.Idx1() }
@@ -586,11 +585,12 @@ func (self *Identifier) Idx1() file.Idx            { return file.Idx(int(self.Id
 func (self *NewExpression) Idx1() file.Idx         { return self.RightParenthesis + 1 }
 func (self *NullLiteral) Idx1() file.Idx           { return file.Idx(int(self.Idx) + 4) } // "null"
 func (self *NumberLiteral) Idx1() file.Idx         { return file.Idx(int(self.Idx) + len(self.Literal)) }
-func (self *ObjectLiteral) Idx1() file.Idx         { return self.RightBrace }
+func (self *ObjectLiteral) Idx1() file.Idx         { return self.RightBrace + 1 }
+func (self *ObjectPattern) Idx1() file.Idx         { return self.RightBrace + 1 }
 func (self *RegExpLiteral) Idx1() file.Idx         { return file.Idx(int(self.Idx) + len(self.Literal)) }
-func (self *SequenceExpression) Idx1() file.Idx    { return self.Sequence[0].Idx1() }
+func (self *SequenceExpression) Idx1() file.Idx    { return self.Sequence[len(self.Sequence)-1].Idx1() }
 func (self *StringLiteral) Idx1() file.Idx         { return file.Idx(int(self.Idx) + len(self.Literal)) }
-func (self *ThisExpression) Idx1() file.Idx        { return self.Idx }
+func (self *ThisExpression) Idx1() file.Idx        { return self.Idx + 4 }
 func (self *UnaryExpression) Idx1() file.Idx {
 	if self.Postfix {
 		return self.Operand.Idx1() + 2 // ++ --
@@ -619,12 +619,20 @@ func (self *IfStatement) Idx1() file.Idx {
 	}
 	return self.Consequent.Idx1()
 }
-func (self *LabelledStatement) Idx1() file.Idx   { return self.Colon + 1 }
-func (self *Program) Idx1() file.Idx             { return self.Body[len(self.Body)-1].Idx1() }
-func (self *ReturnStatement) Idx1() file.Idx     { return self.Return }
-func (self *SwitchStatement) Idx1() file.Idx     { return self.Body[len(self.Body)-1].Idx1() }
-func (self *ThrowStatement) Idx1() file.Idx      { return self.Throw }
-func (self *TryStatement) Idx1() file.Idx        { return self.Try }
+func (self *LabelledStatement) Idx1() file.Idx { return self.Colon + 1 }
+func (self *Program) Idx1() file.Idx           { return self.Body[len(self.Body)-1].Idx1() }
+func (self *ReturnStatement) Idx1() file.Idx   { return self.Return + 6 }
+func (self *SwitchStatement) Idx1() file.Idx   { return self.Body[len(self.Body)-1].Idx1() }
+func (self *ThrowStatement) Idx1() file.Idx    { return self.Argument.Idx1() }
+func (self *TryStatement) Idx1() file.Idx {
+	if self.Finally != nil {
+		return self.Finally.Idx1()
+	}
+	if self.Catch != nil {
+		return self.Catch.Idx1()
+	}
+	return self.Body.Idx1()
+}
 func (self *VariableStatement) Idx1() file.Idx   { return self.List[len(self.List)-1].Idx1() }
 func (self *WhileStatement) Idx1() file.Idx      { return self.Body.Idx1() }
 func (self *WithStatement) Idx1() file.Idx       { return self.Body.Idx1() }

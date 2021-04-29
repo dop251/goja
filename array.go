@@ -426,7 +426,7 @@ func (a *arrayObject) _defineIdxProperty(idx uint32, desc PropertyDescriptor, th
 				a.propValueCount++
 			}
 		} else {
-			a.val.self.(*sparseArrayObject).add(uint32(idx), prop)
+			a.val.self.(*sparseArrayObject).add(idx, prop)
 		}
 	}
 	return ok

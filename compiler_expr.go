@@ -1490,7 +1490,7 @@ func (e *compiledObjectLiteral) emitGetter(putOnStack bool) {
 			}
 			e.c.compileIdentifierExpression(&prop.Name).emitGetter(true)
 			e.c.emit(setProp1(key))
-		case *ast.PropertySpread:
+		case *ast.SpreadElement:
 			e.c.compileExpression(prop.Expression).emitGetter(true)
 			e.c.emit(copySpread)
 		default:
@@ -1512,23 +1512,28 @@ func (c *compiler) compileObjectLiteral(v *ast.ObjectLiteral) compiledExpr {
 
 func (e *compiledArrayLiteral) emitGetter(putOnStack bool) {
 	e.addSrcMap()
-	objCount := 0
+	hasSpread := false
+	mark := len(e.c.p.code)
+	e.c.emit(nil)
 	for _, v := range e.expr.Value {
-		if v != nil {
-			e.c.compileExpression(v).emitGetter(true)
-			objCount++
+		if spread, ok := v.(*ast.SpreadElement); ok {
+			hasSpread = true
+			e.c.compileExpression(spread.Expression).emitGetter(true)
+			e.c.emit(pushArraySpread)
 		} else {
-			e.c.emit(loadNil)
+			if v != nil {
+				e.c.compileExpression(v).emitGetter(true)
+			} else {
+				e.c.emit(loadNil)
+			}
+			e.c.emit(pushArrayItem)
 		}
 	}
-	if objCount == len(e.expr.Value) {
-		e.c.emit(newArray(objCount))
-	} else {
-		e.c.emit(&newArraySparse{
-			l:        len(e.expr.Value),
-			objCount: objCount,
-		})
+	var objCount uint32
+	if !hasSpread {
+		objCount = uint32(len(e.expr.Value))
 	}
+	e.c.p.code[mark] = newArray(objCount)
 	if !putOnStack {
 		e.c.emit(pop)
 	}

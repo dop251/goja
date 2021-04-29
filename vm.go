@@ -1691,32 +1691,47 @@ func (_newObject) exec(vm *vm) {
 type newArray uint32
 
 func (l newArray) exec(vm *vm) {
-	values := make([]Value, l)
-	if l > 0 {
-		copy(values, vm.stack[vm.sp-int(l):vm.sp])
-	}
-	obj := vm.r.newArrayValues(values)
-	if l > 0 {
-		vm.sp -= int(l) - 1
-		vm.stack[vm.sp-1] = obj
-	} else {
-		vm.push(obj)
-	}
+	values := make([]Value, 0, l)
+	vm.push(vm.r.newArrayValues(values))
 	vm.pc++
 }
 
-type newArraySparse struct {
-	l, objCount int
+type _pushArrayItem struct{}
+
+var pushArrayItem _pushArrayItem
+
+func (_pushArrayItem) exec(vm *vm) {
+	arr := vm.stack[vm.sp-2].(*Object).self.(*arrayObject)
+	if arr.length < math.MaxUint32 {
+		arr.length++
+	} else {
+		panic(vm.r.newError(vm.r.global.RangeError, "Invalid array length"))
+	}
+	val := vm.stack[vm.sp-1]
+	arr.values = append(arr.values, val)
+	if val != nil {
+		arr.objCount++
+	}
+	vm.sp--
+	vm.pc++
 }
 
-func (n *newArraySparse) exec(vm *vm) {
-	values := make([]Value, n.l)
-	copy(values, vm.stack[vm.sp-n.l:vm.sp])
-	arr := vm.r.newArrayObject()
-	setArrayValues(arr, values)
-	arr.objCount = n.objCount
-	vm.sp -= n.l - 1
-	vm.stack[vm.sp-1] = arr.val
+type _pushArraySpread struct{}
+
+var pushArraySpread _pushArraySpread
+
+func (_pushArraySpread) exec(vm *vm) {
+	arr := vm.stack[vm.sp-2].(*Object).self.(*arrayObject)
+	vm.r.iterate(vm.r.getIterator(vm.stack[vm.sp-1], nil), func(val Value) {
+		if arr.length < math.MaxUint32 {
+			arr.length++
+		} else {
+			panic(vm.r.newError(vm.r.global.RangeError, "Invalid array length"))
+		}
+		arr.values = append(arr.values, val)
+		arr.objCount++
+	})
+	vm.sp--
 	vm.pc++
 }
 
