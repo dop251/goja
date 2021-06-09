@@ -3764,6 +3764,59 @@ func TestAssignPatternRestTrailingComma(t *testing.T) {
 	}
 }
 
+func TestFuncParamInitializerSimple(t *testing.T) {
+	const SCRIPT = `
+	function f(a = 1) {
+		return a;
+	}
+	""+f()+f(2);
+	`
+	testScript1(SCRIPT, asciiString("12"), t)
+}
+
+func TestFuncParamObjectPatternSimple(t *testing.T) {
+	const SCRIPT = `
+	function f({a, b} = {a: 1, b: 2}) {
+		return "" + a + b;
+	}
+	""+f()+" "+f({a: 3, b: 4});
+	`
+	testScript1(SCRIPT, asciiString("12 34"), t)
+}
+
+func TestFuncParamRestStackSimple(t *testing.T) {
+	const SCRIPT = `
+	function f(arg1, ...rest) {
+		return rest;
+	}
+	let ar = f(1, 2, 3);
+	ar.join(",");
+	`
+	testScript1(SCRIPT, asciiString("2,3"), t)
+}
+
+func TestFuncParamRestStashSimple(t *testing.T) {
+	const SCRIPT = `
+	function f(arg1, ...rest) {
+		eval("true");
+		return rest;
+	}
+	let ar = f(1, 2, 3);
+	ar.join(",");
+	`
+	testScript1(SCRIPT, asciiString("2,3"), t)
+}
+
+func TestFuncParamRestPattern(t *testing.T) {
+	const SCRIPT = `
+	function f(arg1, ...{0: rest1, 1: rest2}) {
+		return ""+arg1+" "+rest1+" "+rest2;
+	}
+	f(1, 2, 3);
+	`
+	testScript1(SCRIPT, asciiString("1 2 3"), t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")

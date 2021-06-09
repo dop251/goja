@@ -380,6 +380,17 @@ func (s *scope) ensureBoundNamesCreated() {
 	}
 }
 
+func (s *scope) addBinding(offset int) *binding {
+	if len(s.bindings) >= (1<<24)-1 {
+		s.c.throwSyntaxError(offset, "Too many variables")
+	}
+	b := &binding{
+		scope: s,
+	}
+	s.bindings = append(s.bindings, b)
+	return b
+}
+
 func (s *scope) bindNameLexical(name unistring.String, unique bool, offset int) (*binding, bool) {
 	if b := s.boundNames[name]; b != nil {
 		if unique {
@@ -387,14 +398,8 @@ func (s *scope) bindNameLexical(name unistring.String, unique bool, offset int) 
 		}
 		return b, false
 	}
-	if len(s.bindings) >= (1<<24)-1 {
-		s.c.throwSyntaxError(offset, "Too many variables")
-	}
-	b := &binding{
-		scope: s,
-		name:  name,
-	}
-	s.bindings = append(s.bindings, b)
+	b := s.addBinding(offset)
+	b.name = name
 	s.ensureBoundNamesCreated()
 	s.boundNames[name] = b
 	return b, true
@@ -797,38 +802,44 @@ func (c *compiler) createVarIdBinding(name unistring.String, offset int, inFunc 
 	}
 }
 
-func (c *compiler) createVarBinding(target ast.Expression, inFunc bool) {
+func (c *compiler) createBindings(target ast.Expression, createIdBinding func(name unistring.String, offset int)) {
 	switch target := target.(type) {
 	case *ast.Identifier:
-		c.createVarIdBinding(target.Name, int(target.Idx)-1, inFunc)
+		createIdBinding(target.Name, int(target.Idx)-1)
 	case *ast.ObjectPattern:
 		for _, prop := range target.Properties {
 			switch prop := prop.(type) {
 			case *ast.PropertyShort:
-				c.createVarIdBinding(prop.Name.Name, int(prop.Name.Idx)-1, inFunc)
+				createIdBinding(prop.Name.Name, int(prop.Name.Idx)-1)
 			case *ast.PropertyKeyed:
-				c.createVarBinding(prop.Value, inFunc)
+				c.createBindings(prop.Value, createIdBinding)
 			default:
-				c.throwSyntaxError(int(target.Idx0()-1), "unsupported var binding target: %T", prop)
+				c.throwSyntaxError(int(target.Idx0()-1), "unsupported property type in ObjectPattern: %T", prop)
 			}
 		}
 		if target.Rest != nil {
-			c.createVarBinding(target.Rest, inFunc)
+			c.createBindings(target.Rest, createIdBinding)
 		}
 	case *ast.ArrayPattern:
 		for _, elt := range target.Elements {
 			if elt != nil {
-				c.createVarBinding(elt, inFunc)
+				c.createBindings(elt, createIdBinding)
 			}
 		}
 		if target.Rest != nil {
-			c.createVarBinding(target.Rest, inFunc)
+			c.createBindings(target.Rest, createIdBinding)
 		}
 	case *ast.AssignExpression:
-		c.createVarBinding(target.Left, inFunc)
+		c.createBindings(target.Left, createIdBinding)
 	default:
-		c.throwSyntaxError(int(target.Idx0()-1), "unsupported var binding target: %T", target)
+		c.throwSyntaxError(int(target.Idx0()-1), "unsupported binding target: %T", target)
 	}
+}
+
+func (c *compiler) createVarBinding(target ast.Expression, inFunc bool) {
+	c.createBindings(target, func(name unistring.String, offset int) {
+		c.createVarIdBinding(name, offset, inFunc)
+	})
 }
 
 func (c *compiler) createVarBindings(v *ast.VariableDeclaration, inFunc bool) {
@@ -851,37 +862,9 @@ func (c *compiler) createLexicalIdBinding(name unistring.String, isConst bool, o
 }
 
 func (c *compiler) createLexicalBinding(target ast.Expression, isConst bool) {
-	switch target := target.(type) {
-	case *ast.Identifier:
-		c.createLexicalIdBinding(target.Name, isConst, int(target.Idx)-1)
-	case *ast.ObjectPattern:
-		for _, prop := range target.Properties {
-			switch prop := prop.(type) {
-			case *ast.PropertyShort:
-				c.createLexicalIdBinding(prop.Name.Name, isConst, int(prop.Name.Idx)-1)
-			case *ast.PropertyKeyed:
-				c.createLexicalBinding(prop.Value, isConst)
-			default:
-				c.throwSyntaxError(int(target.Idx0()-1), "unsupported lexical binding target: %T", prop)
-			}
-		}
-		if target.Rest != nil {
-			c.createLexicalBinding(target.Rest, isConst)
-		}
-	case *ast.ArrayPattern:
-		for _, elt := range target.Elements {
-			if elt != nil {
-				c.createLexicalBinding(elt, isConst)
-			}
-		}
-		if target.Rest != nil {
-			c.createLexicalBinding(target.Rest, isConst)
-		}
-	case *ast.AssignExpression:
-		c.createLexicalBinding(target.Left, isConst)
-	default:
-		c.throwSyntaxError(int(target.Idx0()-1), "unsupported lexical binding target: %T", target)
-	}
+	c.createBindings(target, func(name unistring.String, offset int) {
+		c.createLexicalIdBinding(name, isConst, offset)
+	})
 }
 
 func (c *compiler) createLexicalBindings(lex *ast.LexicalDeclaration) {

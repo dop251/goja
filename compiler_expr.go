@@ -813,6 +813,29 @@ func (e *compiledLiteral) constant() bool {
 	return true
 }
 
+func (c *compiler) compileParameterBindingIdentifier(name unistring.String, offset int) (*binding, bool) {
+	if c.scope.strict {
+		c.checkIdentifierName(name, offset)
+		c.checkIdentifierLName(name, offset)
+	}
+	b, unique := c.scope.bindNameShadow(name)
+	if !unique && c.scope.strict {
+		c.throwSyntaxError(offset, "Strict mode function may not have duplicate parameter names (%s)", name)
+		return nil, false
+	}
+	return b, unique
+}
+
+func (c *compiler) compileParameterPatternIdBinding(name unistring.String, offset int) {
+	if _, unique := c.compileParameterBindingIdentifier(name, offset); !unique {
+		c.throwSyntaxError(offset, "Duplicate parameter name not allowed in this context")
+	}
+}
+
+func (c *compiler) compileParameterPatternBinding(item ast.Expression) {
+	c.createBindings(item, c.compileParameterPatternIdBinding)
+}
+
 func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	savedPrg := e.c.p
 	e.c.p = &Program{
@@ -844,25 +867,58 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		e.c.scope.strict = e.strict
 	}
 
-	if e.c.scope.strict {
-		for _, item := range e.expr.ParameterList.List {
-			e.c.checkIdentifierName(item.Name, int(item.Idx)-1)
-			e.c.checkIdentifierLName(item.Name, int(item.Idx)-1)
-		}
+	hasPatterns := false
+	hasInits := false
+	firstDupIdx := -1
+
+	if e.expr.ParameterList.Rest != nil {
+		hasPatterns = true // strictly speaking not, but we need to activate all the checks
 	}
 
-	length := len(e.expr.ParameterList.List)
-
+	// First, make sure that the first bindings correspond to the formal parameters
 	for _, item := range e.expr.ParameterList.List {
-		b, unique := e.c.scope.bindNameShadow(item.Name)
-		if !unique && e.c.scope.strict {
-			e.c.throwSyntaxError(int(item.Idx)-1, "Strict mode function may not have duplicate parameter names (%s)", item.Name)
+		switch tgt := item.Target.(type) {
+		case *ast.Identifier:
+			offset := int(tgt.Idx) - 1
+			b, unique := e.c.compileParameterBindingIdentifier(tgt.Name, offset)
+			if !unique {
+				firstDupIdx = offset
+			}
+			b.isArg = true
+			b.isVar = true
+		case ast.Pattern:
+			e.c.scope.addBinding(int(item.Idx0()) - 1)
+			hasPatterns = true
+		default:
+			e.c.throwSyntaxError(int(item.Idx0())-1, "Unsupported BindingElement type: %T", item)
 			return
 		}
-		b.isArg = true
-		b.isVar = true
+		if item.Initializer != nil {
+			hasInits = true
+		}
+		if (hasPatterns || hasInits) && firstDupIdx >= 0 {
+			e.c.throwSyntaxError(firstDupIdx, "Duplicate parameter name not allowed in this context")
+			return
+		}
 	}
-	paramsCount := len(e.c.scope.bindings)
+
+	// create pattern bindings
+	if hasPatterns {
+		for _, item := range e.expr.ParameterList.List {
+			switch tgt := item.Target.(type) {
+			case *ast.Identifier:
+				// we already created those in the previous loop, skipping
+			default:
+				e.c.compileParameterPatternBinding(tgt)
+			}
+		}
+		if rest := e.expr.ParameterList.Rest; rest != nil {
+			e.c.compileParameterPatternBinding(rest)
+		}
+	}
+
+	paramsCount := len(e.expr.ParameterList.List)
+
 	e.c.scope.numArgs = paramsCount
 	e.c.compileDeclList(e.expr.DeclarationList, true)
 	body := e.expr.Body.List
@@ -878,6 +934,40 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	}
 	preambleLen := 4 // enter, boxThis, createArgs, set
 	e.c.p.code = make([]instruction, preambleLen, 8)
+
+	emitArgsRestMark := -1
+
+	if hasPatterns || hasInits {
+		for i, item := range e.expr.ParameterList.List {
+			if pattern, ok := item.Target.(ast.Pattern); ok {
+				i := i
+				e.c.compilePatternInitExpr(func() {
+					e.c.scope.bindings[i].emitGet()
+				}, item.Initializer, item.Target.Idx0()).emitGetter(true)
+				e.c.emitPattern(pattern, func(target, init compiledExpr) {
+					e.c.emitPatternLexicalAssign(target, init, true)
+				}, false)
+			} else if item.Initializer != nil {
+				e.c.scope.bindings[i].emitGet()
+				mark := len(e.c.p.code)
+				e.c.emit(nil)
+				e.c.compileExpression(item.Initializer).emitGetter(true)
+				e.c.scope.bindings[i].emitSet()
+				e.c.p.code[mark] = jdef(len(e.c.p.code) - mark)
+				e.c.emit(pop)
+			}
+		}
+		if rest := e.expr.ParameterList.Rest; rest != nil {
+			e.c.emitAssign(rest, &compiledEmitterExpr{
+				emitter: func() {
+					emitArgsRestMark = len(e.c.p.code)
+					e.c.emit(createArgsRestStack(paramsCount))
+				},
+			}, func(target, init compiledExpr) {
+				e.c.emitPatternLexicalAssign(target, init, true)
+			})
+		}
+	}
 
 	if calleeBinding != nil {
 		e.c.emit(loadCallee)
@@ -911,9 +1001,9 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		pos := preambleLen - 2
 		delta += 2
 		if s.strict {
-			code[pos] = createArgsStrict(length)
+			code[pos] = createArgsUnmapped(paramsCount)
 		} else {
-			code[pos] = createArgs(length)
+			code[pos] = createArgsMapped(paramsCount)
 		}
 		pos++
 		b, _ := s.bindName("arguments")
@@ -943,6 +1033,9 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 			enter1.names = s.makeNamesMap()
 		}
 		enter = &enter1
+		if emitArgsRestMark != -1 {
+			e.c.p.code[emitArgsRestMark] = createArgsRestStash
+		}
 	} else {
 		enter = &enterFuncStashless{
 			stackSize: uint32(stackSize),
@@ -963,7 +1056,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	// e.c.p.dumpCode()
 	e.c.popScope()
 	e.c.p = savedPrg
-	e.c.emit(&newFunc{prg: p, length: uint32(length), name: name, srcStart: uint32(e.expr.Idx0() - 1), srcEnd: uint32(e.expr.Idx1() - 1), strict: strict})
+	e.c.emit(&newFunc{prg: p, length: uint32(paramsCount), name: name, srcStart: uint32(e.expr.Idx0() - 1), srcEnd: uint32(e.expr.Idx1() - 1), strict: strict})
 	if !putOnStack {
 		e.c.emit(pop)
 	}

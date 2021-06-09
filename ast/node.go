@@ -167,7 +167,8 @@ type (
 
 	ParameterList struct {
 		Opening file.Idx
-		List    []*Identifier
+		List    []*Binding
+		Rest    Expression
 		Closing file.Idx
 	}
 

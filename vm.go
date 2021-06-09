@@ -3366,9 +3366,9 @@ func (_typeof) exec(vm *vm) {
 	vm.pc++
 }
 
-type createArgs uint32
+type createArgsMapped uint32
 
-func (formalArgs createArgs) exec(vm *vm) {
+func (formalArgs createArgsMapped) exec(vm *vm) {
 	v := &Object{runtime: vm.r}
 	args := &argumentsObject{}
 	args.extensible = true
@@ -3405,9 +3405,9 @@ func (formalArgs createArgs) exec(vm *vm) {
 	vm.pc++
 }
 
-type createArgsStrict uint32
+type createArgsUnmapped uint32
 
-func (formalArgs createArgsStrict) exec(vm *vm) {
+func (formalArgs createArgsUnmapped) exec(vm *vm) {
 	args := vm.r.newBaseObject(vm.r.global.ObjectPrototype, "Arguments")
 	i := 0
 	c := int(formalArgs)
@@ -3646,5 +3646,28 @@ var checkObjectCoercible _checkObjectCoercible
 
 func (_checkObjectCoercible) exec(vm *vm) {
 	vm.r.checkObjectCoercible(vm.stack[vm.sp-1])
+	vm.pc++
+}
+
+type createArgsRestStack int
+
+func (n createArgsRestStack) exec(vm *vm) {
+	var values []Value
+	delta := vm.args - int(n)
+	if delta > 0 {
+		values = make([]Value, delta)
+		copy(values, vm.stack[vm.sb+int(n)+1:])
+	}
+	vm.push(vm.r.newArrayValues(values))
+	vm.pc++
+}
+
+type _createArgsRestStash struct{}
+
+var createArgsRestStash _createArgsRestStash
+
+func (_createArgsRestStash) exec(vm *vm) {
+	vm.push(vm.r.newArrayValues(vm.stash.extraArgs))
+	vm.stash.extraArgs = nil
 	vm.pc++
 }

@@ -162,13 +162,15 @@ func (self *_parser) parseTryStatement() ast.Statement {
 
 func (self *_parser) parseFunctionParameterList() *ast.ParameterList {
 	opening := self.expect(token.LEFT_PARENTHESIS)
-	var list []*ast.Identifier
+	var list []*ast.Binding
+	var rest ast.Expression
 	for self.token != token.RIGHT_PARENTHESIS && self.token != token.EOF {
-		if self.token != token.IDENTIFIER {
-			self.expect(token.IDENTIFIER)
-		} else {
-			list = append(list, self.parseIdentifier())
+		if self.token == token.ELLIPSIS {
+			self.next()
+			rest = self.reinterpretAsDestructBindingTarget(self.parseAssignmentExpression())
+			break
 		}
+		self.parseVariableDeclaration(&list)
 		if self.token != token.RIGHT_PARENTHESIS {
 			self.expect(token.COMMA)
 		}
@@ -178,6 +180,7 @@ func (self *_parser) parseFunctionParameterList() *ast.ParameterList {
 	return &ast.ParameterList{
 		Opening: opening,
 		List:    list,
+		Rest:    rest,
 		Closing: closing,
 	}
 }
