@@ -221,19 +221,9 @@ func (c *compiler) compileExpression(v ast.Expression) compiledExpr {
 	case *ast.FunctionLiteral:
 		return c.compileFunctionLiteral(v, true)
 	case *ast.DotExpression:
-		r := &compiledDotExpr{
-			left: c.compileExpression(v.Left),
-			name: v.Identifier.Name,
-		}
-		r.init(c, v.Idx0())
-		return r
+		return c.compileDotExpr(v)
 	case *ast.BracketExpression:
-		r := &compiledBracketExpr{
-			left:   c.compileExpression(v.Left),
-			member: c.compileExpression(v.Member),
-		}
-		r.init(c, v.Idx0())
-		return r
+		return c.compileBracketExpr(v)
 	case *ast.ThisExpression:
 		r := &compiledThisExpr{}
 		r.init(c, v.Idx0())
@@ -1940,6 +1930,17 @@ func (c *compiler) emitArrayPattern(pattern *ast.ArrayPattern, emitAssign func(t
 				c.emit(nil, enumGet)
 			}, nil, elt.Idx0()).emitGetter(true)
 			c.emitPattern(elt, emitAssign, false)
+		case *ast.DotExpression:
+			emitAssign(c.compileDotExpr(elt), c.compilePatternInitExpr(func() {
+				marks = append(marks, len(c.p.code))
+				c.emit(nil, enumGet)
+			}, nil, elt.Idx0()))
+
+		case *ast.BracketExpression:
+			emitAssign(c.compileBracketExpr(elt), c.compilePatternInitExpr(func() {
+				marks = append(marks, len(c.p.code))
+				c.emit(nil, enumGet)
+			}, nil, elt.Idx0()))
 		default:
 			c.throwSyntaxError(int(elt.Idx0()-1), "Unsupported AssignmentProperty type: %T", elt)
 		}
@@ -1974,6 +1975,16 @@ func (c *compiler) emitArrayPattern(pattern *ast.ArrayPattern, emitAssign func(t
 				c.emit(loadUndef)
 			}, nil, elt.Idx0()).emitGetter(true)
 			c.emitPattern(elt, emitAssign, false)
+		case *ast.DotExpression:
+			emitAssign(c.compileDotExpr(elt), c.compileEmitterExpr(func() {
+				c.p.code[marks[i]] = iterNext(len(c.p.code) - marks[i])
+				c.emit(loadUndef)
+			}, elt.Idx0()))
+		case *ast.BracketExpression:
+			emitAssign(c.compileBracketExpr(elt), c.compilePatternInitExpr(func() {
+				c.p.code[marks[i]] = iterNext(len(c.p.code) - marks[i])
+				c.emit(loadUndef)
+			}, nil, elt.Idx0()))
 		default:
 			c.throwSyntaxError(int(elt.Idx0()-1), "Unsupported AssignmentProperty type: %T", elt)
 		}
@@ -2079,5 +2090,23 @@ func (c *compiler) compileNamedEmitterExpr(namedEmitter func(unistring.String), 
 		namedEmitter: namedEmitter,
 	}
 	r.init(c, idx)
+	return r
+}
+
+func (c *compiler) compileDotExpr(idx *ast.DotExpression) *compiledDotExpr {
+	r := &compiledDotExpr{
+		left: c.compileExpression(idx.Left),
+		name: idx.Identifier.Name,
+	}
+	r.init(c, idx.Idx0())
+	return r
+}
+
+func (c *compiler) compileBracketExpr(idx *ast.BracketExpression) *compiledBracketExpr {
+	r := &compiledBracketExpr{
+		left:   c.compileExpression(idx.Left),
+		member: c.compileExpression(idx.Member),
+	}
+	r.init(c, idx.Idx0())
 	return r
 }
