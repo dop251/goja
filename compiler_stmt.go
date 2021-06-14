@@ -783,7 +783,11 @@ func (c *compiler) emitPatternLexicalAssign(target, init compiledExpr, isConst b
 
 func (c *compiler) emitPatternAssign(target, init compiledExpr) {
 	target.emitRef()
-	init.emitGetter(true)
+	if id, ok := target.(*compiledIdentifierExpr); ok {
+		c.emitNamed(init, id.name)
+	} else {
+		init.emitGetter(true)
+	}
 	c.emit(putValueP)
 }
 

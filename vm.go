@@ -1741,13 +1741,14 @@ var newArrayFromIter _newArrayFromIter
 
 func (_newArrayFromIter) exec(vm *vm) {
 	var values []Value
-	vm.r.iterate(vm.iterStack[len(vm.iterStack)-1].iter, func(val Value) {
+	l := len(vm.iterStack) - 1
+	iter := vm.iterStack[l].iter
+	vm.iterStack[l] = iterStackItem{}
+	vm.iterStack = vm.iterStack[:l]
+	vm.r.iterate(iter, func(val Value) {
 		values = append(values, val)
 	})
 	vm.push(vm.r.newArrayValues(values))
-	l := len(vm.iterStack) - 1
-	vm.iterStack[l] = iterStackItem{}
-	vm.iterStack = vm.iterStack[:l]
 	vm.pc++
 }
 

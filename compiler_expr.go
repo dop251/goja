@@ -1578,6 +1578,9 @@ func (e *compiledObjectLiteral) emitGetter(putOnStack bool) {
 			}
 		case *ast.PropertyShort:
 			key := prop.Name.Name
+			if prop.Initializer != nil {
+				e.c.throwSyntaxError(int(prop.Initializer.Idx0())-1, "Invalid shorthand property initializer")
+			}
 			if e.c.scope.strict && key == "let" {
 				e.c.throwSyntaxError(e.offset, "'let' cannot be used as a shorthand property in strict mode")
 			}
@@ -1924,24 +1927,16 @@ func (c *compiler) emitArrayPattern(pattern *ast.ArrayPattern, emitAssign func(t
 		case nil:
 			marks = append(marks, len(c.p.code))
 			c.emit(nil)
-		case *ast.Identifier:
-			emitAssign(c.compileIdentifierExpression(elt), c.compilePatternInitExpr(func() {
-				marks = append(marks, len(c.p.code))
-				c.emit(nil, enumGet)
-			}, nil, elt.Idx0()))
 		case *ast.AssignExpression:
 			c.emitAssign(elt.Left, c.compilePatternInitExpr(func() {
 				marks = append(marks, len(c.p.code))
 				c.emit(nil, enumGet)
 			}, elt.Right, elt.Idx0()), emitAssign)
-		case ast.Pattern:
-			c.compilePatternInitExpr(func() {
+		default:
+			c.emitAssign(elt, c.compileEmitterExpr(func() {
 				marks = append(marks, len(c.p.code))
 				c.emit(nil, enumGet)
-			}, nil, elt.Idx0()).emitGetter(true)
-			c.emitPattern(elt, emitAssign, false)
-		default:
-			c.throwSyntaxError(int(elt.Idx0()-1), "Unsupported AssignmentProperty type: %T", elt)
+			}, elt.Idx0()), emitAssign)
 		}
 	}
 	if pattern.Rest != nil {
@@ -1968,14 +1963,12 @@ func (c *compiler) emitArrayPattern(pattern *ast.ArrayPattern, emitAssign func(t
 				c.p.code[marks[i]] = iterNext(len(c.p.code) - marks[i])
 				c.emitNamed(c.compileExpression(elt.Right), name)
 			}, elt.Idx0()), emitAssign)
-		case ast.Pattern:
-			c.compilePatternInitExpr(func() {
-				c.p.code[marks[i]] = iterNext(len(c.p.code) - marks[i])
-				c.emit(loadUndef)
-			}, nil, elt.Idx0()).emitGetter(true)
-			c.emitPattern(elt, emitAssign, false)
 		default:
-			c.throwSyntaxError(int(elt.Idx0()-1), "Unsupported AssignmentProperty type: %T", elt)
+			c.emitAssign(elt, c.compileEmitterExpr(
+				func() {
+					c.p.code[marks[i]] = iterNext(len(c.p.code) - marks[i])
+					c.emit(loadUndef)
+				}, elt.Idx0()), emitAssign)
 		}
 	}
 	c.emit(enumPop)

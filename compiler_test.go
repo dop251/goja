@@ -3695,11 +3695,29 @@ func TestArrayAssignPattern1(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestArrayAssignPatternLHS(t *testing.T) {
+	const SCRIPT = `
+	let a = {};
+	[ a.b, a['c'] = 2 ] = [1];
+	a.b === 1 && a.c === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func TestArrayAssignPatternElision(t *testing.T) {
 	const SCRIPT = `
 	let a, b;
 	([a,, b] = [1, 4, 2]);
 	a === 1 && b === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestArrayAssignPatternRestPattern(t *testing.T) {
+	const SCRIPT = `
+	let a, b, z;
+	[ z, ...[a, b] ] = [0, 1, 2];
+	z === 0 && a === 1 && b === 2;
 	`
 	testScript1(SCRIPT, valueTrue, t)
 }
@@ -3710,6 +3728,14 @@ func TestArrayBindingPattern(t *testing.T) {
 	a === 1 && b === 2;
 	`
 	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestObjectPatternShorthandInit(t *testing.T) {
+	const SCRIPT = `
+	[...{ x = 1 }] = [];
+	x;
+	`
+	testScript1(SCRIPT, valueInt(1), t)
 }
 
 func TestArrayBindingPatternRestPattern(t *testing.T) {

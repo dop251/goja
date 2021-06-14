@@ -880,18 +880,6 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 		return &ast.BadExpression{From: idx, To: self.idx}
 	}
 
-	if obj, ok := left.(*ast.ObjectLiteral); ok {
-		for _, prop := range obj.Value {
-			if prop, ok := prop.(*ast.PropertyShort); ok {
-				if prop.Initializer != nil {
-					self.error(prop.Name.Idx0(), "Invalid shorthand property initializer")
-					self.nextStatement()
-					return &ast.BadExpression{From: left.Idx0(), To: self.idx}
-				}
-			}
-		}
-	}
-
 	return left
 }
 
@@ -935,7 +923,7 @@ func (self *_parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral)
 				return nil
 			}
 			self.checkComma(spread.Expression.Idx1(), left.RightBracket)
-			rest = spread.Expression
+			rest = self.reinterpretAsDestructAssignTarget(spread.Expression)
 			value = value[:len(value)-1]
 		} else {
 			value[i] = self.reinterpretAsAssignmentElement(item)

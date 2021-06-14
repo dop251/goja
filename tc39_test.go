@@ -125,6 +125,9 @@ var (
 		"test/language/statements/for/dstr/const-obj-ptrn-id-init-fn-name-class.js":                                  true,
 		"test/language/statements/const/dstr/obj-ptrn-id-init-fn-name-class.js":                                      true,
 		"test/language/statements/for/dstr/const-ary-ptrn-elem-id-init-fn-name-class.js":                             true,
+		"test/language/statements/variable/dstr/obj-ptrn-id-init-fn-name-class.js":                                   true,
+		"test/language/statements/variable/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                              true,
+		"test/language/expressions/object/method-definition/name-name-prop-symbol.js":                                true,
 
 		// arrow-function
 		"test/built-ins/Object/prototype/toString/proxy-function.js":                                    true,
@@ -157,6 +160,12 @@ var (
 		"test/language/statements/for/dstr/const-obj-ptrn-id-init-fn-name-arrow.js":                     true,
 		"test/language/statements/const/dstr/obj-ptrn-id-init-fn-name-arrow.js":                         true,
 		"test/language/statements/for/dstr/const-ary-ptrn-elem-id-init-fn-name-arrow.js":                true,
+		"test/language/statements/variable/dstr/obj-ptrn-id-init-fn-name-arrow.js":                      true,
+		"test/language/statements/variable/dstr/ary-ptrn-elem-id-init-fn-name-arrow.js":                 true,
+		"test/language/expressions/assignment/dstr/obj-prop-elem-init-fn-name-arrow.js":                 true,
+		"test/language/expressions/assignment/dstr/obj-id-init-fn-name-arrow.js":                        true,
+		"test/language/expressions/assignment/dstr/obj-rest-order.js":                                   true,
+		"test/language/expressions/assignment/dstr/array-elem-init-fn-name-arrow.js":                    true,
 
 		// template strings
 		"test/built-ins/String/raw/zero-literal-segments.js":                                           true,
@@ -221,23 +230,6 @@ var (
 
 		// generators
 		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js": true,
-
-		// computed properties
-		"test/language/expressions/object/__proto__-permitted-dup.js":                     true,
-		"test/language/expressions/object/method-definition/name-name-prop-symbol.js":     true,
-		"test/language/expressions/object/method-definition/name-prop-name-eval-error.js": true,
-		"test/language/expressions/object/accessor-name-computed-yield-id.js":             true,
-		"test/language/expressions/object/accessor-name-computed-in.js":                   true,
-
-		// get [Symbol.*]
-		"test/language/expressions/object/prop-def-id-eval-error.js": true,
-
-		// destructing binding
-		"test/language/statements/for-of/head-var-bound-names-dup.js": true,
-		"test/language/statements/for-of/head-let-destructuring.js":   true,
-		"test/language/statements/for-in/head-var-bound-names-dup.js": true,
-		"test/language/statements/for/head-let-destructuring.js":      true,
-		"test/language/statements/for-in/head-let-destructuring.js":   true,
 	}
 
 	featuresBlackList = []string{
@@ -333,6 +325,7 @@ var (
 		"sec-let-and-const-declarations*",
 		"sec-arguments-exotic-objects-defineownproperty-p-desc",
 		"sec-other-properties-of-the-global-object-globalthis",
+		"sec-variable-statement-runtime-semantics-evaluation",
 	}
 )
 
