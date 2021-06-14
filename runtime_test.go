@@ -1952,6 +1952,33 @@ func TestAbandonedEnumerate(t *testing.T) {
 	testScript1(SCRIPT, asciiString("baz-foo foo-foo bar-foo "), t)
 }
 
+func TestIterCloseThrows(t *testing.T) {
+	const SCRIPT = `
+	var returnCount = 0;
+	var iterable = {};
+	var iterator = {
+	  next: function() {
+		return { value: true };
+	  },
+	  return: function() {
+		returnCount += 1;
+		throw new Error();
+	  }
+	};
+	iterable[Symbol.iterator] = function() {
+	  return iterator;
+	};
+
+	try {
+		for (var i of iterable) {
+				break;
+		}
+	} catch (e) {};
+	returnCount;
+	`
+	testScript1(SCRIPT, valueInt(1), t)
+}
+
 func TestDeclareGlobalFunc(t *testing.T) {
 	const SCRIPT = `
 	var initial;
