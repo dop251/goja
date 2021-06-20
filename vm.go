@@ -155,6 +155,11 @@ type vm struct {
 	interrupted   uint32
 	interruptVal  interface{}
 	interruptLock sync.Mutex
+
+	lastDebuggerCmdAndArgs []string
+	debuggerExec           bool
+	currentLine            int
+	lastLines              []int
 }
 
 type instruction interface {
@@ -415,6 +420,85 @@ func (vm *vm) run() {
 	}
 }
 
+func (vm *vm) runDebug() {
+	vm.halt = false
+	interrupted := false
+	ticks := 0
+	vm.lastLines = append(vm.lastLines, 0)
+	vm.repl(true)
+
+	for !vm.halt {
+		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
+			break
+		}
+
+		if vm.isDebuggerStatement() || vm.isNextDebuggerStatement() {
+			lastLine := vm.getCurrentLine()
+			vm.updateCurrentLine()
+			if vm.lastDebuggerStatement() != Next {
+				vm.repl(false)
+			}
+			vm.prg.code[vm.pc].exec(vm)
+			vm.updateLastLine(lastLine)
+		} else if vm.lastDebuggerStatement() != Empty {
+			switch vm.lastDebuggerStatement() {
+			case Continue:
+				lastLine := vm.getCurrentLine()
+				vm.updateCurrentLine()
+				for vm.isSafeToRun() && vm.prg.code[vm.pc] != debugger {
+					vm.prg.code[vm.pc].exec(vm)
+					ticks++
+					vm.updateCurrentLine()
+				}
+				vm.updateLastLine(lastLine)
+			case Next:
+				// FIXME: jumping lines on next command
+				lastLine := vm.getCurrentLine()
+				vm.updateCurrentLine()
+				if vm.getLastLine() != vm.getCurrentLine() {
+					vm.repl(false)
+				}
+				nextLine := vm.getNextLine()
+				for vm.isSafeToRun() && vm.getCurrentLine() != nextLine {
+					vm.updateCurrentLine()
+					if vm.isDebuggerStatement() {
+						break
+					}
+					vm.prg.code[vm.pc].exec(vm)
+					ticks++
+				}
+				vm.updateLastLine(lastLine)
+			case Exec:
+				vm.prg.code[vm.pc].exec(vm)
+			default:
+				vm.prg.code[vm.pc].exec(vm)
+			}
+		} else {
+			vm.prg.code[vm.pc].exec(vm)
+		}
+
+		ticks++
+		if ticks > 10000 {
+			runtime.Gosched()
+			ticks = 0
+		}
+	}
+
+	if interrupted {
+		vm.interruptLock.Lock()
+		v := &InterruptedError{
+			iface: vm.interruptVal,
+		}
+		atomic.StoreUint32(&vm.interrupted, 0)
+		vm.interruptVal = nil
+		vm.interruptLock.Unlock()
+		panic(&uncatchableException{
+			stack: &v.stack,
+			err:   v,
+		})
+	}
+}
+
 func (vm *vm) Interrupt(v interface{}) {
 	vm.interruptLock.Lock()
 	vm.interruptVal = v
@@ -513,7 +597,11 @@ func (vm *vm) try(f func()) (ex *Exception) {
 }
 
 func (vm *vm) runTry() (ex *Exception) {
-	return vm.try(vm.run)
+	if vm.r.debugMode {
+		return vm.try(vm.runDebug)
+	} else {
+		return vm.try(vm.run)
+	}
 }
 
 func (vm *vm) push(v Value) {
@@ -1218,6 +1306,14 @@ var halt _halt
 
 func (_halt) exec(vm *vm) {
 	vm.halt = true
+	vm.pc++
+}
+
+type _debugger struct{}
+
+var debugger _debugger
+
+func (_debugger) exec(vm *vm) {
 	vm.pc++
 }
 
