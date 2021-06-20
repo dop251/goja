@@ -73,7 +73,8 @@ type compiler struct {
 
 	enumGetExpr compiledEnumGetExpr
 
-	evalVM *vm
+	evalVM    *vm
+	debugMode bool
 }
 
 type binding struct {
@@ -298,6 +299,10 @@ func (c *compiler) newBlockScope() {
 
 func (c *compiler) popScope() {
 	c.scope = c.scope.outer
+}
+
+func (c *compiler) enableDebugMode() {
+	c.debugMode = true
 }
 
 func newCompiler() *compiler {
@@ -622,7 +627,10 @@ found:
 	s.bindings = s.bindings[:l]
 }
 
-func (c *compiler) compile(in *ast.Program, strict, eval, inGlobal bool) {
+func (c *compiler) compile(in *ast.Program, strict, eval, inGlobal bool, debug bool) {
+	if debug {
+		c.enableDebugMode()
+	}
 	c.p.src = in.File
 	c.newScope()
 	scope := c.scope
