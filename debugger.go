@@ -256,8 +256,8 @@ func (vm *vm) repl(intro bool) {
 		"step, s\t\tStep into, potentially entering a function (Not Implemented Yet)",
 		"out, o\t\tStep out, leaving the current function (Not Implemented Yet)",
 		"exec, e\t\tEvaluate the expression and print the value",
-		"list, l\t\tPrint the source around the current line where execution is currently paused (Not Implemented Yet)",
-		"print, p\tPrint the provided variable's value (Not Implemented Yet)",
+		"list, l\t\tPrint the source around the current line where execution is currently paused",
+		"print, p\tPrint the provided variable's value",
 		"help, h\t\tPrint this very help message",
 		"quit, q\t\tExit debugger and quit (Ctrl+C)",
 	}
