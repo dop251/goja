@@ -469,7 +469,9 @@ func (vm *vm) runDebug() {
 				}
 				vm.updateLastLine(lastLine)
 			case Exec:
-				vm.prg.code[vm.pc].exec(vm)
+				lastLine := vm.getCurrentLine()
+				vm.repl(false)
+				vm.updateLastLine(lastLine)
 			default:
 				vm.prg.code[vm.pc].exec(vm)
 			}
