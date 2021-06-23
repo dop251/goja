@@ -445,7 +445,7 @@ func (vm *vm) runDebug() {
 			case Continue:
 				lastLine := vm.getCurrentLine()
 				vm.updateCurrentLine()
-				for vm.isSafeToRun() && vm.prg.code[vm.pc] != debugger {
+				for vm.isSafeToRun() && !vm.isDebuggerStatement() {
 					vm.prg.code[vm.pc].exec(vm)
 					ticks++
 					vm.updateCurrentLine()
