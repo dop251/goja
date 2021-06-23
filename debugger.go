@@ -22,6 +22,7 @@ const (
 	Help     = "h"
 	Quit     = "q"
 	Empty    = ""
+	NewLine  = "\n"
 )
 
 const (
@@ -221,7 +222,7 @@ func (vm *vm) repl(intro bool) {
 		Help:     Help,
 		"quit":   Quit,
 		Quit:     Quit,
-		"\n":     "\n",
+		NewLine:  "\n",
 	}
 	debuggerHelp := []string{
 		"next, n\t\tContinue to next line in current file",
@@ -262,7 +263,7 @@ func (vm *vm) repl(intro bool) {
 		}
 
 		commandAndArguments = strings.Split(command[:len(command)-1], " ")
-		if command == "\n" && len(vm.lastDebuggerCmdAndArgs) > 0 {
+		if command == NewLine && len(vm.lastDebuggerCmdAndArgs) > 0 {
 			// If enter is pressed and there's a command already executed,
 			// run the last debugger command
 			commandAndArguments = make([]string, len(vm.lastDebuggerCmdAndArgs))
@@ -270,7 +271,7 @@ func (vm *vm) repl(intro bool) {
 		}
 
 		if v, ok := debuggerCommands[commandAndArguments[0]]; ok {
-			if command != "\n" {
+			if command != NewLine {
 				// FIXME: Exec command acts as Next on the next run
 				vm.lastDebuggerCmdAndArgs = make([]string, len(commandAndArguments))
 				copy(vm.lastDebuggerCmdAndArgs, commandAndArguments)
@@ -287,7 +288,7 @@ func (vm *vm) repl(intro bool) {
 				fmt.Println(commandAndArguments[0])
 			case Exec:
 				vm.debuggerExec = true
-				value := vm.evalCode(strings.Join(commandAndArguments[1:], ""))
+				value := vm.evalCode(strings.Join(commandAndArguments[1:], ";"))
 				fmt.Printf("< Return: %s\n", value.ToString())
 				vm.debuggerExec = false
 				return
