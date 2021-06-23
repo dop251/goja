@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/dop251/goja/parser"
+	"github.com/dop251/goja/unistring"
 )
 
 const (
@@ -201,6 +202,31 @@ func (vm *vm) isBreakOnStart() bool {
 	return vm.pc < 3 && vm.prg.code[2] == debugger
 }
 
+func (vm *vm) getValue(varName string) Value {
+	name := unistring.String(varName)
+	var val Value
+	for stash := vm.stash; stash != nil; stash = stash.outer {
+		if v, exists := stash.getByName(name); exists {
+			val = v
+			break
+		}
+	}
+	if val == nil {
+		if vm.sb >= 0 {
+			val = vm.stack[vm.sb]
+		}
+		if val != Undefined() || val != nil {
+			return val
+		}
+
+		val = vm.r.globalObject.self.getStr(name, nil)
+		if val == nil {
+			val = valueUnresolved{r: vm.r, ref: name}
+		}
+	}
+	return val
+}
+
 func (vm *vm) repl(intro bool) {
 	// Refactor this piece of sh!t
 	debuggerCommands := map[string]string{
@@ -295,9 +321,13 @@ func (vm *vm) repl(intro bool) {
 			case List:
 				fmt.Println(vm.printSource())
 			case Print:
-				// fmt.Println(commandAndArguments[0])
-				// fmt.Println(commandAndArguments[1:])
-				fmt.Println(vm.prg.values)
+				val := vm.getValue(strings.Join(commandAndArguments[1:], ""))
+				if val == Undefined() {
+					fmt.Println("Cannot get variable from local scope. However, the current values on the stack are:")
+					fmt.Printf("< %s\n", vm.prg.values)
+				} else {
+					fmt.Printf("< %s\n", val)
+				}
 			case Help:
 				for _, value := range debuggerHelp {
 					fmt.Println(value)
