@@ -26,6 +26,7 @@ const (
 
 const (
 	GreenColor = "\u001b[32m"
+	GrayColor  = "\u001b[38;5;245m"
 	ResetColor = "\u001b[0m"
 )
 
@@ -129,7 +130,7 @@ func (vm *vm) printSource() string {
 				builder.Write([]byte(fmt.Sprintf("%s>%s %d%s%s\n", GreenColor, ResetColor, currentLine, padding, lines[lineIndex])))
 			} else {
 				padding := strings.Repeat(" ", totalPadding-digitCount)
-				builder.Write([]byte(fmt.Sprintf("  %d%s%s\n", lineNumber, padding, lineContents)))
+				builder.Write([]byte(fmt.Sprintf("%s  %d%s%s%s\n", GrayColor, lineNumber, padding, lineContents, ResetColor)))
 			}
 		}
 	}
