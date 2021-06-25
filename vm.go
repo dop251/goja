@@ -156,10 +156,7 @@ type vm struct {
 	interruptVal  interface{}
 	interruptLock sync.Mutex
 
-	lastDebuggerCmdAndArgs []string
-	debuggerExec           bool
-	currentLine            int
-	lastLines              []int
+	debugger *Debugger
 }
 
 type instruction interface {
@@ -424,54 +421,54 @@ func (vm *vm) runDebug() {
 	vm.halt = false
 	interrupted := false
 	ticks := 0
-	vm.lastLines = append(vm.lastLines, 0)
-	vm.repl(true)
+	dbg := NewDebugger(vm)
+	dbg.REPL(true)
 
 	for !vm.halt {
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
 			break
 		}
 
-		if vm.isDebuggerStatement() || vm.isNextDebuggerStatement() {
-			lastLine := vm.getCurrentLine()
-			vm.updateCurrentLine()
-			if vm.lastDebuggerStatement() != Next {
-				vm.repl(false)
+		if dbg.isDebuggerStatement() || dbg.isNextDebuggerStatement() {
+			lastLine := dbg.getCurrentLine()
+			dbg.updateCurrentLine()
+			if dbg.lastDebuggerStatement() != Next {
+				dbg.REPL(false)
 			}
 			vm.prg.code[vm.pc].exec(vm)
-			vm.updateLastLine(lastLine)
-		} else if vm.lastDebuggerStatement() != Empty {
-			switch vm.lastDebuggerStatement() {
+			dbg.updateLastLine(lastLine)
+		} else if dbg.lastDebuggerStatement() != Empty {
+			switch dbg.lastDebuggerStatement() {
 			case Continue:
-				lastLine := vm.getCurrentLine()
-				vm.updateCurrentLine()
-				for vm.isSafeToRun() && !vm.isDebuggerStatement() {
+				lastLine := dbg.getCurrentLine()
+				dbg.updateCurrentLine()
+				for dbg.isSafeToRun() && !dbg.isDebuggerStatement() {
 					vm.prg.code[vm.pc].exec(vm)
 					ticks++
-					vm.updateCurrentLine()
+					dbg.updateCurrentLine()
 				}
-				vm.updateLastLine(lastLine)
+				dbg.updateLastLine(lastLine)
 			case Next:
 				// FIXME: jumping lines on next command
-				lastLine := vm.getCurrentLine()
-				vm.updateCurrentLine()
-				if vm.getLastLine() != vm.getCurrentLine() {
-					vm.repl(false)
+				lastLine := dbg.getCurrentLine()
+				dbg.updateCurrentLine()
+				if dbg.getLastLine() != dbg.getCurrentLine() {
+					dbg.REPL(false)
 				}
-				nextLine := vm.getNextLine()
-				for vm.isSafeToRun() && vm.getCurrentLine() != nextLine {
-					vm.updateCurrentLine()
-					if vm.isDebuggerStatement() {
+				nextLine := dbg.getNextLine()
+				for dbg.isSafeToRun() && dbg.getCurrentLine() != nextLine {
+					dbg.updateCurrentLine()
+					if dbg.isDebuggerStatement() {
 						break
 					}
 					vm.prg.code[vm.pc].exec(vm)
 					ticks++
 				}
-				vm.updateLastLine(lastLine)
+				dbg.updateLastLine(lastLine)
 			case Exec:
-				lastLine := vm.getCurrentLine()
-				vm.repl(false)
-				vm.updateLastLine(lastLine)
+				lastLine := dbg.getCurrentLine()
+				dbg.REPL(false)
+				dbg.updateLastLine(lastLine)
 			default:
 				vm.prg.code[vm.pc].exec(vm)
 			}

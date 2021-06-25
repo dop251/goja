@@ -32,6 +32,23 @@ const (
 	ResetColor = "\u001b[0m"
 )
 
+type Debugger struct {
+	vm *vm
+
+	lastDebuggerCmdAndArgs []string
+	debuggerExec           bool
+	currentLine            int
+	lastLines              []int
+}
+
+func NewDebugger(vm *vm) *Debugger {
+	dbg := &Debugger{
+		vm: vm,
+	}
+	dbg.lastLines = append(dbg.lastLines, 0)
+	return dbg
+}
+
 func StringToLines(s string) (lines []string, err error) {
 	scanner := bufio.NewScanner(strings.NewReader(s))
 	for scanner.Scan() {
@@ -57,66 +74,66 @@ func InBetween(i, min, max int) bool {
 	}
 }
 
-func (vm *vm) isDebuggerStatement() bool {
-	return vm.prg.code[vm.pc] == debugger
+func (dbg *Debugger) isDebuggerStatement() bool {
+	return dbg.vm.prg.code[dbg.vm.pc] == debugger
 }
 
-func (vm *vm) isNextDebuggerStatement() bool {
-	return vm.pc+1 < len(vm.prg.code) && vm.prg.code[vm.pc+1] == debugger
+func (dbg *Debugger) isNextDebuggerStatement() bool {
+	return dbg.vm.pc+1 < len(dbg.vm.prg.code) && dbg.vm.prg.code[dbg.vm.pc+1] == debugger
 }
 
-func (vm *vm) lastDebuggerStatement() string {
-	if len(vm.lastDebuggerCmdAndArgs) > 0 {
-		return vm.lastDebuggerCmdAndArgs[0]
+func (dbg *Debugger) lastDebuggerStatement() string {
+	if len(dbg.lastDebuggerCmdAndArgs) > 0 {
+		return dbg.lastDebuggerCmdAndArgs[0]
 	}
 
 	return Empty
 }
 
-func (vm *vm) getLastLine() int {
-	if len(vm.lastLines) > 0 {
-		return vm.lastLines[len(vm.lastLines)-1]
+func (dbg *Debugger) getLastLine() int {
+	if len(dbg.lastLines) > 0 {
+		return dbg.lastLines[len(dbg.lastLines)-1]
 	}
 	// First executed line (current line) is considered the last line
-	return vm.getCurrentLine()
+	return dbg.getCurrentLine()
 }
 
-func (vm *vm) updateLastLine(lineNumber int) {
-	if len(vm.lastLines) > 0 && vm.lastLines[len(vm.lastLines)-1] != lineNumber {
-		vm.lastLines = append(vm.lastLines, lineNumber)
+func (dbg *Debugger) updateLastLine(lineNumber int) {
+	if len(dbg.lastLines) > 0 && dbg.lastLines[len(dbg.lastLines)-1] != lineNumber {
+		dbg.lastLines = append(dbg.lastLines, lineNumber)
 	}
 }
 
-func (vm *vm) getCurrentLine() int {
+func (dbg *Debugger) getCurrentLine() int {
 	// FIXME: Some lines are skipped, which causes this function to report incorrect lines
-	currentLine := vm.prg.src.Position(vm.prg.sourceOffset(vm.pc)).Line
+	currentLine := dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)).Line
 	return currentLine
 }
 
-func (vm *vm) updateCurrentLine() {
-	vm.currentLine = vm.getCurrentLine()
+func (dbg *Debugger) updateCurrentLine() {
+	dbg.currentLine = dbg.getCurrentLine()
 }
 
-func (vm *vm) getNextLine() int {
-	for idx := range vm.prg.code[vm.pc:] {
-		nextLine := vm.prg.src.Position(vm.prg.sourceOffset(vm.pc + idx + 1)).Line
-		if nextLine > vm.getCurrentLine() {
+func (dbg *Debugger) getNextLine() int {
+	for idx := range dbg.vm.prg.code[vm.pc:] {
+		nextLine := dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc + idx + 1)).Line
+		if nextLine > dbg.getCurrentLine() {
 			return nextLine
 		}
 	}
 	return 0
 }
 
-func (vm *vm) isSafeToRun() bool {
-	return vm.pc < len(vm.prg.code)
+func (dbg *Debugger) isSafeToRun() bool {
+	return dbg.vm.pc < len(dbg.vm.prg.code)
 }
 
-func (vm *vm) printSource() string {
-	lines, err := StringToLines(vm.prg.src.Source())
+func (dbg *Debugger) printSource() string {
+	lines, err := StringToLines(dbg.vm.prg.src.Source())
 	if err != nil {
 		log.Fatal(err)
 	}
-	currentLine := vm.getCurrentLine()
+	currentLine := dbg.getCurrentLine()
 	lineIndex := currentLine - 1
 	var builder strings.Builder
 	for idx, lineContents := range lines {
@@ -140,7 +157,7 @@ func (vm *vm) printSource() string {
 	return builder.String()
 }
 
-func (vm *vm) evalCode(src string) Value {
+func (dbg *Debugger) evalCode(src string) Value {
 	prg, err := parser.ParseFile(nil, "<eval>", src, 0)
 	if err != nil {
 		log.Fatal(&CompilerSyntaxError{
@@ -165,13 +182,13 @@ func (vm *vm) evalCode(src string) Value {
 	}()
 
 	var this Value
-	if vm.sb >= 0 {
-		this = vm.stack[vm.sb]
+	if dbg.vm.sb >= 0 {
+		this = dbg.vm.stack[dbg.vm.sb]
 	} else {
-		this = vm.r.globalObject
+		this = dbg.vm.r.globalObject
 	}
 
-	c.compile(prg, false, true, this == vm.r.globalObject, false)
+	c.compile(prg, false, true, this == dbg.vm.r.globalObject, false)
 
 	defer func() {
 		if x := recover(); x != nil {
@@ -183,51 +200,51 @@ func (vm *vm) evalCode(src string) Value {
 		}
 	}()
 
-	vm.pushCtx()
-	vm.prg = c.p
-	vm.pc = 0
-	vm.args = 0
-	vm.result = _undefined
-	vm.sb = vm.sp
-	vm.push(this)
-	vm.run()
-	retval := vm.result
-	vm.popCtx()
-	vm.halt = false
-	vm.sp -= 1
+	dbg.vm.pushCtx()
+	dbg.vm.prg = c.p
+	dbg.vm.pc = 0
+	dbg.vm.args = 0
+	dbg.vm.result = _undefined
+	dbg.vm.sb = dbg.vm.sp
+	dbg.vm.push(this)
+	dbg.vm.run()
+	retval := dbg.vm.result
+	dbg.vm.popCtx()
+	dbg.vm.halt = false
+	dbg.vm.sp -= 1
 	return retval
 }
 
-func (vm *vm) isBreakOnStart() bool {
-	return vm.pc < 3 && vm.prg.code[2] == debugger
+func (dbg *Debugger) isBreakOnStart() bool {
+	return dbg.vm.pc < 3 && dbg.vm.prg.code[2] == debugger
 }
 
-func (vm *vm) getValue(varName string) Value {
+func (dbg *Debugger) getValue(varName string) Value {
 	name := unistring.String(varName)
 	var val Value
-	for stash := vm.stash; stash != nil; stash = stash.outer {
+	for stash := dbg.vm.stash; stash != nil; stash = stash.outer {
 		if v, exists := stash.getByName(name); exists {
 			val = v
 			break
 		}
 	}
 	if val == nil {
-		if vm.sb >= 0 {
-			val = vm.stack[vm.sb]
+		if dbg.vm.sb >= 0 {
+			val = dbg.vm.stack[dbg.vm.sb]
 		}
 		if val != Undefined() || val != nil {
 			return val
 		}
 
-		val = vm.r.globalObject.self.getStr(name, nil)
+		val = dbg.vm.r.globalObject.self.getStr(name, nil)
 		if val == nil {
-			val = valueUnresolved{r: vm.r, ref: name}
+			val = valueUnresolved{r: dbg.vm.r, ref: name}
 		}
 	}
 	return val
 }
 
-func (vm *vm) repl(intro bool) {
+func (dbg *Debugger) REPL(intro bool) {
 	// Refactor this piece of sh!t
 	debuggerCommands := map[string]string{
 		"next":   Next,
@@ -266,19 +283,19 @@ func (vm *vm) repl(intro bool) {
 		fmt.Println("Welcome to Goja debugger")
 		fmt.Println("Type 'help' or 'h' for list of commands.")
 	} else {
-		if vm.isBreakOnStart() {
-			fmt.Printf("Break on start in %s\n", vm.prg.src.Position(vm.prg.sourceOffset(vm.pc)))
+		if dbg.isBreakOnStart() {
+			fmt.Printf("Break on start in %s\n", dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(vm.pc)))
 		} else {
-			fmt.Printf("Break in %s\n", vm.prg.src.Position(vm.prg.sourceOffset(vm.pc)))
+			fmt.Printf("Break in %s\n", dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)))
 		}
-		fmt.Println(vm.printSource())
+		fmt.Println(dbg.printSource())
 	}
 
 	var commandAndArguments []string
 
 	for {
 		reader := bufio.NewReader(os.Stdin)
-		fmt.Printf("debug[%d]> ", vm.pc)
+		fmt.Printf("debug[%d]> ", dbg.vm.pc)
 		command, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
@@ -289,18 +306,18 @@ func (vm *vm) repl(intro bool) {
 		}
 
 		commandAndArguments = strings.Split(command[:len(command)-1], " ")
-		if command == NewLine && len(vm.lastDebuggerCmdAndArgs) > 0 {
+		if command == NewLine && len(dbg.lastDebuggerCmdAndArgs) > 0 {
 			// If enter is pressed and there's a command already executed,
 			// run the last debugger command
-			commandAndArguments = make([]string, len(vm.lastDebuggerCmdAndArgs))
-			copy(commandAndArguments, vm.lastDebuggerCmdAndArgs)
+			commandAndArguments = make([]string, len(dbg.lastDebuggerCmdAndArgs))
+			copy(commandAndArguments, dbg.lastDebuggerCmdAndArgs)
 		}
 
 		if v, ok := debuggerCommands[commandAndArguments[0]]; ok {
 			if command != NewLine {
 				// FIXME: Exec command acts as Next on the next run
-				vm.lastDebuggerCmdAndArgs = make([]string, len(commandAndArguments))
-				copy(vm.lastDebuggerCmdAndArgs, commandAndArguments)
+				dbg.lastDebuggerCmdAndArgs = make([]string, len(commandAndArguments))
+				copy(dbg.lastDebuggerCmdAndArgs, commandAndArguments)
 			}
 
 			switch v {
@@ -313,18 +330,18 @@ func (vm *vm) repl(intro bool) {
 			case StepOut:
 				fmt.Println(commandAndArguments[0])
 			case Exec:
-				vm.debuggerExec = true
-				value := vm.evalCode(strings.Join(commandAndArguments[1:], ";"))
+				dbg.debuggerExec = true
+				value := dbg.evalCode(strings.Join(commandAndArguments[1:], ";"))
 				fmt.Printf("< Return: %s\n", value.ToString())
-				vm.debuggerExec = false
+				dbg.debuggerExec = false
 				return
 			case List:
-				fmt.Println(vm.printSource())
+				fmt.Println(dbg.printSource())
 			case Print:
-				val := vm.getValue(strings.Join(commandAndArguments[1:], ""))
+				val := dbg.getValue(strings.Join(commandAndArguments[1:], ""))
 				if val == Undefined() {
 					fmt.Println("Cannot get variable from local scope. However, the current values on the stack are:")
-					fmt.Printf("< %s\n", vm.prg.values)
+					fmt.Printf("< %s\n", dbg.vm.prg.values)
 				} else {
 					fmt.Printf("< %s\n", val)
 				}
