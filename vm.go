@@ -440,14 +440,17 @@ func (vm *vm) runDebug() {
 		} else if dbg.lastDebuggerStatement() != Empty {
 			switch dbg.lastDebuggerStatement() {
 			case Continue:
-				ContinueCommand.execute(dbg)
+				cmd := ContinueCommand{}
+				cmd.Execute(dbg)
 				ticks++
 			case Next:
 				// FIXME: jumping lines on next command
-				NextCommand.execute(dbg)
+				cmd := NextCommand{}
+				cmd.Execute(dbg)
 				ticks++
 			case Exec:
-				ExecCommand.execute(dbg)
+				cmd := ExecCommand{}
+				cmd.Execute(dbg)
 			default:
 				vm.prg.code[vm.pc].exec(vm)
 			}

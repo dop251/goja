@@ -53,11 +53,9 @@ type Command interface {
 	Execute()
 }
 
-type _nextCommand struct{}
+type NextCommand struct{}
 
-var NextCommand _nextCommand
-
-func (*_nextCommand) Execute(dbg *Debugger) {
+func (*NextCommand) Execute(dbg *Debugger) {
 	lastLine := dbg.getCurrentLine()
 	dbg.updateCurrentLine()
 	if dbg.getLastLine() != dbg.getCurrentLine() {
@@ -74,11 +72,9 @@ func (*_nextCommand) Execute(dbg *Debugger) {
 	dbg.updateLastLine(lastLine)
 }
 
-type _continueCommand struct{}
+type ContinueCommand struct{}
 
-var ContinueCommand _continueCommand
-
-func (*_continueCommand) Execute(dbg *Debugger) {
+func (*ContinueCommand) Execute(dbg *Debugger) {
 	lastLine := dbg.getCurrentLine()
 	dbg.updateCurrentLine()
 	for dbg.isSafeToRun() && !dbg.isDebuggerStatement() {
@@ -88,29 +84,23 @@ func (*_continueCommand) Execute(dbg *Debugger) {
 	dbg.updateLastLine(lastLine)
 }
 
-type _stepInCommand struct{}
+type StepInCommand struct{}
 
-var StepInCommand _stepInCommand
-
-func (*_stepInCommand) Execute(dbg *Debugger) {
+func (*StepInCommand) Execute(dbg *Debugger) {
 	fmt.Println("Not Implemented Yet")
 }
 
-type _stepOutCommand struct{}
+type StepOutCommand struct{}
 
-var StepOutCommand _stepOutCommand
-
-func (*_stepOutCommand) Execute(dbg *Debugger) {
+func (*StepOutCommand) Execute(dbg *Debugger) {
 	fmt.Println("Not Implemented Yet")
 }
 
-type _execCommand struct {
+type ExecCommand struct {
 	expression string
 }
 
-var ExecCommand _execCommand
-
-func (e *_execCommand) Execute(dbg *Debugger) {
+func (e *ExecCommand) Execute(dbg *Debugger) {
 	dbg.debuggerExec = true
 	value := dbg.evalCode(e.expression)
 	fmt.Printf("< Return: %s\n", value.ToString())
@@ -121,13 +111,11 @@ func (e *_execCommand) Execute(dbg *Debugger) {
 	dbg.updateLastLine(lastLine)
 }
 
-type _printCommand struct {
+type PrintCommand struct {
 	varName string
 }
 
-var PrintCommand _printCommand
-
-func (p *_printCommand) Execute(dbg *Debugger) {
+func (p *PrintCommand) Execute(dbg *Debugger) {
 	val := dbg.getValue(p.varName)
 	if val == Undefined() {
 		fmt.Println("Cannot get variable from local scope. However, the current values on the stack are:")
@@ -137,19 +125,15 @@ func (p *_printCommand) Execute(dbg *Debugger) {
 	}
 }
 
-type _listCommand struct{}
+type ListCommand struct{}
 
-var ListCommand _listCommand
-
-func (l *_listCommand) Execute(dbg *Debugger) {
+func (*ListCommand) Execute(dbg *Debugger) {
 	fmt.Println(dbg.printSource())
 }
 
-type _helpCommand struct{}
+type HelpCommand struct{}
 
-var HelpCommand _helpCommand
-
-func (h *_helpCommand) Execute(dbg *Debugger) {
+func (*HelpCommand) Execute(dbg *Debugger) {
 	help := []string{
 		"next, n\t\tContinue to next line in current file",
 		"cont, c\t\tResume execution until next debugger line",
@@ -167,13 +151,11 @@ func (h *_helpCommand) Execute(dbg *Debugger) {
 	}
 }
 
-type _quitCommand struct {
+type QuitCommand struct {
 	exitCode int
 }
 
-var QuitCommand _quitCommand
-
-func (q *_quitCommand) Execute(dbg *Debugger) {
+func (q *QuitCommand) Execute(dbg *Debugger) {
 	os.Exit(q.exitCode)
 }
 
@@ -446,26 +428,30 @@ func (dbg *Debugger) REPL(intro bool) {
 			case Continue:
 				return
 			case StepIn:
-				StepInCommand.Execute(dbg)
+				cmd := StepInCommand{}
+				cmd.Execute(dbg)
 			case StepOut:
-				StepOutCommand.Execute(dbg)
+				cmd := StepOutCommand{}
+				cmd.Execute(dbg)
 			case Exec:
-				ExecCommand.expression = strings.Join(commandAndArguments[1:], ";")
-				ExecCommand.Execute(dbg)
+				cmd := ExecCommand{expression: strings.Join(commandAndArguments[1:], ";")}
+				cmd.Execute(dbg)
 				return
 			case Print:
-				PrintCommand.varName = strings.Join(commandAndArguments[1:], "")
-				PrintCommand.Execute(dbg)
+				cmd := PrintCommand{varName: strings.Join(commandAndArguments[1:], "")}
+				cmd.Execute(dbg)
 			case List:
-				ListCommand.Execute(dbg)
+				cmd := ListCommand{}
+				cmd.Execute(dbg)
 			case Help:
-				HelpCommand.Execute(dbg)
+				cmd := HelpCommand{}
+				cmd.Execute(dbg)
 			case Quit:
-				QuitCommand.exitCode = 0
-				QuitCommand.Execute(dbg)
+				cmd := QuitCommand{exitCode: 0}
+				cmd.Execute(dbg)
 			default:
-				QuitCommand.exitCode = 0
-				QuitCommand.Execute(dbg)
+				cmd := QuitCommand{exitCode: 0}
+				cmd.Execute(dbg)
 			}
 		} else {
 			fmt.Println("unknown command")
