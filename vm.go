@@ -429,16 +429,16 @@ func (vm *vm) runDebug() {
 			break
 		}
 
-		if dbg.isDebuggerStatement() || dbg.isNextDebuggerStatement() {
+		if dbg.isDebuggerStatement() || dbg.isNextDebuggerStatement() || dbg.isBreakpoint() {
 			lastLine := dbg.getCurrentLine()
 			dbg.updateCurrentLine()
-			if dbg.lastDebuggerStatement() != Next {
+			if dbg.lastDebuggerCommand() != Next {
 				dbg.REPL(false)
 			}
 			vm.prg.code[vm.pc].exec(vm)
 			dbg.updateLastLine(lastLine)
-		} else if dbg.lastDebuggerStatement() != Empty {
-			switch dbg.lastDebuggerStatement() {
+		} else if dbg.lastDebuggerCommand() != Empty {
+			switch dbg.lastDebuggerCommand() {
 			case Continue:
 				cmd := ContinueCommand{}
 				cmd.Execute(dbg)
