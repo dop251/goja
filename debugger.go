@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/dop251/goja/parser"
@@ -13,17 +14,20 @@ import (
 )
 
 const (
-	Next     = "n"
-	Continue = "c"
-	StepIn   = "s"
-	StepOut  = "o"
-	Exec     = "e"
-	Print    = "p"
-	List     = "l"
-	Help     = "h"
-	Quit     = "q"
-	Empty    = ""
-	NewLine  = "\n"
+	SetBreakpoint   = "sb"
+	ClearBreakpoint = "cb"
+	Breakpoints     = "breakpoints"
+	Next            = "n"
+	Continue        = "c"
+	StepIn          = "s"
+	StepOut         = "o"
+	Exec            = "e"
+	Print           = "p"
+	List            = "l"
+	Help            = "h"
+	Quit            = "q"
+	Empty           = ""
+	NewLine         = "\n"
 )
 
 const (
@@ -39,6 +43,7 @@ type Debugger struct {
 	debuggerExec           bool
 	currentLine            int
 	lastLines              []int
+	breakpoints            []Breakpoint
 }
 
 func NewDebugger(vm *vm) *Debugger {
@@ -47,6 +52,35 @@ func NewDebugger(vm *vm) *Debugger {
 	}
 	dbg.lastLines = append(dbg.lastLines, 0)
 	return dbg
+}
+
+type Breakpoint struct {
+	Filename string
+	Line     int
+}
+
+func (dbg *Debugger) setBreakpoint(fileName string, line int) {
+	b := Breakpoint{Filename: fileName, Line: line}
+	for _, elem := range dbg.breakpoints {
+		if elem == b {
+			return
+		}
+	}
+	dbg.breakpoints = append(dbg.breakpoints, b)
+}
+
+func (dbg *Debugger) clearBreakpoint(fileName string, line int) {
+	if len(dbg.breakpoints) == 0 {
+		return
+	}
+
+	b := Breakpoint{Filename: fileName, Line: line}
+	for idx, elem := range dbg.breakpoints {
+		if elem == b {
+			dbg.breakpoints = append(dbg.breakpoints[:idx], dbg.breakpoints[idx+1:]...)
+			return
+		}
+	}
 }
 
 type Command interface {
@@ -78,6 +112,12 @@ func (*ContinueCommand) Execute(dbg *Debugger) {
 	lastLine := dbg.getCurrentLine()
 	dbg.updateCurrentLine()
 	for dbg.isSafeToRun() && !dbg.isDebuggerStatement() {
+		if dbg.isBreakpoint() {
+			dbg.REPL(false)
+			dbg.updateCurrentLine()
+			dbg.updateLastLine(lastLine)
+			return
+		}
 		dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
 		dbg.updateCurrentLine()
 	}
@@ -135,15 +175,18 @@ type HelpCommand struct{}
 
 func (*HelpCommand) Execute(dbg *Debugger) {
 	help := []string{
-		"next, n\t\tContinue to next line in current file",
-		"cont, c\t\tResume execution until next debugger line",
-		"step, s\t\tStep into, potentially entering a function (Not Implemented Yet)",
-		"out, o\t\tStep out, leaving the current function (Not Implemented Yet)",
-		"exec, e\t\tEvaluate the expression and print the value",
-		"list, l\t\tPrint the source around the current line where execution is currently paused",
-		"print, p\tPrint the provided variable's value",
-		"help, h\t\tPrint this very help message",
-		"quit, q\t\tExit debugger and quit (Ctrl+C)",
+		"setBreakpoint, sb\tSet a breakpoint on a given file and line",
+		"clearBreakpoint, cb\tClear a breakpoint on a given file and line",
+		"breakpoints\t\tList all known breakpoints",
+		"next, n\t\t\tContinue to next line in current file",
+		"cont, c\t\t\tResume execution until next debugger line",
+		"step, s\t\t\tStep into, potentially entering a function (Not Implemented Yet)",
+		"out, o\t\t\tStep out, leaving the current function (Not Implemented Yet)",
+		"exec, e\t\t\tEvaluate the expression and print the value",
+		"list, l\t\t\tPrint the source around the current line where execution is currently paused",
+		"print, p\t\tPrint the provided variable's value",
+		"help, h\t\t\tPrint this very help message",
+		"quit, q\t\t\tExit debugger and quit (Ctrl+C)",
 	}
 
 	for _, value := range help {
@@ -195,7 +238,20 @@ func (dbg *Debugger) isNextDebuggerStatement() bool {
 	return dbg.vm.pc+1 < len(dbg.vm.prg.code) && dbg.vm.prg.code[dbg.vm.pc+1] == debugger
 }
 
-func (dbg *Debugger) lastDebuggerStatement() string {
+func (dbg *Debugger) isBreakpoint() bool {
+	currentLine := dbg.getCurrentLine()
+	currentFilename := dbg.getCurrentFilename()
+
+	b := Breakpoint{Filename: currentFilename, Line: currentLine}
+	for _, elem := range dbg.breakpoints {
+		if elem == b {
+			return true
+		}
+	}
+	return false
+}
+
+func (dbg *Debugger) lastDebuggerCommand() string {
 	if len(dbg.lastDebuggerCmdAndArgs) > 0 {
 		return dbg.lastDebuggerCmdAndArgs[0]
 	}
@@ -221,6 +277,11 @@ func (dbg *Debugger) getCurrentLine() int {
 	// FIXME: Some lines are skipped, which causes this function to report incorrect lines
 	currentLine := dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)).Line
 	return currentLine
+}
+
+func (dbg *Debugger) getCurrentFilename() string {
+	currentFilename := dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)).Filename
+	return currentFilename
 }
 
 func (dbg *Debugger) updateCurrentLine() {
@@ -360,25 +421,30 @@ func (dbg *Debugger) getValue(varName string) Value {
 func (dbg *Debugger) REPL(intro bool) {
 	// Refactor this piece of sh!t
 	debuggerCommands := map[string]string{
-		"next":   Next,
-		Next:     Next,
-		"cont":   Continue,
-		Continue: Continue,
-		"step":   StepIn,
-		StepIn:   StepIn,
-		"out":    StepOut,
-		StepOut:  StepOut,
-		"exec":   Exec,
-		Exec:     Exec,
-		"print":  Print,
-		Print:    Print,
-		"list":   List,
-		List:     List,
-		"help":   Help,
-		Help:     Help,
-		"quit":   Quit,
-		Quit:     Quit,
-		NewLine:  "\n",
+		"setBreakpoint":   SetBreakpoint,
+		SetBreakpoint:     SetBreakpoint,
+		"clearBreakpoint": ClearBreakpoint,
+		ClearBreakpoint:   ClearBreakpoint,
+		"breakpoints":     Breakpoints,
+		"next":            Next,
+		Next:              Next,
+		"cont":            Continue,
+		Continue:          Continue,
+		"step":            StepIn,
+		StepIn:            StepIn,
+		"out":             StepOut,
+		StepOut:           StepOut,
+		"exec":            Exec,
+		Exec:              Exec,
+		"print":           Print,
+		Print:             Print,
+		"list":            List,
+		List:              List,
+		"help":            Help,
+		Help:              Help,
+		"quit":            Quit,
+		Quit:              Quit,
+		NewLine:           "\n",
 	}
 
 	if intro {
@@ -423,6 +489,30 @@ func (dbg *Debugger) REPL(intro bool) {
 			}
 
 			switch v {
+			case SetBreakpoint:
+				if len(commandAndArguments) < 3 {
+					fmt.Println("sb filename linenumber")
+					continue
+				}
+				if line, err := strconv.Atoi(commandAndArguments[2]); err != nil {
+					fmt.Printf("Cannot convert %s to line number\n", commandAndArguments[2])
+				} else {
+					dbg.setBreakpoint(commandAndArguments[1], line)
+				}
+			case ClearBreakpoint:
+				if len(commandAndArguments) < 3 {
+					fmt.Println("cb filename linenumber")
+					continue
+				}
+				if line, err := strconv.Atoi(commandAndArguments[2]); err != nil {
+					fmt.Printf("Cannot convert %s to line number\n", commandAndArguments[2])
+				} else {
+					dbg.clearBreakpoint(commandAndArguments[1], line)
+				}
+			case Breakpoints:
+				for _, b := range dbg.breakpoints {
+					fmt.Printf("Breakpoint on %s:%d\n", b.Filename, b.Line)
+				}
 			case Next:
 				return
 			case Continue:
