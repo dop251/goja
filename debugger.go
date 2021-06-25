@@ -446,9 +446,9 @@ func (dbg *Debugger) REPL(intro bool) {
 			case Continue:
 				return
 			case StepIn:
-				fmt.Println(commandAndArguments[0])
+				StepInCommand.execute(dbg)
 			case StepOut:
-				fmt.Println(commandAndArguments[0])
+				StepOutCommand.execute(dbg)
 			case Exec:
 				ExecCommand.expression = strings.Join(commandAndArguments[1:], ";")
 				ExecCommand.execute(dbg)
