@@ -440,35 +440,14 @@ func (vm *vm) runDebug() {
 		} else if dbg.lastDebuggerStatement() != Empty {
 			switch dbg.lastDebuggerStatement() {
 			case Continue:
-				lastLine := dbg.getCurrentLine()
-				dbg.updateCurrentLine()
-				for dbg.isSafeToRun() && !dbg.isDebuggerStatement() {
-					vm.prg.code[vm.pc].exec(vm)
-					ticks++
-					dbg.updateCurrentLine()
-				}
-				dbg.updateLastLine(lastLine)
+				ContinueCommand.execute(dbg)
+				ticks++
 			case Next:
 				// FIXME: jumping lines on next command
-				lastLine := dbg.getCurrentLine()
-				dbg.updateCurrentLine()
-				if dbg.getLastLine() != dbg.getCurrentLine() {
-					dbg.REPL(false)
-				}
-				nextLine := dbg.getNextLine()
-				for dbg.isSafeToRun() && dbg.getCurrentLine() != nextLine {
-					dbg.updateCurrentLine()
-					if dbg.isDebuggerStatement() {
-						break
-					}
-					vm.prg.code[vm.pc].exec(vm)
-					ticks++
-				}
-				dbg.updateLastLine(lastLine)
+				NextCommand.execute(dbg)
+				ticks++
 			case Exec:
-				lastLine := dbg.getCurrentLine()
-				dbg.REPL(false)
-				dbg.updateLastLine(lastLine)
+				ExecCommand.execute(dbg)
 			default:
 				vm.prg.code[vm.pc].exec(vm)
 			}
