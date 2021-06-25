@@ -50,14 +50,14 @@ func NewDebugger(vm *vm) *Debugger {
 }
 
 type Command interface {
-	execute()
+	Execute()
 }
 
 type _nextCommand struct{}
 
 var NextCommand _nextCommand
 
-func (*_nextCommand) execute(dbg *Debugger) {
+func (*_nextCommand) Execute(dbg *Debugger) {
 	lastLine := dbg.getCurrentLine()
 	dbg.updateCurrentLine()
 	if dbg.getLastLine() != dbg.getCurrentLine() {
@@ -78,7 +78,7 @@ type _continueCommand struct{}
 
 var ContinueCommand _continueCommand
 
-func (*_continueCommand) execute(dbg *Debugger) {
+func (*_continueCommand) Execute(dbg *Debugger) {
 	lastLine := dbg.getCurrentLine()
 	dbg.updateCurrentLine()
 	for dbg.isSafeToRun() && !dbg.isDebuggerStatement() {
@@ -92,7 +92,7 @@ type _stepInCommand struct{}
 
 var StepInCommand _stepInCommand
 
-func (*_stepInCommand) execute(dbg *Debugger) {
+func (*_stepInCommand) Execute(dbg *Debugger) {
 	fmt.Println("Not Implemented Yet")
 }
 
@@ -100,7 +100,7 @@ type _stepOutCommand struct{}
 
 var StepOutCommand _stepOutCommand
 
-func (*_stepOutCommand) execute(dbg *Debugger) {
+func (*_stepOutCommand) Execute(dbg *Debugger) {
 	fmt.Println("Not Implemented Yet")
 }
 
@@ -110,7 +110,7 @@ type _execCommand struct {
 
 var ExecCommand _execCommand
 
-func (e *_execCommand) execute(dbg *Debugger) {
+func (e *_execCommand) Execute(dbg *Debugger) {
 	dbg.debuggerExec = true
 	value := dbg.evalCode(e.expression)
 	fmt.Printf("< Return: %s\n", value.ToString())
@@ -127,7 +127,7 @@ type _printCommand struct {
 
 var PrintCommand _printCommand
 
-func (p *_printCommand) execute(dbg *Debugger) {
+func (p *_printCommand) Execute(dbg *Debugger) {
 	val := dbg.getValue(p.varName)
 	if val == Undefined() {
 		fmt.Println("Cannot get variable from local scope. However, the current values on the stack are:")
@@ -141,7 +141,7 @@ type _listCommand struct{}
 
 var ListCommand _listCommand
 
-func (l *_listCommand) execute(dbg *Debugger) {
+func (l *_listCommand) Execute(dbg *Debugger) {
 	fmt.Println(dbg.printSource())
 }
 
@@ -149,7 +149,7 @@ type _helpCommand struct{}
 
 var HelpCommand _helpCommand
 
-func (h *_helpCommand) execute(dbg *Debugger) {
+func (h *_helpCommand) Execute(dbg *Debugger) {
 	help := []string{
 		"next, n\t\tContinue to next line in current file",
 		"cont, c\t\tResume execution until next debugger line",
@@ -173,7 +173,7 @@ type _quitCommand struct {
 
 var QuitCommand _quitCommand
 
-func (q *_quitCommand) execute(dbg *Debugger) {
+func (q *_quitCommand) Execute(dbg *Debugger) {
 	os.Exit(q.exitCode)
 }
 
@@ -446,26 +446,26 @@ func (dbg *Debugger) REPL(intro bool) {
 			case Continue:
 				return
 			case StepIn:
-				StepInCommand.execute(dbg)
+				StepInCommand.Execute(dbg)
 			case StepOut:
-				StepOutCommand.execute(dbg)
+				StepOutCommand.Execute(dbg)
 			case Exec:
 				ExecCommand.expression = strings.Join(commandAndArguments[1:], ";")
-				ExecCommand.execute(dbg)
+				ExecCommand.Execute(dbg)
 				return
 			case Print:
 				PrintCommand.varName = strings.Join(commandAndArguments[1:], "")
-				PrintCommand.execute(dbg)
+				PrintCommand.Execute(dbg)
 			case List:
-				ListCommand.execute(dbg)
+				ListCommand.Execute(dbg)
 			case Help:
-				HelpCommand.execute(dbg)
+				HelpCommand.Execute(dbg)
 			case Quit:
 				QuitCommand.exitCode = 0
-				QuitCommand.execute(dbg)
+				QuitCommand.Execute(dbg)
 			default:
 				QuitCommand.exitCode = 0
-				QuitCommand.execute(dbg)
+				QuitCommand.Execute(dbg)
 			}
 		} else {
 			fmt.Println("unknown command")
