@@ -49,6 +49,137 @@ func NewDebugger(vm *vm) *Debugger {
 	return dbg
 }
 
+type Command interface {
+	execute()
+}
+
+type _nextCommand struct{}
+
+var NextCommand _nextCommand
+
+func (*_nextCommand) execute(dbg *Debugger) {
+	lastLine := dbg.getCurrentLine()
+	dbg.updateCurrentLine()
+	if dbg.getLastLine() != dbg.getCurrentLine() {
+		dbg.REPL(false)
+	}
+	nextLine := dbg.getNextLine()
+	for dbg.isSafeToRun() && dbg.getCurrentLine() != nextLine {
+		dbg.updateCurrentLine()
+		if dbg.isDebuggerStatement() {
+			break
+		}
+		dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
+	}
+	dbg.updateLastLine(lastLine)
+}
+
+type _continueCommand struct{}
+
+var ContinueCommand _continueCommand
+
+func (*_continueCommand) execute(dbg *Debugger) {
+	lastLine := dbg.getCurrentLine()
+	dbg.updateCurrentLine()
+	for dbg.isSafeToRun() && !dbg.isDebuggerStatement() {
+		dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
+		dbg.updateCurrentLine()
+	}
+	dbg.updateLastLine(lastLine)
+}
+
+type _stepInCommand struct{}
+
+var StepInCommand _stepInCommand
+
+func (*_stepInCommand) execute(dbg *Debugger) {
+	fmt.Println("Not Implemented Yet")
+}
+
+type _stepOutCommand struct{}
+
+var StepOutCommand _stepOutCommand
+
+func (*_stepOutCommand) execute(dbg *Debugger) {
+	fmt.Println("Not Implemented Yet")
+}
+
+type _execCommand struct {
+	expression string
+}
+
+var ExecCommand _execCommand
+
+func (e *_execCommand) execute(dbg *Debugger) {
+	dbg.debuggerExec = true
+	value := dbg.evalCode(e.expression)
+	fmt.Printf("< Return: %s\n", value.ToString())
+	dbg.debuggerExec = false
+
+	lastLine := dbg.getCurrentLine()
+	dbg.REPL(false)
+	dbg.updateLastLine(lastLine)
+}
+
+type _printCommand struct {
+	varName string
+}
+
+var PrintCommand _printCommand
+
+func (p *_printCommand) execute(dbg *Debugger) {
+	val := dbg.getValue(p.varName)
+	if val == Undefined() {
+		fmt.Println("Cannot get variable from local scope. However, the current values on the stack are:")
+		fmt.Printf("< %s\n", dbg.vm.prg.values)
+	} else {
+		fmt.Printf("< %s\n", val)
+	}
+}
+
+type _listCommand struct{}
+
+var ListCommand _listCommand
+
+func (l *_listCommand) execute(dbg *Debugger) {
+	fmt.Println(dbg.printSource())
+}
+
+type _helpCommand struct{}
+
+var HelpCommand _helpCommand
+
+func (h *_helpCommand) execute(dbg *Debugger) {
+	help := []string{
+		"next, n\t\tContinue to next line in current file",
+		"cont, c\t\tResume execution until next debugger line",
+		"step, s\t\tStep into, potentially entering a function (Not Implemented Yet)",
+		"out, o\t\tStep out, leaving the current function (Not Implemented Yet)",
+		"exec, e\t\tEvaluate the expression and print the value",
+		"list, l\t\tPrint the source around the current line where execution is currently paused",
+		"print, p\tPrint the provided variable's value",
+		"help, h\t\tPrint this very help message",
+		"quit, q\t\tExit debugger and quit (Ctrl+C)",
+	}
+
+	for _, value := range help {
+		fmt.Println(value)
+	}
+}
+
+type _quitCommand struct {
+	exitCode int
+}
+
+var QuitCommand _quitCommand
+
+func (q *_quitCommand) execute(dbg *Debugger) {
+	os.Exit(q.exitCode)
+}
+
+type EmptyCommand struct{}
+type NewLineCommand struct{}
+
 func StringToLines(s string) (lines []string, err error) {
 	scanner := bufio.NewScanner(strings.NewReader(s))
 	for scanner.Scan() {
@@ -115,7 +246,7 @@ func (dbg *Debugger) updateCurrentLine() {
 }
 
 func (dbg *Debugger) getNextLine() int {
-	for idx := range dbg.vm.prg.code[vm.pc:] {
+	for idx := range dbg.vm.prg.code[dbg.vm.pc:] {
 		nextLine := dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc + idx + 1)).Line
 		if nextLine > dbg.getCurrentLine() {
 			return nextLine
@@ -267,24 +398,13 @@ func (dbg *Debugger) REPL(intro bool) {
 		Quit:     Quit,
 		NewLine:  "\n",
 	}
-	debuggerHelp := []string{
-		"next, n\t\tContinue to next line in current file",
-		"cont, c\t\tResume execution until next debugger line",
-		"step, s\t\tStep into, potentially entering a function (Not Implemented Yet)",
-		"out, o\t\tStep out, leaving the current function (Not Implemented Yet)",
-		"exec, e\t\tEvaluate the expression and print the value",
-		"list, l\t\tPrint the source around the current line where execution is currently paused",
-		"print, p\tPrint the provided variable's value",
-		"help, h\t\tPrint this very help message",
-		"quit, q\t\tExit debugger and quit (Ctrl+C)",
-	}
 
 	if intro {
 		fmt.Println("Welcome to Goja debugger")
 		fmt.Println("Type 'help' or 'h' for list of commands.")
 	} else {
 		if dbg.isBreakOnStart() {
-			fmt.Printf("Break on start in %s\n", dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(vm.pc)))
+			fmt.Printf("Break on start in %s\n", dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)))
 		} else {
 			fmt.Printf("Break in %s\n", dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)))
 		}
@@ -330,29 +450,22 @@ func (dbg *Debugger) REPL(intro bool) {
 			case StepOut:
 				fmt.Println(commandAndArguments[0])
 			case Exec:
-				dbg.debuggerExec = true
-				value := dbg.evalCode(strings.Join(commandAndArguments[1:], ";"))
-				fmt.Printf("< Return: %s\n", value.ToString())
-				dbg.debuggerExec = false
+				ExecCommand.expression = strings.Join(commandAndArguments[1:], ";")
+				ExecCommand.execute(dbg)
 				return
-			case List:
-				fmt.Println(dbg.printSource())
 			case Print:
-				val := dbg.getValue(strings.Join(commandAndArguments[1:], ""))
-				if val == Undefined() {
-					fmt.Println("Cannot get variable from local scope. However, the current values on the stack are:")
-					fmt.Printf("< %s\n", dbg.vm.prg.values)
-				} else {
-					fmt.Printf("< %s\n", val)
-				}
+				PrintCommand.varName = strings.Join(commandAndArguments[1:], "")
+				PrintCommand.execute(dbg)
+			case List:
+				ListCommand.execute(dbg)
 			case Help:
-				for _, value := range debuggerHelp {
-					fmt.Println(value)
-				}
+				HelpCommand.execute(dbg)
 			case Quit:
-				os.Exit(0)
+				QuitCommand.exitCode = 0
+				QuitCommand.execute(dbg)
 			default:
-				os.Exit(0)
+				QuitCommand.exitCode = 0
+				QuitCommand.execute(dbg)
 			}
 		} else {
 			fmt.Println("unknown command")
