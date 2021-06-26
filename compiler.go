@@ -627,10 +627,7 @@ found:
 	s.bindings = s.bindings[:l]
 }
 
-func (c *compiler) compile(in *ast.Program, strict, eval, inGlobal bool, debug bool) {
-	if debug {
-		c.enableDebugMode()
-	}
+func (c *compiler) compile(in *ast.Program, strict, eval, inGlobal bool) {
 	c.p.src = in.File
 	c.newScope()
 	scope := c.scope
