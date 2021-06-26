@@ -1096,21 +1096,21 @@ func (r *Runtime) EnableDebugMode() {
 // Compile creates an internal representation of the JavaScript code that can be later run using the Runtime.RunProgram()
 // method. This representation is not linked to a runtime in any way and can be run in multiple runtimes (possibly
 // at the same time).
-func Compile(name, src string, strict bool, debug bool) (*Program, error) {
-	return compile(name, src, strict, false, debug, true)
+func Compile(name, src string, strict bool) (*Program, error) {
+	return compile(name, src, strict, false, true)
 }
 
 // CompileAST creates an internal representation of the JavaScript code that can be later run using the Runtime.RunProgram()
 // method. This representation is not linked to a runtime in any way and can be run in multiple runtimes (possibly
 // at the same time).
-func CompileAST(prg *js_ast.Program, strict bool, debug bool) (*Program, error) {
-	return compileAST(prg, strict, false, true, debug)
+func CompileAST(prg *js_ast.Program, strict bool) (*Program, error) {
+	return compileAST(prg, strict, false, true)
 }
 
 // MustCompile is like Compile but panics if the code cannot be compiled.
 // It simplifies safe initialization of global variables holding compiled JavaScript code.
-func MustCompile(name, src string, strict bool, debug bool) *Program {
-	prg, err := Compile(name, src, strict, debug)
+func MustCompile(name, src string, strict bool) *Program {
+	prg, err := Compile(name, src, strict)
 	if err != nil {
 		panic(err)
 	}
@@ -1140,16 +1140,16 @@ func Parse(name, src string, options ...parser.Option) (prg *js_ast.Program, err
 	return
 }
 
-func compile(name, src string, strict, eval, inGlobal bool, debug bool, parserOptions ...parser.Option) (p *Program, err error) {
+func compile(name, src string, strict, eval, inGlobal bool, parserOptions ...parser.Option) (p *Program, err error) {
 	prg, err := Parse(name, src, parserOptions...)
 	if err != nil {
 		return
 	}
 
-	return compileAST(prg, strict, eval, inGlobal, debug)
+	return compileAST(prg, strict, eval, inGlobal)
 }
 
-func compileAST(prg *js_ast.Program, strict, eval, inGlobal bool, debug bool) (p *Program, err error) {
+func compileAST(prg *js_ast.Program, strict, eval, inGlobal bool) (p *Program, err error) {
 	c := newCompiler()
 
 	defer func() {
@@ -1164,13 +1164,13 @@ func compileAST(prg *js_ast.Program, strict, eval, inGlobal bool, debug bool) (p
 		}
 	}()
 
-	c.compile(prg, strict, eval, inGlobal, debug)
+	c.compile(prg, strict, eval, inGlobal)
 	p = c.p
 	return
 }
 
 func (r *Runtime) compile(name, src string, strict, eval, inGlobal bool) (p *Program, err error) {
-	p, err = compile(name, src, strict, eval, inGlobal, r.debugMode, r.parserOptions...)
+	p, err = compile(name, src, strict, eval, inGlobal, r.parserOptions...)
 	if err != nil {
 		switch x1 := err.(type) {
 		case *CompilerSyntaxError:

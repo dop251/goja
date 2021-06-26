@@ -362,7 +362,7 @@ func (dbg *Debugger) evalCode(src string) Value {
 		this = dbg.vm.r.globalObject
 	}
 
-	c.compile(prg, false, true, this == dbg.vm.r.globalObject, false)
+	c.compile(prg, false, true, this == dbg.vm.r.globalObject)
 
 	defer func() {
 		if x := recover(); x != nil {
