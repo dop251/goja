@@ -73,8 +73,7 @@ type compiler struct {
 
 	enumGetExpr compiledEnumGetExpr
 
-	evalVM    *vm
-	debugMode bool
+	evalVM *vm
 }
 
 type binding struct {
@@ -299,10 +298,6 @@ func (c *compiler) newBlockScope() {
 
 func (c *compiler) popScope() {
 	c.scope = c.scope.outer
-}
-
-func (c *compiler) enableDebugMode() {
-	c.debugMode = true
 }
 
 func newCompiler() *compiler {
