@@ -448,9 +448,9 @@ func (vm *vm) runDebug() {
 				dbg.Next()
 				ticks++
 			case Exec:
-				_, err := dbg.Exec(strings.Join(dbg.lastDebuggerCommandArgs(), ";"))
-				if err != nil {
-					fmt.Println(err)
+				result := dbg.Exec(strings.Join(dbg.lastDebuggerCommandArgs(), ";"))
+				if result.Err != nil {
+					fmt.Println(result.Err)
 				}
 			default:
 				vm.prg.code[vm.pc].exec(vm)

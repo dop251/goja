@@ -47,6 +47,11 @@ type Debugger struct {
 	breakpoints            []Breakpoint
 }
 
+type Result struct {
+	Value interface{}
+	Err   error
+}
+
 func NewDebugger(vm *vm) *Debugger {
 	dbg := &Debugger{
 		vm: vm,
@@ -102,54 +107,49 @@ func (dbg *Debugger) Breakpoints() ([]Breakpoint, error) {
 	return dbg.breakpoints, nil
 }
 
-func (dbg *Debugger) Next() error {
+func (dbg *Debugger) Next() Result {
 	cmd := NextCommand{}
-	_, err := cmd.execute(dbg)
-	return err
+	return cmd.execute(dbg)
 }
 
-func (dbg *Debugger) Continue() error {
+func (dbg *Debugger) Continue() Result {
 	cmd := ContinueCommand{}
-	_, err := cmd.execute(dbg)
-	return err
+	return cmd.execute(dbg)
 }
 
-func (dbg *Debugger) StepIn() error {
+func (dbg *Debugger) StepIn() Result {
 	cmd := StepInCommand{}
-	_, err := cmd.execute(dbg)
-	return err
+	return cmd.execute(dbg)
 }
 
-func (dbg *Debugger) StepOut() error {
+func (dbg *Debugger) StepOut() Result {
 	cmd := StepOutCommand{}
-	_, err := cmd.execute(dbg)
-	return err
+	return cmd.execute(dbg)
 }
 
-func (dbg *Debugger) Exec(expr string) (Value, error) {
+func (dbg *Debugger) Exec(expr string) Result {
 	cmd := ExecCommand{expression: expr}
 	return cmd.execute(dbg)
 }
 
-func (dbg *Debugger) Print(varName string) (string, error) {
+func (dbg *Debugger) Print(varName string) Result {
 	cmd := PrintCommand{varName: varName}
 	return cmd.execute(dbg)
 }
 
-func (dbg *Debugger) List() (string, error) {
+func (dbg *Debugger) List() Result {
 	cmd := ListCommand{}
 	return cmd.execute(dbg)
 }
 
-func (dbg *Debugger) Help() string {
+func (dbg *Debugger) Help() Result {
 	cmd := HelpCommand{}
-	help, _ := cmd.execute(dbg)
-	return help
+	return cmd.execute(dbg)
 }
 
-func (dbg *Debugger) Quit(exitCode int) {
+func (dbg *Debugger) Quit(exitCode int) Result {
 	cmd := QuitCommand{exitCode: exitCode}
-	cmd.execute(dbg)
+	return cmd.execute(dbg)
 }
 
 type Command interface {
@@ -158,7 +158,7 @@ type Command interface {
 
 type NextCommand struct{}
 
-func (*NextCommand) execute(dbg *Debugger) (Value, error) {
+func (*NextCommand) execute(dbg *Debugger) Result {
 	// TODO: implement proper error propagation
 	lastLine := dbg.getCurrentLine()
 	dbg.updateCurrentLine()
@@ -174,12 +174,12 @@ func (*NextCommand) execute(dbg *Debugger) (Value, error) {
 		dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
 	}
 	dbg.updateLastLine(lastLine)
-	return nil, nil
+	return Result{Value: nil, Err: nil}
 }
 
 type ContinueCommand struct{}
 
-func (*ContinueCommand) execute(dbg *Debugger) (Value, error) {
+func (*ContinueCommand) execute(dbg *Debugger) Result {
 	// TODO: implement proper error propagation
 	lastLine := dbg.getCurrentLine()
 	dbg.updateCurrentLine()
@@ -188,34 +188,34 @@ func (*ContinueCommand) execute(dbg *Debugger) (Value, error) {
 			dbg.REPL(false)
 			dbg.updateCurrentLine()
 			dbg.updateLastLine(lastLine)
-			return nil, nil
+			return Result{Value: nil, Err: nil}
 		}
 		dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
 		dbg.updateCurrentLine()
 	}
 	dbg.updateLastLine(lastLine)
-	return nil, nil
+	return Result{Value: nil, Err: nil}
 }
 
 type StepInCommand struct{}
 
-func (*StepInCommand) execute(dbg *Debugger) (Value, error) {
-	return nil, errors.New("Not Implemented Yet")
+func (*StepInCommand) execute(dbg *Debugger) Result {
+	return Result{Value: nil, Err: errors.New("not implemented yet")}
 }
 
 type StepOutCommand struct{}
 
-func (*StepOutCommand) execute(dbg *Debugger) (Value, error) {
-	return nil, errors.New("Not Implemented Yet")
+func (*StepOutCommand) execute(dbg *Debugger) Result {
+	return Result{Value: nil, Err: errors.New("not implemented yet")}
 }
 
 type ExecCommand struct {
 	expression string
 }
 
-func (e *ExecCommand) execute(dbg *Debugger) (Value, error) {
+func (e *ExecCommand) execute(dbg *Debugger) Result {
 	if e.expression == "" {
-		return nil, errors.New("nothing to execute")
+		return Result{Value: nil, Err: errors.New("nothing to execute")}
 	}
 	// TODO: Refactor this (get rid of calling REPL)
 	dbg.debuggerExec = true
@@ -225,36 +225,37 @@ func (e *ExecCommand) execute(dbg *Debugger) (Value, error) {
 	lastLine := dbg.getCurrentLine()
 	dbg.REPL(false)
 	dbg.updateLastLine(lastLine)
-	return val, err
+	return Result{Value: val, Err: err}
 }
 
 type PrintCommand struct {
 	varName string
 }
 
-func (p *PrintCommand) execute(dbg *Debugger) (string, error) {
+func (p *PrintCommand) execute(dbg *Debugger) Result {
 	if p.varName == "" {
-		return "", errors.New("please specify variable name")
+		return Result{Value: "", Err: errors.New("please specify variable name")}
 	}
 	val, err := dbg.getValue(p.varName)
 
 	if val == Undefined() {
-		return fmt.Sprint(dbg.vm.prg.values), err
+		return Result{Value: fmt.Sprint(dbg.vm.prg.values), Err: err}
 	} else {
 		// FIXME: val.ToString() causes debugger to exit abruptly
-		return fmt.Sprint(val), err
+		return Result{Value: fmt.Sprint(val), Err: err}
 	}
 }
 
 type ListCommand struct{}
 
-func (*ListCommand) execute(dbg *Debugger) (string, error) {
-	return dbg.listSource()
+func (*ListCommand) execute(dbg *Debugger) Result {
+	val, err := dbg.listSource()
+	return Result{Value: val, Err: err}
 }
 
 type HelpCommand struct{}
 
-func (*HelpCommand) execute(dbg *Debugger) (string, error) {
+func (*HelpCommand) execute(dbg *Debugger) Result {
 	var builder strings.Builder
 	writer := tabwriter.NewWriter(&builder, 0, 0, 3, ' ', 0)
 
@@ -264,8 +265,8 @@ func (*HelpCommand) execute(dbg *Debugger) (string, error) {
 		"breakpoints\tList all known breakpoints",
 		"next, n\tContinue to next line in current file",
 		"cont, c\tResume execution until next debugger line",
-		"step, s\tStep into, potentially entering a function (Not Implemented Yet)",
-		"out, o\tStep out, leaving the current function (Not Implemented Yet)",
+		"step, s\tStep into, potentially entering a function (not implemented yet)",
+		"out, o\tStep out, leaving the current function (not implemented yet)",
 		"exec, e\tEvaluate the expression and print the value",
 		"list, l\tPrint the source around the current line where execution is currently paused",
 		"print, p\tPrint the provided variable's value",
@@ -278,15 +279,16 @@ func (*HelpCommand) execute(dbg *Debugger) (string, error) {
 	}
 
 	writer.Flush()
-	return builder.String(), nil
+	return Result{Value: builder.String(), Err: nil}
 }
 
 type QuitCommand struct {
 	exitCode int
 }
 
-func (q *QuitCommand) execute(dbg *Debugger) {
+func (q *QuitCommand) execute(dbg *Debugger) Result {
 	os.Exit(q.exitCode)
+	return Result{Value: nil, Err: nil}
 }
 
 type EmptyCommand struct{}
@@ -645,24 +647,25 @@ func (dbg *Debugger) REPL(intro bool) {
 			case StepOut:
 				fmt.Println(dbg.StepOut())
 			case Exec:
-				_, err := dbg.Exec(strings.Join(commandAndArguments[1:], ";"))
-				if err != nil {
-					fmt.Println(err)
+				result := dbg.Exec(strings.Join(commandAndArguments[1:], ";"))
+				if result.Err != nil {
+					fmt.Println(result.Err)
 				}
 			case Print:
-				val, err := dbg.Print(strings.Join(commandAndArguments[1:], ""))
-				fmt.Printf("< %s\n", val)
+				result := dbg.Print(strings.Join(commandAndArguments[1:], ""))
+				fmt.Printf("< %s\n", result.Value)
 				if err != nil {
-					fmt.Printf("< Error: %s\n", err)
+					fmt.Printf("< Error: %s\n", result.Err)
 				}
 			case List:
-				src, err := dbg.List()
-				fmt.Print(src)
+				result := dbg.List()
+				fmt.Print(result.Value)
 				if err != nil {
-					fmt.Println(err)
+					fmt.Println(result.Err)
 				}
 			case Help:
-				fmt.Print(dbg.Help())
+				result := dbg.Help()
+				fmt.Print(result.Value)
 			case Quit:
 				dbg.Quit(0)
 			default:
