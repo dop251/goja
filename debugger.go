@@ -161,7 +161,10 @@ type ExecCommand struct {
 
 func (e *ExecCommand) Execute(dbg *Debugger) {
 	dbg.debuggerExec = true
-	value := dbg.evalCode(e.expression)
+	value, err := dbg.eval(e.expression)
+	if err != nil {
+		fmt.Printf("< Error: %s\n", err)
+	}
 	fmt.Printf("< Return: %s\n", value.ToString())
 	dbg.debuggerExec = false
 
@@ -175,11 +178,16 @@ type PrintCommand struct {
 }
 
 func (p *PrintCommand) Execute(dbg *Debugger) {
-	val := dbg.getValue(p.varName)
+	val, err := dbg.getValue(p.varName)
+	if err != nil {
+		log.Println(err.Error())
+	}
+
 	if val == Undefined() {
 		fmt.Println("Cannot get variable from local scope. However, the current values on the stack are:")
 		fmt.Printf("< %s\n", dbg.vm.prg.values)
 	} else {
+		// FIXME: val.ToString() causes debugger to exit abruptly
 		fmt.Printf("< %s\n", val)
 	}
 }
@@ -324,7 +332,7 @@ func (dbg *Debugger) isSafeToRun() bool {
 func (dbg *Debugger) printSource() string {
 	lines, err := StringToLines(dbg.vm.prg.src.Source())
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err.Error())
 	}
 	currentLine := dbg.getCurrentLine()
 	lineIndex := currentLine - 1
@@ -350,14 +358,14 @@ func (dbg *Debugger) printSource() string {
 	return builder.String()
 }
 
-func (dbg *Debugger) evalCode(src string) Value {
-	prg, err := parser.ParseFile(nil, "<eval>", src, 0)
+func (dbg *Debugger) eval(expr string) (Value, error) {
+	prg, err := parser.ParseFile(nil, "<eval>", expr, 0)
 	if err != nil {
-		log.Fatal(&CompilerSyntaxError{
+		return nil, &CompilerSyntaxError{
 			CompilerError: CompilerError{
 				Message: err.Error(),
 			},
-		})
+		}
 	}
 
 	c := newCompiler()
@@ -369,7 +377,7 @@ func (dbg *Debugger) evalCode(src string) Value {
 			case *CompilerSyntaxError:
 				err = x1
 			default:
-				panic(x)
+				err = errors.New("unknown error occurred")
 			}
 		}
 	}()
@@ -388,7 +396,7 @@ func (dbg *Debugger) evalCode(src string) Value {
 			if ex, ok := x.(*uncatchableException); ok {
 				err = ex.err
 			} else {
-				panic(x)
+				err = errors.New("cannot recover from exception")
 			}
 		}
 	}()
@@ -405,36 +413,52 @@ func (dbg *Debugger) evalCode(src string) Value {
 	dbg.vm.popCtx()
 	dbg.vm.halt = false
 	dbg.vm.sp -= 1
-	return retval
+	return retval, err
 }
 
 func (dbg *Debugger) isBreakOnStart() bool {
 	return dbg.vm.pc < 3 && dbg.vm.prg.code[2] == debugger
 }
 
-func (dbg *Debugger) getValue(varName string) Value {
+func (dbg *Debugger) getValue(varName string) (Value, error) {
 	name := unistring.String(varName)
 	var val Value
+	var err error
+
+	// First try
 	for stash := dbg.vm.stash; stash != nil; stash = stash.outer {
 		if v, exists := stash.getByName(name); exists {
 			val = v
 			break
 		}
 	}
-	if val == nil {
-		if dbg.vm.sb >= 0 {
-			val = dbg.vm.stack[dbg.vm.sb]
-		}
-		if val != Undefined() || val != nil {
-			return val
-		}
 
-		val = dbg.vm.r.globalObject.self.getStr(name, nil)
-		if val == nil {
-			val = valueUnresolved{r: dbg.vm.r, ref: name}
-		}
+	if val != nil {
+		return val, err
 	}
-	return val
+
+	err = errors.New("variable doesn't exist in the global scope")
+
+	// Second try
+	if dbg.vm.sb >= 0 {
+		val = dbg.vm.stack[dbg.vm.sb]
+	}
+
+	if val != nil {
+		return val, err
+	}
+
+	err = errors.New("variable doesn't exist in the local scope")
+
+	// Third (last) try
+	val = dbg.vm.r.globalObject.self.getStr(name, nil)
+	if val != nil {
+		return val, err
+	}
+
+	val = valueUnresolved{r: dbg.vm.r, ref: name}
+	err = errors.New("cannot resolve variable")
+	return val, err
 }
 
 func (dbg *Debugger) REPL(intro bool) {
@@ -518,7 +542,7 @@ func (dbg *Debugger) REPL(intro bool) {
 				} else {
 					err := dbg.SetBreakpoint(commandAndArguments[1], line)
 					if err != nil {
-						fmt.Println(err)
+						log.Println(err.Error())
 					}
 				}
 			case ClearBreakpoint:
@@ -531,13 +555,13 @@ func (dbg *Debugger) REPL(intro bool) {
 				} else {
 					err := dbg.ClearBreakpoint(commandAndArguments[1], line)
 					if err != nil {
-						fmt.Println(err)
+						log.Println(err.Error())
 					}
 				}
 			case Breakpoints:
 				breakpoints, err := dbg.Breakpoints()
 				if err != nil {
-					fmt.Println(err)
+					log.Println(err.Error())
 				} else {
 					for _, b := range breakpoints {
 						fmt.Printf("Breakpoint on %s:%d\n", b.Filename, b.Line)
