@@ -2,6 +2,7 @@ package goja
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -59,28 +60,46 @@ type Breakpoint struct {
 	Line     int
 }
 
-func (dbg *Debugger) setBreakpoint(fileName string, line int) {
+func (d *Debugger) Wait() *Breakpoint {
+	// TODO: implement this
+	return &Breakpoint{}
+}
+
+func (dbg *Debugger) SetBreakpoint(fileName string, line int) error {
 	b := Breakpoint{Filename: fileName, Line: line}
 	for _, elem := range dbg.breakpoints {
 		if elem == b {
-			return
+			return errors.New("breakpoint exists")
 		}
 	}
+
 	dbg.breakpoints = append(dbg.breakpoints, b)
+
+	return nil
 }
 
-func (dbg *Debugger) clearBreakpoint(fileName string, line int) {
+func (dbg *Debugger) ClearBreakpoint(fileName string, line int) error {
 	if len(dbg.breakpoints) == 0 {
-		return
+		return errors.New("no breakpoints set")
 	}
 
 	b := Breakpoint{Filename: fileName, Line: line}
 	for idx, elem := range dbg.breakpoints {
 		if elem == b {
 			dbg.breakpoints = append(dbg.breakpoints[:idx], dbg.breakpoints[idx+1:]...)
-			return
+			return nil
 		}
 	}
+
+	return errors.New("cannot set breakpoints")
+}
+
+func (dbg *Debugger) Breakpoints() ([]Breakpoint, error) {
+	if dbg.breakpoints == nil {
+		return nil, errors.New("no breakpoints")
+	}
+
+	return dbg.breakpoints, nil
 }
 
 type Command interface {
@@ -497,7 +516,10 @@ func (dbg *Debugger) REPL(intro bool) {
 				if line, err := strconv.Atoi(commandAndArguments[2]); err != nil {
 					fmt.Printf("Cannot convert %s to line number\n", commandAndArguments[2])
 				} else {
-					dbg.setBreakpoint(commandAndArguments[1], line)
+					err := dbg.SetBreakpoint(commandAndArguments[1], line)
+					if err != nil {
+						fmt.Println(err)
+					}
 				}
 			case ClearBreakpoint:
 				if len(commandAndArguments) < 3 {
@@ -507,11 +529,19 @@ func (dbg *Debugger) REPL(intro bool) {
 				if line, err := strconv.Atoi(commandAndArguments[2]); err != nil {
 					fmt.Printf("Cannot convert %s to line number\n", commandAndArguments[2])
 				} else {
-					dbg.clearBreakpoint(commandAndArguments[1], line)
+					err := dbg.ClearBreakpoint(commandAndArguments[1], line)
+					if err != nil {
+						fmt.Println(err)
+					}
 				}
 			case Breakpoints:
-				for _, b := range dbg.breakpoints {
-					fmt.Printf("Breakpoint on %s:%d\n", b.Filename, b.Line)
+				breakpoints, err := dbg.Breakpoints()
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					for _, b := range breakpoints {
+						fmt.Printf("Breakpoint on %s:%d\n", b.Filename, b.Line)
+					}
 				}
 			case Next:
 				return
