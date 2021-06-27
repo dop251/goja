@@ -5,6 +5,7 @@ import (
 	"math"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -440,17 +441,17 @@ func (vm *vm) runDebug() {
 		} else if dbg.lastDebuggerCommand() != Empty {
 			switch dbg.lastDebuggerCommand() {
 			case Continue:
-				cmd := ContinueCommand{}
-				cmd.Execute(dbg)
+				dbg.Continue()
 				ticks++
 			case Next:
 				// FIXME: jumping lines on next command
-				cmd := NextCommand{}
-				cmd.Execute(dbg)
+				dbg.Next()
 				ticks++
 			case Exec:
-				cmd := ExecCommand{}
-				cmd.Execute(dbg)
+				_, err := dbg.Exec(strings.Join(dbg.lastDebuggerCommandArgs(), ";"))
+				if err != nil {
+					fmt.Println(err)
+				}
 			default:
 				vm.prg.code[vm.pc].exec(vm)
 			}
