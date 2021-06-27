@@ -1089,8 +1089,9 @@ func New() *Runtime {
 	return r
 }
 
-func (r *Runtime) EnableDebugMode() {
+func (r *Runtime) EnableDebugMode() *Debugger {
 	r.debugMode = true
+	return NewDebugger(r.vm)
 }
 
 // Compile creates an internal representation of the JavaScript code that can be later run using the Runtime.RunProgram()
