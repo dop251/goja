@@ -4,47 +4,22 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io"
-	"os"
-	"strconv"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
 )
 
-const (
-	SetBreakpoint   = "sb"
-	ClearBreakpoint = "cb"
-	Breakpoints     = "breakpoints"
-	Next            = "n"
-	Continue        = "c"
-	StepIn          = "s"
-	StepOut         = "o"
-	Exec            = "e"
-	Print           = "p"
-	List            = "l"
-	Help            = "h"
-	Quit            = "q"
-	Empty           = ""
-	NewLine         = "\n"
-)
-
-const (
-	GreenColor = "\u001b[32m"
-	GrayColor  = "\u001b[38;5;245m"
-	ResetColor = "\u001b[0m"
-)
-
 type Debugger struct {
 	vm *vm
 
-	lastDebuggerCmdAndArgs []string
+	LastDebuggerCmdAndArgs []string
 	debuggerExec           bool
 	currentLine            int
 	lastLines              []int
 	breakpoints            []Breakpoint
+	activationCh           chan chan string
+	notActive              bool
 }
 
 type Result struct {
@@ -54,10 +29,33 @@ type Result struct {
 
 func NewDebugger(vm *vm) *Debugger {
 	dbg := &Debugger{
-		vm: vm,
+		vm:           vm,
+		activationCh: make(chan chan string),
+		notActive:    true,
 	}
 	dbg.lastLines = append(dbg.lastLines, 0)
 	return dbg
+}
+
+const ( // TODO constants enum
+	BreakpointActivation        string = "b"
+	DebuggerStatementActivation        = "d"
+)
+
+func (dbg *Debugger) activate(s string) {
+	dbg.notActive = false
+	ch := <-dbg.activationCh // get channel from waiter
+	ch <- s                  // send what activated it
+	<-ch                     // wait for deactivation
+	dbg.notActive = true
+}
+
+// WaitToActivate  returns what activated debugger and a function to deactivate it resume normal execution/continue
+func (dbg *Debugger) WaitToActivate() (string, func()) {
+	ch := make(chan string)
+	dbg.activationCh <- ch
+	r := <-ch
+	return r, func() { close(ch) }
 }
 
 type Breakpoint struct {
@@ -65,9 +63,13 @@ type Breakpoint struct {
 	Line     int
 }
 
-func (d *Debugger) Wait() *Breakpoint {
+func (dbg *Debugger) Wait() *Breakpoint {
 	// TODO: implement this
 	return &Breakpoint{}
+}
+
+func (dbg *Debugger) GetPC() int {
+	return dbg.vm.pc
 }
 
 func (dbg *Debugger) SetBreakpoint(fileName string, line int) error {
@@ -142,16 +144,6 @@ func (dbg *Debugger) List() Result {
 	return cmd.execute(dbg)
 }
 
-func (dbg *Debugger) Help() Result {
-	cmd := HelpCommand{}
-	return cmd.execute(dbg)
-}
-
-func (dbg *Debugger) Quit(exitCode int) Result {
-	cmd := QuitCommand{exitCode: exitCode}
-	return cmd.execute(dbg)
-}
-
 type Command interface {
 	execute() (interface{}, error)
 }
@@ -160,13 +152,14 @@ type NextCommand struct{}
 
 func (*NextCommand) execute(dbg *Debugger) Result {
 	// TODO: implement proper error propagation
-	lastLine := dbg.getCurrentLine()
+	lastLine := dbg.Line()
 	dbg.updateCurrentLine()
-	if dbg.getLastLine() != dbg.getCurrentLine() {
-		dbg.REPL(false)
+	if dbg.getLastLine() != dbg.Line() {
+		// dbg.REPL(dbg, false)
+		// TODO: wait for command
 	}
 	nextLine := dbg.getNextLine()
-	for dbg.isSafeToRun() && dbg.getCurrentLine() != nextLine {
+	for dbg.isSafeToRun() && dbg.Line() != nextLine {
 		dbg.updateCurrentLine()
 		if dbg.isDebuggerStatement() {
 			break
@@ -181,11 +174,12 @@ type ContinueCommand struct{}
 
 func (*ContinueCommand) execute(dbg *Debugger) Result {
 	// TODO: implement proper error propagation
-	lastLine := dbg.getCurrentLine()
+	lastLine := dbg.Line()
 	dbg.updateCurrentLine()
 	for dbg.isSafeToRun() && !dbg.isDebuggerStatement() {
 		if dbg.isBreakpoint() {
-			dbg.REPL(false)
+			// dbg.REPL(dbg, false)
+			// TODO: wait for command
 			dbg.updateCurrentLine()
 			dbg.updateLastLine(lastLine)
 			return Result{Value: nil, Err: nil}
@@ -217,13 +211,11 @@ func (e *ExecCommand) execute(dbg *Debugger) Result {
 	if e.expression == "" {
 		return Result{Value: nil, Err: errors.New("nothing to execute")}
 	}
-	// TODO: Refactor this (get rid of calling REPL)
 	dbg.debuggerExec = true
 	val, err := dbg.eval(e.expression)
 	dbg.debuggerExec = false
 
-	lastLine := dbg.getCurrentLine()
-	dbg.REPL(false)
+	lastLine := dbg.Line()
 	dbg.updateLastLine(lastLine)
 	return Result{Value: val, Err: err}
 }
@@ -249,50 +241,15 @@ func (p *PrintCommand) execute(dbg *Debugger) Result {
 type ListCommand struct{}
 
 func (*ListCommand) execute(dbg *Debugger) Result {
-	val, err := dbg.listSource()
+	// TODO probably better to get only some of the lines, but fine for now
+	val, err := StringToLines(dbg.vm.prg.src.Source())
 	return Result{Value: val, Err: err}
 }
 
-type HelpCommand struct{}
-
-func (*HelpCommand) execute(dbg *Debugger) Result {
-	var builder strings.Builder
-	writer := tabwriter.NewWriter(&builder, 0, 0, 3, ' ', 0)
-
-	help := []string{
-		"setBreakpoint, sb\tSet a breakpoint on a given file and line",
-		"clearBreakpoint, cb\tClear a breakpoint on a given file and line",
-		"breakpoints\tList all known breakpoints",
-		"next, n\tContinue to next line in current file",
-		"cont, c\tResume execution until next debugger line",
-		"step, s\tStep into, potentially entering a function (not implemented yet)",
-		"out, o\tStep out, leaving the current function (not implemented yet)",
-		"exec, e\tEvaluate the expression and print the value",
-		"list, l\tPrint the source around the current line where execution is currently paused",
-		"print, p\tPrint the provided variable's value",
-		"help, h\tPrint this very help message",
-		"quit, q\tExit debugger and quit (Ctrl+C)",
-	}
-
-	for _, value := range help {
-		fmt.Fprintln(writer, value)
-	}
-
-	writer.Flush()
-	return Result{Value: builder.String(), Err: nil}
-}
-
-type QuitCommand struct {
-	exitCode int
-}
-
-func (q *QuitCommand) execute(dbg *Debugger) Result {
-	os.Exit(q.exitCode)
-	return Result{Value: nil, Err: nil}
-}
-
-type EmptyCommand struct{}
-type NewLineCommand struct{}
+type (
+	EmptyCommand   struct{}
+	NewLineCommand struct{}
+)
 
 func StringToLines(s string) (lines []string, err error) {
 	scanner := bufio.NewScanner(strings.NewReader(s))
@@ -301,22 +258,6 @@ func StringToLines(s string) (lines []string, err error) {
 	}
 	err = scanner.Err()
 	return
-}
-
-func CountDigits(number int) int {
-	if number < 10 {
-		return 1
-	} else {
-		return 1 + CountDigits(number/10)
-	}
-}
-
-func InBetween(i, min, max int) bool {
-	if (i >= min) && (i <= max) {
-		return true
-	} else {
-		return false
-	}
 }
 
 func (dbg *Debugger) isDebuggerStatement() bool {
@@ -328,11 +269,11 @@ func (dbg *Debugger) isNextDebuggerStatement() bool {
 }
 
 func (dbg *Debugger) isBreakpoint() bool {
-	currentLine := dbg.getCurrentLine()
-	currentFilename := dbg.getCurrentFilename()
+	currentLine := dbg.Line()
+	currentFilename := dbg.Filename()
 
 	b := Breakpoint{Filename: currentFilename, Line: currentLine}
-	for _, elem := range dbg.breakpoints {
+	for _, elem := range dbg.breakpoints { // TODO have them as map of files to breakpoint list
 		if elem == b {
 			return true
 		}
@@ -341,16 +282,16 @@ func (dbg *Debugger) isBreakpoint() bool {
 }
 
 func (dbg *Debugger) lastDebuggerCommand() string {
-	if len(dbg.lastDebuggerCmdAndArgs) > 0 {
-		return dbg.lastDebuggerCmdAndArgs[0]
+	if len(dbg.LastDebuggerCmdAndArgs) > 0 {
+		return dbg.LastDebuggerCmdAndArgs[0]
 	}
 
-	return Empty
+	return ""
 }
 
 func (dbg *Debugger) lastDebuggerCommandArgs() []string {
-	if len(dbg.lastDebuggerCmdAndArgs) > 1 {
-		return dbg.lastDebuggerCmdAndArgs[1:]
+	if len(dbg.LastDebuggerCmdAndArgs) > 1 {
+		return dbg.LastDebuggerCmdAndArgs[1:]
 	}
 
 	return nil
@@ -361,7 +302,7 @@ func (dbg *Debugger) getLastLine() int {
 		return dbg.lastLines[len(dbg.lastLines)-1]
 	}
 	// First executed line (current line) is considered the last line
-	return dbg.getCurrentLine()
+	return dbg.Line()
 }
 
 func (dbg *Debugger) updateLastLine(lineNumber int) {
@@ -370,25 +311,23 @@ func (dbg *Debugger) updateLastLine(lineNumber int) {
 	}
 }
 
-func (dbg *Debugger) getCurrentLine() int {
+func (dbg *Debugger) Line() int {
 	// FIXME: Some lines are skipped, which causes this function to report incorrect lines
-	currentLine := dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)).Line
-	return currentLine
+	return dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)).Line
 }
 
-func (dbg *Debugger) getCurrentFilename() string {
-	currentFilename := dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)).Filename
-	return currentFilename
+func (dbg *Debugger) Filename() string {
+	return dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)).Filename
 }
 
 func (dbg *Debugger) updateCurrentLine() {
-	dbg.currentLine = dbg.getCurrentLine()
+	dbg.currentLine = dbg.Line()
 }
 
 func (dbg *Debugger) getNextLine() int {
 	for idx := range dbg.vm.prg.code[dbg.vm.pc:] {
 		nextLine := dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc + idx + 1)).Line
-		if nextLine > dbg.getCurrentLine() {
+		if nextLine > dbg.Line() {
 			return nextLine
 		}
 	}
@@ -399,33 +338,7 @@ func (dbg *Debugger) isSafeToRun() bool {
 	return dbg.vm.pc < len(dbg.vm.prg.code)
 }
 
-func (dbg *Debugger) listSource() (string, error) {
-	lines, err := StringToLines(dbg.vm.prg.src.Source())
-	currentLine := dbg.getCurrentLine()
-	lineIndex := currentLine - 1
-	var builder strings.Builder
-	for idx, lineContents := range lines {
-		if InBetween(lineIndex, idx-4, idx+4) {
-			lineNumber := idx + 1
-			totalPadding := 6
-			digitCount := CountDigits(lineNumber)
-			if digitCount >= totalPadding {
-				totalPadding = digitCount + 1
-			}
-			if currentLine == lineNumber {
-				padding := strings.Repeat(" ", totalPadding-digitCount)
-				builder.Write([]byte(fmt.Sprintf("%s>%s %d%s%s\n", GreenColor, ResetColor, currentLine, padding, lines[lineIndex])))
-			} else {
-				padding := strings.Repeat(" ", totalPadding-digitCount)
-				builder.Write([]byte(fmt.Sprintf("%s  %d%s%s%s\n", GrayColor, lineNumber, padding, lineContents, ResetColor)))
-			}
-		}
-	}
-
-	return builder.String(), err
-}
-
-func (dbg *Debugger) eval(expr string) (Value, error) {
+func (dbg *Debugger) eval(expr string) (v Value, err error) {
 	prg, err := parser.ParseFile(nil, "<eval>", expr, 0)
 	if err != nil {
 		return nil, &CompilerSyntaxError{
@@ -440,11 +353,11 @@ func (dbg *Debugger) eval(expr string) (Value, error) {
 	defer func() {
 		if x := recover(); x != nil {
 			c.p = nil
-			switch x1 := x.(type) {
+			switch ex := x.(type) {
 			case *CompilerSyntaxError:
-				err = x1
+				err = ex
 			default:
-				err = errors.New("unknown error occurred")
+				err = fmt.Errorf("cannot recover from exception %s", ex)
 			}
 		}
 	}()
@@ -463,9 +376,12 @@ func (dbg *Debugger) eval(expr string) (Value, error) {
 			if ex, ok := x.(*uncatchableException); ok {
 				err = ex.err
 			} else {
-				err = errors.New("cannot recover from exception")
+				err = fmt.Errorf("cannot recover from exception %s", x)
 			}
 		}
+		dbg.vm.popCtx()
+		dbg.vm.halt = false
+		dbg.vm.sp -= 1
 	}()
 
 	dbg.vm.pushCtx()
@@ -476,22 +392,26 @@ func (dbg *Debugger) eval(expr string) (Value, error) {
 	dbg.vm.sb = dbg.vm.sp
 	dbg.vm.push(this)
 	dbg.vm.run()
-	retval := dbg.vm.result
-	dbg.vm.popCtx()
-	dbg.vm.halt = false
-	dbg.vm.sp -= 1
-	return retval, err
+	v = dbg.vm.result
+	return v, err
 }
 
-func (dbg *Debugger) isBreakOnStart() bool {
+func (dbg *Debugger) IsBreakOnStart() bool {
 	return dbg.vm.pc < 3 && dbg.vm.prg.code[2] == debugger
 }
 
-func (dbg *Debugger) getValue(varName string) (Value, error) {
+func (dbg *Debugger) getValue(varName string) (val Value, err error) {
 	name := unistring.String(varName)
-	var val Value
-	var err error
 
+	defer func() {
+		if x := recover(); x != nil { // TODO better catch exception
+			if ex, ok := x.(*uncatchableException); ok {
+				err = ex.err
+			} else {
+				err = fmt.Errorf("cannot recover from exception %s", x)
+			}
+		}
+	}()
 	// First try
 	for stash := dbg.vm.stash; stash != nil; stash = stash.outer {
 		if v, exists := stash.getByName(name); exists {
@@ -526,153 +446,4 @@ func (dbg *Debugger) getValue(varName string) (Value, error) {
 	val = valueUnresolved{r: dbg.vm.r, ref: name}
 	err = errors.New("cannot resolve variable")
 	return val, err
-}
-
-func (dbg *Debugger) REPL(intro bool) {
-	// Refactor this piece of sh!t
-	debuggerCommands := map[string]string{
-		"setBreakpoint":   SetBreakpoint,
-		SetBreakpoint:     SetBreakpoint,
-		"clearBreakpoint": ClearBreakpoint,
-		ClearBreakpoint:   ClearBreakpoint,
-		"breakpoints":     Breakpoints,
-		"next":            Next,
-		Next:              Next,
-		"cont":            Continue,
-		Continue:          Continue,
-		"step":            StepIn,
-		StepIn:            StepIn,
-		"out":             StepOut,
-		StepOut:           StepOut,
-		"exec":            Exec,
-		Exec:              Exec,
-		"print":           Print,
-		Print:             Print,
-		"list":            List,
-		List:              List,
-		"help":            Help,
-		Help:              Help,
-		"quit":            Quit,
-		Quit:              Quit,
-		NewLine:           "\n",
-	}
-
-	if intro {
-		fmt.Println("Welcome to Goja debugger")
-		fmt.Println("Type 'help' or 'h' for list of commands.")
-	} else {
-		if dbg.isBreakOnStart() {
-			fmt.Printf("Break on start in %s\n", dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)))
-		} else {
-			fmt.Printf("Break in %s\n", dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)))
-		}
-		src, err := dbg.listSource()
-		fmt.Println(src)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
-
-	var commandAndArguments []string
-
-	for {
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Printf("debug[%d]> ", dbg.vm.pc)
-		command, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				fmt.Println()
-				break
-			}
-			fmt.Println(err)
-		}
-
-		commandAndArguments = strings.Split(command[:len(command)-1], " ")
-		if command == NewLine && len(dbg.lastDebuggerCmdAndArgs) > 0 {
-			// If enter is pressed and there's a command already executed,
-			// run the last debugger command
-			commandAndArguments = make([]string, len(dbg.lastDebuggerCmdAndArgs))
-			copy(commandAndArguments, dbg.lastDebuggerCmdAndArgs)
-		}
-
-		if v, ok := debuggerCommands[commandAndArguments[0]]; ok {
-			if command != NewLine {
-				// FIXME: Exec command acts as Next on the next run
-				dbg.lastDebuggerCmdAndArgs = make([]string, len(commandAndArguments))
-				copy(dbg.lastDebuggerCmdAndArgs, commandAndArguments)
-			}
-
-			switch v {
-			case SetBreakpoint:
-				if len(commandAndArguments) < 3 {
-					fmt.Println("sb filename linenumber")
-					continue
-				}
-				if line, err := strconv.Atoi(commandAndArguments[2]); err != nil {
-					fmt.Printf("Cannot convert %s to line number\n", commandAndArguments[2])
-				} else {
-					err := dbg.SetBreakpoint(commandAndArguments[1], line)
-					if err != nil {
-						fmt.Println(err.Error())
-					}
-				}
-			case ClearBreakpoint:
-				if len(commandAndArguments) < 3 {
-					fmt.Println("cb filename linenumber")
-					continue
-				}
-				if line, err := strconv.Atoi(commandAndArguments[2]); err != nil {
-					fmt.Printf("Cannot convert %s to line number\n", commandAndArguments[2])
-				} else {
-					err := dbg.ClearBreakpoint(commandAndArguments[1], line)
-					if err != nil {
-						fmt.Println(err.Error())
-					}
-				}
-			case Breakpoints:
-				breakpoints, err := dbg.Breakpoints()
-				if err != nil {
-					fmt.Println(err.Error())
-				} else {
-					for _, b := range breakpoints {
-						fmt.Printf("Breakpoint on %s:%d\n", b.Filename, b.Line)
-					}
-				}
-			case Next:
-				return
-			case Continue:
-				return
-			case StepIn:
-				fmt.Println(dbg.StepIn())
-			case StepOut:
-				fmt.Println(dbg.StepOut())
-			case Exec:
-				result := dbg.Exec(strings.Join(commandAndArguments[1:], ";"))
-				if result.Err != nil {
-					fmt.Println(result.Err)
-				}
-			case Print:
-				result := dbg.Print(strings.Join(commandAndArguments[1:], ""))
-				fmt.Printf("< %s\n", result.Value)
-				if err != nil {
-					fmt.Printf("< Error: %s\n", result.Err)
-				}
-			case List:
-				result := dbg.List()
-				fmt.Print(result.Value)
-				if err != nil {
-					fmt.Println(result.Err)
-				}
-			case Help:
-				result := dbg.Help()
-				fmt.Print(result.Value)
-			case Quit:
-				dbg.Quit(0)
-			default:
-				dbg.Quit(0)
-			}
-		} else {
-			fmt.Println("unknown command")
-		}
-	}
 }

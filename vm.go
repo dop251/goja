@@ -5,7 +5,6 @@ import (
 	"math"
 	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -157,7 +156,9 @@ type vm struct {
 	interruptVal  interface{}
 	interruptLock sync.Mutex
 
-	debugger *Debugger
+	debugger  *Debugger
+	debugMode bool // TODO drop this as we can just check debugger is nil or not
+	debugCh   chan *Debugger
 }
 
 type instruction interface {
@@ -418,43 +419,24 @@ func (vm *vm) run() {
 	}
 }
 
-func (vm *vm) runDebug() {
+func (vm *vm) debug() {
 	vm.halt = false
 	interrupted := false
 	ticks := 0
-	dbg := NewDebugger(vm)
-	dbg.REPL(true)
+	// TODO: WE SHOULD WAIT HERE FOR FIRST COMMAND
 
 	for !vm.halt {
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
 			break
 		}
 
-		if dbg.isDebuggerStatement() || dbg.isNextDebuggerStatement() || dbg.isBreakpoint() {
-			lastLine := dbg.getCurrentLine()
-			dbg.updateCurrentLine()
-			if dbg.lastDebuggerCommand() != Next {
-				dbg.REPL(false)
-			}
+		if vm.debugger != nil && vm.debugger.notActive && vm.debugger.isBreakpoint() {
+			// lastLine := vm.debugger.Line()
+			vm.debugger.updateCurrentLine()
+			vm.debugger.activate(BreakpointActivation)
+
 			vm.prg.code[vm.pc].exec(vm)
-			dbg.updateLastLine(lastLine)
-		} else if dbg.lastDebuggerCommand() != Empty {
-			switch dbg.lastDebuggerCommand() {
-			case Continue:
-				dbg.Continue()
-				ticks++
-			case Next:
-				// FIXME: jumping lines on next command
-				dbg.Next()
-				ticks++
-			case Exec:
-				result := dbg.Exec(strings.Join(dbg.lastDebuggerCommandArgs(), ";"))
-				if result.Err != nil {
-					fmt.Println(result.Err)
-				}
-			default:
-				vm.prg.code[vm.pc].exec(vm)
-			}
+			// vm.debugger.updateLastLine(lastLine)
 		} else {
 			vm.prg.code[vm.pc].exec(vm)
 		}
@@ -579,8 +561,8 @@ func (vm *vm) try(f func()) (ex *Exception) {
 }
 
 func (vm *vm) runTry() (ex *Exception) {
-	if vm.r.debugMode {
-		return vm.try(vm.runDebug)
+	if vm.debugMode {
+		return vm.try(vm.debug)
 	} else {
 		return vm.try(vm.run)
 	}
@@ -1297,6 +1279,9 @@ var debugger _debugger
 
 func (_debugger) exec(vm *vm) {
 	vm.pc++
+	if vm.debugMode && vm.debugger.notActive { // this jumps over debugger statements
+		vm.debugger.activate(DebuggerStatementActivation)
+	}
 }
 
 type jump int32
@@ -2971,7 +2956,6 @@ end:
 		return valueTrue
 	}
 	return valueFalse
-
 }
 
 type _op_lt struct{}
