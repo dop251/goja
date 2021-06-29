@@ -20,11 +20,6 @@ type Debugger struct {
 	active       bool
 }
 
-type Result struct {
-	Value interface{}
-	Err   error
-}
-
 func NewDebugger(vm *vm) *Debugger {
 	dbg := &Debugger{
 		vm:           vm,
@@ -107,48 +102,7 @@ func (dbg *Debugger) Breakpoints() ([]Breakpoint, error) {
 	return dbg.breakpoints, nil
 }
 
-func (dbg *Debugger) Next() Result {
-	cmd := NextCommand{}
-	return cmd.execute(dbg)
-}
-
-func (dbg *Debugger) Continue() Result {
-	cmd := ContinueCommand{}
-	return cmd.execute(dbg)
-}
-
-func (dbg *Debugger) StepIn() Result {
-	cmd := StepInCommand{}
-	return cmd.execute(dbg)
-}
-
-func (dbg *Debugger) StepOut() Result {
-	cmd := StepOutCommand{}
-	return cmd.execute(dbg)
-}
-
-func (dbg *Debugger) Exec(expr string) Result {
-	cmd := ExecCommand{expression: expr}
-	return cmd.execute(dbg)
-}
-
-func (dbg *Debugger) Print(varName string) Result {
-	cmd := PrintCommand{varName: varName}
-	return cmd.execute(dbg)
-}
-
-func (dbg *Debugger) List() Result {
-	cmd := ListCommand{}
-	return cmd.execute(dbg)
-}
-
-type Command interface {
-	execute() (interface{}, error)
-}
-
-type NextCommand struct{}
-
-func (*NextCommand) execute(dbg *Debugger) Result {
+func (dbg *Debugger) Next() error {
 	// TODO: implement proper error propagation
 	lastLine := dbg.Line()
 	dbg.updateCurrentLine()
@@ -165,12 +119,10 @@ func (*NextCommand) execute(dbg *Debugger) Result {
 		dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
 	}
 	dbg.updateLastLine(lastLine)
-	return Result{Value: nil, Err: nil}
+	return nil
 }
 
-type ContinueCommand struct{}
-
-func (*ContinueCommand) execute(dbg *Debugger) Result {
+func (dbg *Debugger) Continue() error {
 	// TODO: implement proper error propagation
 	lastLine := dbg.Line()
 	dbg.updateCurrentLine()
@@ -180,74 +132,46 @@ func (*ContinueCommand) execute(dbg *Debugger) Result {
 			// TODO: wait for command
 			dbg.updateCurrentLine()
 			dbg.updateLastLine(lastLine)
-			return Result{Value: nil, Err: nil}
+			return nil
 		}
 		dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
 		dbg.updateCurrentLine()
 	}
 	dbg.updateLastLine(lastLine)
-	return Result{Value: nil, Err: nil}
+	return nil
 }
 
-type StepInCommand struct{}
-
-func (*StepInCommand) execute(dbg *Debugger) Result {
-	return Result{Value: nil, Err: errors.New("not implemented yet")}
-}
-
-type StepOutCommand struct{}
-
-func (*StepOutCommand) execute(dbg *Debugger) Result {
-	return Result{Value: nil, Err: errors.New("not implemented yet")}
-}
-
-type ExecCommand struct {
-	expression string
-}
-
-func (e *ExecCommand) execute(dbg *Debugger) Result {
-	if e.expression == "" {
-		return Result{Value: nil, Err: errors.New("nothing to execute")}
+func (dbg *Debugger) Exec(expr string) (Value, error) {
+	if expr == "" {
+		return nil, errors.New("nothing to execute")
 	}
-	val, err := dbg.eval(e.expression)
+	val, err := dbg.eval(expr)
 
 	lastLine := dbg.Line()
 	dbg.updateLastLine(lastLine)
-	return Result{Value: val, Err: err}
+	return val, err
 }
 
-type PrintCommand struct {
-	varName string
-}
-
-func (p *PrintCommand) execute(dbg *Debugger) Result {
-	if p.varName == "" {
-		return Result{Value: "", Err: errors.New("please specify variable name")}
+func (dbg *Debugger) Print(varName string) (string, error) {
+	if varName == "" {
+		return "", errors.New("please specify variable name")
 	}
-	val, err := dbg.getValue(p.varName)
+	val, err := dbg.getValue(varName)
 
 	if val == Undefined() {
-		return Result{Value: fmt.Sprint(dbg.vm.prg.values), Err: err}
+		return fmt.Sprint(dbg.vm.prg.values), err
 	} else {
 		// FIXME: val.ToString() causes debugger to exit abruptly
-		return Result{Value: fmt.Sprint(val), Err: err}
+		return fmt.Sprint(val), err
 	}
 }
 
-type ListCommand struct{}
-
-func (*ListCommand) execute(dbg *Debugger) Result {
+func (dbg *Debugger) List() ([]string, error) {
 	// TODO probably better to get only some of the lines, but fine for now
-	val, err := StringToLines(dbg.vm.prg.src.Source())
-	return Result{Value: val, Err: err}
+	return stringToLines(dbg.vm.prg.src.Source())
 }
 
-type (
-	EmptyCommand   struct{}
-	NewLineCommand struct{}
-)
-
-func StringToLines(s string) (lines []string, err error) {
+func stringToLines(s string) (lines []string, err error) {
 	scanner := bufio.NewScanner(strings.NewReader(s))
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
