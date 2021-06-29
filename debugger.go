@@ -103,6 +103,20 @@ func (dbg *Debugger) Breakpoints() ([]Breakpoint, error) {
 	return dbg.breakpoints, nil
 }
 
+func (dbg *Debugger) StepIn() error {
+	// TODO: implement proper error propagation
+	lastLine := dbg.Line()
+	dbg.updateCurrentLine()
+	if dbg.isSafeToRun() {
+		dbg.updateCurrentLine()
+		dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
+		dbg.updateLastLine(lastLine)
+	} else if dbg.vm.halt {
+		return errors.New("halted")
+	}
+	return nil
+}
+
 func (dbg *Debugger) Next() error {
 	// TODO: implement proper error propagation
 	lastLine := dbg.Line()
