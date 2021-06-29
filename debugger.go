@@ -397,7 +397,7 @@ func (dbg *Debugger) eval(expr string) (v Value, err error) {
 }
 
 func (dbg *Debugger) IsBreakOnStart() bool {
-	return dbg.vm.pc < 3 && dbg.vm.prg.code[2] == debugger
+	return dbg.vm.pc <= 3 && dbg.vm.prg.code[2] == debugger
 }
 
 func (dbg *Debugger) getValue(varName string) (val Value, err error) {
