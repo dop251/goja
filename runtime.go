@@ -174,10 +174,9 @@ type Runtime struct {
 	typeInfoCache   map[reflect.Type]*reflectTypeInfo
 	fieldNameMapper FieldNameMapper
 
-	vm        *vm
-	hash      *maphash.Hash
-	idSeq     uint64
-	debugMode bool
+	vm    *vm
+	hash  *maphash.Hash
+	idSeq uint64
 }
 
 type StackFrame struct {
@@ -1090,8 +1089,9 @@ func New() *Runtime {
 }
 
 func (r *Runtime) EnableDebugMode() *Debugger {
-	r.debugMode = true
-	return NewDebugger(r.vm)
+	r.vm.debugMode = true
+	r.vm.debugger = NewDebugger(r.vm)
+	return r.vm.debugger
 }
 
 // Compile creates an internal representation of the JavaScript code that can be later run using the Runtime.RunProgram()
@@ -1195,7 +1195,6 @@ func (r *Runtime) RunString(str string) (Value, error) {
 // RunScript executes the given string in the global context.
 func (r *Runtime) RunScript(name, src string) (Value, error) {
 	p, err := r.compile(name, src, false, false, true)
-
 	if err != nil {
 		return nil, err
 	}
