@@ -33,6 +33,7 @@ func NewDebugger(vm *vm) *Debugger {
 const ( // TODO constants enum
 	BreakpointActivation        string = "b"
 	DebuggerStatementActivation        = "d"
+	ProgramStartActivation             = "s"
 )
 
 func (dbg *Debugger) activate(s string) {

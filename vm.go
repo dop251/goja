@@ -423,7 +423,7 @@ func (vm *vm) debug() {
 	vm.halt = false
 	interrupted := false
 	ticks := 0
-	// TODO: WE SHOULD WAIT HERE FOR FIRST COMMAND
+	vm.debugger.activate(ProgramStartActivation)
 
 	for !vm.halt {
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
