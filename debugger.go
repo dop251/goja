@@ -13,13 +13,11 @@ import (
 type Debugger struct {
 	vm *vm
 
-	LastDebuggerCmdAndArgs []string
-	debuggerExec           bool
-	currentLine            int
-	lastLines              []int
-	breakpoints            []Breakpoint
-	activationCh           chan chan string
-	notActive              bool
+	currentLine  int
+	lastLines    []int
+	breakpoints  []Breakpoint
+	activationCh chan chan string
+	active       bool
 }
 
 type Result struct {
@@ -31,7 +29,7 @@ func NewDebugger(vm *vm) *Debugger {
 	dbg := &Debugger{
 		vm:           vm,
 		activationCh: make(chan chan string),
-		notActive:    true,
+		active:       false,
 	}
 	dbg.lastLines = append(dbg.lastLines, 0)
 	return dbg
@@ -43,11 +41,11 @@ const ( // TODO constants enum
 )
 
 func (dbg *Debugger) activate(s string) {
-	dbg.notActive = false
+	dbg.active = true
 	ch := <-dbg.activationCh // get channel from waiter
 	ch <- s                  // send what activated it
 	<-ch                     // wait for deactivation
-	dbg.notActive = true
+	dbg.active = false
 }
 
 // WaitToActivate  returns what activated debugger and a function to deactivate it resume normal execution/continue
@@ -211,9 +209,7 @@ func (e *ExecCommand) execute(dbg *Debugger) Result {
 	if e.expression == "" {
 		return Result{Value: nil, Err: errors.New("nothing to execute")}
 	}
-	dbg.debuggerExec = true
 	val, err := dbg.eval(e.expression)
-	dbg.debuggerExec = false
 
 	lastLine := dbg.Line()
 	dbg.updateLastLine(lastLine)
@@ -279,22 +275,6 @@ func (dbg *Debugger) isBreakpoint() bool {
 		}
 	}
 	return false
-}
-
-func (dbg *Debugger) lastDebuggerCommand() string {
-	if len(dbg.LastDebuggerCmdAndArgs) > 0 {
-		return dbg.LastDebuggerCmdAndArgs[0]
-	}
-
-	return ""
-}
-
-func (dbg *Debugger) lastDebuggerCommandArgs() []string {
-	if len(dbg.LastDebuggerCmdAndArgs) > 1 {
-		return dbg.LastDebuggerCmdAndArgs[1:]
-	}
-
-	return nil
 }
 
 func (dbg *Debugger) getLastLine() int {
