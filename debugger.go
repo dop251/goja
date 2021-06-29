@@ -108,18 +108,15 @@ func (dbg *Debugger) Next() error {
 	lastLine := dbg.Line()
 	dbg.updateCurrentLine()
 	if dbg.getLastLine() != dbg.Line() {
-		// dbg.REPL(dbg, false)
-		// TODO: wait for command
-	}
-	nextLine := dbg.getNextLine()
-	for dbg.isSafeToRun() && dbg.Line() != nextLine {
-		dbg.updateCurrentLine()
-		if dbg.isDebuggerStatement() {
-			break
+		nextLine := dbg.getNextLine()
+		for dbg.isSafeToRun() && dbg.Line() != nextLine {
+			dbg.updateCurrentLine()
+			dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
 		}
-		dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
+		dbg.updateLastLine(lastLine)
+	} else if dbg.vm.halt {
+		return errors.New("halted")
 	}
-	dbg.updateLastLine(lastLine)
 	return nil
 }
 
