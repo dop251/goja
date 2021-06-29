@@ -109,7 +109,7 @@ func (dbg *Debugger) Next() error {
 	dbg.updateCurrentLine()
 	if dbg.getLastLine() != dbg.Line() {
 		nextLine := dbg.getNextLine()
-		for dbg.isSafeToRun() && dbg.Line() != nextLine {
+		for dbg.isSafeToRun() && nextLine > 0 && dbg.Line() != nextLine {
 			dbg.updateCurrentLine()
 			dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
 		}
