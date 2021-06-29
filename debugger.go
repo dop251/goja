@@ -66,6 +66,10 @@ func (dbg *Debugger) GetPC() int {
 	return dbg.vm.pc
 }
 
+func (dbg *Debugger) IsInsideFunc() bool {
+	return dbg.vm.prg.funcName.String() != ""
+}
+
 func (dbg *Debugger) SetBreakpoint(fileName string, line int) error {
 	b := Breakpoint{Filename: fileName, Line: line}
 	for _, elem := range dbg.breakpoints {
@@ -123,12 +127,16 @@ func (dbg *Debugger) Next() error {
 	dbg.updateCurrentLine()
 	if dbg.getLastLine() != dbg.Line() {
 		nextLine := dbg.getNextLine()
-		for dbg.isSafeToRun() && nextLine >= 0 && dbg.Line() != nextLine {
+		for dbg.isSafeToRun() && nextLine > 0 && dbg.Line() != nextLine {
 			dbg.updateCurrentLine()
 			dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
 		}
 		dbg.updateLastLine(lastLine)
+	} else if dbg.getNextLine() == 0 {
+		// Step out of functions
+		return errors.New("exhausted")
 	} else if dbg.vm.halt {
+		// Step out of program
 		return errors.New("halted")
 	}
 	return nil
