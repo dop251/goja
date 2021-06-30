@@ -482,6 +482,8 @@ func (s *scope) finaliseVarAlloc(stackOffset int) (stashSize, stackSize int) {
 						*ap = initStash(idx)
 					case *loadMixed:
 						i.idx = idx
+					case *loadMixedLex:
+						i.idx = idx
 					case *resolveMixed:
 						i.idx = idx
 					}

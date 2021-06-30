@@ -3471,6 +3471,23 @@ func TestArgAccessFromDynamicStash(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestLoadMixedLex(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		let a = 1;
+		{
+			function inner() {
+				eval("var a = true");
+				return a;
+			}
+			return inner();
+		}
+	}
+	f();
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func TestObjectLiteralSpread(t *testing.T) {
 	const SCRIPT = `
 	let src = {prop1: 1};
