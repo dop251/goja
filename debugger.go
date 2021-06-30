@@ -16,40 +16,42 @@ type Debugger struct {
 	currentLine  int
 	lastLines    []int
 	breakpoints  []Breakpoint
-	activationCh chan chan string
+	activationCh chan chan ActivationReason
 	active       bool
 }
 
 func newDebugger(vm *vm) *Debugger {
 	dbg := &Debugger{
 		vm:           vm,
-		activationCh: make(chan chan string),
+		activationCh: make(chan chan ActivationReason),
 		active:       false,
 	}
 	dbg.lastLines = append(dbg.lastLines, 0)
 	return dbg
 }
 
-const ( // TODO constants enum
-	BreakpointActivation        string = "b"
-	DebuggerStatementActivation        = "d"
-	ProgramStartActivation             = "s"
+type ActivationReason string
+
+const (
+	ProgramStartActivation      ActivationReason = "start"
+	DebuggerStatementActivation ActivationReason = "debugger"
+	BreakpointActivation        ActivationReason = "breakpoint"
 )
 
-func (dbg *Debugger) activate(s string) {
+func (dbg *Debugger) activate(reason ActivationReason) {
 	dbg.active = true
 	ch := <-dbg.activationCh // get channel from waiter
-	ch <- s                  // send what activated it
+	ch <- reason             // send what activated it
 	<-ch                     // wait for deactivation
 	dbg.active = false
 }
 
 // WaitToActivate returns what activated debugger and a function to deactivate it and resume normal execution/continue
-func (dbg *Debugger) WaitToActivate() (string, func()) {
-	ch := make(chan string)
+func (dbg *Debugger) WaitToActivate() (ActivationReason, func()) {
+	ch := make(chan ActivationReason)
 	dbg.activationCh <- ch
-	r := <-ch
-	return r, func() { close(ch) }
+	reason := <-ch
+	return reason, func() { close(ch) }
 }
 
 type Breakpoint struct {
