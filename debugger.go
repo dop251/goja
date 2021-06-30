@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/dop251/goja/parser"
@@ -15,7 +16,7 @@ type Debugger struct {
 
 	currentLine  int
 	lastLines    []int
-	breakpoints  []Breakpoint
+	breakpoints  map[string][]int
 	activationCh chan chan ActivationReason
 	active       bool
 }
@@ -25,6 +26,7 @@ func newDebugger(vm *vm) *Debugger {
 		vm:           vm,
 		activationCh: make(chan chan ActivationReason),
 		active:       false,
+		breakpoints:  make(map[string][]int),
 	}
 	dbg.lastLines = append(dbg.lastLines, 0)
 	return dbg
@@ -59,46 +61,42 @@ type Breakpoint struct {
 	Line     int
 }
 
-func (dbg *Debugger) Wait() *Breakpoint {
-	// TODO: implement this
-	return &Breakpoint{}
-}
-
 func (dbg *Debugger) PC() int {
 	return dbg.vm.pc
 }
 
-func (dbg *Debugger) SetBreakpoint(fileName string, line int) error {
-	b := Breakpoint{Filename: fileName, Line: line}
-	for _, elem := range dbg.breakpoints {
-		if elem == b {
-			return errors.New("breakpoint exists")
+func (dbg *Debugger) SetBreakpoint(filename string, line int) (err error) {
+	idx := sort.SearchInts(dbg.breakpoints[filename], line)
+	if idx < len(dbg.breakpoints[filename]) && dbg.breakpoints[filename][idx] == line {
+		err = errors.New("breakpoint exists")
+	} else {
+		dbg.breakpoints[filename] = append(dbg.breakpoints[filename], line)
+		if len(dbg.breakpoints[filename]) > 1 {
+			sort.Ints(dbg.breakpoints[filename])
 		}
 	}
-
-	dbg.breakpoints = append(dbg.breakpoints, b)
-
-	return nil
+	return
 }
 
-func (dbg *Debugger) ClearBreakpoint(fileName string, line int) error {
+func (dbg *Debugger) ClearBreakpoint(filename string, line int) (err error) {
+	if len(dbg.breakpoints[filename]) == 0 {
+		return errors.New("no breakpoints")
+	}
+
+	idx := sort.SearchInts(dbg.breakpoints[filename], line)
+	if idx < len(dbg.breakpoints[filename]) && dbg.breakpoints[filename][idx] == line {
+		dbg.breakpoints[filename] = append(dbg.breakpoints[filename][:idx], dbg.breakpoints[filename][idx+1:]...)
+		if len(dbg.breakpoints[filename]) == 0 {
+			delete(dbg.breakpoints, filename)
+		}
+	} else {
+		err = errors.New("breakpoint doesn't exist")
+	}
+	return
+}
+
+func (dbg *Debugger) Breakpoints() (map[string][]int, error) {
 	if len(dbg.breakpoints) == 0 {
-		return errors.New("no breakpoints set")
-	}
-
-	b := Breakpoint{Filename: fileName, Line: line}
-	for idx, elem := range dbg.breakpoints {
-		if elem == b {
-			dbg.breakpoints = append(dbg.breakpoints[:idx], dbg.breakpoints[idx+1:]...)
-			return nil
-		}
-	}
-
-	return errors.New("cannot set breakpoints")
-}
-
-func (dbg *Debugger) Breakpoints() ([]Breakpoint, error) {
-	if dbg.breakpoints == nil {
 		return nil, errors.New("no breakpoints")
 	}
 
@@ -202,21 +200,16 @@ func (dbg *Debugger) isDebuggerStatement() bool {
 	return dbg.vm.prg.code[dbg.vm.pc] == debugger
 }
 
-func (dbg *Debugger) isNextDebuggerStatement() bool {
-	return dbg.vm.pc+1 < len(dbg.vm.prg.code) && dbg.vm.prg.code[dbg.vm.pc+1] == debugger
-}
-
 func (dbg *Debugger) isBreakpoint() bool {
-	currentLine := dbg.Line()
-	currentFilename := dbg.Filename()
+	filename := dbg.Filename()
+	line := dbg.Line()
 
-	b := Breakpoint{Filename: currentFilename, Line: currentLine}
-	for _, elem := range dbg.breakpoints { // TODO have them as map of files to breakpoint list
-		if elem == b {
-			return true
-		}
+	idx := sort.SearchInts(dbg.breakpoints[filename], line)
+	if idx < len(dbg.breakpoints[filename]) && dbg.breakpoints[filename][idx] == line {
+		return true
+	} else {
+		return false
 	}
-	return false
 }
 
 func (dbg *Debugger) getLastLine() int {
