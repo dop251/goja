@@ -20,7 +20,7 @@ type Debugger struct {
 	active       bool
 }
 
-func NewDebugger(vm *vm) *Debugger {
+func newDebugger(vm *vm) *Debugger {
 	dbg := &Debugger{
 		vm:           vm,
 		activationCh: make(chan chan string),
@@ -44,7 +44,7 @@ func (dbg *Debugger) activate(s string) {
 	dbg.active = false
 }
 
-// WaitToActivate  returns what activated debugger and a function to deactivate it resume normal execution/continue
+// WaitToActivate returns what activated debugger and a function to deactivate it and resume normal execution/continue
 func (dbg *Debugger) WaitToActivate() (string, func()) {
 	ch := make(chan string)
 	dbg.activationCh <- ch
@@ -62,12 +62,8 @@ func (dbg *Debugger) Wait() *Breakpoint {
 	return &Breakpoint{}
 }
 
-func (dbg *Debugger) GetPC() int {
+func (dbg *Debugger) PC() int {
 	return dbg.vm.pc
-}
-
-func (dbg *Debugger) IsInsideFunc() bool {
-	return dbg.vm.prg.funcName.String() != ""
 }
 
 func (dbg *Debugger) SetBreakpoint(fileName string, line int) error {
@@ -318,10 +314,6 @@ func (dbg *Debugger) eval(expr string) (v Value, err error) {
 	dbg.vm.run()
 	v = dbg.vm.result
 	return v, err
-}
-
-func (dbg *Debugger) IsBreakOnStart() bool {
-	return dbg.vm.pc <= 3 && dbg.vm.prg.code[2] == debugger
 }
 
 func (dbg *Debugger) getValue(varName string) (val Value, err error) {
