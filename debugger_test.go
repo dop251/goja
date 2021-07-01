@@ -49,6 +49,43 @@ func TestDebuggerSimpleCaseWhereExecAndPrintDontWork(t *testing.T) {
 	<-ch                                            // wait for the debugger
 }
 
+func TestDebuggerSimpleCaseWhereLineIsIncorrectlyReported(t *testing.T) {
+	const SCRIPT = `debugger;
+	function test() {
+		var a = true;
+		debugger;
+		return a;
+	}
+	test()
+	`
+	r := &Runtime{}
+	r.init()
+	debugger := r.EnableDebugMode()
+
+	ch := make(chan struct{})
+	go func() {
+		defer close(ch)
+		defer func() {
+			if t.Failed() {
+				r.Interrupt("failed test")
+			}
+		}()
+		b, c := debugger.WaitToActivate()
+		t.Logf("PC: %d, Line: %d", debugger.PC(), debugger.Line())
+		if b != ProgramStartActivation {
+			// program should stop at program start activation
+			t.Fatalf("Wrong activation: %s", b)
+		}
+		if debugger.PC() == 3 && debugger.Line() != 1 {
+			// debugger should wait on the debugger statement and continue from there
+			t.Fatalf("Wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+		}
+		c()
+	}()
+	testScript1WithRuntime(SCRIPT, valueTrue, t, r) // TODO: this should be valueFalse, but it doesn't work
+	<-ch                                            // wait for the debugger
+}
+
 func testScript1WithRuntime(script string, expectedResult Value, t *testing.T, r *Runtime) {
 	prg, err := parser.ParseFile(nil, "test.js", script, 0)
 	if err != nil {
