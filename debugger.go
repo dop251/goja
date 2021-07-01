@@ -15,7 +15,7 @@ type Debugger struct {
 	vm *vm
 
 	currentLine  int
-	lastLines    []int
+	lastLine     int
 	breakpoints  map[string][]int
 	activationCh chan chan ActivationReason
 	active       bool
@@ -27,8 +27,8 @@ func newDebugger(vm *vm) *Debugger {
 		activationCh: make(chan chan ActivationReason),
 		active:       false,
 		breakpoints:  make(map[string][]int),
+		lastLine:     0,
 	}
-	dbg.lastLines = append(dbg.lastLines, 0)
 	return dbg
 }
 
@@ -213,16 +213,16 @@ func (dbg *Debugger) isBreakpoint() bool {
 }
 
 func (dbg *Debugger) getLastLine() int {
-	if len(dbg.lastLines) > 0 {
-		return dbg.lastLines[len(dbg.lastLines)-1]
+	if dbg.lastLine >= 0 {
+		return dbg.lastLine
 	}
 	// First executed line (current line) is considered the last line
 	return dbg.Line()
 }
 
 func (dbg *Debugger) updateLastLine(lineNumber int) {
-	if len(dbg.lastLines) > 0 && dbg.lastLines[len(dbg.lastLines)-1] != lineNumber {
-		dbg.lastLines = append(dbg.lastLines, lineNumber)
+	if dbg.lastLine != lineNumber {
+		dbg.lastLine = lineNumber
 	}
 }
 
