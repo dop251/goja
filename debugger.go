@@ -56,11 +56,6 @@ func (dbg *Debugger) WaitToActivate() (ActivationReason, func()) {
 	return reason, func() { close(ch) }
 }
 
-type Breakpoint struct {
-	Filename string
-	Line     int
-}
-
 func (dbg *Debugger) PC() int {
 	return dbg.vm.pc
 }
