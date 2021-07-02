@@ -307,6 +307,12 @@ func (dbg *Debugger) eval(expr string) (v Value, err error) {
 }
 
 func (dbg *Debugger) getValue(varName string) (val Value, err error) {
+	defer func() {
+		if err := recover(); err != nil {
+			return
+		}
+	}()
+
 	// copied from loadDynamicRef
 	name := unistring.String(varName)
 	for stash := dbg.vm.stash; stash != nil; stash = stash.outer {
