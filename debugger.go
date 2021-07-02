@@ -258,7 +258,7 @@ func (dbg *Debugger) eval(expr string) (v Value, err error) {
 		}
 	}
 
-	c := newCompiler()
+	c := newCompiler(true)
 
 	defer func() {
 		if x := recover(); x != nil {
@@ -307,49 +307,19 @@ func (dbg *Debugger) eval(expr string) (v Value, err error) {
 }
 
 func (dbg *Debugger) getValue(varName string) (val Value, err error) {
+	// copied from loadDynamicRef
 	name := unistring.String(varName)
-
-	defer func() {
-		if x := recover(); x != nil { // TODO better catch exception
-			if ex, ok := x.(*uncatchableException); ok {
-				err = ex.err
-			} else {
-				err = fmt.Errorf("cannot recover from exception %s", x)
-			}
-		}
-	}()
-	// First try
 	for stash := dbg.vm.stash; stash != nil; stash = stash.outer {
 		if v, exists := stash.getByName(name); exists {
 			val = v
 			break
 		}
 	}
-
-	if val != nil {
-		return val, err
+	if val == nil {
+		val = dbg.vm.r.globalObject.self.getStr(name, nil)
+		if val == nil {
+			val = valueUnresolved{r: dbg.vm.r, ref: name}
+		}
 	}
-
-	err = errors.New("variable doesn't exist in the global scope")
-
-	// Second try
-	if dbg.vm.sb >= 0 {
-		val = dbg.vm.stack[dbg.vm.sb]
-	}
-
-	if val != nil {
-		return val, err
-	}
-
-	err = errors.New("variable doesn't exist in the local scope")
-
-	// Third (last) try
-	val = dbg.vm.r.globalObject.self.getStr(name, nil)
-	if val != nil {
-		return val, err
-	}
-
-	val = valueUnresolved{r: dbg.vm.r, ref: name}
-	err = errors.New("cannot resolve variable")
-	return val, err
+	return val, nil
 }
