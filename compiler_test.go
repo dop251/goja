@@ -12,7 +12,7 @@ func testScript(script string, expectedResult Value, t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := newCompiler()
+	c := newCompiler(false)
 	c.compile(prg, false, false, true)
 
 	r := &Runtime{}
@@ -44,7 +44,7 @@ func testScript1(script string, expectedResult Value, t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := newCompiler()
+	c := newCompiler(false)
 	c.compile(prg, false, false, true)
 
 	r := &Runtime{}
