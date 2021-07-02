@@ -1017,8 +1017,9 @@ func (c *compiler) compileSwitchStatement(v *ast.SwitchStatement, needResult boo
 		}
 		copy(bb[1:], bindings)
 		db = &binding{
-			scope:   c.scope,
-			isConst: true,
+			scope:    c.scope,
+			isConst:  true,
+			isStrict: true,
 		}
 		bb[0] = db
 		c.scope.bindings = bb

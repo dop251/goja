@@ -34,6 +34,28 @@ var (
 
 var (
 	skipList = map[string]bool{
+
+		// Obsolete tests (see https://github.com/tc39/test262/pull/2445)
+		// TODO: remove this after upgrading the test suite past the above PR
+		"test/language/statements/function/scope-param-rest-elem-var-open.js":         true,
+		"test/language/statements/function/scope-param-rest-elem-var-close.js":        true,
+		"test/language/statements/function/scope-param-elem-var-open.js":              true,
+		"test/language/function-code/eval-param-env-with-prop-initializer.js":         true,
+		"test/language/function-code/eval-param-env-with-computed-key.js":             true,
+		"test/language/expressions/object/scope-meth-param-rest-elem-var-open.js":     true,
+		"test/language/statements/function/scope-param-elem-var-close.js":             true,
+		"test/language/expressions/object/scope-meth-param-rest-elem-var-close.js":    true,
+		"test/language/expressions/object/scope-meth-param-elem-var-open.js":          true,
+		"test/language/expressions/object/scope-meth-param-elem-var-close.js":         true,
+		"test/language/expressions/function/scope-param-rest-elem-var-open.js":        true,
+		"test/language/expressions/function/scope-param-rest-elem-var-close.js":       true,
+		"test/language/expressions/function/scope-param-elem-var-open.js":             true,
+		"test/language/expressions/function/scope-param-elem-var-close.js":            true,
+		"test/language/expressions/arrow-function/scope-param-rest-elem-var-open.js":  true,
+		"test/language/expressions/arrow-function/scope-param-rest-elem-var-close.js": true,
+		"test/language/expressions/arrow-function/scope-param-elem-var-close.js":      true,
+		"test/language/expressions/arrow-function/scope-param-elem-var-open.js":       true,
+
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
@@ -128,6 +150,33 @@ var (
 		"test/language/statements/variable/dstr/obj-ptrn-id-init-fn-name-class.js":                                   true,
 		"test/language/statements/variable/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                              true,
 		"test/language/expressions/object/method-definition/name-name-prop-symbol.js":                                true,
+		"test/language/expressions/function/dstr/dflt-obj-ptrn-id-init-fn-name-class.js":                             true,
+		"test/language/expressions/function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-class.js":                        true,
+		"test/language/expressions/function/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                             true,
+		"test/language/expressions/function/dstr/obj-ptrn-id-init-fn-name-class.js":                                  true,
+		"test/language/statements/function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-class.js":                         true,
+		"test/language/statements/function/dstr/obj-ptrn-id-init-fn-name-class.js":                                   true,
+		"test/language/statements/function/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                              true,
+		"test/language/statements/function/dstr/dflt-obj-ptrn-id-init-fn-name-class.js":                              true,
+		"test/language/statements/class/scope-static-setter-paramsbody-var-open.js":                                  true,
+		"test/language/statements/class/scope-static-setter-paramsbody-var-close.js":                                 true,
+		"test/language/statements/class/scope-static-meth-paramsbody-var-open.js":                                    true,
+		"test/language/statements/class/scope-static-meth-paramsbody-var-close.js":                                   true,
+		"test/language/statements/class/scope-setter-paramsbody-var-open.js":                                         true,
+		"test/language/statements/class/scope-setter-paramsbody-var-close.js":                                        true,
+		"test/language/statements/class/scope-meth-paramsbody-var-open.js":                                           true,
+		"test/language/statements/class/scope-meth-paramsbody-var-close.js":                                          true,
+		"test/language/expressions/class/scope-static-setter-paramsbody-var-open.js":                                 true,
+		"test/language/expressions/class/scope-static-setter-paramsbody-var-close.js":                                true,
+		"test/language/expressions/class/scope-static-meth-paramsbody-var-open.js":                                   true,
+		"test/language/expressions/class/scope-static-meth-paramsbody-var-close.js":                                  true,
+		"test/language/expressions/class/scope-setter-paramsbody-var-open.js":                                        true,
+		"test/language/expressions/class/scope-setter-paramsbody-var-close.js":                                       true,
+		"test/language/expressions/class/scope-meth-paramsbody-var-open.js":                                          true,
+		"test/language/expressions/class/scope-meth-paramsbody-var-close.js":                                         true,
+		"test/language/expressions/arrow-function/scope-paramsbody-var-open.js":                                      true,
+		"test/language/expressions/arrow-function/scope-paramsbody-var-close.js":                                     true,
+		"test/language/expressions/arrow-function/scope-body-lex-distinct.js":                                        true,
 
 		// arrow-function
 		"test/built-ins/Object/prototype/toString/proxy-function.js":                                    true,
@@ -166,6 +215,14 @@ var (
 		"test/language/expressions/assignment/dstr/obj-id-init-fn-name-arrow.js":                        true,
 		"test/language/expressions/assignment/dstr/obj-rest-order.js":                                   true,
 		"test/language/expressions/assignment/dstr/array-elem-init-fn-name-arrow.js":                    true,
+		"test/language/expressions/function/dstr/obj-ptrn-id-init-fn-name-arrow.js":                     true,
+		"test/language/expressions/function/dstr/dflt-obj-ptrn-id-init-fn-name-arrow.js":                true,
+		"test/language/expressions/function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-arrow.js":           true,
+		"test/language/expressions/function/dstr/ary-ptrn-elem-id-init-fn-name-arrow.js":                true,
+		"test/language/statements/function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-arrow.js":            true,
+		"test/language/statements/function/dstr/obj-ptrn-id-init-fn-name-arrow.js":                      true,
+		"test/language/statements/function/dstr/ary-ptrn-elem-id-init-fn-name-arrow.js":                 true,
+		"test/language/statements/function/dstr/dflt-obj-ptrn-id-init-fn-name-arrow.js":                 true,
 
 		// template strings
 		"test/built-ins/String/raw/zero-literal-segments.js":                                           true,
@@ -239,7 +296,6 @@ var (
 		"class",
 		"generators",
 		"String.prototype.replaceAll",
-		"default-parameters",
 		"super",
 	}
 
@@ -326,6 +382,12 @@ var (
 		"sec-arguments-exotic-objects-defineownproperty-p-desc",
 		"sec-other-properties-of-the-global-object-globalthis",
 		"sec-variable-statement-runtime-semantics-evaluation",
+		"sec-function-definitions",
+		"sec-function-definitions-runtime-semantics-evaluation",
+		"sec-function-definitions-runtime-semantics-instantiatefunctionobject",
+		"sec-function-definitions-runtime-semantics-iteratorbindinginitialization",
+		"sec-function-definitions-static-semantics-early-errors",
+		"sec-functiondeclarationinstantiation",
 	}
 )
 

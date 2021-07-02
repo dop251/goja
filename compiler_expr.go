@@ -111,8 +111,8 @@ type compiledFunctionLiteral struct {
 	baseCompiledExpr
 	expr    *ast.FunctionLiteral
 	lhsName unistring.String
+	strict  *ast.StringLiteral
 	isExpr  bool
-	strict  bool
 }
 
 type compiledBracketExpr struct {
@@ -864,12 +864,13 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	}
 
 	if !e.c.scope.strict {
-		e.c.scope.strict = e.strict
+		e.c.scope.strict = e.strict != nil
 	}
 
 	hasPatterns := false
 	hasInits := false
 	firstDupIdx := -1
+	length := 0
 
 	if e.expr.ParameterList.Rest != nil {
 		hasPatterns = true // strictly speaking not, but we need to activate all the checks
@@ -887,7 +888,8 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 			b.isArg = true
 			b.isVar = true
 		case ast.Pattern:
-			e.c.scope.addBinding(int(item.Idx0()) - 1)
+			b := e.c.scope.addBinding(int(item.Idx0()) - 1)
+			b.isArg = true
 			hasPatterns = true
 		default:
 			e.c.throwSyntaxError(int(item.Idx0())-1, "Unsupported BindingElement type: %T", item)
@@ -896,9 +898,18 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		if item.Initializer != nil {
 			hasInits = true
 		}
-		if (hasPatterns || hasInits) && firstDupIdx >= 0 {
-			e.c.throwSyntaxError(firstDupIdx, "Duplicate parameter name not allowed in this context")
-			return
+		if hasPatterns || hasInits {
+			if firstDupIdx >= 0 {
+				e.c.throwSyntaxError(firstDupIdx, "Duplicate parameter name not allowed in this context")
+				return
+			}
+			if e.strict != nil {
+				e.c.throwSyntaxError(int(e.strict.Idx)-1, "Illegal 'use strict' directive in function with non-simple parameter list")
+				return
+			}
+		}
+		if !hasInits {
+			length++
 		}
 	}
 
@@ -920,58 +931,106 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	paramsCount := len(e.expr.ParameterList.List)
 
 	e.c.scope.numArgs = paramsCount
-	e.c.compileDeclList(e.expr.DeclarationList, true)
 	body := e.expr.Body.List
 	funcs := e.c.extractFunctions(body)
-	e.c.createFunctionBindings(funcs)
 	s := e.c.scope
-	e.c.compileLexicalDeclarations(body, true)
 	var calleeBinding *binding
 	if e.isExpr && e.expr.Name != nil {
-		if b, created := s.bindName(e.expr.Name.Name); created {
+		if b, created := s.bindNameLexical(e.expr.Name.Name, false, 0); created {
+			b.isConst = true
 			calleeBinding = b
 		}
 	}
 	preambleLen := 4 // enter, boxThis, createArgs, set
 	e.c.p.code = make([]instruction, preambleLen, 8)
 
+	if calleeBinding != nil {
+		e.c.emit(loadCallee)
+		calleeBinding.emitInit()
+	}
+
 	emitArgsRestMark := -1
+	firstForwardRef := -1
+	enterFunc2Mark := -1
 
 	if hasPatterns || hasInits {
 		for i, item := range e.expr.ParameterList.List {
 			if pattern, ok := item.Target.(ast.Pattern); ok {
 				i := i
 				e.c.compilePatternInitExpr(func() {
-					e.c.scope.bindings[i].emitGet()
+					if firstForwardRef == -1 {
+						s.bindings[i].emitGet()
+					} else {
+						e.c.emit(loadStackLex(-i - 1))
+					}
 				}, item.Initializer, item.Target.Idx0()).emitGetter(true)
 				e.c.emitPattern(pattern, func(target, init compiledExpr) {
-					e.c.emitPatternLexicalAssign(target, init, true)
+					e.c.emitPatternLexicalAssign(target, init, false)
 				}, false)
 			} else if item.Initializer != nil {
-				e.c.scope.bindings[i].emitGet()
+				markGet := len(e.c.p.code)
+				e.c.emit(nil)
 				mark := len(e.c.p.code)
 				e.c.emit(nil)
 				e.c.compileExpression(item.Initializer).emitGetter(true)
-				e.c.scope.bindings[i].emitSet()
-				e.c.p.code[mark] = jdef(len(e.c.p.code) - mark)
-				e.c.emit(pop)
+				if firstForwardRef == -1 && (s.isDynamic() || s.bindings[i].useCount() > 0) {
+					firstForwardRef = i
+				}
+				if firstForwardRef == -1 {
+					s.bindings[i].emitGetAt(markGet)
+				} else {
+					e.c.p.code[markGet] = loadStackLex(-i - 1)
+				}
+				s.bindings[i].emitInit()
+				e.c.p.code[mark] = jdefP(len(e.c.p.code) - mark)
+			} else {
+				if firstForwardRef == -1 && s.bindings[i].useCount() > 0 {
+					firstForwardRef = i
+				}
+				if firstForwardRef != -1 {
+					e.c.emit(loadStackLex(-i - 1))
+					s.bindings[i].emitInit()
+				}
 			}
 		}
 		if rest := e.expr.ParameterList.Rest; rest != nil {
-			e.c.emitAssign(rest, &compiledEmitterExpr{
-				emitter: func() {
+			e.c.emitAssign(rest, e.c.compileEmitterExpr(
+				func() {
 					emitArgsRestMark = len(e.c.p.code)
 					e.c.emit(createArgsRestStack(paramsCount))
-				},
-			}, func(target, init compiledExpr) {
-				e.c.emitPatternLexicalAssign(target, init, true)
-			})
+				}, rest.Idx0()),
+				func(target, init compiledExpr) {
+					e.c.emitPatternLexicalAssign(target, init, false)
+				})
 		}
-	}
+		if firstForwardRef != -1 {
+			for _, b := range s.bindings {
+				b.inStash = true
+			}
+			s.argsInStash = true
+			s.needStash = true
+		}
 
-	if calleeBinding != nil {
-		e.c.emit(loadCallee)
-		calleeBinding.emitSetP()
+		e.c.newBlockScope()
+		varScope := e.c.scope
+		varScope.variable = true
+		enterFunc2Mark = len(e.c.p.code)
+		e.c.emit(nil)
+		e.c.compileDeclList(e.expr.DeclarationList, true)
+		e.c.createFunctionBindings(funcs)
+		e.c.compileLexicalDeclarationsFuncBody(body, calleeBinding)
+		for _, b := range varScope.bindings {
+			if b.isVar {
+				if parentBinding := s.boundNames[b.name]; parentBinding != nil && parentBinding != calleeBinding {
+					parentBinding.emitGet()
+					b.emitSetP()
+				}
+			}
+		}
+	} else {
+		e.c.compileDeclList(e.expr.DeclarationList, true)
+		e.c.createFunctionBindings(funcs)
+		e.c.compileLexicalDeclarations(body, true)
 	}
 
 	e.c.compileFunctions(funcs)
@@ -993,23 +1052,27 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		preambleLen += 2
 	}
 
-	if (s.argsNeeded || s.isDynamic()) && !s.argsInStash {
+	if !s.argsInStash && (s.argsNeeded || s.isDynamic()) {
 		s.moveArgsToStash()
 	}
 
 	if s.argsNeeded {
 		pos := preambleLen - 2
 		delta += 2
-		if s.strict {
+		if s.strict || hasPatterns || hasInits {
 			code[pos] = createArgsUnmapped(paramsCount)
 		} else {
 			code[pos] = createArgsMapped(paramsCount)
 		}
 		pos++
-		b, _ := s.bindName("arguments")
-		e.c.p.code = code[:pos]
-		b.emitSetP()
-		e.c.p.code = code
+		b, _ := s.bindNameLexical("arguments", false, 0)
+		if s.strict {
+			b.isConst = true
+		} else {
+			b.isVar = true
+		}
+		b.markAccessPointAtScope(s, pos)
+		code[pos] = storeStashP(0)
 	}
 
 	stashSize, stackSize := s.finaliseVarAlloc(0)
@@ -1022,17 +1085,45 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	delta = preambleLen - delta
 	var enter instruction
 	if stashSize > 0 || s.argsInStash {
-		enter1 := enterFunc{
-			numArgs:     uint32(paramsCount),
-			argsToStash: s.argsInStash,
-			stashSize:   uint32(stashSize),
-			stackSize:   uint32(stackSize),
-			extensible:  s.dynamic,
+		if firstForwardRef == -1 {
+			enter1 := enterFunc{
+				numArgs:     uint32(paramsCount),
+				argsToStash: s.argsInStash,
+				stashSize:   uint32(stashSize),
+				stackSize:   uint32(stackSize),
+				extensible:  s.dynamic,
+			}
+			if s.isDynamic() {
+				enter1.names = s.makeNamesMap()
+			}
+			enter = &enter1
+			if enterFunc2Mark != -1 {
+				ef2 := &enterFuncBody{
+					extensible: e.c.scope.dynamic,
+				}
+				e.c.updateEnterBlock(&ef2.enterBlock)
+				e.c.p.code[enterFunc2Mark] = ef2
+			}
+		} else {
+			enter1 := enterFunc1{
+				stashSize:  uint32(stashSize),
+				numArgs:    uint32(paramsCount),
+				argsToCopy: uint32(firstForwardRef),
+				extensible: s.dynamic,
+			}
+			if s.isDynamic() {
+				enter1.names = s.makeNamesMap()
+			}
+			enter = &enter1
+			if enterFunc2Mark != -1 {
+				ef2 := &enterFuncBody{
+					adjustStack: true,
+					extensible:  e.c.scope.dynamic,
+				}
+				e.c.updateEnterBlock(&ef2.enterBlock)
+				e.c.p.code[enterFunc2Mark] = ef2
+			}
 		}
-		if s.isDynamic() {
-			enter1.names = s.makeNamesMap()
-		}
-		enter = &enter1
 		if emitArgsRestMark != -1 {
 			e.c.p.code[emitArgsRestMark] = createArgsRestStash
 		}
@@ -1040,6 +1131,13 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		enter = &enterFuncStashless{
 			stackSize: uint32(stackSize),
 			args:      uint32(paramsCount),
+		}
+		if enterFunc2Mark != -1 {
+			ef2 := &enterFuncBody{
+				extensible: e.c.scope.dynamic,
+			}
+			e.c.updateEnterBlock(&ef2.enterBlock)
+			e.c.p.code[enterFunc2Mark] = ef2
 		}
 	}
 	code[delta] = enter
@@ -1054,23 +1152,26 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	strict := s.strict
 	p := e.c.p
 	// e.c.p.dumpCode()
+	if enterFunc2Mark != -1 {
+		e.c.popScope()
+	}
 	e.c.popScope()
 	e.c.p = savedPrg
-	e.c.emit(&newFunc{prg: p, length: uint32(paramsCount), name: name, srcStart: uint32(e.expr.Idx0() - 1), srcEnd: uint32(e.expr.Idx1() - 1), strict: strict})
+	e.c.emit(&newFunc{prg: p, length: uint32(length), name: name, srcStart: uint32(e.expr.Idx0() - 1), srcEnd: uint32(e.expr.Idx1() - 1), strict: strict})
 	if !putOnStack {
 		e.c.emit(pop)
 	}
 }
 
 func (c *compiler) compileFunctionLiteral(v *ast.FunctionLiteral, isExpr bool) *compiledFunctionLiteral {
-	strict := c.scope.strict || c.isStrictStatement(v.Body)
-	if v.Name != nil && strict {
+	strictBody := c.isStrictStatement(v.Body)
+	if v.Name != nil && (c.scope.strict || strictBody != nil) {
 		c.checkIdentifierLName(v.Name.Name, int(v.Name.Idx)-1)
 	}
 	r := &compiledFunctionLiteral{
 		expr:   v,
 		isExpr: isExpr,
-		strict: strict,
+		strict: strictBody,
 	}
 	r.init(c, v.Idx0())
 	return r
@@ -1688,11 +1789,14 @@ func (e *compiledCallExpr) emitGetter(putOnStack bool) {
 
 	e.addSrcMap()
 	if calleeName == "eval" {
-		foundFunc := false
+		foundFunc, foundVar := false, false
 		for sc := e.c.scope; sc != nil; sc = sc.outer {
 			if !foundFunc && sc.function {
 				foundFunc = true
 				sc.thisNeeded, sc.argsNeeded = true, true
+			}
+			if !foundVar && (sc.variable || sc.function) {
+				foundVar = true
 				if !sc.strict {
 					sc.dynamic = true
 				}

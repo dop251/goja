@@ -25,7 +25,7 @@ type stash struct {
 
 	outer *stash
 
-	function bool
+	variable bool
 }
 
 type context struct {
@@ -90,10 +90,13 @@ func (r *stashRefLex) set(v Value) {
 
 type stashRefConst struct {
 	stashRefLex
+	strictConst bool
 }
 
 func (r *stashRefConst) set(v Value) {
-	panic(errAssignToConst)
+	if r.strictConst {
+		panic(errAssignToConst)
+	}
 }
 
 type objRef struct {
@@ -325,6 +328,7 @@ func (s *stash) getRefByName(name unistring.String, strict bool) ref {
 								idx: int(idx &^ maskTyp),
 							},
 						},
+						strictConst: strict || (idx&maskStrict != 0),
 					}
 				}
 			} else {
@@ -360,7 +364,7 @@ func (s *stash) createLexBinding(name unistring.String, isConst bool) {
 	if _, exists := s.names[name]; !exists {
 		idx := uint32(len(s.names))
 		if isConst {
-			idx |= maskConst
+			idx |= maskConst | maskStrict
 		}
 		s.names[name] = idx
 		s.values = append(s.values, nil)
@@ -771,9 +775,10 @@ func (vm *vm) storeStack1Lex(s int) {
 
 func (vm *vm) initStack(s int) {
 	if s <= 0 {
-		panic("Illegal stack var index")
+		vm.stack[vm.sb-s] = vm.stack[vm.sp-1]
+	} else {
+		vm.stack[vm.sb+vm.args+s] = vm.stack[vm.sp-1]
 	}
-	vm.stack[vm.sb+vm.args+s] = vm.stack[vm.sp-1]
 	vm.pc++
 }
 
@@ -2211,7 +2216,7 @@ func newStashRef(typ varType, name unistring.String, v *[]Value, idx int) ref {
 				idx: idx,
 			},
 		}
-	case varTypeConst:
+	case varTypeConst, varTypeStrictConst:
 		return &stashRefConst{
 			stashRefLex: stashRefLex{
 				stashRef: stashRef{
@@ -2220,6 +2225,7 @@ func newStashRef(typ varType, name unistring.String, v *[]Value, idx int) ref {
 					idx: idx,
 				},
 			},
+			strictConst: typ == varTypeStrictConst,
 		}
 	}
 	panic("unsupported var type")
@@ -2649,7 +2655,7 @@ func (e *enterFunc) exec(vm *vm) {
 	vm.sb = sp - vm.args - 1
 	vm.newStash()
 	stash := vm.stash
-	stash.function = true
+	stash.variable = true
 	stash.values = make([]Value, e.stashSize)
 	if len(e.names) > 0 {
 		if e.extensible {
@@ -2698,6 +2704,92 @@ func (e *enterFunc) exec(vm *vm) {
 		vv[i] = nil
 	}
 	vm.sp = sp + ss
+	vm.pc++
+}
+
+type enterFunc1 struct {
+	names      map[unistring.String]uint32
+	stashSize  uint32
+	numArgs    uint32
+	argsToCopy uint32
+	extensible bool
+}
+
+func (e *enterFunc1) exec(vm *vm) {
+	sp := vm.sp
+	vm.sb = sp - vm.args - 1
+	vm.newStash()
+	stash := vm.stash
+	stash.variable = true
+	stash.values = make([]Value, e.stashSize)
+	if len(e.names) > 0 {
+		if e.extensible {
+			m := make(map[unistring.String]uint32, len(e.names))
+			for name, idx := range e.names {
+				m[name] = idx
+			}
+			stash.names = m
+		} else {
+			stash.names = e.names
+		}
+	}
+	offset := vm.args - int(e.argsToCopy)
+	if offset > 0 {
+		copy(stash.values, vm.stack[sp-vm.args:sp-offset])
+		if offset := vm.args - int(e.numArgs); offset > 0 {
+			vm.stash.extraArgs = make([]Value, offset)
+			copy(stash.extraArgs, vm.stack[sp-offset:])
+		}
+	} else {
+		copy(stash.values, vm.stack[sp-vm.args:sp])
+		if int(e.argsToCopy) > vm.args {
+			vv := stash.values[vm.args:e.argsToCopy]
+			for i := range vv {
+				vv[i] = _undefined
+			}
+		}
+	}
+
+	vm.pc++
+}
+
+type enterFuncBody struct {
+	enterBlock
+	extensible  bool
+	adjustStack bool
+}
+
+func (e *enterFuncBody) exec(vm *vm) {
+	if e.stashSize > 0 || e.extensible {
+		vm.newStash()
+		stash := vm.stash
+		stash.variable = true
+		stash.values = make([]Value, e.stashSize)
+		if len(e.names) > 0 {
+			if e.extensible {
+				m := make(map[unistring.String]uint32, len(e.names))
+				for name, idx := range e.names {
+					m[name] = idx
+				}
+				stash.names = m
+			} else {
+				stash.names = e.names
+			}
+		}
+	}
+	sp := vm.sp
+	if e.adjustStack {
+		sp -= vm.args
+	}
+	nsp := sp + int(e.stackSize)
+	if e.stackSize > 0 {
+		vm.stack.expand(nsp - 1)
+		vv := vm.stack[sp:nsp]
+		for i := range vv {
+			vv[i] = nil
+		}
+	}
+	sp = nsp
 	vm.pc++
 }
 
@@ -2931,7 +3023,7 @@ func (d *bindVars) exec(vm *vm) {
 			if idx, exists := s.names[name]; exists && idx&maskVar == 0 {
 				panic(vm.alreadyDeclared(name))
 			}
-			if s.function {
+			if s.variable {
 				target = s
 				break
 			}
@@ -3022,6 +3114,17 @@ func (j jdef) exec(vm *vm) {
 		vm.sp--
 		vm.pc++
 	}
+}
+
+type jdefP int32
+
+func (j jdefP) exec(vm *vm) {
+	if vm.stack[vm.sp-1] != _undefined {
+		vm.pc += int(j)
+	} else {
+		vm.pc++
+	}
+	vm.sp--
 }
 
 type _not struct{}

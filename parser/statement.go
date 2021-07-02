@@ -185,20 +185,6 @@ func (self *_parser) parseFunctionParameterList() *ast.ParameterList {
 	}
 }
 
-func (self *_parser) parseParameterList() (list []string) {
-	for self.token != token.EOF {
-		if self.token != token.IDENTIFIER {
-			self.expect(token.IDENTIFIER)
-		}
-		list = append(list, self.literal)
-		self.next()
-		if self.token != token.EOF {
-			self.expect(token.COMMA)
-		}
-	}
-	return
-}
-
 func (self *_parser) parseFunction(declaration bool) *ast.FunctionLiteral {
 
 	node := &ast.FunctionLiteral{

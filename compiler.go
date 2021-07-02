@@ -26,9 +26,10 @@ const (
 const (
 	maskConst     = 1 << 31
 	maskVar       = 1 << 30
-	maskDeletable = maskConst
+	maskDeletable = 1 << 29
+	maskStrict    = maskDeletable
 
-	maskTyp = maskConst | maskVar
+	maskTyp = maskConst | maskVar | maskDeletable
 )
 
 type varType byte
@@ -36,6 +37,7 @@ type varType byte
 const (
 	varTypeVar varType = iota
 	varTypeLet
+	varTypeStrictConst
 	varTypeConst
 )
 
@@ -82,6 +84,7 @@ type binding struct {
 	name         unistring.String
 	accessPoints map[*scope]*[]int
 	isConst      bool
+	isStrict     bool
 	isArg        bool
 	isVar        bool
 	inStash      bool
@@ -100,6 +103,17 @@ func (b *binding) getAccessPointsForScope(s *scope) *[]int {
 	return m
 }
 
+func (b *binding) markAccessPointAt(pos int) {
+	scope := b.scope.c.scope
+	m := b.getAccessPointsForScope(scope)
+	*m = append(*m, pos-scope.base)
+}
+
+func (b *binding) markAccessPointAtScope(scope *scope, pos int) {
+	m := b.getAccessPointsForScope(scope)
+	*m = append(*m, pos-scope.base)
+}
+
 func (b *binding) markAccessPoint() {
 	scope := b.scope.c.scope
 	m := b.getAccessPointsForScope(scope)
@@ -115,6 +129,15 @@ func (b *binding) emitGet() {
 	}
 }
 
+func (b *binding) emitGetAt(pos int) {
+	b.markAccessPointAt(pos)
+	if b.isVar && !b.isArg {
+		b.scope.c.p.code[pos] = loadStash(0)
+	} else {
+		b.scope.c.p.code[pos] = loadStashLex(0)
+	}
+}
+
 func (b *binding) emitGetP() {
 	if b.isVar && !b.isArg {
 		// no-op
@@ -127,7 +150,9 @@ func (b *binding) emitGetP() {
 
 func (b *binding) emitSet() {
 	if b.isConst {
-		b.scope.c.emit(throwAssignToConst)
+		if b.isStrict || b.scope.c.scope.strict {
+			b.scope.c.emit(throwAssignToConst)
+		}
 		return
 	}
 	b.markAccessPoint()
@@ -140,7 +165,9 @@ func (b *binding) emitSet() {
 
 func (b *binding) emitSetP() {
 	if b.isConst {
-		b.scope.c.emit(throwAssignToConst)
+		if b.isStrict || b.scope.c.scope.strict {
+			b.scope.c.emit(throwAssignToConst)
+		}
 		return
 	}
 	b.markAccessPoint()
@@ -172,7 +199,11 @@ func (b *binding) emitResolveVar(strict bool) {
 	} else {
 		var typ varType
 		if b.isConst {
-			typ = varTypeConst
+			if b.isStrict {
+				typ = varTypeStrictConst
+			} else {
+				typ = varTypeConst
+			}
 		} else {
 			typ = varTypeLet
 		}
@@ -217,6 +248,7 @@ type scope struct {
 
 	// is a function or a top-level lexical environment
 	function bool
+	variable bool
 	// a function scope that has at least one direct eval() and non-strict, so the variables can be added dynamically
 	dynamic bool
 	// arguments have been marked for placement in stash (functions only)
@@ -406,7 +438,7 @@ func (s *scope) bindNameLexical(name unistring.String, unique bool, offset int) 
 }
 
 func (s *scope) bindName(name unistring.String) (*binding, bool) {
-	if !s.function && s.outer != nil {
+	if !s.function && !s.variable && s.outer != nil {
 		return s.outer.bindName(name)
 	}
 	b, created := s.bindNameLexical(name, false, 0)
@@ -600,6 +632,9 @@ func (s *scope) makeNamesMap() map[unistring.String]uint32 {
 		idx := uint32(i)
 		if b.isConst {
 			idx |= maskConst
+			if b.isStrict {
+				idx |= maskStrict
+			}
 		}
 		if b.isVar {
 			idx |= maskVar
@@ -637,7 +672,7 @@ func (c *compiler) compile(in *ast.Program, strict, eval, inGlobal bool) {
 	scope.dynamic = true
 	scope.eval = eval
 	if !strict && len(in.Body) > 0 {
-		strict = c.isStrict(in.Body)
+		strict = c.isStrict(in.Body) != nil
 	}
 	scope.strict = strict
 	ownVarScope := eval && strict
@@ -752,7 +787,7 @@ func (c *compiler) extractFunctions(list []ast.Statement) (funcs []*ast.Function
 func (c *compiler) createFunctionBindings(funcs []*ast.FunctionDeclaration) {
 	s := c.scope
 	if s.outer != nil {
-		unique := !s.function && s.strict
+		unique := !s.function && !s.variable && s.strict
 		for _, decl := range funcs {
 			s.bindNameLexical(decl.Function.Name.Name, unique, int(decl.Function.Name.Idx1())-1)
 		}
@@ -859,7 +894,31 @@ func (c *compiler) createLexicalIdBinding(name unistring.String, isConst bool, o
 		c.checkIdentifierName(name, offset)
 	}
 	b, _ := c.scope.bindNameLexical(name, true, offset)
-	b.isConst = isConst
+	if isConst {
+		b.isConst, b.isStrict = true, true
+	}
+	return b
+}
+
+func (c *compiler) createLexicalIdBindingFuncBody(name unistring.String, isConst bool, offset int, calleeBinding *binding) *binding {
+	if name == "let" {
+		c.throwSyntaxError(offset, "let is disallowed as a lexically bound name")
+	}
+	if c.scope.strict {
+		c.checkIdentifierLName(name, offset)
+		c.checkIdentifierName(name, offset)
+	}
+	paramScope := c.scope.outer
+	parentBinding := paramScope.boundNames[name]
+	if parentBinding != nil {
+		if parentBinding != calleeBinding && (name != "arguments" || !paramScope.argsNeeded) {
+			c.throwSyntaxError(offset, "Identifier '%s' has already been declared", name)
+		}
+	}
+	b, _ := c.scope.bindNameLexical(name, true, offset)
+	if isConst {
+		b.isConst, b.isStrict = true, true
+	}
 	return b
 }
 
@@ -886,6 +945,19 @@ func (c *compiler) compileLexicalDeclarations(list []ast.Statement, scopeDeclare
 		}
 	}
 	return scopeDeclared
+}
+
+func (c *compiler) compileLexicalDeclarationsFuncBody(list []ast.Statement, calleeBinding *binding) {
+	for _, st := range list {
+		if lex, ok := st.(*ast.LexicalDeclaration); ok {
+			isConst := lex.Token == token.CONST
+			for _, d := range lex.List {
+				c.createBindings(d.Target, func(name unistring.String, offset int) {
+					c.createLexicalIdBindingFuncBody(name, isConst, offset, calleeBinding)
+				})
+			}
+		}
+	}
 }
 
 func (c *compiler) compileFunction(v *ast.FunctionDeclaration) {
@@ -924,12 +996,12 @@ func (c *compiler) throwSyntaxError(offset int, format string, args ...interface
 	})
 }
 
-func (c *compiler) isStrict(list []ast.Statement) bool {
+func (c *compiler) isStrict(list []ast.Statement) *ast.StringLiteral {
 	for _, st := range list {
 		if st, ok := st.(*ast.ExpressionStatement); ok {
 			if e, ok := st.Expression.(*ast.StringLiteral); ok {
 				if e.Literal == `"use strict"` || e.Literal == `'use strict'` {
-					return true
+					return e
 				}
 			} else {
 				break
@@ -938,14 +1010,14 @@ func (c *compiler) isStrict(list []ast.Statement) bool {
 			break
 		}
 	}
-	return false
+	return nil
 }
 
-func (c *compiler) isStrictStatement(s ast.Statement) bool {
+func (c *compiler) isStrictStatement(s ast.Statement) *ast.StringLiteral {
 	if s, ok := s.(*ast.BlockStatement); ok {
 		return c.isStrict(s.List)
 	}
-	return false
+	return nil
 }
 
 func (c *compiler) checkIdentifierName(name unistring.String, offset int) {

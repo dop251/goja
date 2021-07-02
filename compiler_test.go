@@ -3860,6 +3860,92 @@ func TestFuncParamRestPattern(t *testing.T) {
 	testScript1(SCRIPT, asciiString("1 2 3"), t)
 }
 
+func TestFuncParamForwardRef(t *testing.T) {
+	const SCRIPT = `
+	function f(a = b + 1, b) {
+		return ""+a+" "+b;
+	}
+	f(1, 2);
+	`
+	testScript1(SCRIPT, asciiString("1 2"), t)
+}
+
+func TestFuncParamForwardRefMissing(t *testing.T) {
+	const SCRIPT = `
+	function f(a = b + 1, b) {
+		return ""+a+" "+b;
+	}
+	assert.throws(ReferenceError, function() {
+		f();
+	});
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestFuncParamInnerRef(t *testing.T) {
+	const SCRIPT = `
+	function f(a = inner) {
+		var inner = 42;
+		return a;
+	}
+	assert.throws(ReferenceError, function() {
+		f();
+	});
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestFuncParamInnerRefEval(t *testing.T) {
+	const SCRIPT = `
+	function f(a = eval("inner")) {
+		var inner = 42;
+		return a;
+	}
+	assert.throws(ReferenceError, function() {
+		f();
+	});
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestFuncParamCalleeName(t *testing.T) {
+	const SCRIPT = `
+	function f(a = f) {
+		var f;
+		return f;
+	}
+	typeof f();
+	`
+	testScript1(SCRIPT, asciiString("undefined"), t)
+}
+
+func TestFuncParamVarCopy(t *testing.T) {
+	const SCRIPT = `
+	function f(a = f) {
+		var a;
+		return a;
+	}
+	typeof f();
+	`
+	testScript1(SCRIPT, asciiString("function"), t)
+}
+
+func TestFuncParamScope(t *testing.T) {
+	const SCRIPT = `
+	var x = 'outside';
+	var probe1, probe2;
+	
+	function f(
+		_ = probe1 = function() { return x; },
+		__ = (eval('var x = "inside";'), probe2 = function() { return x; })
+	) {
+	}
+	f();
+	probe1()+" "+probe2();
+	`
+	testScript1(SCRIPT, asciiString("inside inside"), t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")
