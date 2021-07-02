@@ -423,7 +423,7 @@ func (vm *vm) debug() {
 	vm.halt = false
 	interrupted := false
 	ticks := 0
-	vm.debugger.activate(ProgramStartActivation)
+	// vm.debugger.activate(ProgramStartActivation)
 
 	for !vm.halt {
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
@@ -431,12 +431,10 @@ func (vm *vm) debug() {
 		}
 
 		if vm.debugger != nil && !vm.debugger.active && vm.debugger.isBreakpoint() {
-			// lastLine := vm.debugger.Line()
 			vm.debugger.updateCurrentLine()
 			vm.debugger.activate(BreakpointActivation)
 
 			vm.prg.code[vm.pc].exec(vm)
-			// vm.debugger.updateLastLine(lastLine)
 		} else {
 			vm.prg.code[vm.pc].exec(vm)
 		}
