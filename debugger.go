@@ -204,6 +204,8 @@ func (dbg *Debugger) updateLastLine(lineNumber int) {
 
 func (dbg *Debugger) Line() int {
 	// FIXME: Some lines are skipped, which causes this function to report incorrect lines
+	// TODO: lines inside function are reported differently and the vm.pc is reset from the start
+	// of each function, so account for functions (ref: TestDebuggerStepIn)
 	return dbg.vm.prg.src.Position(dbg.vm.prg.sourceOffset(dbg.vm.pc)).Line
 }
 
