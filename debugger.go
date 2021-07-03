@@ -133,25 +133,6 @@ func (dbg *Debugger) Next() error {
 	return nil
 }
 
-func (dbg *Debugger) Continue() error {
-	// TODO: implement proper error propagation
-	lastLine := dbg.Line()
-	dbg.updateCurrentLine()
-	for dbg.isSafeToRun() && !dbg.isDebuggerStatement() {
-		if dbg.isBreakpoint() {
-			// dbg.REPL(dbg, false)
-			// TODO: wait for command
-			dbg.updateCurrentLine()
-			dbg.updateLastLine(lastLine)
-			return nil
-		}
-		dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
-		dbg.updateCurrentLine()
-	}
-	dbg.updateLastLine(lastLine)
-	return nil
-}
-
 func (dbg *Debugger) Exec(expr string) (Value, error) {
 	if expr == "" {
 		return nil, errors.New("nothing to execute")
