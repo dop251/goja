@@ -6,7 +6,103 @@ import (
 	"github.com/dop251/goja/parser"
 )
 
-func TestDebuggerSimpleCaseWhereExecAndPrintDontWork(t *testing.T) {
+func TestDebuggerNext(t *testing.T) {
+	const SCRIPT = `debugger
+	x = 1;
+	y = 2;
+	z = 3;
+	`
+	r := &Runtime{}
+	r.init()
+	debugger := r.EnableDebugMode()
+
+	ch := make(chan struct{})
+	go func() {
+		defer close(ch)
+		defer func() {
+			if t.Failed() {
+				r.Interrupt("failed test")
+			}
+		}()
+		reason, resume := debugger.WaitToActivate()
+		t.Logf("%d\n", debugger.Line())
+		if reason != DebuggerStatementActivation {
+			t.Fatalf("Wrong activation %s", reason)
+		}
+
+		if err := debugger.Next(); err != nil {
+			t.Fatalf("error while executing %s", err)
+		}
+		if debugger.PC() != 4 && debugger.Line() != 3 {
+			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+		} else {
+			src, _ := debugger.List()
+			t.Logf("Go to line 3: > %s\n", src[debugger.Line()-1])
+		}
+
+		if err := debugger.Next(); err != nil {
+			t.Fatalf("error while executing %s", err)
+		}
+		if debugger.PC() != 6 && debugger.Line() != 4 {
+			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+		} else {
+			src, _ := debugger.List()
+			t.Logf("Go to line 4: > %s\n", src[debugger.Line()-1])
+		}
+		resume()
+	}()
+	testScript1WithRuntime(SCRIPT, intToValue(3), t, r)
+	<-ch // wait for the debugger
+}
+
+func TestDebuggerContinue(t *testing.T) {
+	const SCRIPT = `debugger
+	x = 1;
+	y = 2;
+	z = 3;
+	debugger;
+	f = 4;
+	`
+	r := &Runtime{}
+	r.init()
+	debugger := r.EnableDebugMode()
+
+	ch := make(chan struct{})
+	go func() {
+		defer close(ch)
+		defer func() {
+			if t.Failed() {
+				r.Interrupt("failed test")
+			}
+		}()
+		reason, resume := debugger.WaitToActivate()
+		t.Logf("%d\n", debugger.Line())
+		if reason != DebuggerStatementActivation {
+			t.Fatalf("Wrong activation %s", reason)
+		} else {
+			t.Log("Hit first debugger statement")
+		}
+		resume()
+		reason, resume = debugger.WaitToActivate()
+		if reason != DebuggerStatementActivation {
+			t.Fatalf("Wrong activation %s", reason)
+		} else {
+			t.Log("Hit second debugger statement")
+		}
+
+		if debugger.PC() != 7 && debugger.Line() != 6 {
+			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+		} else {
+			src, _ := debugger.List()
+			t.Logf("Continue to line 6: > %s\n", src[debugger.Line()-1])
+		}
+		resume()
+	}()
+	testScript1WithRuntime(SCRIPT, intToValue(4), t, r)
+	<-ch // wait for the debugger
+}
+
+func TestDebuggerExecAndPrint(t *testing.T) {
 	const SCRIPT = `
 	function test() {
 		var a = true;
@@ -27,26 +123,30 @@ func TestDebuggerSimpleCaseWhereExecAndPrintDontWork(t *testing.T) {
 				r.Interrupt("failed test")
 			}
 		}()
-		b, c := debugger.WaitToActivate()
+		reason, resume := debugger.WaitToActivate()
 		t.Logf("%d\n", debugger.Line())
-		if b != DebuggerStatementActivation {
-			t.Fatalf("Wrong activation %s", b)
+		if reason != DebuggerStatementActivation {
+			t.Fatalf("Wrong activation %s", reason)
 		}
 		if v, err := debugger.Exec("a = false"); err != nil {
 			t.Fatalf("error while executing %s", err)
-		} else if v.ToBoolean() { // TODO this is wrong it should be false, but it doesn't work
+		} else if v.ToBoolean() {
 			t.Fatalf("wrong returned value %+v", v)
+		} else {
+			t.Logf("SET a = %s", v)
 		}
 
-		if v, err := debugger.Print("a"); err != nil { // this should work and return false ... but it doesn't
+		if v, err := debugger.Print("a"); err != nil {
 			t.Fatalf(" error while executing %s", err)
-		} else if v == "true" { // TODO this is wrong it should be false, but it doesn't work
+		} else if v == "true" {
 			t.Fatalf("wrong returned value %+v", v)
+		} else {
+			t.Logf("GET a == %s", v)
 		}
-		c()
+		resume()
 	}()
-	testScript1WithRuntime(SCRIPT, valueFalse, t, r) // TODO: this should be valueFalse, but it doesn't work
-	<-ch                                             // wait for the debugger
+	testScript1WithRuntime(SCRIPT, valueFalse, t, r)
+	<-ch // wait for the debugger
 }
 
 func TestDebuggerSimpleCaseWhereLineIsIncorrectlyReported(t *testing.T) {
@@ -73,13 +173,14 @@ func TestDebuggerSimpleCaseWhereLineIsIncorrectlyReported(t *testing.T) {
 		}()
 		b, c := debugger.WaitToActivate()
 		t.Logf("PC: %d, Line: %d", debugger.PC(), debugger.Line())
-		if b != ProgramStartActivation {
-			// program should stop at program start activation
-			t.Fatalf("Wrong activation: %s", b)
+		if b != DebuggerStatementActivation {
+			t.Fatalf("wrong activation: %s", b)
 		}
-		if debugger.PC() == 3 && debugger.Line() != 1 {
+		if debugger.PC() != 2 && debugger.Line() != 1 {
 			// debugger should wait on the debugger statement and continue from there
-			t.Fatalf("Wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+			// yet it executes the debugger statement, which increases program counter (vm.pc) by 1,
+			// which causes the debugger to stop at the next executable line
+			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
 		}
 		c()
 	}()
