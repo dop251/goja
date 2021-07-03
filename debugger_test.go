@@ -201,6 +201,42 @@ func TestDebuggerExecAndPrint(t *testing.T) {
 	<-ch // wait for the debugger
 }
 
+func TestDebuggerList(t *testing.T) {
+	const SCRIPT = `debugger
+	x = 1;
+	`
+	r := &Runtime{}
+	r.init()
+	debugger := r.EnableDebugMode()
+
+	ch := make(chan struct{})
+	go func() {
+		defer close(ch)
+		defer func() {
+			if t.Failed() {
+				r.Interrupt("failed test")
+			}
+		}()
+		reason, resume := debugger.WaitToActivate()
+		t.Logf("%d\n", debugger.Line())
+		if reason != DebuggerStatementActivation {
+			t.Fatalf("Wrong activation %s", reason)
+		}
+
+		if err := debugger.Next(); err != nil {
+			t.Fatalf("error while executing %s", err)
+		}
+		if src, err := debugger.List(); err != nil || src[debugger.Line()-1] != "	x = 1;" {
+			t.Fatalf("error while executing %s", err)
+		} else {
+			t.Logf("Current line (%d) contains %s", debugger.Line(), src[debugger.Line()-1])
+		}
+		resume()
+	}()
+	testScript1WithRuntime(SCRIPT, intToValue(1), t, r)
+	<-ch // wait for the debugger
+}
+
 func TestDebuggerSimpleCaseWhereLineIsIncorrectlyReported(t *testing.T) {
 	t.Skip() // this is blocking forever
 	const SCRIPT = `debugger;
