@@ -102,6 +102,58 @@ func TestDebuggerContinue(t *testing.T) {
 	<-ch // wait for the debugger
 }
 
+func TestDebuggerStepIn(t *testing.T) {
+	const SCRIPT = `debugger
+	function test() {
+		a = 1 + 2;
+		return a
+	}
+	test()
+	`
+	r := &Runtime{}
+	r.init()
+	debugger := r.EnableDebugMode()
+
+	ch := make(chan struct{})
+	go func() {
+		defer close(ch)
+		defer func() {
+			if t.Failed() {
+				r.Interrupt("failed test")
+			}
+		}()
+		reason, resume := debugger.WaitToActivate()
+		t.Logf("%d\n", debugger.Line())
+		if reason != DebuggerStatementActivation {
+			t.Fatalf("Wrong activation %s", reason)
+		}
+
+		if err := debugger.StepIn(); err != nil {
+			t.Fatalf("error while executing %s", err)
+		}
+		if debugger.PC() != 4 && debugger.Line() != 6 {
+			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+		} else {
+			src, _ := debugger.List()
+			t.Logf("Step-in to line 6: > %s\n", src[debugger.Line()-1])
+		}
+
+		if err := debugger.StepIn(); err != nil {
+			t.Fatalf("error while executing %s", err)
+		}
+		// Running inside a function returns scoped vm.pc and line number (everything's reset)
+		if debugger.PC() != 0 && debugger.Line() != 1 {
+			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+		} else {
+			src, _ := debugger.List()
+			t.Logf("Step-in to line 2 (line 1 of function): > %s\n", src[debugger.Line()])
+		}
+		resume()
+	}()
+	testScript1WithRuntime(SCRIPT, intToValue(3), t, r)
+	<-ch // wait for the debugger
+}
+
 func TestDebuggerExecAndPrint(t *testing.T) {
 	const SCRIPT = `
 	function test() {
