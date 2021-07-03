@@ -158,7 +158,6 @@ type vm struct {
 
 	debugger  *Debugger
 	debugMode bool // TODO drop this as we can just check debugger is nil or not
-	debugCh   chan *Debugger
 }
 
 type instruction interface {
