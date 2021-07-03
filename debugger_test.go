@@ -6,6 +6,90 @@ import (
 	"github.com/dop251/goja/parser"
 )
 
+func TestDebuggerBreakpoint(t *testing.T) {
+	const SCRIPT = `
+	x = 1;
+	y = 2;
+	z = 3;
+	f = 4;
+	`
+
+	r := &Runtime{}
+	r.init()
+	debugger := r.EnableDebugMode()
+
+	if err := debugger.SetBreakpoint("test.js", 3); err != nil {
+		t.Fatal(err)
+	} else {
+		t.Log("Set breakpoint on line 3")
+	}
+	if err := debugger.SetBreakpoint("test.js", 4); err != nil {
+		t.Fatal(err)
+	} else {
+		t.Log("Set breakpoint on line 4")
+	}
+	if err := debugger.SetBreakpoint("test.js", 5); err != nil {
+		t.Fatal(err)
+	} else {
+		t.Log("Set breakpoint on line 5")
+	}
+
+	ch := make(chan struct{})
+	go func() {
+		defer close(ch)
+		defer func() {
+			if t.Failed() {
+				r.Interrupt("failed test")
+			}
+		}()
+
+		reason, resume := debugger.WaitToActivate()
+		if reason != BreakpointActivation {
+			t.Fatalf("wrong activation %s", reason)
+		} else {
+			t.Logf("hit first breakpoint on line %d", debugger.Line())
+		}
+
+		if debugger.Line() != 3 {
+			t.Fatalf("wrong line: %d", debugger.Line())
+		}
+		resume()
+
+		if err := debugger.ClearBreakpoint("test.js", 5); err != nil {
+			t.Fatal("cannot clear breakpoint on line 5")
+		} else {
+			t.Log("cleared breakpoint on line 5")
+		}
+
+		if breakpoints, err := debugger.Breakpoints(); err != nil {
+			t.Fatalf("error while executing %s", err)
+		} else {
+			t.Logf("breakpoints are now set on lines: %v", breakpoints["test.js"])
+		}
+
+		// Go to next, so that the breakpointed line is executed
+		debugger.Next()
+
+		reason, resume = debugger.WaitToActivate()
+		if reason != BreakpointActivation {
+			t.Fatalf("wrong activation %s", reason)
+		} else {
+			t.Logf("hit second breakpoint on line %d", debugger.Line())
+		}
+
+		if debugger.Line() != 4 {
+			t.Fatalf("wrong line: %d", debugger.Line())
+		}
+		resume()
+
+		// Go to next, so that the breakpointed line is executed
+		// This line acts as continue, since there are no blockers in the way (no breakpoints)
+		debugger.Next()
+	}()
+	testScript1WithRuntime(SCRIPT, intToValue(4), t, r)
+	<-ch // wait for the debugger
+}
+
 func TestDebuggerNext(t *testing.T) {
 	const SCRIPT = `debugger
 	x = 1;
@@ -27,7 +111,7 @@ func TestDebuggerNext(t *testing.T) {
 		reason, resume := debugger.WaitToActivate()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("Wrong activation %s", reason)
+			t.Fatalf("wrong activation %s", reason)
 		}
 
 		if err := debugger.Next(); err != nil {
@@ -78,14 +162,14 @@ func TestDebuggerContinue(t *testing.T) {
 		reason, resume := debugger.WaitToActivate()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("Wrong activation %s", reason)
+			t.Fatalf("wrong activation %s", reason)
 		} else {
 			t.Log("Hit first debugger statement")
 		}
 		resume()
 		reason, resume = debugger.WaitToActivate()
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("Wrong activation %s", reason)
+			t.Fatalf("wrong activation %s", reason)
 		} else {
 			t.Log("Hit second debugger statement")
 		}
@@ -125,7 +209,7 @@ func TestDebuggerStepIn(t *testing.T) {
 		reason, resume := debugger.WaitToActivate()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("Wrong activation %s", reason)
+			t.Fatalf("wrong activation %s", reason)
 		}
 
 		if err := debugger.StepIn(); err != nil {
@@ -178,7 +262,7 @@ func TestDebuggerExecAndPrint(t *testing.T) {
 		reason, resume := debugger.WaitToActivate()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("Wrong activation %s", reason)
+			t.Fatalf("wrong activation %s", reason)
 		}
 		if v, err := debugger.Exec("a = false"); err != nil {
 			t.Fatalf("error while executing %s", err)
@@ -220,7 +304,7 @@ func TestDebuggerList(t *testing.T) {
 		reason, resume := debugger.WaitToActivate()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("Wrong activation %s", reason)
+			t.Fatalf("wrong activation %s", reason)
 		}
 
 		if err := debugger.Next(); err != nil {
@@ -289,7 +373,7 @@ func testScript1WithRuntime(script string, expectedResult Value, t *testing.T, r
 	vm.prg = c.p
 	vm.prg.dumpCode(t.Logf)
 	vm.result = _undefined
-	vm.run()
+	vm.debug()
 	v := vm.result
 	t.Logf("stack size: %d", len(vm.stack))
 	t.Logf("stashAllocs: %d", vm.stashAllocs)

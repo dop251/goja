@@ -172,7 +172,7 @@ func stringToLines(s string) (lines []string, err error) {
 	return
 }
 
-func (dbg *Debugger) isBreakpoint() bool {
+func (dbg *Debugger) breakpoint() bool {
 	filename := dbg.Filename()
 	line := dbg.Line()
 

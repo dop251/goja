@@ -429,7 +429,7 @@ func (vm *vm) debug() {
 			break
 		}
 
-		if vm.debugger != nil && !vm.debugger.active && vm.debugger.isBreakpoint() {
+		if vm.debugger != nil && !vm.debugger.active && vm.debugger.breakpoint() {
 			vm.debugger.updateCurrentLine()
 			vm.debugger.activate(BreakpointActivation)
 
