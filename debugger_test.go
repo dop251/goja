@@ -142,7 +142,7 @@ func TestDebuggerStepIn(t *testing.T) {
 			t.Fatalf("error while executing %s", err)
 		}
 		// Running inside a function returns scoped vm.pc and line number (everything's reset)
-		if debugger.PC() != 0 && debugger.Line() != 1 {
+		if debugger.PC() != 0 && debugger.Line() != 2 {
 			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
 		} else {
 			src, _ := debugger.List()

@@ -102,7 +102,7 @@ func (dbg *Debugger) StepIn() error {
 	// TODO: implement proper error propagation
 	lastLine := dbg.Line()
 	dbg.updateCurrentLine()
-	if dbg.isSafeToRun() {
+	if dbg.safeToRun() {
 		dbg.updateCurrentLine()
 		dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
 		dbg.updateLastLine(lastLine)
@@ -118,7 +118,7 @@ func (dbg *Debugger) Next() error {
 	dbg.updateCurrentLine()
 	if dbg.getLastLine() != dbg.Line() {
 		nextLine := dbg.getNextLine()
-		for dbg.isSafeToRun() && nextLine > 0 && dbg.Line() != nextLine {
+		for dbg.safeToRun() && nextLine > 0 && dbg.Line() != nextLine {
 			dbg.updateCurrentLine()
 			dbg.vm.prg.code[dbg.vm.pc].exec(dbg.vm)
 		}
@@ -172,10 +172,6 @@ func stringToLines(s string) (lines []string, err error) {
 	return
 }
 
-func (dbg *Debugger) isDebuggerStatement() bool {
-	return dbg.vm.prg.code[dbg.vm.pc] == debugger
-}
-
 func (dbg *Debugger) isBreakpoint() bool {
 	filename := dbg.Filename()
 	line := dbg.Line()
@@ -227,7 +223,7 @@ func (dbg *Debugger) getNextLine() int {
 	return 0
 }
 
-func (dbg *Debugger) isSafeToRun() bool {
+func (dbg *Debugger) safeToRun() bool {
 	return dbg.vm.pc < len(dbg.vm.prg.code)
 }
 
