@@ -16,7 +16,7 @@ func TestDebuggerBreakpoint(t *testing.T) {
 
 	r := &Runtime{}
 	r.init()
-	debugger := r.EnableDebugMode()
+	debugger := r.AttachDebugger()
 
 	if err := debugger.SetBreakpoint("test.js", 3); err != nil {
 		t.Fatal(err)
@@ -37,13 +37,14 @@ func TestDebuggerBreakpoint(t *testing.T) {
 	ch := make(chan struct{})
 	go func() {
 		defer close(ch)
+		defer debugger.Detach()
 		defer func() {
 			if t.Failed() {
 				r.Interrupt("failed test")
 			}
 		}()
 
-		reason, resume := debugger.WaitToActivate()
+		reason := debugger.Continue()
 		if reason != BreakpointActivation {
 			t.Fatalf("wrong activation %s", reason)
 		} else {
@@ -53,7 +54,6 @@ func TestDebuggerBreakpoint(t *testing.T) {
 		if debugger.Line() != 3 {
 			t.Fatalf("wrong line: %d", debugger.Line())
 		}
-		resume()
 
 		if err := debugger.ClearBreakpoint("test.js", 5); err != nil {
 			t.Fatal("cannot clear breakpoint on line 5")
@@ -70,7 +70,7 @@ func TestDebuggerBreakpoint(t *testing.T) {
 		// Go to next, so that the breakpointed line is executed
 		debugger.Next()
 
-		reason, resume = debugger.WaitToActivate()
+		reason = debugger.Continue()
 		if reason != BreakpointActivation {
 			t.Fatalf("wrong activation %s", reason)
 		} else {
@@ -80,7 +80,6 @@ func TestDebuggerBreakpoint(t *testing.T) {
 		if debugger.Line() != 4 {
 			t.Fatalf("wrong line: %d", debugger.Line())
 		}
-		resume()
 
 		// Go to next, so that the breakpointed line is executed
 		// This line acts as continue, since there are no blockers in the way (no breakpoints)
@@ -98,7 +97,7 @@ func TestDebuggerNext(t *testing.T) {
 	`
 	r := &Runtime{}
 	r.init()
-	debugger := r.EnableDebugMode()
+	debugger := r.AttachDebugger()
 
 	ch := make(chan struct{})
 	go func() {
@@ -108,7 +107,8 @@ func TestDebuggerNext(t *testing.T) {
 				r.Interrupt("failed test")
 			}
 		}()
-		reason, resume := debugger.WaitToActivate()
+		defer debugger.Detach()
+		reason := debugger.Continue()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
 			t.Fatalf("wrong activation %s", reason)
@@ -133,7 +133,6 @@ func TestDebuggerNext(t *testing.T) {
 			src, _ := debugger.List()
 			t.Logf("Go to line 4: > %s\n", src[debugger.Line()-1])
 		}
-		resume()
 	}()
 	testScript1WithRuntime(SCRIPT, intToValue(3), t, r)
 	<-ch // wait for the debugger
@@ -149,7 +148,7 @@ func TestDebuggerContinue(t *testing.T) {
 	`
 	r := &Runtime{}
 	r.init()
-	debugger := r.EnableDebugMode()
+	debugger := r.AttachDebugger()
 
 	ch := make(chan struct{})
 	go func() {
@@ -159,15 +158,15 @@ func TestDebuggerContinue(t *testing.T) {
 				r.Interrupt("failed test")
 			}
 		}()
-		reason, resume := debugger.WaitToActivate()
+		defer debugger.Detach()
+		reason := debugger.Continue()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
 			t.Fatalf("wrong activation %s", reason)
 		} else {
 			t.Log("Hit first debugger statement")
 		}
-		resume()
-		reason, resume = debugger.WaitToActivate()
+		reason = debugger.Continue()
 		if reason != DebuggerStatementActivation {
 			t.Fatalf("wrong activation %s", reason)
 		} else {
@@ -180,7 +179,6 @@ func TestDebuggerContinue(t *testing.T) {
 			src, _ := debugger.List()
 			t.Logf("Continue to line 6: > %s\n", src[debugger.Line()-1])
 		}
-		resume()
 	}()
 	testScript1WithRuntime(SCRIPT, intToValue(4), t, r)
 	<-ch // wait for the debugger
@@ -196,7 +194,7 @@ func TestDebuggerStepIn(t *testing.T) {
 	`
 	r := &Runtime{}
 	r.init()
-	debugger := r.EnableDebugMode()
+	debugger := r.AttachDebugger()
 
 	ch := make(chan struct{})
 	go func() {
@@ -206,7 +204,8 @@ func TestDebuggerStepIn(t *testing.T) {
 				r.Interrupt("failed test")
 			}
 		}()
-		reason, resume := debugger.WaitToActivate()
+		defer debugger.Detach()
+		reason := debugger.Continue()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
 			t.Fatalf("wrong activation %s", reason)
@@ -232,7 +231,6 @@ func TestDebuggerStepIn(t *testing.T) {
 			src, _ := debugger.List()
 			t.Logf("Step-in to line 2 (line 1 of function): > %s\n", src[debugger.Line()])
 		}
-		resume()
 	}()
 	testScript1WithRuntime(SCRIPT, intToValue(3), t, r)
 	<-ch // wait for the debugger
@@ -249,7 +247,7 @@ func TestDebuggerExecAndPrint(t *testing.T) {
 	`
 	r := &Runtime{}
 	r.init()
-	debugger := r.EnableDebugMode()
+	debugger := r.AttachDebugger()
 
 	ch := make(chan struct{})
 	go func() {
@@ -259,7 +257,8 @@ func TestDebuggerExecAndPrint(t *testing.T) {
 				r.Interrupt("failed test")
 			}
 		}()
-		reason, resume := debugger.WaitToActivate()
+		defer debugger.Detach()
+		reason := debugger.Continue()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
 			t.Fatalf("wrong activation %s", reason)
@@ -279,7 +278,6 @@ func TestDebuggerExecAndPrint(t *testing.T) {
 		} else {
 			t.Logf("GET a == %s", v)
 		}
-		resume()
 	}()
 	testScript1WithRuntime(SCRIPT, valueFalse, t, r)
 	<-ch // wait for the debugger
@@ -291,7 +289,7 @@ func TestDebuggerList(t *testing.T) {
 	`
 	r := &Runtime{}
 	r.init()
-	debugger := r.EnableDebugMode()
+	debugger := r.AttachDebugger()
 
 	ch := make(chan struct{})
 	go func() {
@@ -301,7 +299,8 @@ func TestDebuggerList(t *testing.T) {
 				r.Interrupt("failed test")
 			}
 		}()
-		reason, resume := debugger.WaitToActivate()
+		defer debugger.Detach()
+		reason := debugger.Continue()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
 			t.Fatalf("wrong activation %s", reason)
@@ -315,7 +314,6 @@ func TestDebuggerList(t *testing.T) {
 		} else {
 			t.Logf("Current line (%d) contains %s", debugger.Line(), src[debugger.Line()-1])
 		}
-		resume()
 	}()
 	testScript1WithRuntime(SCRIPT, intToValue(1), t, r)
 	<-ch // wait for the debugger
@@ -333,7 +331,7 @@ func TestDebuggerSimpleCaseWhereLineIsIncorrectlyReported(t *testing.T) {
 	`
 	r := &Runtime{}
 	r.init()
-	debugger := r.EnableDebugMode()
+	debugger := r.AttachDebugger()
 
 	ch := make(chan struct{})
 	go func() {
@@ -343,10 +341,11 @@ func TestDebuggerSimpleCaseWhereLineIsIncorrectlyReported(t *testing.T) {
 				r.Interrupt("failed test")
 			}
 		}()
-		b, c := debugger.WaitToActivate()
+		defer debugger.Detach()
+		reason := debugger.Continue()
 		t.Logf("PC: %d, Line: %d", debugger.PC(), debugger.Line())
-		if b != DebuggerStatementActivation {
-			t.Fatalf("wrong activation: %s", b)
+		if reason != DebuggerStatementActivation {
+			t.Fatalf("wrong activation: %s", reason)
 		}
 		if debugger.PC() != 2 && debugger.Line() != 1 {
 			// debugger should wait on the debugger statement and continue from there
@@ -354,7 +353,6 @@ func TestDebuggerSimpleCaseWhereLineIsIncorrectlyReported(t *testing.T) {
 			// which causes the debugger to stop at the next executable line
 			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
 		}
-		c()
 	}()
 	testScript1WithRuntime(SCRIPT, valueTrue, t, r)
 	<-ch // wait for the debugger
