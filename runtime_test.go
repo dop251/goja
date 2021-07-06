@@ -604,7 +604,27 @@ func TestRuntime_ExportToStructPtr(t *testing.T) {
 	if o.Test != "1" {
 		t.Fatalf("Unexpected value: '%s'", o.Test)
 	}
+}
 
+func TestRuntime_ExportToStructFromPtr(t *testing.T) {
+	vm := New()
+	v := vm.ToValue(&testGoReflectMethod_O{
+		field: "5",
+		Test:  "12",
+	})
+
+	var o testGoReflectMethod_O
+	err := vm.ExportTo(v, &o)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if o.Test != "12" {
+		t.Fatalf("Unexpected value: '%s'", o.Test)
+	}
+	if o.field != "5" {
+		t.Fatalf("Unexpected value for field: '%s'", o.field)
+	}
 }
 
 func TestRuntime_ExportToStructAnonymous(t *testing.T) {

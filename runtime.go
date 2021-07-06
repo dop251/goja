@@ -1798,6 +1798,15 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 		}
 	}
 
+	if o, ok := v.(*Object); ok { // if exported value is wrapped go object
+		if ogr, ok := o.self.(*objectGoReflect); ok {
+			indirectValue := reflect.Indirect(ogr.origValue) // that is pointer
+			if indirectValue.Type() == dst.Type() {          // to the same type
+				dst.Set(indirectValue) // just dereference the pointer
+			}
+		}
+	}
+
 	{
 		et := v.ExportType()
 		if et == nil || et == reflectTypeNil {
@@ -1905,6 +1914,7 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 				dst.Set(reflect.ValueOf(v).Elem())
 				return nil
 			}
+
 			s := dst
 			ctx.putTyped(o.self, t, s.Addr().Interface())
 			for i := 0; i < typ.NumField(); i++ {
