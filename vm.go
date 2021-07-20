@@ -25,6 +25,8 @@ type stash struct {
 
 	outer *stash
 
+	// true if this stash is a VariableEnvironment, i.e. dynamic var declarations created
+	// by direct eval go here.
 	variable bool
 }
 
@@ -2707,6 +2709,9 @@ func (e *enterFunc) exec(vm *vm) {
 	vm.pc++
 }
 
+// Similar to enterFunc, but for when arguments may be accessed before they are initialised,
+// e.g. by an eval() code or from a closure, or from an earlier initialiser code.
+// In this case the arguments remain on stack, first argsToCopy of them are copied to the stash.
 type enterFunc1 struct {
 	names      map[unistring.String]uint32
 	stashSize  uint32
@@ -2753,6 +2758,9 @@ func (e *enterFunc1) exec(vm *vm) {
 	vm.pc++
 }
 
+// Finalises the initialisers section and starts the function body which has its own
+// scope. When used in conjunction with enterFunc1 adjustStack is set to true which
+// causes the arguments to be removed from the stack.
 type enterFuncBody struct {
 	enterBlock
 	extensible  bool

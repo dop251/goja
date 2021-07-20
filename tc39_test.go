@@ -36,7 +36,7 @@ var (
 	skipList = map[string]bool{
 
 		// Obsolete tests (see https://github.com/tc39/test262/pull/2445)
-		// TODO: remove this after upgrading the test suite past the above PR
+		//TODO: remove this after upgrading the test suite past the above PR
 		"test/language/statements/function/scope-param-rest-elem-var-open.js":         true,
 		"test/language/statements/function/scope-param-rest-elem-var-close.js":        true,
 		"test/language/statements/function/scope-param-elem-var-open.js":              true,
@@ -388,6 +388,7 @@ var (
 		"sec-function-definitions-runtime-semantics-iteratorbindinginitialization",
 		"sec-function-definitions-static-semantics-early-errors",
 		"sec-functiondeclarationinstantiation",
+		"sec-functiondeclarations-in-ifstatement-statement-clauses",
 	}
 )
 
