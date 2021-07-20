@@ -3418,6 +3418,15 @@ func TestLexicalConstModifyFromEval(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestLexicalStrictNames(t *testing.T) {
+	const SCRIPT = `let eval = 1;`
+
+	_, err := Compile("", SCRIPT, true)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+}
+
 func TestAssignAfterStackExpand(t *testing.T) {
 	// make sure the reference to the variable x does not remain stale after the stack is copied
 	const SCRIPT = `
@@ -3477,6 +3486,464 @@ func TestLoadMixedLex(t *testing.T) {
 	f();
 	`
 	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestObjectLiteralSpread(t *testing.T) {
+	const SCRIPT = `
+	let src = {prop1: 1};
+	Object.defineProperty(src, "prop2", {value: 2, configurable: true});
+	Object.defineProperty(src, "prop3", {value: 3, enumerable: true, configurable: true});
+	let target = {prop4: 4, ...src};
+	assert(deepEqual(target, {prop1: 1, prop3: 3, prop4: 4}));
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
+
+func TestArrayLiteralSpread(t *testing.T) {
+	const SCRIPT = `
+	let a1 = [1, 2];
+	let a2 = [3, 4];
+	let a = [...a1, 0, ...a2, 1];
+	assert(compareArray(a, [1, 2, 0, 3, 4, 1]));
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestObjectAssignmentPattern(t *testing.T) {
+	const SCRIPT = `
+	let a, b, c;
+	({a, b, c=3} = {a: 1, b: 2});
+	assert.sameValue(a, 1, "a");
+	assert.sameValue(b, 2, "b");
+	assert.sameValue(c, 3, "c");
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestObjectAssignmentPatternNested(t *testing.T) {
+	const SCRIPT = `
+	let a, b, c, d;
+	({a, b, c: {d} = 3} = {a: 1, b: 2, c: {d: 4}});
+	assert.sameValue(a, 1, "a");
+	assert.sameValue(b, 2, "b");
+	assert.sameValue(c, undefined, "c");
+	assert.sameValue(d, 4, "d");
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestObjectAssignmentPatternEvalOrder(t *testing.T) {
+	const SCRIPT = `
+	let trace = "";
+	let target_obj = {};
+
+	function src() {
+	    trace += "src(),";
+		return {
+			get a() {
+				trace += "get a,";
+				return "a";
+			}
+		}
+	}
+	
+	function prop1() {
+		trace += "prop1(),"
+		return "a";
+	}
+	
+	function prop2() {
+		trace += "prop2(),";
+		return "b";
+	}
+	
+	function target() {
+		trace += "target(),"
+		return target_obj;
+	}
+	
+	let a, b;
+	
+	({[prop1()]: target().a, [prop2()]: b} = src());
+	if (target_obj.a !== "a") {
+		throw new Error("target_obj.a="+target_obj.a);
+	}
+	trace;
+	`
+	testScript1(SCRIPT, asciiString("src(),prop1(),target(),get a,prop2(),"), t)
+}
+
+func TestArrayAssignmentPatternEvalOrder(t *testing.T) {
+	const SCRIPT = `
+	let trace = "";
+
+	let src_arr = {
+		[Symbol.iterator]: function() {
+			let done = false;
+			return {
+				next: function() {
+					trace += "next,";
+					if (!done) {
+						done = true;
+						return {value: 0};
+					}
+					return {done: true};
+				},
+				return: function() {
+					trace += "return,";
+				}
+			}
+		}
+	}
+
+	function src() {
+		trace += "src(),";
+		return src_arr;
+	}
+
+	let tgt = {
+		get a() {
+			trace += "get a,";
+			return "a";
+		},
+		get b() {
+			trace += "get b,";
+			return "b";
+		}
+	}
+
+	function target() {
+		trace += "target(),";
+		return tgt;
+	}
+
+	function default_a() {
+		trace += "default a,";
+		return "def_a";
+	}
+
+	function default_b() {
+		trace += "default b,";
+		return "def_b";
+	}
+
+	([target().a = default_a(), target().b = default_b()] = src());
+	trace;
+	`
+	testScript1(SCRIPT, asciiString("src(),target(),next,target(),next,default b,"), t)
+}
+
+func TestObjectAssignPatternRest(t *testing.T) {
+	const SCRIPT = `
+	let a, b, c, d;
+	({a, b, c, ...d} = {a: 1, b: 2, d: 4});
+	assert.sameValue(a, 1, "a");
+	assert.sameValue(b, 2, "b");
+	assert.sameValue(c, undefined, "c");
+	assert(deepEqual(d, {d: 4}), "d");
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
+
+func TestObjectBindPattern(t *testing.T) {
+	const SCRIPT = `
+	let {a, b, c, ...d} = {a: 1, b: 2, d: 4};
+	assert.sameValue(a, 1, "a");
+	assert.sameValue(b, 2, "b");
+	assert.sameValue(c, undefined, "c");
+	assert(deepEqual(d, {d: 4}), "d");
+
+	var { x: y, } = { x: 23 };
+	
+	assert.sameValue(y, 23);
+	
+	assert.throws(ReferenceError, function() {
+	  x;
+	});
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
+
+func TestObjLiteralShorthandWithInitializer(t *testing.T) {
+	const SCRIPT = `
+	o = {a=1};
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+}
+
+func TestObjLiteralShorthandLetStringLit(t *testing.T) {
+	const SCRIPT = `
+	o = {"let"};
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+}
+
+func TestObjLiteralComputedKeys(t *testing.T) {
+	const SCRIPT = `
+	let o = {
+		get [Symbol.toString]() {
+		}
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestArrayAssignPattern(t *testing.T) {
+	const SCRIPT = `
+	let a, b;
+	([a, b] = [1, 2]);
+	a === 1 && b === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestArrayAssignPattern1(t *testing.T) {
+	const SCRIPT = `
+	let a, b;
+	([a = 3, b = 2] = [1]);
+	a === 1 && b === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestArrayAssignPatternLHS(t *testing.T) {
+	const SCRIPT = `
+	let a = {};
+	[ a.b, a['c'] = 2 ] = [1];
+	a.b === 1 && a.c === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestArrayAssignPatternElision(t *testing.T) {
+	const SCRIPT = `
+	let a, b;
+	([a,, b] = [1, 4, 2]);
+	a === 1 && b === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestArrayAssignPatternRestPattern(t *testing.T) {
+	const SCRIPT = `
+	let a, b, z;
+	[ z, ...[a, b] ] = [0, 1, 2];
+	z === 0 && a === 1 && b === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestArrayBindingPattern(t *testing.T) {
+	const SCRIPT = `
+	let [a, b] = [1, 2];
+	a === 1 && b === 2;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestObjectPatternShorthandInit(t *testing.T) {
+	const SCRIPT = `
+	[...{ x = 1 }] = [];
+	x;
+	`
+	testScript1(SCRIPT, valueInt(1), t)
+}
+
+func TestArrayBindingPatternRestPattern(t *testing.T) {
+	const SCRIPT = `
+	const [a, b, ...[c, d]] = [1, 2, 3, 4];
+	a === 1 && b === 2 && c === 3 && d === 4;
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestForVarPattern(t *testing.T) {
+	const SCRIPT = `
+	var o = {a: 1};
+	var trace = "";
+	for (var [key, value] of Object.entries(o)) {
+		trace += key+":"+value;
+	}
+	trace;
+	`
+	testScript1(SCRIPT, asciiString("a:1"), t)
+}
+
+func TestForLexPattern(t *testing.T) {
+	const SCRIPT = `
+	var o = {a: 1};
+	var trace = "";
+	for (const [key, value] of Object.entries(o)) {
+		trace += key+":"+value;
+	}
+	trace;
+	`
+	testScript1(SCRIPT, asciiString("a:1"), t)
+}
+
+func TestBindingPatternRestTrailingComma(t *testing.T) {
+	const SCRIPT = `
+	const [a, b, ...rest,] = [];
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+}
+
+func TestAssignPatternRestTrailingComma(t *testing.T) {
+	const SCRIPT = `
+	([a, b, ...rest,] = []);
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+}
+
+func TestFuncParamInitializerSimple(t *testing.T) {
+	const SCRIPT = `
+	function f(a = 1) {
+		return a;
+	}
+	""+f()+f(2);
+	`
+	testScript1(SCRIPT, asciiString("12"), t)
+}
+
+func TestFuncParamObjectPatternSimple(t *testing.T) {
+	const SCRIPT = `
+	function f({a, b} = {a: 1, b: 2}) {
+		return "" + a + b;
+	}
+	""+f()+" "+f({a: 3, b: 4});
+	`
+	testScript1(SCRIPT, asciiString("12 34"), t)
+}
+
+func TestFuncParamRestStackSimple(t *testing.T) {
+	const SCRIPT = `
+	function f(arg1, ...rest) {
+		return rest;
+	}
+	let ar = f(1, 2, 3);
+	ar.join(",");
+	`
+	testScript1(SCRIPT, asciiString("2,3"), t)
+}
+
+func TestFuncParamRestStashSimple(t *testing.T) {
+	const SCRIPT = `
+	function f(arg1, ...rest) {
+		eval("true");
+		return rest;
+	}
+	let ar = f(1, 2, 3);
+	ar.join(",");
+	`
+	testScript1(SCRIPT, asciiString("2,3"), t)
+}
+
+func TestFuncParamRestPattern(t *testing.T) {
+	const SCRIPT = `
+	function f(arg1, ...{0: rest1, 1: rest2}) {
+		return ""+arg1+" "+rest1+" "+rest2;
+	}
+	f(1, 2, 3);
+	`
+	testScript1(SCRIPT, asciiString("1 2 3"), t)
+}
+
+func TestFuncParamForwardRef(t *testing.T) {
+	const SCRIPT = `
+	function f(a = b + 1, b) {
+		return ""+a+" "+b;
+	}
+	f(1, 2);
+	`
+	testScript1(SCRIPT, asciiString("1 2"), t)
+}
+
+func TestFuncParamForwardRefMissing(t *testing.T) {
+	const SCRIPT = `
+	function f(a = b + 1, b) {
+		return ""+a+" "+b;
+	}
+	assert.throws(ReferenceError, function() {
+		f();
+	});
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestFuncParamInnerRef(t *testing.T) {
+	const SCRIPT = `
+	function f(a = inner) {
+		var inner = 42;
+		return a;
+	}
+	assert.throws(ReferenceError, function() {
+		f();
+	});
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestFuncParamInnerRefEval(t *testing.T) {
+	const SCRIPT = `
+	function f(a = eval("inner")) {
+		var inner = 42;
+		return a;
+	}
+	assert.throws(ReferenceError, function() {
+		f();
+	});
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestFuncParamCalleeName(t *testing.T) {
+	const SCRIPT = `
+	function f(a = f) {
+		var f;
+		return f;
+	}
+	typeof f();
+	`
+	testScript1(SCRIPT, asciiString("undefined"), t)
+}
+
+func TestFuncParamVarCopy(t *testing.T) {
+	const SCRIPT = `
+	function f(a = f) {
+		var a;
+		return a;
+	}
+	typeof f();
+	`
+	testScript1(SCRIPT, asciiString("function"), t)
+}
+
+func TestFuncParamScope(t *testing.T) {
+	const SCRIPT = `
+	var x = 'outside';
+	var probe1, probe2;
+	
+	function f(
+		_ = probe1 = function() { return x; },
+		__ = (eval('var x = "inside";'), probe2 = function() { return x; })
+	) {
+	}
+	f();
+	probe1()+" "+probe2();
+	`
+	testScript1(SCRIPT, asciiString("inside inside"), t)
 }
 
 /*

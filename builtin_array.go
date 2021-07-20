@@ -380,6 +380,7 @@ func (r *Runtime) arrayproto_splice(call FunctionCall) Value {
 			for k := int64(0); k < actualDeleteCount; k++ {
 				createDataPropertyOrThrow(a, intToValue(k), src.values[k+actualStart])
 			}
+			a.self.setOwnStr("length", intToValue(actualDeleteCount), true)
 		}
 		var values []Value
 		if itemCount < actualDeleteCount {

@@ -162,13 +162,15 @@ func (self *_parser) parseTryStatement() ast.Statement {
 
 func (self *_parser) parseFunctionParameterList() *ast.ParameterList {
 	opening := self.expect(token.LEFT_PARENTHESIS)
-	var list []*ast.Identifier
+	var list []*ast.Binding
+	var rest ast.Expression
 	for self.token != token.RIGHT_PARENTHESIS && self.token != token.EOF {
-		if self.token != token.IDENTIFIER {
-			self.expect(token.IDENTIFIER)
-		} else {
-			list = append(list, self.parseIdentifier())
+		if self.token == token.ELLIPSIS {
+			self.next()
+			rest = self.reinterpretAsDestructBindingTarget(self.parseAssignmentExpression())
+			break
 		}
+		self.parseVariableDeclaration(&list)
 		if self.token != token.RIGHT_PARENTHESIS {
 			self.expect(token.COMMA)
 		}
@@ -178,22 +180,9 @@ func (self *_parser) parseFunctionParameterList() *ast.ParameterList {
 	return &ast.ParameterList{
 		Opening: opening,
 		List:    list,
+		Rest:    rest,
 		Closing: closing,
 	}
-}
-
-func (self *_parser) parseParameterList() (list []string) {
-	for self.token != token.EOF {
-		if self.token != token.IDENTIFIER {
-			self.expect(token.IDENTIFIER)
-		}
-		list = append(list, self.literal)
-		self.next()
-		if self.token != token.EOF {
-			self.expect(token.COMMA)
-		}
-	}
-	return
 }
 
 func (self *_parser) parseFunction(declaration bool) *ast.FunctionLiteral {
@@ -452,7 +441,7 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 		if tok == token.VAR || tok == token.LET || tok == token.CONST {
 			idx := self.idx
 			self.next()
-			var list []*ast.VariableExpression
+			var list []*ast.Binding
 			if tok == token.VAR {
 				list = self.parseVarDeclarationList(idx)
 			} else {
@@ -479,13 +468,11 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 					into = &ast.ForDeclaration{
 						Idx:     idx,
 						IsConst: tok == token.CONST,
-						Binding: &ast.BindingIdentifier{
-							Name: list[0].Name,
-							Idx:  list[0].Idx,
-						},
+						Target:  list[0].Target,
 					}
 				}
 			} else {
+				self.ensurePatternInit(list)
 				if tok == token.VAR {
 					initializer = &ast.ForLoopInitializerVarDeclList{
 						List: list,
@@ -511,7 +498,7 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 			}
 			if forIn || forOf {
 				switch expr.(type) {
-				case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression, *ast.VariableExpression:
+				case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression, *ast.Binding:
 					// These are all acceptable
 				default:
 					self.error(idx, "Invalid left-hand side in for-in or for-of")
@@ -541,11 +528,23 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 	return self.parseFor(idx, initializer)
 }
 
+func (self *_parser) ensurePatternInit(list []*ast.Binding) {
+	for _, item := range list {
+		if _, ok := item.Target.(ast.Pattern); ok {
+			if item.Initializer == nil {
+				self.error(item.Idx1(), "Missing initializer in destructuring declaration")
+				break
+			}
+		}
+	}
+}
+
 func (self *_parser) parseVariableStatement() *ast.VariableStatement {
 
 	idx := self.expect(token.VAR)
 
 	list := self.parseVarDeclarationList(idx)
+	self.ensurePatternInit(list)
 	self.semicolon()
 
 	return &ast.VariableStatement{
@@ -561,6 +560,7 @@ func (self *_parser) parseLexicalDeclaration(tok token.Token) *ast.LexicalDeclar
 	}
 
 	list := self.parseVariableDeclarationList()
+	self.ensurePatternInit(list)
 	self.semicolon()
 
 	return &ast.LexicalDeclaration{

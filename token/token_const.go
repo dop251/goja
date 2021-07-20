@@ -71,6 +71,8 @@ const (
 	SEMICOLON         // ;
 	COLON             // :
 	QUESTION_MARK     // ?
+	ARROW             // =>
+	ELLIPSIS          // ...
 
 	firstKeyword
 	IF
