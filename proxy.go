@@ -848,7 +848,7 @@ func (p *proxyObject) assertConstructor() func(args []Value, newTarget *Object) 
 
 func (p *proxyObject) apply(call FunctionCall) Value {
 	if p.call == nil {
-		p.val.runtime.NewTypeError("proxy target is not a function")
+		panic(p.val.runtime.NewTypeError("proxy target is not a function"))
 	}
 	if v, ok := p.checkHandler().apply(p.target, nilSafe(call.This), call.Arguments); ok {
 		return v
