@@ -497,9 +497,13 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 				forOf = true
 			}
 			if forIn || forOf {
-				switch expr.(type) {
+				switch e := expr.(type) {
 				case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression, *ast.Binding:
 					// These are all acceptable
+				case *ast.ObjectLiteral:
+					expr = self.reinterpretAsObjectAssignmentPattern(e)
+				case *ast.ArrayLiteral:
+					expr = self.reinterpretAsArrayAssignmentPattern(e)
 				default:
 					self.error(idx, "Invalid left-hand side in for-in or for-of")
 					self.nextStatement()

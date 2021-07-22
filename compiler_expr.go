@@ -33,6 +33,12 @@ type compiledCallExpr struct {
 	baseCompiledExpr
 	args   []compiledExpr
 	callee compiledExpr
+
+	isVariadic bool
+}
+
+type compiledNewExpr struct {
+	compiledCallExpr
 }
 
 type compiledObjectLiteral struct {
@@ -124,12 +130,6 @@ type compiledThisExpr struct {
 	baseCompiledExpr
 }
 
-type compiledNewExpr struct {
-	baseCompiledExpr
-	callee compiledExpr
-	args   []compiledExpr
-}
-
 type compiledNewTarget struct {
 	baseCompiledExpr
 }
@@ -172,6 +172,11 @@ type compiledEnumGetExpr struct {
 }
 
 type defaultDeleteExpr struct {
+	baseCompiledExpr
+	expr compiledExpr
+}
+
+type compiledSpreadCallArgument struct {
 	baseCompiledExpr
 	expr compiledExpr
 }
@@ -935,18 +940,20 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	funcs := e.c.extractFunctions(body)
 	s := e.c.scope
 	var calleeBinding *binding
-	if e.isExpr && e.expr.Name != nil {
-		if b, created := s.bindNameLexical(e.expr.Name.Name, false, 0); created {
-			b.isConst = true
-			calleeBinding = b
-		}
-	}
 	preambleLen := 4 // enter, boxThis, createArgs, set
 	e.c.p.code = make([]instruction, preambleLen, 8)
 
-	if calleeBinding != nil {
-		e.c.emit(loadCallee)
-		calleeBinding.emitInit()
+	if hasPatterns || hasInits {
+		if e.isExpr && e.expr.Name != nil {
+			if b, created := s.bindNameLexical(e.expr.Name.Name, false, 0); created {
+				b.isConst = true
+				calleeBinding = b
+			}
+		}
+		if calleeBinding != nil {
+			e.c.emit(loadCallee)
+			calleeBinding.emitInit()
+		}
 	}
 
 	emitArgsRestMark := -1
@@ -1031,6 +1038,16 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		e.c.compileDeclList(e.expr.DeclarationList, true)
 		e.c.createFunctionBindings(funcs)
 		e.c.compileLexicalDeclarations(body, true)
+		if e.isExpr && e.expr.Name != nil {
+			if b, created := s.bindNameLexical(e.expr.Name.Name, false, 0); created {
+				b.isConst = true
+				calleeBinding = b
+			}
+		}
+		if calleeBinding != nil {
+			e.c.emit(loadCallee)
+			calleeBinding.emitInit()
+		}
 	}
 
 	e.c.compileFunctions(funcs)
@@ -1194,25 +1211,45 @@ func (e *compiledThisExpr) emitGetter(putOnStack bool) {
 }
 
 func (e *compiledNewExpr) emitGetter(putOnStack bool) {
+	if e.isVariadic {
+		e.c.emit(startVariadic)
+	}
 	e.callee.emitGetter(true)
 	for _, expr := range e.args {
 		expr.emitGetter(true)
 	}
 	e.addSrcMap()
-	e.c.emit(_new(len(e.args)))
+	if e.isVariadic {
+		e.c.emit(newVariadic, endVariadic)
+	} else {
+		e.c.emit(_new(len(e.args)))
+	}
 	if !putOnStack {
 		e.c.emit(pop)
 	}
 }
 
-func (c *compiler) compileNewExpression(v *ast.NewExpression) compiledExpr {
-	args := make([]compiledExpr, len(v.ArgumentList))
-	for i, expr := range v.ArgumentList {
-		args[i] = c.compileExpression(expr)
+func (c *compiler) compileCallArgs(list []ast.Expression) (args []compiledExpr, isVariadic bool) {
+	args = make([]compiledExpr, len(list))
+	for i, argExpr := range list {
+		if spread, ok := argExpr.(*ast.SpreadElement); ok {
+			args[i] = c.compileSpreadCallArgument(spread)
+			isVariadic = true
+		} else {
+			args[i] = c.compileExpression(argExpr)
+		}
 	}
+	return
+}
+
+func (c *compiler) compileNewExpression(v *ast.NewExpression) compiledExpr {
+	args, isVariadic := c.compileCallArgs(v.ArgumentList)
 	r := &compiledNewExpr{
-		callee: c.compileExpression(v.Callee),
-		args:   args,
+		compiledCallExpr: compiledCallExpr{
+			callee:     c.compileExpression(v.Callee),
+			args:       args,
+			isVariadic: isVariadic,
+		},
 	}
 	r.init(c, v.Idx0())
 	return r
@@ -1765,6 +1802,9 @@ func (c *compiler) compileRegexpLiteral(v *ast.RegExpLiteral) compiledExpr {
 
 func (e *compiledCallExpr) emitGetter(putOnStack bool) {
 	var calleeName unistring.String
+	if e.isVariadic {
+		e.c.emit(startVariadic)
+	}
 	switch callee := e.callee.(type) {
 	case *compiledDotExpr:
 		callee.left.emitGetter(true)
@@ -1805,14 +1845,28 @@ func (e *compiledCallExpr) emitGetter(putOnStack bool) {
 		}
 
 		if e.c.scope.strict {
-			e.c.emit(callEvalStrict(len(e.args)))
+			if e.isVariadic {
+				e.c.emit(callEvalVariadicStrict)
+			} else {
+				e.c.emit(callEvalStrict(len(e.args)))
+			}
 		} else {
-			e.c.emit(callEval(len(e.args)))
+			if e.isVariadic {
+				e.c.emit(callEvalVariadic)
+			} else {
+				e.c.emit(callEval(len(e.args)))
+			}
 		}
 	} else {
-		e.c.emit(call(len(e.args)))
+		if e.isVariadic {
+			e.c.emit(callVariadic)
+		} else {
+			e.c.emit(call(len(e.args)))
+		}
 	}
-
+	if e.isVariadic {
+		e.c.emit(endVariadic)
+	}
 	if !putOnStack {
 		e.c.emit(pop)
 	}
@@ -1826,16 +1880,31 @@ func (e *compiledCallExpr) deleteExpr() compiledExpr {
 	return r
 }
 
+func (c *compiler) compileSpreadCallArgument(spread *ast.SpreadElement) compiledExpr {
+	r := &compiledSpreadCallArgument{
+		expr: c.compileExpression(spread.Expression),
+	}
+	r.init(c, spread.Idx0())
+	return r
+}
+
 func (c *compiler) compileCallExpression(v *ast.CallExpression) compiledExpr {
 
 	args := make([]compiledExpr, len(v.ArgumentList))
+	isVariadic := false
 	for i, argExpr := range v.ArgumentList {
-		args[i] = c.compileExpression(argExpr)
+		if spread, ok := argExpr.(*ast.SpreadElement); ok {
+			args[i] = c.compileSpreadCallArgument(spread)
+			isVariadic = true
+		} else {
+			args[i] = c.compileExpression(argExpr)
+		}
 	}
 
 	r := &compiledCallExpr{
-		args:   args,
-		callee: c.compileExpression(v.Callee),
+		args:       args,
+		callee:     c.compileExpression(v.Callee),
+		isVariadic: isVariadic,
 	}
 	r.init(c, v.LeftParenthesis)
 	return r
@@ -2177,4 +2246,11 @@ func (c *compiler) compileNamedEmitterExpr(namedEmitter func(unistring.String), 
 	}
 	r.init(c, idx)
 	return r
+}
+
+func (e *compiledSpreadCallArgument) emitGetter(putOnStack bool) {
+	e.expr.emitGetter(putOnStack)
+	if putOnStack {
+		e.c.emit(pushSpread)
+	}
 }

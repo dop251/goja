@@ -485,6 +485,7 @@ func TestParserErr(t *testing.T) {
 			test(`abc.yield = 1`, nil)
 			test(`var yield;`, nil)
 		}
+		test(`0, { get a(param = null) {} };`, "(anonymous): Line 1:11 Getter must not have any formal parameters.")
 	})
 }
 

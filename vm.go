@@ -1742,6 +1742,19 @@ func (_pushArraySpread) exec(vm *vm) {
 	vm.pc++
 }
 
+type _pushSpread struct{}
+
+var pushSpread _pushSpread
+
+func (_pushSpread) exec(vm *vm) {
+	vm.sp--
+	obj := vm.stack[vm.sp]
+	vm.r.iterate(vm.r.getIterator(obj, nil), func(val Value) {
+		vm.push(val)
+	})
+	vm.pc++
+}
+
 type _newArrayFromIter struct{}
 
 var newArrayFromIter _newArrayFromIter
@@ -2476,6 +2489,22 @@ func (numargs callEvalStrict) exec(vm *vm) {
 	vm.callEval(int(numargs), true)
 }
 
+type _callEvalVariadic struct{}
+
+var callEvalVariadic _callEvalVariadic
+
+func (_callEvalVariadic) exec(vm *vm) {
+	vm.callEval(vm.sp-vm.sb-2, false)
+}
+
+type _callEvalVariadicStrict struct{}
+
+var callEvalVariadicStrict _callEvalVariadicStrict
+
+func (_callEvalVariadicStrict) exec(vm *vm) {
+	vm.callEval(vm.sp-vm.sb-2, true)
+}
+
 type _boxThis struct{}
 
 var boxThis _boxThis
@@ -2487,6 +2516,35 @@ func (_boxThis) exec(vm *vm) {
 	} else {
 		vm.stack[vm.sb] = v.ToObject(vm.r)
 	}
+	vm.pc++
+}
+
+type _startVariadic struct{}
+
+var startVariadic _startVariadic
+
+func (_startVariadic) exec(vm *vm) {
+	vm.push(valueInt(vm.sb))
+	vm.sb = vm.sp
+	vm.pc++
+}
+
+type _callVariadic struct{}
+
+var callVariadic _callVariadic
+
+func (_callVariadic) exec(vm *vm) {
+	call(vm.sp - vm.sb - 2).exec(vm)
+}
+
+type _endVariadic struct{}
+
+var endVariadic _endVariadic
+
+func (_endVariadic) exec(vm *vm) {
+	vm.sp--
+	vm.sb = int(vm.stack[vm.sp-1].(valueInt))
+	vm.stack[vm.sp-1] = vm.stack[vm.sp]
 	vm.pc++
 }
 
@@ -3417,6 +3475,14 @@ func (_throw) exec(vm *vm) {
 	panic(vm.stack[vm.sp-1])
 }
 
+type _newVariadic struct{}
+
+var newVariadic _newVariadic
+
+func (_newVariadic) exec(vm *vm) {
+	_new(vm.sp - vm.sb - 1).exec(vm)
+}
+
 type _new uint32
 
 func (n _new) exec(vm *vm) {
@@ -3719,6 +3785,11 @@ func (r *Runtime) copyDataProperties(target, source Value) {
 	for item, next := iter.next(); next != nil; item, next = next() {
 		v := nilSafe(sourceObj.self.getStr(item.name, nil))
 		createDataPropertyOrThrow(targetObj, stringValueFromRaw(item.name), v)
+	}
+
+	for _, sym := range sourceObj.self.ownSymbols(false, nil) {
+		v := nilSafe(sourceObj.self.getSym(sym.(*Symbol), nil))
+		createDataPropertyOrThrow(targetObj, sym, v)
 	}
 }
 

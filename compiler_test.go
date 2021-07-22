@@ -3960,6 +3960,27 @@ func TestDefParamsStackPtr(t *testing.T) {
 	testScript1(SCRIPT, _undefined, t)
 }
 
+func TestNestedVariadicCalls(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		return Array.prototype.join.call(arguments, ",");
+	}
+	f(...[1], "a", f(...[2]));
+	`
+	testScript1(SCRIPT, asciiString("1,a,2"), t)
+}
+
+func TestVariadicNew(t *testing.T) {
+	const SCRIPT = `
+	function C() {
+		this.res = Array.prototype.join.call(arguments, ",");
+	}
+	var c = new C(...[1], "a", new C(...[2]).res);
+	c.res;
+	`
+	testScript1(SCRIPT, asciiString("1,a,2"), t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")

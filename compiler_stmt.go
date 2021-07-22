@@ -410,7 +410,7 @@ func (c *compiler) compileLabeledForInOfStatement(into ast.ForInto, source ast.E
 	c.compileExpression(source).emitGetter(true)
 	if enterPos != -1 {
 		s := c.scope
-		used := len(c.block.breaks) > 0
+		used := len(c.block.breaks) > 0 || s.isDynamic()
 		if !used {
 			for _, b := range s.bindings {
 				if b.useCount() > 0 {
@@ -420,6 +420,11 @@ func (c *compiler) compileLabeledForInOfStatement(into ast.ForInto, source ast.E
 			}
 		}
 		if used {
+			// We need the stack untouched because it contains the source.
+			// This is not the most optimal way, but it's an edge case, hopefully quite rare.
+			for _, b := range s.bindings {
+				b.moveToStash()
+			}
 			enter := &enterBlock{}
 			c.p.code[enterPos] = enter
 			c.leaveScopeBlock(enter)

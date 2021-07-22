@@ -295,8 +295,11 @@ func (self *_parser) parseObjectProperty() ast.Property {
 		case literal == "get" && self.token != token.COLON:
 			idx := self.idx
 			_, value, _ := self.parseObjectPropertyKey()
+			idx1 := self.idx
 			parameterList := self.parseFunctionParameterList()
-
+			if len(parameterList.List) > 0 || parameterList.Rest != nil {
+				self.error(idx1, "Getter must not have any formal parameters.")
+			}
 			node := &ast.FunctionLiteral{
 				Function:      idx,
 				ParameterList: parameterList,
@@ -392,7 +395,16 @@ func (self *_parser) parseArgumentList() (argumentList []ast.Expression, idx0, i
 	idx0 = self.expect(token.LEFT_PARENTHESIS)
 	if self.token != token.RIGHT_PARENTHESIS {
 		for {
-			argumentList = append(argumentList, self.parseAssignmentExpression())
+			var item ast.Expression
+			if self.token == token.ELLIPSIS {
+				self.next()
+				item = &ast.SpreadElement{
+					Expression: self.parseAssignmentExpression(),
+				}
+			} else {
+				item = self.parseAssignmentExpression()
+			}
+			argumentList = append(argumentList, item)
 			if self.token != token.COMMA {
 				break
 			}
@@ -818,8 +830,11 @@ func (self *_parser) parseConditionlExpression() ast.Expression {
 }
 
 func (self *_parser) parseAssignmentExpression() ast.Expression {
+	parenthesis := false
 	if self.token == token.LET {
 		self.token = token.IDENTIFIER
+	} else if self.token == token.LEFT_PARENTHESIS {
+		parenthesis = true
 	}
 	left := self.parseConditionlExpression()
 	var operator token.Token
@@ -858,12 +873,12 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 		case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression:
 			ok = true
 		case *ast.ArrayLiteral:
-			if operator == token.ASSIGN {
+			if !parenthesis && operator == token.ASSIGN {
 				left = self.reinterpretAsArrayAssignmentPattern(l)
 				ok = true
 			}
 		case *ast.ObjectLiteral:
-			if operator == token.ASSIGN {
+			if !parenthesis && operator == token.ASSIGN {
 				left = self.reinterpretAsObjectAssignmentPattern(l)
 				ok = true
 			}
