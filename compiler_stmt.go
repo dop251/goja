@@ -726,7 +726,7 @@ func (c *compiler) compileReturnStatement(v *ast.ReturnStatement) {
 
 func (c *compiler) checkVarConflict(name unistring.String, offset int) {
 	for sc := c.scope; sc != nil; sc = sc.outer {
-		if b, exists := sc.boundNames[name]; exists && !b.isVar {
+		if b, exists := sc.boundNames[name]; exists && !b.isVar && !(b.isArg && sc != c.scope) {
 			c.throwSyntaxError(offset, "Identifier '%s' has already been declared", name)
 		}
 		if sc.function {

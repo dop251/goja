@@ -1679,6 +1679,45 @@ func TestArgumentsInEval(t *testing.T) {
 	testScript1(SCRIPT, intToValue(1), t)
 }
 
+func TestArgumentsRedeclareInEval(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue("arguments" in this, false, "No global 'arguments' binding");
+
+	function f(p = eval("var arguments = 'param'"), arguments) {}
+	assert.throws(SyntaxError, f);
+
+	assert.sameValue("arguments" in this, false, "No global 'arguments' binding");
+	`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestEvalParamWithDef(t *testing.T) {
+	const SCRIPT = `
+	function f(param = 0) {
+		eval("var param = 1");
+		return param;
+	}
+	f();
+	`
+
+	testScript1(SCRIPT, valueInt(1), t)
+}
+
+func TestArgumentsRedefinedAsLetDyn(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		let arguments;
+		eval(""); // force dynamic scope
+		return arguments;
+	}
+	
+	f(1,2);
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
+
 func TestWith(t *testing.T) {
 	const SCRIPT = `
 	var b = 1;
