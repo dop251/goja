@@ -1229,3 +1229,16 @@ func TestProxyExport(t *testing.T) {
 		t.Fatalf("Export returned unexpected type: %T", v1)
 	}
 }
+
+func TestProxy_proxy_createTargetNotCallable(t *testing.T) {
+	// from https://github.com/tc39/test262/blob/main/test/built-ins/Proxy/create-target-is-not-callable.js
+	const SCRIPT = `
+	var p = new Proxy({}, {});
+
+	assert.throws(TypeError, function() {
+		  p();
+	});
+	`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
