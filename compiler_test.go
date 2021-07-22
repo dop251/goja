@@ -3946,6 +3946,20 @@ func TestFuncParamScope(t *testing.T) {
 	testScript1(SCRIPT, asciiString("inside inside"), t)
 }
 
+func TestDefParamsStackPtr(t *testing.T) {
+	const SCRIPT = `
+	function A() {};
+	A.B = function () {};
+	function D(message = '') {
+	  var C = A.B;
+	  C([1,2,3]);
+	};
+	
+	D();
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")
