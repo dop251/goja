@@ -2104,6 +2104,84 @@ func TestStacktraceLocationThrowFromGo(t *testing.T) {
 	}
 }
 
+func TestStrToInt64(t *testing.T) {
+	if _, ok := strToInt64(""); ok {
+		t.Fatal("<empty>")
+	}
+	if n, ok := strToInt64("0"); !ok || n != 0 {
+		t.Fatal("0", n, ok)
+	}
+	if n, ok := strToInt64("-0"); ok {
+		t.Fatal("-0", n, ok)
+	}
+	if n, ok := strToInt64("-1"); !ok || n != -1 {
+		t.Fatal("-1", n, ok)
+	}
+	if n, ok := strToInt64("9223372036854775808"); ok {
+		t.Fatal("max+1", n, ok)
+	}
+	if n, ok := strToInt64("9223372036854775817"); ok {
+		t.Fatal("9223372036854775817", n, ok)
+	}
+	if n, ok := strToInt64("-9223372036854775818"); ok {
+		t.Fatal("-9223372036854775818", n, ok)
+	}
+	if n, ok := strToInt64("9223372036854775807"); !ok || n != 9223372036854775807 {
+		t.Fatal("max", n, ok)
+	}
+	if n, ok := strToInt64("-9223372036854775809"); ok {
+		t.Fatal("min-1", n, ok)
+	}
+	if n, ok := strToInt64("-9223372036854775808"); !ok || n != -9223372036854775808 {
+		t.Fatal("min", n, ok)
+	}
+	if n, ok := strToInt64("-00"); ok {
+		t.Fatal("-00", n, ok)
+	}
+	if n, ok := strToInt64("-01"); ok {
+		t.Fatal("-01", n, ok)
+	}
+}
+
+func TestStrToInt32(t *testing.T) {
+	if _, ok := strToInt32(""); ok {
+		t.Fatal("<empty>")
+	}
+	if n, ok := strToInt32("0"); !ok || n != 0 {
+		t.Fatal("0", n, ok)
+	}
+	if n, ok := strToInt32("-0"); ok {
+		t.Fatal("-0", n, ok)
+	}
+	if n, ok := strToInt32("-1"); !ok || n != -1 {
+		t.Fatal("-1", n, ok)
+	}
+	if n, ok := strToInt32("2147483648"); ok {
+		t.Fatal("max+1", n, ok)
+	}
+	if n, ok := strToInt32("2147483657"); ok {
+		t.Fatal("2147483657", n, ok)
+	}
+	if n, ok := strToInt32("-2147483658"); ok {
+		t.Fatal("-2147483658", n, ok)
+	}
+	if n, ok := strToInt32("2147483647"); !ok || n != 2147483647 {
+		t.Fatal("max", n, ok)
+	}
+	if n, ok := strToInt32("-2147483649"); ok {
+		t.Fatal("min-1", n, ok)
+	}
+	if n, ok := strToInt32("-2147483648"); !ok || n != -2147483648 {
+		t.Fatal("min", n, ok)
+	}
+	if n, ok := strToInt32("-00"); ok {
+		t.Fatal("-00", n, ok)
+	}
+	if n, ok := strToInt32("-01"); ok {
+		t.Fatal("-01", n, ok)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

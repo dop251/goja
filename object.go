@@ -65,6 +65,18 @@ func (p *PropertyDescriptor) Empty() bool {
 	return *p == empty
 }
 
+func (p *PropertyDescriptor) IsAccessor() bool {
+	return p.Setter != nil || p.Getter != nil
+}
+
+func (p *PropertyDescriptor) IsData() bool {
+	return p.Value != nil || p.Writable != FLAG_NOT_SET
+}
+
+func (p *PropertyDescriptor) IsGeneric() bool {
+	return !p.IsAccessor() && !p.IsData()
+}
+
 func (p *PropertyDescriptor) toValue(r *Runtime) Value {
 	if p.jsDescriptor != nil {
 		return p.jsDescriptor
@@ -1121,9 +1133,9 @@ func (o *baseObject) fixPropOrder() {
 	names := o.propNames
 	for i := o.lastSortedPropLen; i < len(names); i++ {
 		name := names[i]
-		if idx := strToIdx(name); idx != math.MaxUint32 {
+		if idx := strToArrayIdx(name); idx != math.MaxUint32 {
 			k := sort.Search(o.idxPropCount, func(j int) bool {
-				return strToIdx(names[j]) >= idx
+				return strToArrayIdx(names[j]) >= idx
 			})
 			if k < i {
 				if namesMarkedForCopy(names) {

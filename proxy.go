@@ -891,15 +891,15 @@ func (p *proxyObject) __isCompatibleDescriptor(extensible bool, desc *PropertyDe
 			return false
 		}
 
-		if p.__isGenericDescriptor(desc) {
+		if desc.IsGeneric() {
 			return true
 		}
 
-		if p.__isDataDescriptor(desc) != !current.accessor {
+		if desc.IsData() != !current.accessor {
 			return desc.Configurable != FLAG_FALSE
 		}
 
-		if p.__isDataDescriptor(desc) && !current.accessor {
+		if desc.IsData() && !current.accessor {
 			if !current.configurable {
 				if desc.Writable == FLAG_TRUE && !current.writable {
 					return false
@@ -912,7 +912,7 @@ func (p *proxyObject) __isCompatibleDescriptor(extensible bool, desc *PropertyDe
 			}
 			return true
 		}
-		if p.__isAccessorDescriptor(desc) && current.accessor {
+		if desc.IsAccessor() && current.accessor {
 			if !current.configurable {
 				if desc.Setter != nil && desc.Setter.SameAs(current.setterFunc) {
 					return false
@@ -924,18 +924,6 @@ func (p *proxyObject) __isCompatibleDescriptor(extensible bool, desc *PropertyDe
 		}
 	}
 	return true
-}
-
-func (p *proxyObject) __isAccessorDescriptor(desc *PropertyDescriptor) bool {
-	return desc.Setter != nil || desc.Getter != nil
-}
-
-func (p *proxyObject) __isDataDescriptor(desc *PropertyDescriptor) bool {
-	return desc.Value != nil || desc.Writable != FLAG_NOT_SET
-}
-
-func (p *proxyObject) __isGenericDescriptor(desc *PropertyDescriptor) bool {
-	return !p.__isAccessorDescriptor(desc) && !p.__isDataDescriptor(desc)
 }
 
 func (p *proxyObject) __sameValue(val1, val2 Value) bool {

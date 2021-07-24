@@ -1069,6 +1069,18 @@ func toIntStrict(i int64) int {
 	return int(i)
 }
 
+func toIntClamp(i int64) int {
+	if bits.UintSize == 32 {
+		if i > math.MaxInt32 {
+			return math.MaxInt32
+		}
+		if i < math.MinInt32 {
+			return math.MinInt32
+		}
+	}
+	return int(i)
+}
+
 func (r *Runtime) toIndex(v Value) int {
 	intIdx := v.ToInteger()
 	if intIdx >= 0 && intIdx < maxInt {
@@ -2453,9 +2465,214 @@ func (r *Runtime) setGlobal(name unistring.String, v Value, strict bool) {
 	}
 }
 
-func strPropToInt(s unistring.String) (int, bool) {
-	if res, err := strconv.Atoi(string(s)); err == nil {
-		return res, true
+func strToArrayIdx(s unistring.String) uint32 {
+	if s == "" {
+		return math.MaxUint32
 	}
-	return 0, false
+	l := len(s)
+	if s[0] == '0' {
+		if l == 1 {
+			return 0
+		}
+		return math.MaxUint32
+	}
+	var n uint32
+	if l < 10 {
+		// guaranteed not to overflow
+		for i := 0; i < len(s); i++ {
+			c := s[i]
+			if c < '0' || c > '9' {
+				return math.MaxUint32
+			}
+			n = n*10 + uint32(c-'0')
+		}
+		return n
+	}
+	if l > 10 {
+		// guaranteed to overflow
+		return math.MaxUint32
+	}
+	c9 := s[9]
+	if c9 < '0' || c9 > '9' {
+		return math.MaxUint32
+	}
+	for i := 0; i < 9; i++ {
+		c := s[i]
+		if c < '0' || c > '9' {
+			return math.MaxUint32
+		}
+		n = n*10 + uint32(c-'0')
+	}
+	if n >= math.MaxUint32/10+1 {
+		return math.MaxUint32
+	}
+	n *= 10
+	n1 := n + uint32(c9-'0')
+	if n1 < n {
+		return math.MaxUint32
+	}
+
+	return n1
+}
+
+func strToInt32(s unistring.String) (int32, bool) {
+	if s == "" {
+		return -1, false
+	}
+	neg := s[0] == '-'
+	if neg {
+		s = s[1:]
+	}
+	l := len(s)
+	if s[0] == '0' {
+		if l == 1 {
+			return 0, !neg
+		}
+		return -1, false
+	}
+	var n uint32
+	if l < 10 {
+		// guaranteed not to overflow
+		for i := 0; i < len(s); i++ {
+			c := s[i]
+			if c < '0' || c > '9' {
+				return -1, false
+			}
+			n = n*10 + uint32(c-'0')
+		}
+	} else if l > 10 {
+		// guaranteed to overflow
+		return -1, false
+	} else {
+		c9 := s[9]
+		if c9 >= '0' {
+			if !neg && c9 > '7' || c9 > '8' {
+				// guaranteed to overflow
+				return -1, false
+			}
+			for i := 0; i < 9; i++ {
+				c := s[i]
+				if c < '0' || c > '9' {
+					return -1, false
+				}
+				n = n*10 + uint32(c-'0')
+			}
+			if n >= math.MaxInt32/10+1 {
+				// valid number, but it overflows integer
+				return 0, false
+			}
+			n = n*10 + uint32(c9-'0')
+		} else {
+			return -1, false
+		}
+	}
+	if neg {
+		return int32(-n), true
+	}
+	return int32(n), true
+}
+
+func strToInt64(s unistring.String) (int64, bool) {
+	if s == "" {
+		return -1, false
+	}
+	neg := s[0] == '-'
+	if neg {
+		s = s[1:]
+	}
+	l := len(s)
+	if s[0] == '0' {
+		if l == 1 {
+			return 0, !neg
+		}
+		return -1, false
+	}
+	var n uint64
+	if l < 19 {
+		// guaranteed not to overflow
+		for i := 0; i < len(s); i++ {
+			c := s[i]
+			if c < '0' || c > '9' {
+				return -1, false
+			}
+			n = n*10 + uint64(c-'0')
+		}
+	} else if l > 19 {
+		// guaranteed to overflow
+		return -1, false
+	} else {
+		c18 := s[18]
+		if c18 >= '0' {
+			if !neg && c18 > '7' || c18 > '8' {
+				// guaranteed to overflow
+				return -1, false
+			}
+			for i := 0; i < 18; i++ {
+				c := s[i]
+				if c < '0' || c > '9' {
+					return -1, false
+				}
+				n = n*10 + uint64(c-'0')
+			}
+			if n >= math.MaxInt64/10+1 {
+				// valid number, but it overflows integer
+				return 0, false
+			}
+			n = n*10 + uint64(c18-'0')
+		} else {
+			return -1, false
+		}
+	}
+	if neg {
+		return int64(-n), true
+	}
+	return int64(n), true
+}
+
+func strToInt(s unistring.String) (int, bool) {
+	if bits.UintSize == 32 {
+		n, ok := strToInt32(s)
+		return int(n), ok
+	}
+	n, ok := strToInt64(s)
+	return int(n), ok
+}
+
+// Attempts to convert a string into a canonical integer.
+// On success returns (number, true).
+// If it was a canonical number, but not an integer returns (0, false). This includes -0 and overflows.
+// In all other cases returns (-1, false).
+// See https://262.ecma-international.org/#sec-canonicalnumericindexstring
+func strToIntNum(s unistring.String) (int, bool) {
+	n, ok := strToInt64(s)
+	if n == 0 {
+		return 0, ok
+	}
+	if ok && n >= -maxInt && n <= maxInt {
+		if bits.UintSize == 32 {
+			if n > math.MaxInt32 || n < math.MinInt32 {
+				return 0, false
+			}
+		}
+		return int(n), true
+	}
+	str := stringValueFromRaw(s)
+	if str.ToNumber().toString().SameAs(str) {
+		return 0, false
+	}
+	return -1, false
+}
+
+func strToGoIdx(s unistring.String) int {
+	if n, ok := strToInt(s); ok {
+		return n
+	}
+	return -1
+}
+
+func strToIdx64(s unistring.String) int64 {
+	if n, ok := strToInt64(s); ok {
+		return n
+	}
+	return -1
 }

@@ -56,6 +56,13 @@ var (
 		"test/language/expressions/arrow-function/scope-param-elem-var-close.js":      true,
 		"test/language/expressions/arrow-function/scope-param-elem-var-open.js":       true,
 
+		// These tests are out of date (fixed in https://github.com/tc39/test262/commit/7d998a098e5420cb4b6ee4a05eb8c386d750c596)
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/key-is-numericindex.js":                   true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/key-is-numericindex-desc-configurable.js": true,
+
+		// Fixed in https://github.com/tc39/test262/commit/7d998a098e5420cb4b6ee4a05eb8c386d750c596
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/detached-buffer.js": true,
+
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
@@ -242,13 +249,14 @@ var (
 		"test/language/expressions/call/spread-obj-spread-order.js":                                     true,
 
 		// template strings
-		"test/built-ins/String/raw/zero-literal-segments.js":                                           true,
-		"test/built-ins/String/raw/template-substitutions-are-appended-on-same-index.js":               true,
-		"test/built-ins/String/raw/special-characters.js":                                              true,
-		"test/built-ins/String/raw/return-the-string-value-from-template.js":                           true,
-		"test/built-ins/TypedArray/prototype/fill/fill-values-conversion-operations-consistent-nan.js": true,
-		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":       true,
-		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":         true,
+		"test/built-ins/String/raw/zero-literal-segments.js":                                                       true,
+		"test/built-ins/String/raw/template-substitutions-are-appended-on-same-index.js":                           true,
+		"test/built-ins/String/raw/special-characters.js":                                                          true,
+		"test/built-ins/String/raw/return-the-string-value-from-template.js":                                       true,
+		"test/built-ins/TypedArray/prototype/fill/fill-values-conversion-operations-consistent-nan.js":             true,
+		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":                   true,
+		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":                     true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/conversion-operation-consistent-nan.js": true,
 
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
@@ -409,6 +417,7 @@ var (
 		"sec-functiondeclarationinstantiation",
 		"sec-functiondeclarations-in-ifstatement-statement-clauses",
 		"sec-evaldeclarationinstantiation",
+		"sec-integer-indexed-exotic-objects-defineownproperty-p-desc",
 	}
 )
 

@@ -69,3 +69,80 @@ func TestArrayBufferGoWrapper(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestTypedArrayIdx(t *testing.T) {
+	const SCRIPT = `
+	var a = new Uint8Array(1);
+
+	// 32-bit integer overflow, should not panic on 32-bit architectures
+	if (a[4294967297] !== undefined) {
+		throw new Error("4294967297");
+	}
+
+	// Canonical non-integer
+	a["Infinity"] = 8;
+	if (a["Infinity"] !== undefined) {
+		throw new Error("Infinity");
+	}
+	a["NaN"] = 1;
+	if (a["NaN"] !== undefined) {
+		throw new Error("NaN");
+	}
+
+	// Non-canonical integer
+	a["00"] = "00";
+	if (a["00"] !== "00") {
+		throw new Error("00");
+	}
+
+	// Non-canonical non-integer
+	a["1e-3"] = "1e-3";
+	if (a["1e-3"] !== "1e-3") {
+		throw new Error("1e-3");
+	}
+	if (a["0.001"] !== undefined) {
+		throw new Error("0.001");
+	}
+
+	// Negative zero
+	a["-0"] = 88;
+	if (a["-0"] !== undefined) {
+		throw new Error("-0");
+	}
+
+	if (a[0] !== 0) {
+		throw new Error("0");
+	}
+
+	a["9007199254740992"] = 1;
+	if (a["9007199254740992"] !== undefined) {
+		throw new Error("9007199254740992");
+	}
+	a["-9007199254740992"] = 1;
+	if (a["-9007199254740992"] !== undefined) {
+		throw new Error("-9007199254740992");
+	}
+
+	// Safe integer overflow, not canonical (Number("9007199254740993") === 9007199254740992)
+	a["9007199254740993"] = 1;
+	if (a["9007199254740993"] !== 1) {
+		throw new Error("9007199254740993");
+	}
+	a["-9007199254740993"] = 1;
+	if (a["-9007199254740993"] !== 1) {
+		throw new Error("-9007199254740993");
+	}
+
+	// Safe integer overflow, canonical Number("9007199254740994") == 9007199254740994
+	a["9007199254740994"] = 1;
+	if (a["9007199254740994"] !== undefined) {
+		throw new Error("9007199254740994");
+	}
+	a["-9007199254740994"] = 1;
+	if (a["-9007199254740994"] !== undefined) {
+		throw new Error("-9007199254740994");
+	}
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
