@@ -2494,7 +2494,7 @@ type _callEvalVariadic struct{}
 var callEvalVariadic _callEvalVariadic
 
 func (_callEvalVariadic) exec(vm *vm) {
-	vm.callEval(vm.sp-vm.sb-2, false)
+	vm.callEval(vm.countVariadicArgs()-2, false)
 }
 
 type _callEvalVariadicStrict struct{}
@@ -2502,7 +2502,7 @@ type _callEvalVariadicStrict struct{}
 var callEvalVariadicStrict _callEvalVariadicStrict
 
 func (_callEvalVariadicStrict) exec(vm *vm) {
-	vm.callEval(vm.sp-vm.sb-2, true)
+	vm.callEval(vm.countVariadicArgs()-2, true)
 }
 
 type _boxThis struct{}
@@ -2519,13 +2519,14 @@ func (_boxThis) exec(vm *vm) {
 	vm.pc++
 }
 
+var variadicMarker Value = newSymbol(asciiString("[variadic marker]"))
+
 type _startVariadic struct{}
 
 var startVariadic _startVariadic
 
 func (_startVariadic) exec(vm *vm) {
-	vm.push(valueInt(vm.sb))
-	vm.sb = vm.sp
+	vm.push(variadicMarker)
 	vm.pc++
 }
 
@@ -2533,8 +2534,19 @@ type _callVariadic struct{}
 
 var callVariadic _callVariadic
 
+func (vm *vm) countVariadicArgs() int {
+	count := 0
+	for i := vm.sp - 1; i >= 0; i-- {
+		if vm.stack[i] == variadicMarker {
+			return count
+		}
+		count++
+	}
+	panic("Variadic marker was not found. Compiler bug.")
+}
+
 func (_callVariadic) exec(vm *vm) {
-	call(vm.sp - vm.sb - 2).exec(vm)
+	call(vm.countVariadicArgs() - 2).exec(vm)
 }
 
 type _endVariadic struct{}
@@ -2543,7 +2555,6 @@ var endVariadic _endVariadic
 
 func (_endVariadic) exec(vm *vm) {
 	vm.sp--
-	vm.sb = int(vm.stack[vm.sp-1].(valueInt))
 	vm.stack[vm.sp-1] = vm.stack[vm.sp]
 	vm.pc++
 }
@@ -3480,7 +3491,7 @@ type _newVariadic struct{}
 var newVariadic _newVariadic
 
 func (_newVariadic) exec(vm *vm) {
-	_new(vm.sp - vm.sb - 1).exec(vm)
+	_new(vm.countVariadicArgs() - 1).exec(vm)
 }
 
 type _new uint32

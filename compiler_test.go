@@ -4020,6 +4020,17 @@ func TestVariadicNew(t *testing.T) {
 	testScript1(SCRIPT, asciiString("1,a,2"), t)
 }
 
+func TestVariadicUseStackVars(t *testing.T) {
+	const SCRIPT = `
+	function A(message) { return message; }
+	function B(...args){
+			return A(...args);
+	}
+	B("C");
+	`
+	testScript1(SCRIPT, asciiString("C"), t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")
