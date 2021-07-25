@@ -292,7 +292,7 @@ type (
 
 	CatchStatement struct {
 		Catch     file.Idx
-		Parameter *Identifier
+		Parameter BindingTarget
 		Body      *BlockStatement
 	}
 

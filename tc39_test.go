@@ -190,6 +190,8 @@ var (
 		"test/language/statements/for-of/dstr/let-obj-ptrn-id-init-fn-name-class.js":                                 true,
 		"test/language/statements/for-of/dstr/const-ary-ptrn-elem-id-init-fn-name-class.js":                          true,
 		"test/language/statements/for-of/dstr/let-ary-ptrn-elem-id-init-fn-name-class.js":                            true,
+		"test/language/statements/try/dstr/obj-ptrn-id-init-fn-name-class.js":                                        true,
+		"test/language/statements/try/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                                   true,
 
 		// arrow-function
 		"test/built-ins/Object/prototype/toString/proxy-function.js":                                    true,
@@ -247,6 +249,8 @@ var (
 		"test/language/statements/for-of/dstr/let-obj-ptrn-id-init-fn-name-arrow.js":                    true,
 		"test/language/statements/for-of/dstr/array-elem-init-fn-name-arrow.js":                         true,
 		"test/language/expressions/call/spread-obj-spread-order.js":                                     true,
+		"test/language/statements/try/dstr/obj-ptrn-id-init-fn-name-arrow.js":                           true,
+		"test/language/statements/try/dstr/ary-ptrn-elem-id-init-fn-name-arrow.js":                      true,
 
 		// template strings
 		"test/built-ins/String/raw/zero-literal-segments.js":                                                       true,
@@ -403,6 +407,7 @@ var (
 		"sec-with-statement*",
 		"sec-switch-*",
 		"sec-try-*",
+		"sec-runtime-semantics-catchclauseevaluation",
 		"sec-strict-mode-of-ecmascript",
 		"sec-let-and-const-declarations*",
 		"sec-arguments-exotic-objects-defineownproperty-p-desc",

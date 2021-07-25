@@ -4031,6 +4031,22 @@ func TestVariadicUseStackVars(t *testing.T) {
 	testScript1(SCRIPT, asciiString("C"), t)
 }
 
+func TestCatchParamPattern(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		let x = 3;
+		try {
+			throw {a: 1, b: 2};
+		} catch ({a, b, c = x}) {
+			let x = 99;
+			return ""+a+" "+b+" "+c;
+		}
+	}
+	f();
+	`
+	testScript1(SCRIPT, asciiString("1 2 3"), t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")

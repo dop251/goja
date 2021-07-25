@@ -142,11 +142,10 @@ func (self *_parser) parseRegExpLiteral() *ast.RegExpLiteral {
 	}
 }
 
-func (self *_parser) parseVariableDeclaration(declarationList *[]*ast.Binding) ast.Expression {
+func (self *_parser) parseBindingTarget() (target ast.BindingTarget) {
 	if self.token == token.LET {
 		self.token = token.IDENTIFIER
 	}
-	var target ast.BindingTarget
 	switch self.token {
 	case token.IDENTIFIER:
 		target = &ast.Identifier{
@@ -161,11 +160,15 @@ func (self *_parser) parseVariableDeclaration(declarationList *[]*ast.Binding) a
 	default:
 		idx := self.expect(token.IDENTIFIER)
 		self.nextStatement()
-		return &ast.BadExpression{From: idx, To: self.idx}
+		target = &ast.BadExpression{From: idx, To: self.idx}
 	}
 
+	return
+}
+
+func (self *_parser) parseVariableDeclaration(declarationList *[]*ast.Binding) ast.Expression {
 	node := &ast.Binding{
-		Target: target,
+		Target: self.parseBindingTarget(),
 	}
 
 	if declarationList != nil {

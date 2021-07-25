@@ -128,17 +128,11 @@ func (self *_parser) parseTryStatement() ast.Statement {
 	if self.token == token.CATCH {
 		catch := self.idx
 		self.next()
-		var parameter *ast.Identifier
+		var parameter ast.BindingTarget
 		if self.token == token.LEFT_PARENTHESIS {
 			self.next()
-			if self.token != token.IDENTIFIER {
-				self.expect(token.IDENTIFIER)
-				self.nextStatement()
-				return &ast.BadStatement{From: catch, To: self.idx}
-			} else {
-				parameter = self.parseIdentifier()
-				self.expect(token.RIGHT_PARENTHESIS)
-			}
+			parameter = self.parseBindingTarget()
+			self.expect(token.RIGHT_PARENTHESIS)
 		}
 		node.Catch = &ast.CatchStatement{
 			Catch:     catch,

@@ -102,12 +102,6 @@ func (c *compiler) updateEnterBlock(enter *enterBlock) {
 }
 
 func (c *compiler) compileTryStatement(v *ast.TryStatement, needResult bool) {
-	if c.scope.strict && v.Catch != nil && v.Catch.Parameter != nil {
-		switch v.Catch.Parameter.Name {
-		case "arguments", "eval":
-			c.throwSyntaxError(int(v.Catch.Parameter.Idx)-1, "Catch variable may not be eval or arguments in strict mode")
-		}
-	}
 	c.block = &block{
 		typ:   blockTry,
 		outer: c.block,
@@ -146,16 +140,31 @@ func (c *compiler) compileTryStatement(v *ast.TryStatement, needResult bool) {
 			c.newBlockScope()
 			list := v.Catch.Body.List
 			funcs := c.extractFunctions(list)
-			c.createFunctionBindings(funcs)
-			c.scope.bindNameLexical(v.Catch.Parameter.Name, true, int(v.Catch.Parameter.Idx)-1)
-			bindings := c.scope.bindings
-			if l := len(bindings); l > 1 {
-				// make sure the catch variable always goes first
-				bindings[0], bindings[l-1] = bindings[l-1], bindings[0]
+			if _, ok := v.Catch.Parameter.(ast.Pattern); ok {
+				// add anonymous binding for the catch parameter, note it must be first
+				c.scope.addBinding(int(v.Catch.Idx0()) - 1)
 			}
-			c.compileLexicalDeclarations(list, true)
+			c.createBindings(v.Catch.Parameter, func(name unistring.String, offset int) {
+				if c.scope.strict {
+					switch name {
+					case "arguments", "eval":
+						c.throwSyntaxError(offset, "Catch variable may not be eval or arguments in strict mode")
+					}
+				}
+				c.scope.bindNameLexical(name, true, offset)
+			})
 			enter := &enterBlock{}
 			c.emit(enter)
+			if pattern, ok := v.Catch.Parameter.(ast.Pattern); ok {
+				c.scope.bindings[0].emitGet()
+				c.emitPattern(pattern, func(target, init compiledExpr) {
+					c.emitPatternLexicalAssign(target, init, false)
+				}, false)
+			}
+			for _, decl := range funcs {
+				c.scope.bindNameLexical(decl.Function.Name.Name, true, int(decl.Function.Name.Idx1())-1)
+			}
+			c.compileLexicalDeclarations(list, true)
 			c.compileFunctions(funcs)
 			c.compileStatements(list, bodyNeedResult)
 			c.leaveScopeBlock(enter)
