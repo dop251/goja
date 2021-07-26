@@ -62,6 +62,18 @@ var (
 
 		// Fixed in https://github.com/tc39/test262/commit/7d998a098e5420cb4b6ee4a05eb8c386d750c596
 		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/detached-buffer.js": true,
+		// Fixed in https://github.com/tc39/test262/commit/0bb8fe8aba97765aa3a8d4dd8880cd8e3c238f68
+		"test/built-ins/TypedArrayConstructors/internals/Get/detached-buffer.js":                              true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/tonumber-value-detached-buffer.js": true,
+		// 36c2cd165f93e194b9bcad26e69e8571b1d0e6ed
+		"test/built-ins/ArrayBuffer/prototype/byteLength/detached-buffer.js": true,
+
+		// 96aff62fb25cf9ef27929a8ab822ee853d99b06e
+		"test/built-ins/TypedArrayConstructors/internals/Set/tonumber-value-detached-buffer.js": true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds.js":           true,
+
+		// 167e596a649ede35df11d03cb3c093941c9cf396
+		"test/built-ins/TypedArrayConstructors/internals/Set/detached-buffer.js": true,
 
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
@@ -261,6 +273,7 @@ var (
 		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":                   true,
 		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":                     true,
 		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/conversion-operation-consistent-nan.js": true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/conversion-operation-consistent-nan.js":               true,
 
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
@@ -423,6 +436,8 @@ var (
 		"sec-functiondeclarations-in-ifstatement-statement-clauses",
 		"sec-evaldeclarationinstantiation",
 		"sec-integer-indexed-exotic-objects-defineownproperty-p-desc",
+		"sec-integer-indexed-exotic-objects-get-p-receiver",
+		"sec-integer-indexed-exotic-objects-set-p-v-receiver",
 		"sec-destructuring-binding-patterns",
 		"sec-runtime-semantics-keyeddestructuringassignmentevaluation",
 	}

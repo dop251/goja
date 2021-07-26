@@ -56,13 +56,8 @@ func TestArrayBufferGoWrapper(t *testing.T) {
 		t.Fatal("buf1.Detached() returned false")
 	}
 	_, err = vm.RunString(`
-	try {
-		(b[0]);
-		throw new Error("expected TypeError");
-	} catch (e) {
-		if (!(e instanceof TypeError)) {
-			throw e;
-		}
+	if (b[0] !== undefined) {
+		throw new Error("b[0] !== undefined");
 	}
 	`)
 	if err != nil {
@@ -145,4 +140,146 @@ func TestTypedArrayIdx(t *testing.T) {
 	`
 
 	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestTypedArraySetDetachedBuffer(t *testing.T) {
+	const SCRIPT = `
+	let sample = new Uint8Array([42]);
+	$DETACHBUFFER(sample.buffer);
+	sample[0] = 1;
+
+	assert.sameValue(sample[0], undefined, 'sample[0] = 1 is undefined');
+	sample['1.1'] = 1;
+	assert.sameValue(sample['1.1'], undefined, 'sample[\'1.1\'] = 1 is undefined');
+	sample['-0'] = 1;
+	assert.sameValue(sample['-0'], undefined, 'sample[\'-0\'] = 1 is undefined');
+	sample['-1'] = 1;
+	assert.sameValue(sample['-1'], undefined, 'sample[\'-1\'] = 1 is undefined');
+	sample['1'] = 1;
+	assert.sameValue(sample['1'], undefined, 'sample[\'1\'] = 1 is undefined');
+	sample['2'] = 1;
+	assert.sameValue(sample['2'], undefined, 'sample[\'2\'] = 1 is undefined');	
+	`
+	vm := New()
+	vm.Set("$DETACHBUFFER", func(buf *ArrayBuffer) {
+		buf.Detach()
+	})
+	_, err := vm.RunString(TESTLIB + SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTypedArrayDefineDetachedBuffer(t *testing.T) {
+	const SCRIPT = `
+	var desc = {
+	  value: 0,
+	  configurable: false,
+	  enumerable: true,
+	  writable: true
+	};
+	
+	var obj = {
+	  valueOf: function() {
+		throw new Error("valueOf() was called");
+	  }
+	};
+	let sample = new Uint8Array(42);
+	$DETACHBUFFER(sample.buffer);
+	
+	assert.sameValue(
+	Reflect.defineProperty(sample, "0", desc),
+	false,
+	'Reflect.defineProperty(sample, "0", {value: 0, configurable: false, enumerable: true, writable: true} ) must return false'
+	);
+	
+	assert.sameValue(
+	Reflect.defineProperty(sample, "-1", desc),
+	false,
+	'Reflect.defineProperty(sample, "-1", {value: 0, configurable: false, enumerable: true, writable: true} ) must return false'
+	);
+	
+	assert.sameValue(
+	Reflect.defineProperty(sample, "1.1", desc),
+	false,
+	'Reflect.defineProperty(sample, "1.1", {value: 0, configurable: false, enumerable: true, writable: true} ) must return false'
+	);
+	
+	assert.sameValue(
+	Reflect.defineProperty(sample, "-0", desc),
+	false,
+	'Reflect.defineProperty(sample, "-0", {value: 0, configurable: false, enumerable: true, writable: true} ) must return false'
+	);
+	
+	assert.sameValue(
+	Reflect.defineProperty(sample, "2", {
+	  configurable: true,
+	  enumerable: true,
+	  writable: true,
+	  value: obj
+	}),
+	false,
+	'Reflect.defineProperty(sample, "2", {configurable: true, enumerable: true, writable: true, value: obj}) must return false'
+	);
+	
+	assert.sameValue(
+	Reflect.defineProperty(sample, "3", {
+	  configurable: false,
+	  enumerable: false,
+	  writable: true,
+	  value: obj
+	}),
+	false,
+	'Reflect.defineProperty(sample, "3", {configurable: false, enumerable: false, writable: true, value: obj}) must return false'
+	);
+	
+	assert.sameValue(
+	Reflect.defineProperty(sample, "4", {
+	  writable: false,
+	  configurable: false,
+	  enumerable: true,
+	  value: obj
+	}),
+	false,
+	'Reflect.defineProperty("new TA(42)", "4", {writable: false, configurable: false, enumerable: true, value: obj}) must return false'
+	);
+	
+	assert.sameValue(
+	Reflect.defineProperty(sample, "42", desc),
+	false,
+	'Reflect.defineProperty(sample, "42", {value: 0, configurable: false, enumerable: true, writable: true} ) must return false'
+	);
+	
+	assert.sameValue(
+	Reflect.defineProperty(sample, "43", desc),
+	false,
+	'Reflect.defineProperty(sample, "43", {value: 0, configurable: false, enumerable: true, writable: true} ) must return false'
+	);
+	
+	assert.sameValue(
+	Reflect.defineProperty(sample, "5", {
+	  get: function() {}
+	}),
+	false,
+	'Reflect.defineProperty(sample, "5", {get: function() {}}) must return false'
+	);
+	
+	assert.sameValue(
+	Reflect.defineProperty(sample, "6", {
+	  configurable: false,
+	  enumerable: true,
+	  writable: true
+	}),
+	false,
+	'Reflect.defineProperty(sample, "6", {configurable: false, enumerable: true, writable: true}) must return false'
+	);
+	`
+	vm := New()
+	vm.Set("$DETACHBUFFER", func(buf *ArrayBuffer) {
+		buf.Detach()
+	})
+	_, err := vm.RunString(TESTLIB + SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
 }

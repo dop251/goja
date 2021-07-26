@@ -304,3 +304,29 @@ func TestInt32ArrayNegativeIndex(t *testing.T) {
 
 	testScript1(SCRIPT, valueTrue, t)
 }
+
+func TestTypedArrayDefineProperty(t *testing.T) {
+	const SCRIPT = `
+  var sample = new Uint8Array([42, 42]);
+
+  assert.sameValue(
+    Reflect.defineProperty(sample, "0", {
+      value: 8,
+      configurable: true,
+      enumerable: true,
+      writable: true
+    }),
+    true
+  );
+
+  assert.sameValue(sample[0], 8, "property value was set");
+  let descriptor0 = Object.getOwnPropertyDescriptor(sample, "0");
+  assert.sameValue(descriptor0.value, 8);
+  assert.sameValue(descriptor0.configurable, true, "configurable");
+  assert.sameValue(descriptor0.enumerable, true);
+  assert.sameValue(descriptor0.writable, true);
+
+	`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}

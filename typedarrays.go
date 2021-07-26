@@ -449,7 +449,9 @@ func (a *float64Array) typeMatch(v Value) bool {
 
 func (a *typedArrayObject) _getIdx(idx int) Value {
 	if 0 <= idx && idx < a.length {
-		a.viewedArrayBuf.ensureNotDetached()
+		if !a.viewedArrayBuf.ensureNotDetached(false) {
+			return nil
+		}
 		return a.typedArray.get(idx + a.offset)
 	}
 	return nil
@@ -461,9 +463,10 @@ func (a *typedArrayObject) getOwnPropStr(name unistring.String) Value {
 		v := a._getIdx(idx)
 		if v != nil {
 			return &valueProperty{
-				value:      v,
-				writable:   true,
-				enumerable: true,
+				value:        v,
+				writable:     true,
+				enumerable:   true,
+				configurable: true,
 			}
 		}
 		return nil
@@ -489,20 +492,11 @@ func (a *typedArrayObject) getOwnPropIdx(idx valueInt) Value {
 
 func (a *typedArrayObject) getStr(name unistring.String, receiver Value) Value {
 	idx, ok := strToIntNum(name)
-	if ok || idx == 0 {
-		var prop Value
-		if ok {
-			prop = a._getIdx(idx)
-		}
-		if prop == nil {
-			if a.prototype != nil {
-				if receiver == nil {
-					return a.prototype.self.getStr(name, a.val)
-				}
-				return a.prototype.self.getStr(name, receiver)
-			}
-		}
-		return prop
+	if ok {
+		return a._getIdx(idx)
+	}
+	if idx == 0 {
+		return nil
 	}
 	return a.baseObject.getStr(name, receiver)
 }
@@ -520,35 +514,37 @@ func (a *typedArrayObject) getIdx(idx valueInt, receiver Value) Value {
 	return prop
 }
 
-func (a *typedArrayObject) _putIdx(idx int, v Value, throw bool) bool {
+func (a *typedArrayObject) isValidIntegerIndex(idx int, throw bool) bool {
+	return a.viewedArrayBuf.ensureNotDetached(throw) && idx >= 0 && idx < a.length
+}
+
+func (a *typedArrayObject) _putIdx(idx int, v Value) {
 	v = v.ToNumber()
-	if idx >= 0 && idx < a.length {
-		a.viewedArrayBuf.ensureNotDetached()
+	if a.isValidIntegerIndex(idx, false) {
 		a.typedArray.set(idx+a.offset, v)
-		return true
 	}
-	// As far as I understand the specification this should throw, but neither V8 nor SpiderMonkey does
-	return false
 }
 
 func (a *typedArrayObject) _hasIdx(idx int) bool {
-	a.viewedArrayBuf.ensureNotDetached()
-	return idx >= 0 && idx < a.length
+	return a.viewedArrayBuf.ensureNotDetached(false) && idx >= 0 && idx < a.length
 }
 
 func (a *typedArrayObject) setOwnStr(p unistring.String, v Value, throw bool) bool {
 	idx, ok := strToIntNum(p)
 	if ok {
-		return a._putIdx(idx, v, throw)
+		a._putIdx(idx, v)
+		return true
 	}
 	if idx == 0 {
+		v.ToNumber() // make sure it throws
 		return false
 	}
 	return a.baseObject.setOwnStr(p, v, throw)
 }
 
 func (a *typedArrayObject) setOwnIdx(p valueInt, v Value, throw bool) bool {
-	return a._putIdx(toIntClamp(int64(p)), v, throw)
+	a._putIdx(toIntClamp(int64(p)), v)
+	return true
 }
 
 func (a *typedArrayObject) setForeignStr(p unistring.String, v, receiver Value, throw bool) (res bool, handled bool) {
@@ -562,8 +558,7 @@ func (a *typedArrayObject) setForeignIdx(p valueInt, v, receiver Value, throw bo
 func (a *typedArrayObject) hasOwnPropertyStr(name unistring.String) bool {
 	idx, ok := strToIntNum(name)
 	if ok {
-		a.viewedArrayBuf.ensureNotDetached()
-		return idx >= 0 && idx < a.length
+		return a.viewedArrayBuf.ensureNotDetached(false) && idx >= 0 && idx < a.length
 	}
 	if idx == 0 {
 		return false
@@ -587,7 +582,11 @@ func (a *typedArrayObject) _defineIdxProperty(idx int, desc PropertyDescriptor, 
 	}
 	_, ok := a._defineOwnProperty(unistring.String(strconv.Itoa(idx)), a.getOwnPropIdx(valueInt(idx)), desc, throw)
 	if ok {
-		return a._putIdx(idx, desc.Value, throw)
+		if !a.isValidIntegerIndex(idx, throw) {
+			return false
+		}
+		a._putIdx(idx, desc.Value)
+		return true
 	}
 	return ok
 }
@@ -598,6 +597,7 @@ func (a *typedArrayObject) defineOwnPropertyStr(name unistring.String, desc Prop
 		return a._defineIdxProperty(idx, desc, throw)
 	}
 	if idx == 0 {
+		a.viewedArrayBuf.ensureNotDetached(throw)
 		return false
 	}
 	return a.baseObject.defineOwnPropertyStr(name, desc, throw)
@@ -610,7 +610,7 @@ func (a *typedArrayObject) defineOwnPropertyIdx(name valueInt, desc PropertyDesc
 func (a *typedArrayObject) deleteStr(name unistring.String, throw bool) bool {
 	idx, ok := strToIntNum(name)
 	if ok {
-		if idx >= 0 && idx < a.length {
+		if a.viewedArrayBuf.ensureNotDetached(throw) && idx >= 0 && idx < a.length {
 			a.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of %s", idx, a.val.String())
 			return false
 		}
@@ -623,7 +623,7 @@ func (a *typedArrayObject) deleteStr(name unistring.String, throw bool) bool {
 }
 
 func (a *typedArrayObject) deleteIdx(idx valueInt, throw bool) bool {
-	if idx >= 0 && int64(idx) < int64(a.length) {
+	if a.viewedArrayBuf.ensureNotDetached(throw) && idx >= 0 && int64(idx) < int64(a.length) {
 		a.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of %s", idx, a.val.String())
 		return false
 	}
@@ -723,7 +723,7 @@ func (r *Runtime) newFloat64ArrayObject(buf *arrayBufferObject, offset, length i
 
 func (o *dataViewObject) getIdxAndByteOrder(idxVal, littleEndianVal Value, size int) (int, byteOrder) {
 	getIdx := o.val.runtime.toIndex(idxVal)
-	o.viewedArrayBuf.ensureNotDetached()
+	o.viewedArrayBuf.ensureNotDetached(true)
 	if getIdx+size > o.byteLen {
 		panic(o.val.runtime.newError(o.val.runtime.global.RangeError, "Index %d is out of bounds", getIdx))
 	}
@@ -741,10 +741,12 @@ func (o *dataViewObject) getIdxAndByteOrder(idxVal, littleEndianVal Value, size 
 	return getIdx, bo
 }
 
-func (o *arrayBufferObject) ensureNotDetached() {
+func (o *arrayBufferObject) ensureNotDetached(throw bool) bool {
 	if o.detached {
-		panic(o.val.runtime.NewTypeError("ArrayBuffer is detached"))
+		o.val.runtime.typeErrorResult(throw, "ArrayBuffer is detached")
+		return false
 	}
+	return true
 }
 
 func (o *arrayBufferObject) getFloat32(idx int, byteOrder byteOrder) float32 {
