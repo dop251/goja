@@ -774,6 +774,23 @@ func (p *proxyObject) deleteSym(s *Symbol, throw bool) bool {
 
 func (p *proxyObject) ownPropertyKeys(all bool, _ []Value) []Value {
 	if v, ok := p.proxyOwnKeys(); ok {
+		if !all {
+			k := 0
+			for i, key := range v {
+				prop := p.val.getOwnProp(key)
+				if prop == nil {
+					continue
+				}
+				if prop, ok := prop.(*valueProperty); ok && !prop.enumerable {
+					continue
+				}
+				if k != i {
+					v[k] = v[i]
+				}
+				k++
+			}
+			v = v[:k]
+		}
 		return v
 	}
 	return p.target.self.ownPropertyKeys(all, nil)
@@ -992,7 +1009,7 @@ func (p *proxyObject) ownKeys(all bool, _ []Value) []Value { // we can assume ac
 
 func (p *proxyObject) ownSymbols(all bool, accum []Value) []Value {
 	if vals, ok := p.proxyOwnKeys(); ok {
-		res := p.filterKeys(vals, true, true)
+		res := p.filterKeys(vals, all, true)
 		if accum == nil {
 			return res
 		}

@@ -423,6 +423,7 @@ var (
 		"sec-functiondeclarations-in-ifstatement-statement-clauses",
 		"sec-evaldeclarationinstantiation",
 		"sec-integer-indexed-exotic-objects-defineownproperty-p-desc",
+		"sec-destructuring-binding-patterns",
 	}
 )
 

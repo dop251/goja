@@ -1260,3 +1260,23 @@ func TestProxy_proxy_createTargetNotCallable(t *testing.T) {
 
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
+
+func TestProxyEnumerableSymbols(t *testing.T) {
+	const SCRIPT = `
+	var getOwnKeys = [];
+	var ownKeysResult = [Symbol(), "foo", "0"];
+	var proxy = new Proxy({}, {
+	  getOwnPropertyDescriptor: function(_target, key) {
+		getOwnKeys.push(key);
+	  },
+	  ownKeys: function() {
+		return ownKeysResult;
+	  },
+	});
+
+	let {...$} = proxy;
+	compareArray(getOwnKeys, ownKeysResult);
+	`
+
+	testScript1(TESTLIB+SCRIPT, valueTrue, t)
+}

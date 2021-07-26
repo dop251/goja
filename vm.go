@@ -3789,18 +3789,9 @@ func (r *Runtime) copyDataProperties(target, source Value) {
 		return
 	}
 	sourceObj := source.ToObject(r)
-	iter := &enumerableIter{
-		wrapped: sourceObj.self.enumerateOwnKeys(),
-	}
-
-	for item, next := iter.next(); next != nil; item, next = next() {
-		v := nilSafe(sourceObj.self.getStr(item.name, nil))
-		createDataPropertyOrThrow(targetObj, stringValueFromRaw(item.name), v)
-	}
-
-	for _, sym := range sourceObj.self.ownSymbols(false, nil) {
-		v := nilSafe(sourceObj.self.getSym(sym.(*Symbol), nil))
-		createDataPropertyOrThrow(targetObj, sym, v)
+	for _, key := range sourceObj.self.ownPropertyKeys(false, nil) {
+		v := nilSafe(sourceObj.get(key, nil))
+		createDataPropertyOrThrow(targetObj, key, v)
 	}
 }
 

@@ -8,7 +8,7 @@ import (
 type destructKeyedSource struct {
 	r        *Runtime
 	wrapped  Value
-	usedKeys map[unistring.String]struct{}
+	usedKeys map[Value]struct{}
 }
 
 func newDestructKeyedSource(r *Runtime, wrapped Value) *destructKeyedSource {
@@ -29,9 +29,9 @@ func (d *destructKeyedSource) w() objectImpl {
 	return d.wrapped.ToObject(d.r).self
 }
 
-func (d *destructKeyedSource) recordKey(key unistring.String) {
+func (d *destructKeyedSource) recordKey(key Value) {
 	if d.usedKeys == nil {
-		d.usedKeys = make(map[unistring.String]struct{})
+		d.usedKeys = make(map[Value]struct{})
 	}
 	d.usedKeys[key] = struct{}{}
 }
@@ -53,30 +53,32 @@ func (d *destructKeyedSource) className() string {
 }
 
 func (d *destructKeyedSource) getStr(p unistring.String, receiver Value) Value {
-	d.recordKey(p)
+	d.recordKey(stringValueFromRaw(p))
 	return d.w().getStr(p, receiver)
 }
 
 func (d *destructKeyedSource) getIdx(p valueInt, receiver Value) Value {
-	d.recordKey(p.string())
+	d.recordKey(p.toString())
 	return d.w().getIdx(p, receiver)
 }
 
 func (d *destructKeyedSource) getSym(p *Symbol, receiver Value) Value {
+	d.recordKey(p)
 	return d.w().getSym(p, receiver)
 }
 
 func (d *destructKeyedSource) getOwnPropStr(u unistring.String) Value {
-	d.recordKey(u)
+	d.recordKey(stringValueFromRaw(u))
 	return d.w().getOwnPropStr(u)
 }
 
 func (d *destructKeyedSource) getOwnPropIdx(v valueInt) Value {
-	d.recordKey(v.string())
+	d.recordKey(v.toString())
 	return d.w().getOwnPropIdx(v)
 }
 
 func (d *destructKeyedSource) getOwnPropSym(symbol *Symbol) Value {
+	d.recordKey(symbol)
 	return d.w().getOwnPropSym(symbol)
 }
 
@@ -204,7 +206,7 @@ func (i *destructKeyedSourceIter) next() (propIterItem, iterNextFunc) {
 			return item, nil
 		}
 		i.wrapped = next
-		if _, exists := i.d.usedKeys[item.name]; !exists {
+		if _, exists := i.d.usedKeys[stringValueFromRaw(item.name)]; !exists {
 			return item, i.next
 		}
 	}
@@ -244,12 +246,26 @@ func (d *destructKeyedSource) ownKeys(all bool, accum []Value) []Value {
 	return accum
 }
 
+func (d *destructKeyedSource) filterUsedKeys(keys []Value) []Value {
+	k := 0
+	for i, key := range keys {
+		if _, exists := d.usedKeys[key]; exists {
+			continue
+		}
+		if k != i {
+			keys[k] = key
+		}
+		k++
+	}
+	return keys[:k]
+}
+
 func (d *destructKeyedSource) ownSymbols(all bool, accum []Value) []Value {
-	return d.w().ownSymbols(all, accum)
+	return d.filterUsedKeys(d.w().ownSymbols(all, accum))
 }
 
 func (d *destructKeyedSource) ownPropertyKeys(all bool, accum []Value) []Value {
-	return d.ownSymbols(all, d.ownKeys(all, accum))
+	return d.filterUsedKeys(d.w().ownPropertyKeys(all, accum))
 }
 
 func (d *destructKeyedSource) _putProp(name unistring.String, value Value, writable, enumerable, configurable bool) Value {

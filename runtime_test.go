@@ -2182,6 +2182,18 @@ func TestStrToInt32(t *testing.T) {
 	}
 }
 
+func TestDestructSymbol(t *testing.T) {
+	const SCRIPT = `
+	var S = Symbol("S");
+	var s, rest;
+
+	({[S]: s, ...rest} = {[S]: true, test: 1});
+	assert.sameValue(s, true, "S");
+	assert(deepEqual(rest, {test: 1}), "rest");
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
