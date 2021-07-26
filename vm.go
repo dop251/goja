@@ -1234,6 +1234,14 @@ func (j jump) exec(vm *vm) {
 	vm.pc += int(j)
 }
 
+type _toPropertyKey struct{}
+
+func (_toPropertyKey) exec(vm *vm) {
+	p := vm.sp - 1
+	vm.stack[p] = toPropertyKey(vm.stack[p])
+	vm.pc++
+}
+
 type _getElemRef struct{}
 
 var getElemRef _getElemRef
@@ -1287,7 +1295,7 @@ var setElem1 _setElem1
 
 func (_setElem1) exec(vm *vm) {
 	obj := vm.stack[vm.sp-3].ToObject(vm.r)
-	propName := toPropertyKey(vm.stack[vm.sp-2])
+	propName := vm.stack[vm.sp-2]
 	val := vm.stack[vm.sp-1]
 
 	obj.setOwn(propName, val, true)
@@ -1302,7 +1310,7 @@ var setElem1Named _setElem1Named
 
 func (_setElem1Named) exec(vm *vm) {
 	obj := vm.stack[vm.sp-3].ToObject(vm.r)
-	propName := toPropertyKey(vm.stack[vm.sp-2])
+	propName := vm.stack[vm.sp-2]
 	val := vm.stack[vm.sp-1]
 	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
 		Value:        propName,
@@ -1547,7 +1555,7 @@ var setPropGetter1 _setPropGetter1
 
 func (s _setPropGetter1) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-3])
-	propName := toPropertyKey(vm.stack[vm.sp-2])
+	propName := vm.stack[vm.sp-2]
 	val := vm.stack[vm.sp-1]
 	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
 		Value:        asciiString("get ").concat(stringValueFromRaw(val.string())),
@@ -1572,7 +1580,7 @@ var setPropSetter1 _setPropSetter1
 
 func (s _setPropSetter1) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-3])
-	propName := toPropertyKey(vm.stack[vm.sp-2])
+	propName := vm.stack[vm.sp-2]
 	val := vm.stack[vm.sp-1]
 
 	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
@@ -1631,6 +1639,24 @@ func (_getElem) exec(vm *vm) {
 	v := vm.stack[vm.sp-2]
 	obj := v.baseObject(vm.r)
 	propName := toPropertyKey(vm.stack[vm.sp-1])
+	if obj == nil {
+		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+	}
+
+	vm.stack[vm.sp-2] = nilSafe(obj.get(propName, v))
+
+	vm.sp--
+	vm.pc++
+}
+
+type _getKey struct{}
+
+var getKey _getKey
+
+func (_getKey) exec(vm *vm) {
+	v := vm.stack[vm.sp-2]
+	obj := v.baseObject(vm.r)
+	propName := vm.stack[vm.sp-1]
 	if obj == nil {
 		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
 	}

@@ -1682,6 +1682,7 @@ func (e *compiledObjectLiteral) emitGetter(putOnStack bool) {
 				}
 			}
 			if computed {
+				e.c.emit(_toPropertyKey{})
 				valueExpr.emitGetter(true)
 				switch prop.Kind {
 				case ast.PropertyKindValue, ast.PropertyKindMethod:
@@ -2071,6 +2072,7 @@ func (c *compiler) emitObjectPattern(pattern *ast.ObjectPattern, emitAssign func
 		case *ast.PropertyKeyed:
 			c.emit(dup)
 			c.compileExpression(prop.Key).emitGetter(true)
+			c.emit(_toPropertyKey{})
 			var target ast.Expression
 			var initializer ast.Expression
 			if e, ok := prop.Value.(*ast.AssignExpression); ok {
@@ -2080,7 +2082,7 @@ func (c *compiler) emitObjectPattern(pattern *ast.ObjectPattern, emitAssign func
 				target = prop.Value
 			}
 			c.emitAssign(target, c.compilePatternInitExpr(func() {
-				c.emit(getElem)
+				c.emit(getKey)
 			}, initializer, prop.Idx0()), emitAssign)
 		default:
 			c.throwSyntaxError(int(prop.Idx0()-1), "Unsupported AssignmentProperty type: %T", prop)

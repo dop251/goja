@@ -424,6 +424,7 @@ var (
 		"sec-evaldeclarationinstantiation",
 		"sec-integer-indexed-exotic-objects-defineownproperty-p-desc",
 		"sec-destructuring-binding-patterns",
+		"sec-runtime-semantics-keyeddestructuringassignmentevaluation",
 	}
 )
 

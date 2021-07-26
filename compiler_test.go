@@ -3588,12 +3588,22 @@ func TestObjectAssignmentPatternEvalOrder(t *testing.T) {
 	
 	function prop1() {
 		trace += "prop1(),"
-		return "a";
+		return {
+			toString: function() {
+				trace += "prop1-to-string(),";
+				return "a";
+			}
+		}
 	}
 	
 	function prop2() {
 		trace += "prop2(),";
-		return "b";
+		return {
+			toString: function() {
+				trace += "prop2-to-string(),";
+				return "b";
+			}
+		}
 	}
 	
 	function target() {
@@ -3609,7 +3619,7 @@ func TestObjectAssignmentPatternEvalOrder(t *testing.T) {
 	}
 	trace;
 	`
-	testScript1(SCRIPT, asciiString("src(),prop1(),target(),get a,prop2(),"), t)
+	testScript1(SCRIPT, asciiString("src(),prop1(),prop1-to-string(),target(),get a,prop2(),prop2-to-string(),"), t)
 }
 
 func TestArrayAssignmentPatternEvalOrder(t *testing.T) {
@@ -3731,6 +3741,32 @@ func TestObjLiteralComputedKeys(t *testing.T) {
 	}
 	`
 	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestObjLiteralComputedKeysEvalOrder(t *testing.T) {
+	const SCRIPT = `
+	let trace = [];
+	function key() {
+		trace.push("key");
+		return {
+			toString: function() {
+				trace.push("key-toString");
+				return "key";
+			}
+		}
+	}
+	function val() {
+		trace.push("val");
+		return "val";
+	}
+	
+	const _ = {
+		[key()]: val(),
+	}
+	
+	trace.join(",");
+	`
+	testScript1(SCRIPT, asciiString("key,key-toString,val"), t)
 }
 
 func TestArrayAssignPattern(t *testing.T) {
