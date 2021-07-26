@@ -170,7 +170,7 @@ func TestTypedArraySetDetachedBuffer(t *testing.T) {
 	}
 }
 
-func TestTypedArrayDefineDetachedBuffer(t *testing.T) {
+func TestTypedArrayDefinePropDetachedBuffer(t *testing.T) {
 	const SCRIPT = `
 	var desc = {
 	  value: 0,
@@ -282,4 +282,67 @@ func TestTypedArrayDefineDetachedBuffer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestTypedArrayDefineProperty(t *testing.T) {
+	const SCRIPT = `
+	var a = new Uint8Array(1);
+
+	assert.throws(TypeError, function() {
+		Object.defineProperty(a, "1", {value: 1});
+	});
+	assert.sameValue(Reflect.defineProperty(a, "1", {value: 1}), false, "1");
+
+	assert.throws(TypeError, function() {
+		Object.defineProperty(a, "Infinity", {value: 8});
+	});
+	assert.sameValue(Reflect.defineProperty(a, "Infinity", {value: 8}), false, "Infinity");
+
+	Object.defineProperty(a, "test", {value: "passed"});
+	assert.sameValue(a.test, "passed", "string property");
+
+	assert.throws(TypeError, function() {
+		Object.defineProperty(a, "0", {value: 1, writable: false});
+	}, "define non-writable");
+
+	assert.throws(TypeError, function() {
+		Object.defineProperty(a, "0", {get() { return 1; }});
+	}, "define accessor");
+
+	var sample = new Uint8Array([42, 42]);
+
+	assert.sameValue(
+	Reflect.defineProperty(sample, "0", {
+	  value: 8,
+	  configurable: true,
+	  enumerable: true,
+	  writable: true
+	}),
+	true
+	);
+
+	assert.sameValue(sample[0], 8, "property value was set");
+	let descriptor0 = Object.getOwnPropertyDescriptor(sample, "0");
+	assert.sameValue(descriptor0.value, 8);
+	assert.sameValue(descriptor0.configurable, true, "configurable");
+	assert.sameValue(descriptor0.enumerable, true);
+	assert.sameValue(descriptor0.writable, true);
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestTypedArrayGetInvalidIndex(t *testing.T) {
+	const SCRIPT = `
+	var TypedArray = Object.getPrototypeOf(Int8Array);
+	var proto = TypedArray.prototype;
+	Object.defineProperty(proto, "1", {
+		get: function() {
+			throw new Error("OrdinaryGet was called!");
+		}
+	});
+	var a = new Uint8Array(1);
+	assert.sameValue(a[1], undefined);
+	assert.sameValue(a["1"], undefined);
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
