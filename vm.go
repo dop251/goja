@@ -1313,7 +1313,7 @@ func (_setElem1Named) exec(vm *vm) {
 	propName := vm.stack[vm.sp-2]
 	val := vm.stack[vm.sp-1]
 	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
-		Value:        propName,
+		Value:        funcName("", propName),
 		Configurable: FLAG_TRUE,
 	}, true)
 	obj.setOwn(propName, val, true)
@@ -1510,7 +1510,7 @@ func (s setPropGetter) exec(vm *vm) {
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
 	val := vm.stack[vm.sp-1]
 	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
-		Value:        asciiString("get ").concat(stringValueFromRaw(val.string())),
+		Value:        asciiString("get ").concat(stringValueFromRaw(unistring.String(s))),
 		Configurable: FLAG_TRUE,
 	}, true)
 
@@ -1533,7 +1533,7 @@ func (s setPropSetter) exec(vm *vm) {
 	val := vm.stack[vm.sp-1]
 
 	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
-		Value:        asciiString("set ").concat(stringValueFromRaw(val.string())),
+		Value:        asciiString("set ").concat(stringValueFromRaw(unistring.String(s))),
 		Configurable: FLAG_TRUE,
 	}, true)
 
@@ -1558,7 +1558,7 @@ func (s _setPropGetter1) exec(vm *vm) {
 	propName := vm.stack[vm.sp-2]
 	val := vm.stack[vm.sp-1]
 	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
-		Value:        asciiString("get ").concat(stringValueFromRaw(val.string())),
+		Value:        funcName("get ", propName),
 		Configurable: FLAG_TRUE,
 	}, true)
 
@@ -1584,7 +1584,7 @@ func (s _setPropSetter1) exec(vm *vm) {
 	val := vm.stack[vm.sp-1]
 
 	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
-		Value:        asciiString("set ").concat(stringValueFromRaw(val.string())),
+		Value:        funcName("set ", propName),
 		Configurable: FLAG_TRUE,
 	}, true)
 

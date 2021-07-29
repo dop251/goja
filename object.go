@@ -411,7 +411,7 @@ func (o *baseObject) deleteIdx(idx valueInt, throw bool) bool {
 func (o *baseObject) deleteSym(s *Symbol, throw bool) bool {
 	if o.symValues != nil {
 		if val := o.symValues.get(s); val != nil {
-			if !o.checkDelete(s.desc.string(), val, throw) {
+			if !o.checkDelete(s.descriptiveString().string(), val, throw) {
 				return false
 			}
 			o.symValues.remove(s)
@@ -756,7 +756,7 @@ func (o *baseObject) defineOwnPropertySym(s *Symbol, descr PropertyDescriptor, t
 	if o.symValues != nil {
 		existingVal = o.symValues.get(s)
 	}
-	if v, ok := o._defineOwnProperty(s.desc.string(), existingVal, descr, throw); ok {
+	if v, ok := o._defineOwnProperty(s.descriptiveString().string(), existingVal, descr, throw); ok {
 		if o.symValues == nil {
 			o.symValues = newOrderedMap(nil)
 		}

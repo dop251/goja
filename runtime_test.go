@@ -2194,6 +2194,66 @@ func TestDestructSymbol(t *testing.T) {
 	testScript1(TESTLIBX+SCRIPT, _undefined, t)
 }
 
+func TestAccessorFuncName(t *testing.T) {
+	const SCRIPT = `
+	const namedSym = Symbol('test262');
+	const emptyStrSym = Symbol("");
+	const anonSym = Symbol();
+
+	const o = {
+	  get id() {},
+	  get [anonSym]() {},
+	  get [namedSym]() {},
+      get [emptyStrSym]() {},
+	  set id(v) {},
+	  set [anonSym](v) {},
+	  set [namedSym](v) {},
+      set [emptyStrSym](v) {}
+	};
+
+	let prop;
+	prop = Object.getOwnPropertyDescriptor(o, 'id');
+	assert.sameValue(prop.get.name, 'get id');
+	assert.sameValue(prop.set.name, 'set id');
+
+	prop = Object.getOwnPropertyDescriptor(o, anonSym);
+	assert.sameValue(prop.get.name, 'get ');
+	assert.sameValue(prop.set.name, 'set ');
+
+	prop = Object.getOwnPropertyDescriptor(o, emptyStrSym);
+	assert.sameValue(prop.get.name, 'get []');
+	assert.sameValue(prop.set.name, 'set []');
+
+	prop = Object.getOwnPropertyDescriptor(o, namedSym);
+	assert.sameValue(prop.get.name, 'get [test262]');
+	assert.sameValue(prop.set.name, 'set [test262]');
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestCoverFuncName(t *testing.T) {
+	const SCRIPT = `
+	var namedSym = Symbol('');
+	var anonSym = Symbol();
+	var o;
+
+	o = {
+	  xId: (0, function() {}),
+	  id: (function() {}),
+      id1: function x() {},
+	  [anonSym]: (function() {}),
+	  [namedSym]: (function() {})
+	};
+
+	assert(o.xId.name !== 'xId');
+	assert.sameValue(o.id1.name, 'x'); 
+	assert.sameValue(o.id.name, 'id', 'via IdentifierName');
+	assert.sameValue(o[anonSym].name, '', 'via anonymous Symbol');
+	assert.sameValue(o[namedSym].name, '[]', 'via Symbol');
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
