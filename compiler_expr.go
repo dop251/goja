@@ -115,10 +115,15 @@ type compiledIdentifierExpr struct {
 
 type compiledFunctionLiteral struct {
 	baseCompiledExpr
-	expr    *ast.FunctionLiteral
-	lhsName unistring.String
-	strict  *ast.StringLiteral
-	isExpr  bool
+	name            *ast.Identifier
+	parameterList   *ast.ParameterList
+	body            []ast.Statement
+	source          string
+	declarationList []*ast.VariableDeclaration
+	lhsName         unistring.String
+	strict          *ast.StringLiteral
+	isExpr          bool
+	isArrow         bool
 }
 
 type compiledBracketExpr struct {
@@ -225,6 +230,8 @@ func (c *compiler) compileExpression(v ast.Expression) compiledExpr {
 		return c.compileConditionalExpression(v)
 	case *ast.FunctionLiteral:
 		return c.compileFunctionLiteral(v, true)
+	case *ast.ArrowFunctionLiteral:
+		return c.compileArrowFunctionLiteral(v)
 	case *ast.DotExpression:
 		r := &compiledDotExpr{
 			left: c.compileExpression(v.Left),
@@ -740,7 +747,7 @@ func (e *compiledAssignExpr) emitGetter(putOnStack bool) {
 	switch e.operator {
 	case token.ASSIGN:
 		if fn, ok := e.right.(*compiledFunctionLiteral); ok {
-			if fn.expr.Name == nil {
+			if fn.name == nil {
 				if id, ok := e.left.(*compiledIdentifierExpr); ok {
 					fn.lhsName = id.name
 				}
@@ -847,11 +854,13 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		src: e.c.p.src,
 	}
 	e.c.newScope()
-	e.c.scope.function = true
+	s := e.c.scope
+	s.function = true
+	s.arrow = e.isArrow
 
 	var name unistring.String
-	if e.expr.Name != nil {
-		name = e.expr.Name.Name
+	if e.name != nil {
+		name = e.name.Name
 	} else {
 		name = e.lhsName
 	}
@@ -868,8 +877,8 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		typ: blockScope,
 	}
 
-	if !e.c.scope.strict {
-		e.c.scope.strict = e.strict != nil
+	if !s.strict {
+		s.strict = e.strict != nil
 	}
 
 	hasPatterns := false
@@ -877,12 +886,12 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	firstDupIdx := -1
 	length := 0
 
-	if e.expr.ParameterList.Rest != nil {
+	if e.parameterList.Rest != nil {
 		hasPatterns = true // strictly speaking not, but we need to activate all the checks
 	}
 
 	// First, make sure that the first bindings correspond to the formal parameters
-	for _, item := range e.expr.ParameterList.List {
+	for _, item := range e.parameterList.List {
 		switch tgt := item.Target.(type) {
 		case *ast.Identifier:
 			offset := int(tgt.Idx) - 1
@@ -892,7 +901,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 			}
 			b.isArg = true
 		case ast.Pattern:
-			b := e.c.scope.addBinding(int(item.Idx0()) - 1)
+			b := s.addBinding(int(item.Idx0()) - 1)
 			b.isArg = true
 			hasPatterns = true
 		default:
@@ -902,7 +911,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		if item.Initializer != nil {
 			hasInits = true
 		}
-		if hasPatterns || hasInits {
+		if hasPatterns || hasInits || e.isArrow {
 			if firstDupIdx >= 0 {
 				e.c.throwSyntaxError(firstDupIdx, "Duplicate parameter name not allowed in this context")
 				return
@@ -919,7 +928,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 
 	// create pattern bindings
 	if hasPatterns {
-		for _, item := range e.expr.ParameterList.List {
+		for _, item := range e.parameterList.List {
 			switch tgt := item.Target.(type) {
 			case *ast.Identifier:
 				// we already created those in the previous loop, skipping
@@ -927,17 +936,16 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 				e.c.compileParameterPatternBinding(tgt)
 			}
 		}
-		if rest := e.expr.ParameterList.Rest; rest != nil {
+		if rest := e.parameterList.Rest; rest != nil {
 			e.c.compileParameterPatternBinding(rest)
 		}
 	}
 
-	paramsCount := len(e.expr.ParameterList.List)
+	paramsCount := len(e.parameterList.List)
 
-	e.c.scope.numArgs = paramsCount
-	body := e.expr.Body.List
+	s.numArgs = paramsCount
+	body := e.body
 	funcs := e.c.extractFunctions(body)
-	s := e.c.scope
 	var calleeBinding *binding
 	preambleLen := 4 // enter, boxThis, createArgs, set
 	e.c.p.code = make([]instruction, preambleLen, 8)
@@ -947,8 +955,8 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	enterFunc2Mark := -1
 
 	if hasPatterns || hasInits {
-		if e.isExpr && e.expr.Name != nil {
-			if b, created := s.bindNameLexical(e.expr.Name.Name, false, 0); created {
+		if e.isExpr && e.name != nil {
+			if b, created := s.bindNameLexical(e.name.Name, false, 0); created {
 				b.isConst = true
 				calleeBinding = b
 			}
@@ -957,7 +965,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 			e.c.emit(loadCallee)
 			calleeBinding.emitInit()
 		}
-		for i, item := range e.expr.ParameterList.List {
+		for i, item := range e.parameterList.List {
 			if pattern, ok := item.Target.(ast.Pattern); ok {
 				i := i
 				e.c.compilePatternInitExpr(func() {
@@ -996,7 +1004,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 				}
 			}
 		}
-		if rest := e.expr.ParameterList.Rest; rest != nil {
+		if rest := e.parameterList.Rest; rest != nil {
 			e.c.emitAssign(rest, e.c.compileEmitterExpr(
 				func() {
 					emitArgsRestMark = len(e.c.p.code)
@@ -1019,7 +1027,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		varScope.variable = true
 		enterFunc2Mark = len(e.c.p.code)
 		e.c.emit(nil)
-		e.c.compileDeclList(e.expr.DeclarationList, true)
+		e.c.compileDeclList(e.declarationList, true)
 		e.c.createFunctionBindings(funcs)
 		e.c.compileLexicalDeclarationsFuncBody(body, calleeBinding)
 		for _, b := range varScope.bindings {
@@ -1036,11 +1044,11 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		for _, b := range s.bindings[:paramsCount] {
 			b.isVar = true
 		}
-		e.c.compileDeclList(e.expr.DeclarationList, true)
+		e.c.compileDeclList(e.declarationList, true)
 		e.c.createFunctionBindings(funcs)
 		e.c.compileLexicalDeclarations(body, true)
-		if e.isExpr && e.expr.Name != nil {
-			if b, created := s.bindNameLexical(e.expr.Name.Name, false, 0); created {
+		if e.isExpr && e.name != nil {
+			if b, created := s.bindNameLexical(e.name.Name, false, 0); created {
 				b.isConst = true
 				calleeBinding = b
 			}
@@ -1179,7 +1187,11 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	}
 	e.c.popScope()
 	e.c.p = savedPrg
-	e.c.emit(&newFunc{prg: p, length: uint32(length), name: name, srcStart: uint32(e.expr.Idx0() - 1), srcEnd: uint32(e.expr.Idx1() - 1), strict: strict})
+	if e.isArrow {
+		e.c.emit(&newArrowFunc{newFunc: newFunc{prg: p, length: uint32(length), name: name, source: e.source, strict: strict}})
+	} else {
+		e.c.emit(&newFunc{prg: p, length: uint32(length), name: name, source: e.source, strict: strict})
+	}
 	if !putOnStack {
 		e.c.emit(pop)
 	}
@@ -1191,9 +1203,42 @@ func (c *compiler) compileFunctionLiteral(v *ast.FunctionLiteral, isExpr bool) *
 		c.checkIdentifierLName(v.Name.Name, int(v.Name.Idx)-1)
 	}
 	r := &compiledFunctionLiteral{
-		expr:   v,
-		isExpr: isExpr,
-		strict: strictBody,
+		name:            v.Name,
+		parameterList:   v.ParameterList,
+		body:            v.Body.List,
+		source:          v.Source,
+		declarationList: v.DeclarationList,
+		isExpr:          isExpr,
+		strict:          strictBody,
+	}
+	r.init(c, v.Idx0())
+	return r
+}
+
+func (c *compiler) compileArrowFunctionLiteral(v *ast.ArrowFunctionLiteral) *compiledFunctionLiteral {
+	var strictBody *ast.StringLiteral
+	var body []ast.Statement
+	switch b := v.Body.(type) {
+	case *ast.BlockStatement:
+		strictBody = c.isStrictStatement(b)
+		body = b.List
+	case *ast.ExpressionBody:
+		body = []ast.Statement{
+			&ast.ReturnStatement{
+				Argument: b.Expression,
+			},
+		}
+	default:
+		c.throwSyntaxError(int(b.Idx0())-1, "Unsupported ConciseBody type: %T", b)
+	}
+	r := &compiledFunctionLiteral{
+		parameterList:   v.ParameterList,
+		body:            body,
+		source:          v.Source,
+		declarationList: v.DeclarationList,
+		isExpr:          true,
+		isArrow:         true,
+		strict:          strictBody,
 	}
 	r.init(c, v.Idx0())
 	return r
@@ -1207,7 +1252,9 @@ func (e *compiledThisExpr) emitGetter(putOnStack bool) {
 		}
 
 		if scope != nil {
-			scope.thisNeeded = true
+			if !scope.arrow {
+				scope.thisNeeded = true
+			}
 			e.c.emit(loadStack(0))
 		} else {
 			e.c.emit(loadGlobalObject)
@@ -1671,12 +1718,11 @@ func (e *compiledObjectLiteral) emitGetter(putOnStack bool) {
 			default:
 				keyExpr.emitGetter(true)
 				computed = true
-				//e.c.throwSyntaxError(e.offset, "non-literal properties in object literal are not supported yet")
 			}
 			valueExpr := e.c.compileExpression(prop.Value)
 			var anonFn *compiledFunctionLiteral
 			if fn, ok := valueExpr.(*compiledFunctionLiteral); ok {
-				if fn.expr.Name == nil {
+				if fn.name == nil {
 					anonFn = fn
 					fn.lhsName = key
 				}
@@ -1837,7 +1883,7 @@ func (e *compiledCallExpr) emitGetter(putOnStack bool) {
 	if calleeName == "eval" {
 		foundFunc, foundVar := false, false
 		for sc := e.c.scope; sc != nil; sc = sc.outer {
-			if !foundFunc && sc.function {
+			if !foundFunc && sc.function && !sc.arrow {
 				foundFunc = true
 				sc.thisNeeded, sc.argsNeeded = true, true
 			}

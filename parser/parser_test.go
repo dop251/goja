@@ -880,6 +880,10 @@ func TestParser(t *testing.T) {
 
 		test(`[a, b] = [1, 2]`, nil)
 		test(`({"a b": {}} = {})`, nil)
+
+		test(`ref = (a, b = 39,) => {
+		};`, nil)
+		test(`(a,) => {}`, nil)
 	})
 }
 

@@ -2607,6 +2607,16 @@ repeat:
 		vm.pc = 0
 		vm.stack[vm.sp-n-1], vm.stack[vm.sp-n-2] = vm.stack[vm.sp-n-2], vm.stack[vm.sp-n-1]
 		return
+	case *arrowFuncObject:
+		vm.pc++
+		vm.pushCtx()
+		vm.args = n
+		vm.prg = f.prg
+		vm.stash = f.stash
+		vm.pc = 0
+		vm.stack[vm.sp-n-1], vm.stack[vm.sp-n-2] = f.this, vm.stack[vm.sp-n-1]
+		vm.newTarget = f.newTarget
+		return
 	case *nativeFuncObject:
 		vm._nativeCall(f, n)
 	case *boundFuncObject:
@@ -2952,17 +2962,30 @@ func (e *enterFuncStashless) exec(vm *vm) {
 type newFunc struct {
 	prg    *Program
 	name   unistring.String
+	source string
+
 	length uint32
 	strict bool
-
-	srcStart, srcEnd uint32
 }
 
 func (n *newFunc) exec(vm *vm) {
 	obj := vm.r.newFunc(n.name, int(n.length), n.strict)
 	obj.prg = n.prg
 	obj.stash = vm.stash
-	obj.src = n.prg.src.Source()[n.srcStart:n.srcEnd]
+	obj.src = n.source
+	vm.push(obj.val)
+	vm.pc++
+}
+
+type newArrowFunc struct {
+	newFunc
+}
+
+func (n *newArrowFunc) exec(vm *vm) {
+	obj := vm.r.newArrowFunc(n.name, int(n.length), n.strict)
+	obj.prg = n.prg
+	obj.stash = vm.stash
+	obj.src = n.source
 	vm.push(obj.val)
 	vm.pc++
 }
@@ -3558,7 +3581,7 @@ func (_typeof) exec(vm *vm) {
 	case *Object:
 	repeat:
 		switch s := v.self.(type) {
-		case *funcObject, *nativeFuncObject, *boundFuncObject:
+		case *funcObject, *nativeFuncObject, *boundFuncObject, *arrowFuncObject:
 			r = stringFunction
 		case *lazyObject:
 			v.self = s.create(v)

@@ -33,6 +33,8 @@ repeat:
 	switch f := obj.self.(type) {
 	case *funcObject:
 		return newStringValue(f.src)
+	case *arrowFuncObject:
+		return newStringValue(f.src)
 	case *nativeFuncObject:
 		return newStringValue(fmt.Sprintf("function %s() { [native code] }", nilSafe(f.getStr("name", nil)).toString()))
 	case *boundFuncObject:
@@ -45,6 +47,8 @@ repeat:
 	repeat2:
 		switch c := f.target.self.(type) {
 		case *funcObject:
+			name = c.src
+		case *arrowFuncObject:
 			name = c.src
 		case *nativeFuncObject:
 			name = nilSafe(f.getStr("name", nil)).toString().String()

@@ -12,12 +12,23 @@ type baseFuncObject struct {
 	lenProp valueProperty
 }
 
-type funcObject struct {
+type base1FuncObject struct {
 	baseFuncObject
 
-	stash *stash
-	prg   *Program
-	src   string
+	stash  *stash
+	prg    *Program
+	src    string
+	strict bool
+}
+
+type funcObject struct {
+	base1FuncObject
+}
+
+type arrowFuncObject struct {
+	base1FuncObject
+	this      Value
+	newTarget Value
 }
 
 type nativeFuncObject struct {
@@ -129,18 +140,18 @@ func (f *funcObject) Call(call FunctionCall) Value {
 	return f.call(call, nil)
 }
 
-func (f *funcObject) call(call FunctionCall, newTarget Value) Value {
+func (f *arrowFuncObject) Call(call FunctionCall) Value {
+	return f._call(call, f.newTarget, f.this)
+}
+
+func (f *base1FuncObject) _call(call FunctionCall, newTarget, this Value) Value {
 	vm := f.val.runtime.vm
 	pc := vm.pc
 
 	vm.stack.expand(vm.sp + len(call.Arguments) + 1)
 	vm.stack[vm.sp] = f.val
 	vm.sp++
-	if call.This != nil {
-		vm.stack[vm.sp] = call.This
-	} else {
-		vm.stack[vm.sp] = _undefined
-	}
+	vm.stack[vm.sp] = this
 	vm.sp++
 	for _, arg := range call.Arguments {
 		if arg != nil {
@@ -162,6 +173,11 @@ func (f *funcObject) call(call FunctionCall, newTarget Value) Value {
 	vm.pc = pc
 	vm.halt = false
 	return vm.pop()
+
+}
+
+func (f *funcObject) call(call FunctionCall, newTarget Value) Value {
+	return f._call(call, newTarget, nilSafe(call.This))
 }
 
 func (f *funcObject) export(*objectExportCtx) interface{} {
@@ -178,6 +194,14 @@ func (f *funcObject) assertCallable() (func(FunctionCall) Value, bool) {
 
 func (f *funcObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
 	return f.construct
+}
+
+func (f *arrowFuncObject) exportType() reflect.Type {
+	return reflect.TypeOf(f.Call)
+}
+
+func (f *arrowFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
+	return f.Call, true
 }
 
 func (f *baseFuncObject) init(name unistring.String, length int) {
