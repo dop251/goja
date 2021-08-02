@@ -248,7 +248,8 @@ type scope struct {
 
 	// is a function or a top-level lexical environment
 	function bool
-	arrow    bool
+	// is an arrow function's top-level lexical environment (functions only)
+	arrow bool
 	// is a variable environment, i.e. the target for dynamically created var bindings
 	variable bool
 	// a function scope that has at least one direct eval() and non-strict, so the variables can be added dynamically

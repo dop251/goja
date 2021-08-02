@@ -77,6 +77,9 @@ var (
 		// 167e596a649ede35df11d03cb3c093941c9cf396
 		"test/built-ins/TypedArrayConstructors/internals/Set/detached-buffer.js": true,
 
+		// 59a1a016b7cf5cf43f66b274c7d1db4ec6066935
+		"test/language/expressions/function/name.js": true,
+
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone

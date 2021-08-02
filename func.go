@@ -12,7 +12,7 @@ type baseFuncObject struct {
 	lenProp valueProperty
 }
 
-type base1FuncObject struct {
+type baseJsFuncObject struct {
 	baseFuncObject
 
 	stash  *stash
@@ -22,11 +22,11 @@ type base1FuncObject struct {
 }
 
 type funcObject struct {
-	base1FuncObject
+	baseJsFuncObject
 }
 
 type arrowFuncObject struct {
-	base1FuncObject
+	baseJsFuncObject
 	this      Value
 	newTarget Value
 }
@@ -144,7 +144,7 @@ func (f *arrowFuncObject) Call(call FunctionCall) Value {
 	return f._call(call, f.newTarget, f.this)
 }
 
-func (f *base1FuncObject) _call(call FunctionCall, newTarget, this Value) Value {
+func (f *baseJsFuncObject) _call(call FunctionCall, newTarget, this Value) Value {
 	vm := f.val.runtime.vm
 	pc := vm.pc
 
@@ -207,9 +207,7 @@ func (f *arrowFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
 func (f *baseFuncObject) init(name unistring.String, length int) {
 	f.baseObject.init()
 
-	if name != "" {
-		f._putProp("name", stringValueFromRaw(name), false, false, true)
-	}
+	f._putProp("name", stringValueFromRaw(name), false, false, true)
 
 	f.lenProp.configurable = true
 	f.lenProp.value = valueInt(length)
