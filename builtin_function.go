@@ -81,7 +81,7 @@ func (r *Runtime) createListFromArrayLike(a Value) []Value {
 	l := toLength(o.self.getStr("length", nil))
 	res := make([]Value, 0, l)
 	for k := int64(0); k < l; k++ {
-		res = append(res, o.self.getIdx(valueInt(k), nil))
+		res = append(res, nilSafe(o.self.getIdx(valueInt(k), nil)))
 	}
 	return res
 }
@@ -153,7 +153,7 @@ func (r *Runtime) functionproto_bind(call FunctionCall) Value {
 	fcall := r.toCallable(call.This)
 	construct := obj.self.assertConstructor()
 
-	l := int(toUint32(obj.self.getStr("length", nil)))
+	l := int(toUint32(nilSafe(obj.self.getStr("length", nil))))
 	l -= len(call.Arguments) - 1
 	if l < 0 {
 		l = 0

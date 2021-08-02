@@ -31,7 +31,7 @@ func (ai *arrayIterObject) next() Value {
 	if ai.kind == iterationKindKey {
 		return ai.val.runtime.createIterResultObject(idxVal, false)
 	}
-	elementValue := ai.obj.self.getIdx(idxVal, nil)
+	elementValue := nilSafe(ai.obj.self.getIdx(idxVal, nil))
 	var result Value
 	if ai.kind == iterationKindValue {
 		result = elementValue
