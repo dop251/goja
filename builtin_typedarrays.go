@@ -1028,7 +1028,7 @@ func (r *Runtime) typedArrayProto_values(call FunctionCall) Value {
 func (r *Runtime) typedArrayProto_toStringTag(call FunctionCall) Value {
 	if obj, ok := call.This.(*Object); ok {
 		if ta, ok := obj.self.(*typedArrayObject); ok {
-			return ta.defaultCtor.self.getStr("name", nil)
+			return nilSafe(ta.defaultCtor.self.getStr("name", nil))
 		}
 	}
 
