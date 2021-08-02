@@ -78,7 +78,8 @@ var (
 		"test/built-ins/TypedArrayConstructors/internals/Set/detached-buffer.js": true,
 
 		// 59a1a016b7cf5cf43f66b274c7d1db4ec6066935
-		"test/language/expressions/function/name.js": true,
+		"test/language/expressions/function/name.js":                 true,
+		"test/built-ins/Proxy/revocable/revocation-function-name.js": true,
 
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
@@ -301,6 +302,7 @@ var (
 		"class",
 		"generators",
 		"String.prototype.replaceAll",
+		"String.prototype.at",
 		"super",
 	}
 
@@ -593,6 +595,9 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		//t.Fatalf("Could not parse %s: %v", name, err)
 		t.Errorf("Could not parse %s: %v", name, err)
 		return
+	}
+	if meta.hasFlag("async") {
+		t.Skip("async")
 	}
 	if meta.Es5id == "" {
 		skip := true

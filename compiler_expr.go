@@ -1027,7 +1027,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		varScope.variable = true
 		enterFunc2Mark = len(e.c.p.code)
 		e.c.emit(nil)
-		e.c.compileDeclList(e.declarationList, true)
+		e.c.compileDeclList(e.declarationList, false)
 		e.c.createFunctionBindings(funcs)
 		e.c.compileLexicalDeclarationsFuncBody(body, calleeBinding)
 		for _, b := range varScope.bindings {
@@ -1090,7 +1090,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 			if s.strict {
 				b.isConst = true
 			} else {
-				b.isVar = true
+				b.isVar = e.c.scope.function
 			}
 			pos := preambleLen - 2
 			delta += 2
