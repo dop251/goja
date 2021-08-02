@@ -347,12 +347,36 @@ func (r *Runtime) arrayproto_sort(call FunctionCall) Value {
 		}
 	}
 
-	ctx := arraySortCtx{
-		obj:     o.self,
-		compare: compareFn,
-	}
+	if r.checkStdArrayObj(o) != nil {
+		ctx := arraySortCtx{
+			obj:     o.self,
+			compare: compareFn,
+		}
 
-	sort.Stable(&ctx)
+		sort.Stable(&ctx)
+	} else {
+		length := toLength(o.self.getStr("length", nil))
+		a := make([]Value, 0, length)
+		for i := int64(0); i < length; i++ {
+			idx := valueInt(i)
+			if o.self.hasPropertyIdx(idx) {
+				a = append(a, o.self.getIdx(idx, nil))
+			}
+		}
+		ar := r.newArrayValues(a)
+		ctx := arraySortCtx{
+			obj:     ar.self,
+			compare: compareFn,
+		}
+
+		sort.Stable(&ctx)
+		for i := 0; i < len(a); i++ {
+			o.self.setOwnIdx(valueInt(i), a[i], true)
+		}
+		for i := int64(len(a)); i < length; i++ {
+			o.self.deleteIdx(valueInt(i), true)
+		}
+	}
 	return o
 }
 

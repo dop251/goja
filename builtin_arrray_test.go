@@ -232,6 +232,38 @@ func TestArraySort(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestArraySortNonStdArray(t *testing.T) {
+	const SCRIPT = `
+	const array = [undefined, 'c', /*hole*/, 'b', undefined, /*hole*/, 'a', 'd'];
+
+	Object.defineProperty(array, '2', {
+	  get() {
+		array.pop();
+		array.pop();
+		return this.foo;
+	  },
+	  set(v) {
+		this.foo = v;
+	  }
+	});
+
+	array.sort();
+
+	assert.sameValue(array[0], 'b');
+	assert.sameValue(array[1], 'c');
+	assert.sameValue(array[3], undefined);
+	assert.sameValue(array[4], undefined);
+	assert.sameValue('5' in array, false);
+	assert.sameValue(array.hasOwnProperty('5'), false);
+	assert.sameValue(array.length, 6);
+	assert.sameValue(array.foo, undefined);
+
+	assert.sameValue(array[2], undefined);
+	assert.sameValue(array.length, 4);
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 func TestArrayConcat(t *testing.T) {
 	const SCRIPT = `
 	var concat = Array.prototype.concat;
