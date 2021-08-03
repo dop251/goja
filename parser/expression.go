@@ -1034,14 +1034,14 @@ func (self *_parser) checkComma(from, to file.Idx) {
 	}
 }
 
-func (self *_parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral) *ast.ArrayPattern {
+func (self *_parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral) ast.Expression {
 	value := left.Value
 	var rest ast.Expression
 	for i, item := range value {
 		if spread, ok := item.(*ast.SpreadElement); ok {
 			if i != len(value)-1 {
 				self.error(item.Idx0(), "Rest element must be last element")
-				return nil
+				return &ast.BadExpression{From: left.Idx0(), To: left.Idx1()}
 			}
 			self.checkComma(spread.Expression.Idx1(), left.RightBracket)
 			rest = self.reinterpretAsDestructAssignTarget(spread.Expression)
@@ -1068,14 +1068,14 @@ func (self *_parser) reinterpretArrayAssignPatternAsBinding(pattern *ast.ArrayPa
 	return pattern
 }
 
-func (self *_parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) *ast.ArrayPattern {
+func (self *_parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) ast.BindingTarget {
 	value := left.Value
 	var rest ast.Expression
 	for i, item := range value {
 		if spread, ok := item.(*ast.SpreadElement); ok {
 			if i != len(value)-1 {
 				self.error(item.Idx0(), "Rest element must be last element")
-				return nil
+				return &ast.BadExpression{From: left.Idx0(), To: left.Idx1()}
 			}
 			self.checkComma(spread.Expression.Idx1(), left.RightBracket)
 			rest = self.reinterpretAsDestructBindingTarget(spread.Expression)
@@ -1092,11 +1092,11 @@ func (self *_parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) *a
 	}
 }
 
-func (self *_parser) parseArrayBindingPattern() *ast.ArrayPattern {
+func (self *_parser) parseArrayBindingPattern() ast.BindingTarget {
 	return self.reinterpretAsArrayBindingPattern(self.parseArrayLiteral())
 }
 
-func (self *_parser) parseObjectBindingPattern() *ast.ObjectPattern {
+func (self *_parser) parseObjectBindingPattern() ast.BindingTarget {
 	return self.reinterpretAsObjectBindingPattern(self.parseObjectLiteral())
 }
 
@@ -1112,7 +1112,7 @@ func (self *_parser) reinterpretArrayObjectPatternAsBinding(pattern *ast.ObjectP
 	return pattern
 }
 
-func (self *_parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) *ast.ObjectPattern {
+func (self *_parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) ast.BindingTarget {
 	var rest ast.Expression
 	value := expr.Value
 	for i, prop := range value {
@@ -1128,7 +1128,7 @@ func (self *_parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) 
 		case *ast.SpreadElement:
 			if i != len(expr.Value)-1 {
 				self.error(prop.Idx0(), "Rest element must be last element")
-				return nil
+				return &ast.BadExpression{From: expr.Idx0(), To: expr.Idx1()}
 			}
 			// TODO make sure there is no trailing comma
 			rest = self.reinterpretAsBindingRestElement(prop.Expression)
@@ -1137,7 +1137,7 @@ func (self *_parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) 
 		}
 		if !ok {
 			self.error(prop.Idx0(), "Invalid destructuring binding target")
-			return nil
+			return &ast.BadExpression{From: expr.Idx0(), To: expr.Idx1()}
 		}
 	}
 	return &ast.ObjectPattern{
@@ -1148,7 +1148,7 @@ func (self *_parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) 
 	}
 }
 
-func (self *_parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) *ast.ObjectPattern {
+func (self *_parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) ast.Expression {
 	var rest ast.Expression
 	value := l.Value
 	for i, prop := range value {
@@ -1164,7 +1164,7 @@ func (self *_parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) 
 		case *ast.SpreadElement:
 			if i != len(l.Value)-1 {
 				self.error(prop.Idx0(), "Rest element must be last element")
-				return nil
+				return &ast.BadExpression{From: l.Idx0(), To: l.Idx1()}
 			}
 			// TODO make sure there is no trailing comma
 			rest = prop.Expression
@@ -1173,7 +1173,7 @@ func (self *_parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) 
 		}
 		if !ok {
 			self.error(prop.Idx0(), "Invalid destructuring assignment target")
-			return nil
+			return &ast.BadExpression{From: l.Idx0(), To: l.Idx1()}
 		}
 	}
 	return &ast.ObjectPattern{
