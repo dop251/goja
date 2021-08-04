@@ -1692,6 +1692,23 @@ func TestArgumentsRedeclareInEval(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestArgumentsRedeclareArrow(t *testing.T) {
+	const SCRIPT = `
+	const oldArguments = globalThis.arguments;
+	let count = 0;
+	const f = (p = eval("var arguments = 'param'"), q = () => arguments) => {
+	  var arguments = "local";
+	  assert.sameValue(arguments, "local", "arguments");
+	  assert.sameValue(q(), "param", "q");
+	  count++;
+	}
+	f();
+	assert.sameValue(count, 1);
+	assert.sameValue(globalThis.arguments, oldArguments, "globalThis.arguments unchanged");
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 func TestEvalParamWithDef(t *testing.T) {
 	const SCRIPT = `
 	function f(param = 0) {

@@ -2254,6 +2254,14 @@ func TestCoverFuncName(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestAnonFuncName(t *testing.T) {
+	const SCRIPT = `
+	const d = Object.getOwnPropertyDescriptor((function() {}), 'name');
+	d !== undefined && d.value === '';
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

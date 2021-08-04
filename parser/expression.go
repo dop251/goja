@@ -85,10 +85,11 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 	case token.LEFT_BRACKET:
 		return self.parseArrayLiteral()
 	case token.LEFT_PARENTHESIS:
-		self.expect(token.LEFT_PARENTHESIS)
+		/*self.expect(token.LEFT_PARENTHESIS)
 		expression := self.parseExpression()
 		self.expect(token.RIGHT_PARENTHESIS)
-		return expression
+		return expression*/
+		return self.parseParenthesisedExpression()
 	case token.THIS:
 		self.next()
 		return &ast.ThisExpression{
@@ -101,6 +102,76 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 	self.errorUnexpectedToken(self.token)
 	self.nextStatement()
 	return &ast.BadExpression{From: idx, To: self.idx}
+}
+
+func (self *_parser) reinterpretSequenceAsArrowFuncParams(seq *ast.SequenceExpression) *ast.ParameterList {
+	firstRestIdx := -1
+	params := make([]*ast.Binding, 0, len(seq.Sequence))
+	for i, item := range seq.Sequence {
+		if _, ok := item.(*ast.SpreadElement); ok {
+			if firstRestIdx == -1 {
+				firstRestIdx = i
+				continue
+			}
+		}
+		if firstRestIdx != -1 {
+			self.error(seq.Sequence[firstRestIdx].Idx0(), "Rest parameter must be last formal parameter")
+			return &ast.ParameterList{}
+		}
+		params = append(params, self.reinterpretAsBinding(item))
+	}
+	var rest ast.Expression
+	if firstRestIdx != -1 {
+		rest = self.reinterpretAsBindingRestElement(seq.Sequence[firstRestIdx])
+	}
+	return &ast.ParameterList{
+		List: params,
+		Rest: rest,
+	}
+}
+
+func (self *_parser) parseParenthesisedExpression() ast.Expression {
+	opening := self.idx
+	self.expect(token.LEFT_PARENTHESIS)
+	var list []ast.Expression
+	if self.token != token.RIGHT_PARENTHESIS {
+		for {
+			if self.token == token.ELLIPSIS {
+				start := self.idx
+				self.errorUnexpectedToken(token.ELLIPSIS)
+				self.next()
+				expr := self.parseAssignmentExpression()
+				list = append(list, &ast.BadExpression{
+					From: start,
+					To:   expr.Idx1(),
+				})
+			} else {
+				list = append(list, self.parseAssignmentExpression())
+			}
+			if self.token != token.COMMA {
+				break
+			}
+			self.next()
+			if self.token == token.RIGHT_PARENTHESIS {
+				self.errorUnexpectedToken(token.RIGHT_PARENTHESIS)
+				break
+			}
+		}
+	}
+	self.expect(token.RIGHT_PARENTHESIS)
+	if len(list) == 1 && len(self.errors) == 0 {
+		return list[0]
+	}
+	if len(list) == 0 {
+		self.errorUnexpectedToken(token.RIGHT_PARENTHESIS)
+		return &ast.BadExpression{
+			From: opening,
+			To:   self.idx,
+		}
+	}
+	return &ast.SequenceExpression{
+		Sequence: list,
+	}
 }
 
 func (self *_parser) parseRegExpLiteral() *ast.RegExpLiteral {
@@ -271,7 +342,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 				Function:      idx,
 				ParameterList: parameterList,
 			}
-			self.parseFunctionBlock(node)
+			node.Body, node.DeclarationList = self.parseFunctionBlock()
 
 			return &ast.PropertyKeyed{
 				Key:   value,
@@ -307,7 +378,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 				Function:      idx,
 				ParameterList: parameterList,
 			}
-			self.parseFunctionBlock(node)
+			node.Body, node.DeclarationList = self.parseFunctionBlock()
 			return &ast.PropertyKeyed{
 				Key:   value,
 				Kind:  ast.PropertyKindGet,
@@ -323,7 +394,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 				ParameterList: parameterList,
 			}
 
-			self.parseFunctionBlock(node)
+			node.Body, node.DeclarationList = self.parseFunctionBlock()
 
 			return &ast.PropertyKeyed{
 				Key:   value,
@@ -815,7 +886,7 @@ func (self *_parser) parseLogicalOrExpression() ast.Expression {
 	return left
 }
 
-func (self *_parser) parseConditionlExpression() ast.Expression {
+func (self *_parser) parseConditionalExpression() ast.Expression {
 	left := self.parseLogicalOrExpression()
 
 	if self.token == token.QUESTION_MARK {
@@ -833,13 +904,16 @@ func (self *_parser) parseConditionlExpression() ast.Expression {
 }
 
 func (self *_parser) parseAssignmentExpression() ast.Expression {
+	start := self.idx
 	parenthesis := false
+	var state parserState
 	if self.token == token.LET {
 		self.token = token.IDENTIFIER
 	} else if self.token == token.LEFT_PARENTHESIS {
+		self.mark(&state)
 		parenthesis = true
 	}
-	left := self.parseConditionlExpression()
+	left := self.parseConditionalExpression()
 	var operator token.Token
 	switch self.token {
 	case token.ASSIGN:
@@ -866,6 +940,35 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 		operator = token.SHIFT_RIGHT
 	case token.UNSIGNED_SHIFT_RIGHT_ASSIGN:
 		operator = token.UNSIGNED_SHIFT_RIGHT
+	case token.ARROW:
+		var paramList *ast.ParameterList
+		if id, ok := left.(*ast.Identifier); ok {
+			paramList = &ast.ParameterList{
+				Opening: id.Idx,
+				Closing: id.Idx1(),
+				List: []*ast.Binding{{
+					Target: id,
+				}},
+			}
+		} else if parenthesis {
+			if seq, ok := left.(*ast.SequenceExpression); ok && len(self.errors) == 0 {
+				paramList = self.reinterpretSequenceAsArrowFuncParams(seq)
+			} else {
+				self.restore(&state)
+				paramList = self.parseFunctionParameterList()
+			}
+		} else {
+			self.error(left.Idx0(), "Malformed arrow function parameter list")
+			return &ast.BadExpression{From: left.Idx0(), To: left.Idx1()}
+		}
+		self.expect(token.ARROW)
+		node := &ast.ArrowFunctionLiteral{
+			Start:         start,
+			ParameterList: paramList,
+		}
+		node.Body, node.DeclarationList = self.parseArrowFunctionBody()
+		node.Source = self.slice(node.Start, node.Body.Idx1())
+		return node
 	}
 
 	if operator != 0 {
@@ -1108,6 +1211,27 @@ func (self *_parser) reinterpretAsBindingElement(expr ast.Expression) ast.Expres
 		}
 	default:
 		return self.reinterpretAsDestructBindingTarget(expr)
+	}
+}
+
+func (self *_parser) reinterpretAsBinding(expr ast.Expression) *ast.Binding {
+	switch expr := expr.(type) {
+	case *ast.AssignExpression:
+		if expr.Operator == token.ASSIGN {
+			return &ast.Binding{
+				Target:      self.reinterpretAsDestructBindingTarget(expr.Left),
+				Initializer: expr.Right,
+			}
+		} else {
+			self.error(expr.Idx0(), "Invalid destructuring assignment target")
+			return &ast.Binding{
+				Target: &ast.BadExpression{From: expr.Idx0(), To: expr.Idx1()},
+			}
+		}
+	default:
+		return &ast.Binding{
+			Target: self.reinterpretAsDestructBindingTarget(expr),
+		}
 	}
 }
 

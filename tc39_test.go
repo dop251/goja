@@ -55,6 +55,8 @@ var (
 		"test/language/expressions/arrow-function/scope-param-rest-elem-var-close.js": true,
 		"test/language/expressions/arrow-function/scope-param-elem-var-close.js":      true,
 		"test/language/expressions/arrow-function/scope-param-elem-var-open.js":       true,
+		"test/language/function-code/each-param-has-own-scope.js":                     true,
+		"test/language/function-code/each-param-has-own-non-shared-eval-scope.js":     true,
 
 		// These tests are out of date (fixed in https://github.com/tc39/test262/commit/7d998a098e5420cb4b6ee4a05eb8c386d750c596)
 		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/key-is-numericindex.js":                   true,
@@ -74,6 +76,10 @@ var (
 
 		// 167e596a649ede35df11d03cb3c093941c9cf396
 		"test/built-ins/TypedArrayConstructors/internals/Set/detached-buffer.js": true,
+
+		// 59a1a016b7cf5cf43f66b274c7d1db4ec6066935
+		"test/language/expressions/function/name.js":                 true,
+		"test/built-ins/Proxy/revocable/revocation-function-name.js": true,
 
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
@@ -204,65 +210,22 @@ var (
 		"test/language/statements/for-of/dstr/let-ary-ptrn-elem-id-init-fn-name-class.js":                            true,
 		"test/language/statements/try/dstr/obj-ptrn-id-init-fn-name-class.js":                                        true,
 		"test/language/statements/try/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                                   true,
-
-		// arrow-function
-		"test/built-ins/Object/prototype/toString/proxy-function.js":                                    true,
-		"test/built-ins/Array/prototype/pop/throws-with-string-receiver.js":                             true,
-		"test/built-ins/Array/prototype/push/throws-with-string-receiver.js":                            true,
-		"test/built-ins/Array/prototype/shift/throws-with-string-receiver.js":                           true,
-		"test/built-ins/Array/prototype/unshift/throws-with-string-receiver.js":                         true,
-		"test/built-ins/Date/prototype/toString/non-date-receiver.js":                                   true,
-		"test/built-ins/Number/prototype/toExponential/range.js":                                        true,
-		"test/built-ins/Number/prototype/toFixed/range.js":                                              true,
-		"test/built-ins/Number/prototype/toPrecision/range.js":                                          true,
-		"test/built-ins/TypedArray/prototype/sort/stability.js":                                         true,
-		"test/built-ins/RegExp/named-groups/functional-replace-global.js":                               true,
-		"test/built-ins/RegExp/named-groups/functional-replace-non-global.js":                           true,
-		"test/built-ins/Array/prototype/sort/stability-513-elements.js":                                 true,
-		"test/built-ins/Array/prototype/sort/stability-5-elements.js":                                   true,
-		"test/built-ins/Array/prototype/sort/stability-2048-elements.js":                                true,
-		"test/built-ins/Array/prototype/sort/stability-11-elements.js":                                  true,
-		"test/language/statements/variable/fn-name-arrow.js":                                            true,
-		"test/language/statements/let/fn-name-arrow.js":                                                 true,
-		"test/language/statements/const/fn-name-arrow.js":                                               true,
-		"test/built-ins/Proxy/getPrototypeOf/instanceof-target-not-extensible-not-same-proto-throws.js": true,
-		"test/language/statements/let/dstr/obj-ptrn-id-init-fn-name-arrow.js":                           true,
-		"test/language/statements/let/dstr/ary-ptrn-elem-id-init-fn-name-arrow.js":                      true,
-		"test/language/statements/for/dstr/var-obj-ptrn-id-init-fn-name-arrow.js":                       true,
-		"test/language/statements/for/dstr/var-ary-ptrn-elem-id-init-fn-name-arrow.js":                  true,
-		"test/language/statements/for/dstr/let-ary-ptrn-elem-id-init-fn-name-arrow.js":                  true,
-		"test/language/statements/for/dstr/let-obj-ptrn-id-init-fn-name-arrow.js":                       true,
-		"test/language/statements/const/dstr/ary-ptrn-elem-id-init-fn-name-arrow.js":                    true,
-		"test/language/statements/for/dstr/const-obj-ptrn-id-init-fn-name-arrow.js":                     true,
-		"test/language/statements/const/dstr/obj-ptrn-id-init-fn-name-arrow.js":                         true,
-		"test/language/statements/for/dstr/const-ary-ptrn-elem-id-init-fn-name-arrow.js":                true,
-		"test/language/statements/variable/dstr/obj-ptrn-id-init-fn-name-arrow.js":                      true,
-		"test/language/statements/variable/dstr/ary-ptrn-elem-id-init-fn-name-arrow.js":                 true,
-		"test/language/expressions/assignment/dstr/obj-prop-elem-init-fn-name-arrow.js":                 true,
-		"test/language/expressions/assignment/dstr/obj-id-init-fn-name-arrow.js":                        true,
-		"test/language/expressions/assignment/dstr/obj-rest-order.js":                                   true,
-		"test/language/expressions/assignment/dstr/array-elem-init-fn-name-arrow.js":                    true,
-		"test/language/expressions/function/dstr/obj-ptrn-id-init-fn-name-arrow.js":                     true,
-		"test/language/expressions/function/dstr/dflt-obj-ptrn-id-init-fn-name-arrow.js":                true,
-		"test/language/expressions/function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-arrow.js":           true,
-		"test/language/expressions/function/dstr/ary-ptrn-elem-id-init-fn-name-arrow.js":                true,
-		"test/language/statements/function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-arrow.js":            true,
-		"test/language/statements/function/dstr/obj-ptrn-id-init-fn-name-arrow.js":                      true,
-		"test/language/statements/function/dstr/ary-ptrn-elem-id-init-fn-name-arrow.js":                 true,
-		"test/language/statements/function/dstr/dflt-obj-ptrn-id-init-fn-name-arrow.js":                 true,
-		"test/language/statements/for-of/dstr/var-obj-ptrn-id-init-fn-name-arrow.js":                    true,
-		"test/language/statements/for-of/dstr/var-ary-ptrn-elem-id-init-fn-name-arrow.js":               true,
-		"test/language/statements/for-of/dstr/obj-prop-elem-init-fn-name-arrow.js":                      true,
-		"test/language/statements/for-of/dstr/obj-rest-order.js":                                        true,
-		"test/language/statements/for-of/dstr/obj-id-init-fn-name-arrow.js":                             true,
-		"test/language/statements/for-of/dstr/let-ary-ptrn-elem-id-init-fn-name-arrow.js":               true,
-		"test/language/statements/for-of/dstr/const-obj-ptrn-id-init-fn-name-arrow.js":                  true,
-		"test/language/statements/for-of/dstr/const-ary-ptrn-elem-id-init-fn-name-arrow.js":             true,
-		"test/language/statements/for-of/dstr/let-obj-ptrn-id-init-fn-name-arrow.js":                    true,
-		"test/language/statements/for-of/dstr/array-elem-init-fn-name-arrow.js":                         true,
-		"test/language/expressions/call/spread-obj-spread-order.js":                                     true,
-		"test/language/statements/try/dstr/obj-ptrn-id-init-fn-name-arrow.js":                           true,
-		"test/language/statements/try/dstr/ary-ptrn-elem-id-init-fn-name-arrow.js":                      true,
+		"test/language/expressions/arrow-function/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                       true,
+		"test/language/expressions/arrow-function/dstr/dflt-obj-ptrn-id-init-fn-name-class.js":                       true,
+		"test/language/expressions/arrow-function/dstr/obj-ptrn-id-init-fn-name-class.js":                            true,
+		"test/language/expressions/arrow-function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-class.js":                  true,
+		"test/language/statements/class/static-method-length-dflt.js":                                                true,
+		"test/language/statements/class/setter-length-dflt.js":                                                       true,
+		"test/language/statements/class/restricted-properties.js":                                                    true,
+		"test/language/statements/class/method-length-dflt.js":                                                       true,
+		"test/language/statements/class/definition/methods-restricted-properties.js":                                 true,
+		"test/language/expressions/class/static-method-length-dflt.js":                                               true,
+		"test/language/expressions/class/setter-length-dflt.js":                                                      true,
+		"test/language/expressions/class/restricted-properties.js":                                                   true,
+		"test/language/expressions/class/method-length-dflt.js":                                                      true,
+		"test/language/expressions/arrow-function/lexical-super-property-from-within-constructor.js":                 true,
+		"test/language/expressions/arrow-function/lexical-super-property.js":                                         true,
+		"test/language/expressions/arrow-function/lexical-supercall-from-immediately-invoked-arrow.js":               true,
 
 		// template strings
 		"test/built-ins/String/raw/zero-literal-segments.js":                                                       true,
@@ -274,6 +237,8 @@ var (
 		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":                     true,
 		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/conversion-operation-consistent-nan.js": true,
 		"test/built-ins/TypedArrayConstructors/internals/Set/conversion-operation-consistent-nan.js":               true,
+		"test/built-ins/RegExp/named-groups/functional-replace-non-global.js":                                      true,
+		"test/built-ins/RegExp/named-groups/functional-replace-global.js":                                          true,
 
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
@@ -332,12 +297,12 @@ var (
 	}
 
 	featuresBlackList = []string{
-		"arrow-function",
 		"async-iteration",
 		"BigInt",
 		"class",
 		"generators",
 		"String.prototype.replaceAll",
+		"String.prototype.at",
 		"super",
 	}
 
@@ -374,7 +339,10 @@ var (
 		"13.13",
 		"13.14",
 		"13.15",
+		"14.1",
+		"14.2",
 		"14.3.8",
+		"16.1",
 		"18",
 		"19",
 		"20",
@@ -434,6 +402,9 @@ var (
 		"sec-function-definitions-static-semantics-early-errors",
 		"sec-functiondeclarationinstantiation",
 		"sec-functiondeclarations-in-ifstatement-statement-clauses",
+		"sec-arrow-function-definitions",
+		"sec-arrow-function-definitions-runtime-semantics-evaluation",
+		"sec-arrow-function-definitions-static-semantics-early-errors",
 		"sec-evaldeclarationinstantiation",
 		"sec-integer-indexed-exotic-objects-defineownproperty-p-desc",
 		"sec-integer-indexed-exotic-objects-get-p-receiver",
@@ -624,6 +595,9 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		//t.Fatalf("Could not parse %s: %v", name, err)
 		t.Errorf("Could not parse %s: %v", name, err)
 		return
+	}
+	if meta.hasFlag("async") {
+		t.Skip("async")
 	}
 	if meta.Es5id == "" {
 		skip := true

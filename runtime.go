@@ -352,9 +352,11 @@ func (r *Runtime) init() {
 	}
 	r.vm.init()
 
-	r.global.FunctionPrototype = r.newNativeFunc(func(FunctionCall) Value {
+	funcProto := r.newNativeFunc(func(FunctionCall) Value {
 		return _undefined
 	}, nil, " ", nil, 0)
+	r.global.FunctionPrototype = funcProto
+	funcProtoObj := funcProto.self.(*nativeFuncObject)
 
 	r.global.IteratorPrototype = r.newLazyObject(r.createIterProto)
 
@@ -391,6 +393,9 @@ func (r *Runtime) init() {
 		setterFunc: r.global.thrower,
 		accessor:   true,
 	}
+
+	funcProtoObj._put("caller", r.global.throwerProperty)
+	funcProtoObj._put("arguments", r.global.throwerProperty)
 }
 
 func (r *Runtime) typeErrorResult(throw bool, args ...interface{}) {
@@ -487,13 +492,35 @@ func (r *Runtime) newFunc(name unistring.String, len int, strict bool) (f *funcO
 	f.class = classFunction
 	f.val = v
 	f.extensible = true
+	f.strict = strict
 	v.self = f
 	f.prototype = r.global.FunctionPrototype
 	f.init(name, len)
-	if strict {
-		f._put("caller", r.global.throwerProperty)
-		f._put("arguments", r.global.throwerProperty)
+	return
+}
+
+func (r *Runtime) newArrowFunc(name unistring.String, len int, strict bool) (f *arrowFuncObject) {
+	v := &Object{runtime: r}
+
+	f = &arrowFuncObject{}
+	f.class = classFunction
+	f.val = v
+	f.extensible = true
+	f.strict = strict
+
+	vm := r.vm
+	var this Value
+	if vm.sb >= 0 {
+		this = vm.stack[vm.sb]
+	} else {
+		this = vm.r.globalObject
 	}
+
+	f.this = this
+	f.newTarget = vm.newTarget
+	v.self = f
+	f.prototype = r.global.FunctionPrototype
+	f.init(name, len)
 	return
 }
 
@@ -764,8 +791,14 @@ func (r *Runtime) throw(e Value) {
 	panic(e)
 }
 
-func (r *Runtime) builtin_thrower(FunctionCall) Value {
-	r.typeErrorResult(true, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them")
+func (r *Runtime) builtin_thrower(call FunctionCall) Value {
+	obj := r.toObject(call.This)
+	strict := true
+	switch fn := obj.self.(type) {
+	case *funcObject:
+		strict = fn.strict
+	}
+	r.typeErrorResult(strict, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them")
 	return nil
 }
 

@@ -184,6 +184,33 @@ func isId(tkn token.Token) bool {
 	return false
 }
 
+type parserState struct {
+	tok                                token.Token
+	literal                            string
+	parsedLiteral                      unistring.String
+	implicitSemicolon, insertSemicolon bool
+	chr                                rune
+	chrOffset, offset                  int
+	errorCount                         int
+}
+
+func (self *_parser) mark(state *parserState) *parserState {
+	if state == nil {
+		state = &parserState{}
+	}
+	state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset =
+		self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
+
+	state.errorCount = len(self.errors)
+	return state
+}
+
+func (self *_parser) restore(state *parserState) {
+	self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset =
+		state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset
+	self.errors = self.errors[:state.errorCount]
+}
+
 func (self *_parser) peek() token.Token {
 	implicitSemicolon, insertSemicolon, chr, chrOffset, offset := self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
 	tok, _, _, _ := self.scan()
@@ -363,7 +390,11 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 			case '=':
 				if self.chr == '>' {
 					self.read()
-					tkn = token.ARROW
+					if self.implicitSemicolon {
+						tkn = token.ILLEGAL
+					} else {
+						tkn = token.ARROW
+					}
 				} else {
 					tkn = self.switch2(token.ASSIGN, token.EQUAL)
 					if tkn == token.EQUAL && self.chr == '=' {
