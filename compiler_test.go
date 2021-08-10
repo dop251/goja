@@ -4100,6 +4100,19 @@ func TestCatchParamPattern(t *testing.T) {
 	testScript1(SCRIPT, asciiString("1 2 3"), t)
 }
 
+func TestArrowUseStrict(t *testing.T) {
+	// simple parameter list -- ok
+	_, err := Compile("", "(a) => {'use strict';}", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// non-simple parameter list -- syntax error
+	_, err = Compile("", "(a=0) => {'use strict';}", false)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")
