@@ -911,19 +911,13 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		if item.Initializer != nil {
 			hasInits = true
 		}
-		if firstDupIdx >= 0 && (e.strict != nil || e.isArrow) {
+		if firstDupIdx >= 0 && (e.strict != nil || e.isArrow || hasPatterns || hasInits) {
 			e.c.throwSyntaxError(firstDupIdx, "Duplicate parameter name not allowed in this context")
 			return
 		}
-		if hasPatterns || hasInits {
-			if firstDupIdx >= 0 {
-				e.c.throwSyntaxError(firstDupIdx, "Duplicate parameter name not allowed in this context")
-				return
-			}
-			if e.strict != nil {
-				e.c.throwSyntaxError(int(e.strict.Idx)-1, "Illegal 'use strict' directive in function with non-simple parameter list")
-				return
-			}
+		if e.strict != nil && (hasPatterns || hasInits) {
+			e.c.throwSyntaxError(int(e.strict.Idx)-1, "Illegal 'use strict' directive in function with non-simple parameter list")
+			return
 		}
 		if !hasInits {
 			length++
