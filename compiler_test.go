@@ -1709,6 +1709,15 @@ func TestArgumentsRedeclareArrow(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestArrowFunctionsCanUseStrict(t *testing.T) {
+	const SCRIPT = `
+	f = () => {'use strict'; return 5;};
+	f() == 5;
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func TestEvalParamWithDef(t *testing.T) {
 	const SCRIPT = `
 	function f(param = 0) {

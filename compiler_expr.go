@@ -911,7 +911,11 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 		if item.Initializer != nil {
 			hasInits = true
 		}
-		if hasPatterns || hasInits || e.isArrow {
+		if firstDupIdx >= 0 && (e.strict != nil || e.isArrow) {
+			e.c.throwSyntaxError(firstDupIdx, "Duplicate parameter name not allowed in this context")
+			return
+		}
+		if hasPatterns || hasInits {
 			if firstDupIdx >= 0 {
 				e.c.throwSyntaxError(firstDupIdx, "Duplicate parameter name not allowed in this context")
 				return
