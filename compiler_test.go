@@ -1709,9 +1709,9 @@ func TestArgumentsRedeclareArrow(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
-func TestArrowFunctionsCanUseStrict(t *testing.T) {
+func TestArrowFunctionsCanUseStrictWithParameter(t *testing.T) {
 	const SCRIPT = `
-	f = () => {'use strict'; return 5;};
+	f = (s) => {'use strict'; return 5;};
 	f() == 5;
 	`
 
