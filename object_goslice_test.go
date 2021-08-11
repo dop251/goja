@@ -175,12 +175,57 @@ func TestGoSliceDelete(t *testing.T) {
 	a := []interface{}{1, nil, 3}
 	r.Set("a", a)
 	v, err := r.RunString(`
-	!delete a[0] && !delete a[1] && delete a[3];
+	delete a[0] && delete a[1] && delete a[3];
 	`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if v != valueTrue {
 		t.Fatalf("not true: %v", v)
+	}
+}
+
+func TestGoSlicePop(t *testing.T) {
+	r := New()
+	a := []interface{}{1, nil, 3}
+	r.Set("a", &a)
+	v, err := r.RunString(`
+	a.pop()
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.SameAs(intToValue(3)) {
+		t.Fatal(v)
+	}
+}
+
+func TestGoSlicePopNoPtr(t *testing.T) {
+	r := New()
+	a := []interface{}{1, nil, 3}
+	r.Set("a", a)
+	v, err := r.RunString(`
+	a.pop()
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.SameAs(intToValue(3)) {
+		t.Fatal(v)
+	}
+}
+
+func TestGoSliceShift(t *testing.T) {
+	r := New()
+	a := []interface{}{1, nil, 3}
+	r.Set("a", &a)
+	v, err := r.RunString(`
+	a.shift()
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.SameAs(intToValue(1)) {
+		t.Fatal(v)
 	}
 }

@@ -9,16 +9,15 @@ import (
 
 type objectGoSlice struct {
 	baseObject
-	data            *[]interface{}
-	lengthProp      valueProperty
-	sliceExtensible bool
+	data       *[]interface{}
+	lengthProp valueProperty
 }
 
 func (o *objectGoSlice) init() {
 	o.baseObject.init()
 	o.class = classArray
 	o.prototype = o.val.runtime.global.ArrayPrototype
-	o.lengthProp.writable = o.sliceExtensible
+	o.lengthProp.writable = true
 	o.extensible = true
 	o.updateLen()
 	o.baseObject._put("length", &o.lengthProp)
@@ -85,23 +84,9 @@ func (o *objectGoSlice) getOwnPropIdx(idx valueInt) Value {
 }
 
 func (o *objectGoSlice) grow(size int) {
-	newcap := cap(*o.data)
-	if newcap < size {
-		// Use the same algorithm as in runtime.growSlice
-		doublecap := newcap + newcap
-		if size > doublecap {
-			newcap = size
-		} else {
-			if len(*o.data) < 1024 {
-				newcap = doublecap
-			} else {
-				for newcap < size {
-					newcap += newcap / 4
-				}
-			}
-		}
-
-		n := make([]interface{}, size, newcap)
+	oldcap := cap(*o.data)
+	if oldcap < size {
+		n := make([]interface{}, size, growCap(size, len(*o.data), oldcap))
 		copy(n, *o.data)
 		*o.data = n
 	} else {
@@ -125,10 +110,6 @@ func (o *objectGoSlice) shrink(size int) {
 
 func (o *objectGoSlice) putIdx(idx int, v Value, throw bool) {
 	if idx >= len(*o.data) {
-		if !o.sliceExtensible {
-			o.val.runtime.typeErrorResult(throw, "Cannot extend Go slice")
-			return
-		}
 		o.grow(idx + 1)
 	}
 	(*o.data)[idx] = v.Export()
@@ -138,16 +119,8 @@ func (o *objectGoSlice) putLength(v Value, throw bool) bool {
 	newLen := toIntStrict(toLength(v))
 	curLen := len(*o.data)
 	if newLen > curLen {
-		if !o.sliceExtensible {
-			o.val.runtime.typeErrorResult(throw, "Cannot extend Go slice")
-			return false
-		}
 		o.grow(newLen)
 	} else if newLen < curLen {
-		if !o.sliceExtensible {
-			o.val.runtime.typeErrorResult(throw, "Cannot shrink Go slice")
-			return false
-		}
 		o.shrink(newLen)
 	}
 	return true
@@ -266,12 +239,15 @@ func (o *objectGoSlice) toPrimitive() Value {
 	return o.toPrimitiveString()
 }
 
+func (o *objectGoSlice) _deleteIdx(idx int64) {
+	if idx < int64(len(*o.data)) {
+		(*o.data)[idx] = nil
+	}
+}
+
 func (o *objectGoSlice) deleteStr(name unistring.String, throw bool) bool {
 	if idx := strToIdx64(name); idx >= 0 {
-		if idx < int64(len(*o.data)) {
-			o.val.runtime.typeErrorResult(throw, "Can't delete from Go slice")
-			return false
-		}
+		o._deleteIdx(idx)
 		return true
 	}
 	return o.baseObject.deleteStr(name, throw)
@@ -280,10 +256,7 @@ func (o *objectGoSlice) deleteStr(name unistring.String, throw bool) bool {
 func (o *objectGoSlice) deleteIdx(i valueInt, throw bool) bool {
 	idx := int64(i)
 	if idx >= 0 {
-		if idx < int64(len(*o.data)) {
-			o.val.runtime.typeErrorResult(throw, "Can't delete from Go slice")
-			return false
-		}
+		o._deleteIdx(idx)
 	}
 	return true
 }
@@ -303,11 +276,11 @@ func (i *goslicePropIter) next() (propIterItem, iterNextFunc) {
 	return propIterItem{}, nil
 }
 
-func (o *objectGoSlice) enumerateUnfiltered() iterNextFunc {
-	return o.recursiveIter((&goslicePropIter{
+func (o *objectGoSlice) enumerateOwnKeys() iterNextFunc {
+	return (&goslicePropIter{
 		o:     o,
 		limit: len(*o.data),
-	}).next)
+	}).next
 }
 
 func (o *objectGoSlice) ownKeys(_ bool, accum []Value) []Value {

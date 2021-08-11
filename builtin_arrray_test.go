@@ -232,6 +232,38 @@ func TestArraySort(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestArraySortNonStdArray(t *testing.T) {
+	const SCRIPT = `
+	const array = [undefined, 'c', /*hole*/, 'b', undefined, /*hole*/, 'a', 'd'];
+
+	Object.defineProperty(array, '2', {
+	  get() {
+		array.pop();
+		array.pop();
+		return this.foo;
+	  },
+	  set(v) {
+		this.foo = v;
+	  }
+	});
+
+	array.sort();
+
+	assert.sameValue(array[0], 'b');
+	assert.sameValue(array[1], 'c');
+	assert.sameValue(array[3], undefined);
+	assert.sameValue(array[4], undefined);
+	assert.sameValue('5' in array, false);
+	assert.sameValue(array.hasOwnProperty('5'), false);
+	assert.sameValue(array.length, 6);
+	assert.sameValue(array.foo, undefined);
+
+	assert.sameValue(array[2], undefined);
+	assert.sameValue(array.length, 4);
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
 func TestArrayConcat(t *testing.T) {
 	const SCRIPT = `
 	var concat = Array.prototype.concat;
@@ -262,6 +294,32 @@ func TestArrayConcat(t *testing.T) {
 		return { foo: 1 };
 	}
 	assert.sameValue(array.concat().foo, 1, '@@species');
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
+
+func TestArrayFlat(t *testing.T) {
+	const SCRIPT = `
+	var array = [1, [2,3,[4,5,6]], [[[[7,8,9]]]]];
+	assert(deepEqual(array.flat(), [1,2,3,[4,5,6],[[[7,8,9]]]]), '#1');
+	assert(deepEqual(array.flat(1), [1,2,3,[4,5,6],[[[7,8,9]]]]), '#2');
+	assert(deepEqual(array.flat(3), [1,2,3,4,5,6,[7,8,9]]), '#3');
+	assert(deepEqual(array.flat(4), [1,2,3,4,5,6,7,8,9]), '#4');
+	assert(deepEqual(array.flat(10), [1,2,3,4,5,6,7,8,9]), '#5');
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
+
+func TestArrayFlatMap(t *testing.T) {
+	const SCRIPT = `
+	var double = function(x) {
+		if (isNaN(x)) {
+			return x
+		}
+		return x * 2
+	}
+	var array = [1, [2,3,[4,5,6]], [[[[7,8,9]]]]];
+	assert(deepEqual(array.flatMap(double), [2,2,3,[4,5,6],[[[7,8,9]]]]), '#1');
 	`
 	testScript1(TESTLIBX+SCRIPT, _undefined, t)
 }

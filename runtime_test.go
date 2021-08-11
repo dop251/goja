@@ -7,8 +7,11 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/dop251/goja/parser"
 )
 
 func TestGlobalObjectProto(t *testing.T) {
@@ -166,15 +169,65 @@ func TestSetFunc(t *testing.T) {
 	sum(40, 2);
 	`
 	r := New()
-	r.Set("sum", func(call FunctionCall) Value {
+	err := r.Set("sum", func(call FunctionCall) Value {
 		return r.ToValue(call.Argument(0).ToInteger() + call.Argument(1).ToInteger())
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	v, err := r.RunString(SCRIPT)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if i := v.ToInteger(); i != 42 {
 		t.Fatalf("Expected 42, got: %d", i)
+	}
+}
+
+func ExampleRuntime_Set_lexical() {
+	r := New()
+	_, err := r.RunString("let x")
+	if err != nil {
+		panic(err)
+	}
+	err = r.Set("x", 1)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Print(r.Get("x"), r.GlobalObject().Get("x"))
+	// Output: 1 <nil>
+}
+
+func TestRecursiveRun(t *testing.T) {
+	// Make sure that a recursive call to Run*() correctly sets the environment and no stash or stack
+	// corruptions occur.
+	vm := New()
+	vm.Set("f", func() (Value, error) {
+		return vm.RunString("let x = 1; { let z = 100, z1 = 200, z2 = 300, z3 = 400; } x;")
+	})
+	res, err := vm.RunString(`
+	function f1() {
+		let x = 2;
+		eval('');
+		{
+			let y = 3;
+			let res = f();
+			if (x !== 2) { // check for stash corruption
+				throw new Error("x="+x);
+			}
+			if (y !== 3) { // check for stack corruption
+				throw new Error("y="+y);
+			}
+			return res;
+		}
+	};
+	f1();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.SameAs(valueInt(1)) {
+		t.Fatal(res)
 	}
 }
 
@@ -595,6 +648,27 @@ func TestRuntime_ExportToStructAnonymous(t *testing.T) {
 		t.Fatalf("Unexpected value: '%s'", test.C)
 	}
 
+}
+
+func TestRuntime_ExportToStructFromPtr(t *testing.T) {
+	vm := New()
+	v := vm.ToValue(&testGoReflectMethod_O{
+		field: "5",
+		Test:  "12",
+	})
+
+	var o testGoReflectMethod_O
+	err := vm.ExportTo(v, &o)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if o.Test != "12" {
+		t.Fatalf("Unexpected value: '%s'", o.Test)
+	}
+	if o.field != "5" {
+		t.Fatalf("Unexpected value for field: '%s'", o.field)
+	}
 }
 
 func TestRuntime_ExportToStructWithPtrValues(t *testing.T) {
@@ -1709,6 +1783,481 @@ func TestNativeCtorNewTarget(t *testing.T) {
 
 	var o = Reflect.construct(Number, [1], NewTarget);
 	o.__proto__ === NewTarget.prototype && o.toString() === "[object Number]";
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestNativeCtorNonNewCall(t *testing.T) {
+	vm := New()
+	vm.Set(`Animal`, func(call ConstructorCall) *Object {
+		obj := call.This
+		obj.Set(`name`, call.Argument(0).String())
+		obj.Set(`eat`, func(call FunctionCall) Value {
+			self := call.This.(*Object)
+			return vm.ToValue(fmt.Sprintf("%s eat", self.Get(`name`)))
+		})
+		return nil
+	})
+	v, err := vm.RunString(`
+
+	function __extends(d, b){
+		function __() {
+			this.constructor = d;
+		}
+		d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+	}
+
+	var Cat = (function (_super) {
+		__extends(Cat, _super);
+		function Cat() {
+			return _super.call(this, "cat") || this;
+		}
+		return Cat;
+	}(Animal));
+
+	var cat = new Cat();
+	cat instanceof Cat && cat.eat() === "cat eat";
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != valueTrue {
+		t.Fatal(v)
+	}
+}
+
+func ExampleNewSymbol() {
+	sym1 := NewSymbol("66")
+	sym2 := NewSymbol("66")
+	fmt.Printf("%s %s %v", sym1, sym2, sym1.Equals(sym2))
+	// Output: 66 66 false
+}
+
+func ExampleObject_SetSymbol() {
+	type IterResult struct {
+		Done  bool
+		Value Value
+	}
+
+	vm := New()
+	vm.SetFieldNameMapper(UncapFieldNameMapper()) // to use IterResult
+
+	o := vm.NewObject()
+	o.SetSymbol(SymIterator, func() *Object {
+		count := 0
+		iter := vm.NewObject()
+		iter.Set("next", func() IterResult {
+			if count < 10 {
+				count++
+				return IterResult{
+					Value: vm.ToValue(count),
+				}
+			}
+			return IterResult{
+				Done: true,
+			}
+		})
+		return iter
+	})
+	vm.Set("o", o)
+
+	res, err := vm.RunString(`
+	var acc = "";
+	for (var v of o) {
+		acc += v + " ";
+	}
+	acc;
+	`)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(res)
+	// Output: 1 2 3 4 5 6 7 8 9 10
+}
+
+func ExampleRuntime_NewArray() {
+	vm := New()
+	array := vm.NewArray(1, 2, true)
+	vm.Set("array", array)
+	res, err := vm.RunString(`
+	var acc = "";
+	for (var v of array) {
+		acc += v + " ";
+	}
+	acc;
+	`)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(res)
+	// Output: 1 2 true
+}
+
+func ExampleRuntime_SetParserOptions() {
+	vm := New()
+	vm.SetParserOptions(parser.WithDisableSourceMaps)
+
+	res, err := vm.RunString(`
+	"I did not hang!";
+//# sourceMappingURL=/dev/zero`)
+
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(res.String())
+	// Output: I did not hang!
+}
+
+func TestRuntime_SetParserOptions_Eval(t *testing.T) {
+	vm := New()
+	vm.SetParserOptions(parser.WithDisableSourceMaps)
+
+	_, err := vm.RunString(`
+	eval("//# sourceMappingURL=/dev/zero");
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNativeCallWithRuntimeParameter(t *testing.T) {
+	vm := New()
+	vm.Set("f", func(_ FunctionCall, r *Runtime) Value {
+		if r == vm {
+			return valueTrue
+		}
+		return valueFalse
+	})
+	ret, err := vm.RunString(`f()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ret != valueTrue {
+		t.Fatal(ret)
+	}
+}
+
+func TestNestedEnumerate(t *testing.T) {
+	const SCRIPT = `
+	var o = {baz: true, foo: true, bar: true};
+	var res = "";
+	for (var i in o) {
+		delete o.baz;
+		Object.defineProperty(o, "hidden", {value: true, configurable: true});
+		for (var j in o) {
+			Object.defineProperty(o, "0", {value: true, configurable: true});
+			Object.defineProperty(o, "1", {value: true, configurable: true});
+			for (var k in o) {}
+			res += i + "-" + j + " ";
+		}
+	}
+	assert(compareArray(Reflect.ownKeys(o), ["0","1","foo","bar","hidden"]), "keys");
+	res;
+	`
+	testScript1(TESTLIB+SCRIPT, asciiString("baz-foo baz-bar foo-foo foo-bar bar-foo bar-bar "), t)
+}
+
+func TestAbandonedEnumerate(t *testing.T) {
+	const SCRIPT = `
+	var o = {baz: true, foo: true, bar: true};
+	var res = "";
+	for (var i in o) {
+		delete o.baz;
+		for (var j in o) {
+			res += i + "-" + j + " ";
+			break;
+		}
+	}
+	res;
+	`
+	testScript1(SCRIPT, asciiString("baz-foo foo-foo bar-foo "), t)
+}
+
+func TestIterCloseThrows(t *testing.T) {
+	const SCRIPT = `
+	var returnCount = 0;
+	var iterable = {};
+	var iterator = {
+	  next: function() {
+		return { value: true };
+	  },
+	  return: function() {
+		returnCount += 1;
+		throw new Error();
+	  }
+	};
+	iterable[Symbol.iterator] = function() {
+	  return iterator;
+	};
+
+	try {
+		for (var i of iterable) {
+				break;
+		}
+	} catch (e) {};
+	returnCount;
+	`
+	testScript1(SCRIPT, valueInt(1), t)
+}
+
+func TestDeclareGlobalFunc(t *testing.T) {
+	const SCRIPT = `
+	var initial;
+
+	Object.defineProperty(this, 'f', {
+	  enumerable: true,
+	  writable: true,
+	  configurable: false
+	});
+
+	(0,eval)('initial = f; function f() { return 2222; }');
+	var desc = Object.getOwnPropertyDescriptor(this, "f");
+	assert(desc.enumerable, "enumerable");
+	assert(desc.writable, "writable");
+	assert(!desc.configurable, "configurable");
+	assert.sameValue(initial(), 2222);
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestStackOverflowError(t *testing.T) {
+	vm := New()
+	vm.SetMaxCallStackSize(3)
+	_, err := vm.RunString(`
+	function f() {
+		f();
+	}
+	f();
+	`)
+	if _, ok := err.(*StackOverflowError); !ok {
+		t.Fatal(err)
+	}
+}
+
+func TestStacktraceLocationThrowFromCatch(t *testing.T) {
+	vm := New()
+	_, err := vm.RunString(`
+	function main(arg) {
+		try {
+			if (arg === 1) {
+				return f1();
+			}
+			if (arg === 2) {
+				return f2();
+			}
+			if (arg === 3) {
+				return f3();
+			}
+		} catch (e) {
+			throw e;
+		}
+	}
+	function f1() {}
+	function f2() {
+		throw new Error();
+	}
+	function f3() {}
+	main(2);
+	`)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+	stack := err.(*Exception).stack
+	if len(stack) != 2 {
+		t.Fatalf("Unexpected stack len: %v", stack)
+	}
+	if frame := stack[0]; frame.funcName != "main" || frame.pc != 30 {
+		t.Fatalf("Unexpected stack frame 0: %#v", frame)
+	}
+	if frame := stack[1]; frame.funcName != "" || frame.pc != 7 {
+		t.Fatalf("Unexpected stack frame 1: %#v", frame)
+	}
+}
+
+func TestStacktraceLocationThrowFromGo(t *testing.T) {
+	vm := New()
+	f := func() {
+		panic(vm.ToValue("Test"))
+	}
+	vm.Set("f", f)
+	_, err := vm.RunString(`
+	function main() {
+		return f();
+	}
+	main();
+	`)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+	stack := err.(*Exception).stack
+	if len(stack) != 3 {
+		t.Fatalf("Unexpected stack len: %v", stack)
+	}
+	if frame := stack[0]; !strings.HasSuffix(frame.funcName.String(), "TestStacktraceLocationThrowFromGo.func1") {
+		t.Fatalf("Unexpected stack frame 0: %#v", frame)
+	}
+	if frame := stack[1]; frame.funcName != "main" || frame.pc != 1 {
+		t.Fatalf("Unexpected stack frame 1: %#v", frame)
+	}
+	if frame := stack[2]; frame.funcName != "" || frame.pc != 3 {
+		t.Fatalf("Unexpected stack frame 2: %#v", frame)
+	}
+}
+
+func TestStrToInt64(t *testing.T) {
+	if _, ok := strToInt64(""); ok {
+		t.Fatal("<empty>")
+	}
+	if n, ok := strToInt64("0"); !ok || n != 0 {
+		t.Fatal("0", n, ok)
+	}
+	if n, ok := strToInt64("-0"); ok {
+		t.Fatal("-0", n, ok)
+	}
+	if n, ok := strToInt64("-1"); !ok || n != -1 {
+		t.Fatal("-1", n, ok)
+	}
+	if n, ok := strToInt64("9223372036854775808"); ok {
+		t.Fatal("max+1", n, ok)
+	}
+	if n, ok := strToInt64("9223372036854775817"); ok {
+		t.Fatal("9223372036854775817", n, ok)
+	}
+	if n, ok := strToInt64("-9223372036854775818"); ok {
+		t.Fatal("-9223372036854775818", n, ok)
+	}
+	if n, ok := strToInt64("9223372036854775807"); !ok || n != 9223372036854775807 {
+		t.Fatal("max", n, ok)
+	}
+	if n, ok := strToInt64("-9223372036854775809"); ok {
+		t.Fatal("min-1", n, ok)
+	}
+	if n, ok := strToInt64("-9223372036854775808"); !ok || n != -9223372036854775808 {
+		t.Fatal("min", n, ok)
+	}
+	if n, ok := strToInt64("-00"); ok {
+		t.Fatal("-00", n, ok)
+	}
+	if n, ok := strToInt64("-01"); ok {
+		t.Fatal("-01", n, ok)
+	}
+}
+
+func TestStrToInt32(t *testing.T) {
+	if _, ok := strToInt32(""); ok {
+		t.Fatal("<empty>")
+	}
+	if n, ok := strToInt32("0"); !ok || n != 0 {
+		t.Fatal("0", n, ok)
+	}
+	if n, ok := strToInt32("-0"); ok {
+		t.Fatal("-0", n, ok)
+	}
+	if n, ok := strToInt32("-1"); !ok || n != -1 {
+		t.Fatal("-1", n, ok)
+	}
+	if n, ok := strToInt32("2147483648"); ok {
+		t.Fatal("max+1", n, ok)
+	}
+	if n, ok := strToInt32("2147483657"); ok {
+		t.Fatal("2147483657", n, ok)
+	}
+	if n, ok := strToInt32("-2147483658"); ok {
+		t.Fatal("-2147483658", n, ok)
+	}
+	if n, ok := strToInt32("2147483647"); !ok || n != 2147483647 {
+		t.Fatal("max", n, ok)
+	}
+	if n, ok := strToInt32("-2147483649"); ok {
+		t.Fatal("min-1", n, ok)
+	}
+	if n, ok := strToInt32("-2147483648"); !ok || n != -2147483648 {
+		t.Fatal("min", n, ok)
+	}
+	if n, ok := strToInt32("-00"); ok {
+		t.Fatal("-00", n, ok)
+	}
+	if n, ok := strToInt32("-01"); ok {
+		t.Fatal("-01", n, ok)
+	}
+}
+
+func TestDestructSymbol(t *testing.T) {
+	const SCRIPT = `
+	var S = Symbol("S");
+	var s, rest;
+
+	({[S]: s, ...rest} = {[S]: true, test: 1});
+	assert.sameValue(s, true, "S");
+	assert(deepEqual(rest, {test: 1}), "rest");
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
+
+func TestAccessorFuncName(t *testing.T) {
+	const SCRIPT = `
+	const namedSym = Symbol('test262');
+	const emptyStrSym = Symbol("");
+	const anonSym = Symbol();
+
+	const o = {
+	  get id() {},
+	  get [anonSym]() {},
+	  get [namedSym]() {},
+      get [emptyStrSym]() {},
+	  set id(v) {},
+	  set [anonSym](v) {},
+	  set [namedSym](v) {},
+      set [emptyStrSym](v) {}
+	};
+
+	let prop;
+	prop = Object.getOwnPropertyDescriptor(o, 'id');
+	assert.sameValue(prop.get.name, 'get id');
+	assert.sameValue(prop.set.name, 'set id');
+
+	prop = Object.getOwnPropertyDescriptor(o, anonSym);
+	assert.sameValue(prop.get.name, 'get ');
+	assert.sameValue(prop.set.name, 'set ');
+
+	prop = Object.getOwnPropertyDescriptor(o, emptyStrSym);
+	assert.sameValue(prop.get.name, 'get []');
+	assert.sameValue(prop.set.name, 'set []');
+
+	prop = Object.getOwnPropertyDescriptor(o, namedSym);
+	assert.sameValue(prop.get.name, 'get [test262]');
+	assert.sameValue(prop.set.name, 'set [test262]');
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestCoverFuncName(t *testing.T) {
+	const SCRIPT = `
+	var namedSym = Symbol('');
+	var anonSym = Symbol();
+	var o;
+
+	o = {
+	  xId: (0, function() {}),
+	  id: (function() {}),
+      id1: function x() {},
+	  [anonSym]: (function() {}),
+	  [namedSym]: (function() {})
+	};
+
+	assert(o.xId.name !== 'xId');
+	assert.sameValue(o.id1.name, 'x'); 
+	assert.sameValue(o.id.name, 'id', 'via IdentifierName');
+	assert.sameValue(o[anonSym].name, '', 'via anonymous Symbol');
+	assert.sameValue(o[namedSym].name, '[]', 'via Symbol');
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestAnonFuncName(t *testing.T) {
+	const SCRIPT = `
+	const d = Object.getOwnPropertyDescriptor((function() {}), 'name');
+	d !== undefined && d.value === '';
 	`
 	testScript1(SCRIPT, valueTrue, t)
 }

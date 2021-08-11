@@ -158,7 +158,7 @@ func TestRegexpSInClass(t *testing.T) {
 	testScript1(SCRIPT, valueFalse, t)
 }
 
-func TestRegexpDotMatchSlashR(t *testing.T) {
+func TestRegexpDotMatchCR(t *testing.T) {
 	const SCRIPT = `
 	/./.test("\r");
 	`
@@ -166,9 +166,17 @@ func TestRegexpDotMatchSlashR(t *testing.T) {
 	testScript1(SCRIPT, valueFalse, t)
 }
 
-func TestRegexpDotMatchSlashRInGroup(t *testing.T) {
+func TestRegexpDotMatchCRInGroup(t *testing.T) {
 	const SCRIPT = `
 	/(.)/.test("\r");
+	`
+
+	testScript1(SCRIPT, valueFalse, t)
+}
+
+func TestRegexpDotMatchLF(t *testing.T) {
+	const SCRIPT = `
+	/./.test("\n");
 	`
 
 	testScript1(SCRIPT, valueFalse, t)
@@ -204,6 +212,7 @@ func TestRegexpUTF16(t *testing.T) {
 	assert(compareArray(str.split(re), ["", "\uDC00"]), "#5");
 	assert(compareArray("a\uD800\uDC00b".split(/\uD800/g), ["a", "\uDC00b"]), "#6");
 	assert(compareArray("a\uD800\uDC00b".split(/(?:)/g), ["a", "\uD800", "\uDC00", "b"]), "#7");
+	assert(compareArray("0\x80".split(/(0){0}/g), ["0", undefined, "\x80"]), "#7+");
 
 	re = /(?=)a/; // a hack to use regexp2
 	assert.sameValue(re.exec('\ud83d\ude02a').index, 2, "#8");
@@ -235,6 +244,8 @@ func TestRegexpUnicode(t *testing.T) {
 	assert(compareArray("a\uD800\uDC00b".split(/\uD800/gu), ["a\uD800\uDC00b"]), "#5");
 
 	assert(compareArray("a\uD800\uDC00b".split(/(?:)/gu), ["a", "𐀀", "b"]), "#6");
+
+	assert(compareArray("0\x80".split(/(0){0}/gu), ["0", undefined, "\x80"]), "#7");
 
 	var re = eval('/' + /\ud834\udf06/u.source + '/u');
 	assert(re.test('\ud834\udf06'), "#9");
@@ -339,6 +350,19 @@ func TestRegexpUnicodeAdvanceStringIndex(t *testing.T) {
 
 	re.lastIndex = 5;
 	assert.sameValue(re.exec(str), null, "#5");
+
+	var iterator = str.matchAll(re); // regexp is copied by matchAll, but resets lastIndex
+	var matches = [];
+	for (var v of iterator) {matches.push(v);}
+	assert.sameValue(matches.length, 4, "#6");
+	assert.sameValue(matches[0].index, 0, "#7 index");
+	assert.sameValue(matches[0][0], "", "#7 value");
+	assert.sameValue(matches[1].index, 1, "#8 index");
+	assert.sameValue(matches[1][0], "", "#8 value");
+	assert.sameValue(matches[2].index, 3, "#9 index");
+	assert.sameValue(matches[2][0], "", "#9 value");
+	assert.sameValue(matches[3].index, 4, "#10 index");
+	assert.sameValue(matches[3][0], "", "#10 value");
 	`
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
@@ -364,6 +388,324 @@ func TestRegexpEscapeSource(t *testing.T) {
 	/href="(.+?)(\/.*\/\S+?)\/"/.source;
 	`
 	testScript1(SCRIPT, asciiString(`href="(.+?)(\/.*\/\S+?)\/"`), t)
+}
+
+func TestRegexpConsecutiveMatchCache(t *testing.T) {
+	const SCRIPT = `
+	(function test(unicode) {
+		var regex = new RegExp('t(e)(st(\\d?))', unicode?'gu':'g');
+		var string = 'test1test2';
+		var match;
+		var matches = [];
+		while (match = regex.exec(string)) {
+			matches.push(match);
+		}
+		var expectedMatches = [
+		  [
+			'test1',
+			'e',
+			'st1',
+			'1'
+		  ],
+		  [
+			'test2',
+			'e',
+			'st2',
+			'2'
+		  ]
+		];
+		expectedMatches[0].index = 0;
+		expectedMatches[0].input = 'test1test2';
+		expectedMatches[1].index = 5;
+		expectedMatches[1].input = 'test1test2';
+
+		assert(deepEqual(matches, expectedMatches), "#1");
+
+		// try the same regexp with a different string
+		regex.lastIndex = 0;
+		match = regex.exec(' test5');
+		var expectedMatch = [
+		  'test5',
+		  'e',
+		  'st5',
+		  '5'
+		];
+		expectedMatch.index = 1;
+		expectedMatch.input = ' test5';
+		assert(deepEqual(match, expectedMatch), "#2");
+		assert.sameValue(regex.lastIndex, 6, "#3");
+
+		// continue matching with a different string
+		match = regex.exec(' test5test6');
+		expectedMatch = [
+		  'test6',
+		  'e',
+		  'st6',
+		  '6'
+		];
+		expectedMatch.index = 6;
+		expectedMatch.input = ' test5test6';
+		assert(deepEqual(match, expectedMatch), "#4");
+		assert.sameValue(regex.lastIndex, 11, "#5");
+
+		match = regex.exec(' test5test6');
+		assert.sameValue(match, null, "#6");
+		return regex;
+	});
+	`
+	vm := New()
+	v, err := vm.RunString(TESTLIBX + SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f func(bool) (*Object, error)
+	err = vm.ExportTo(v, &f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	regex, err := f(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if regex.self.(*regexpObject).pattern.regexp2Wrapper.cache != nil {
+		t.Fatal("Cache is not nil (non-unicode)")
+	}
+
+	regex, err = f(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if regex.self.(*regexpObject).pattern.regexp2Wrapper.cache != nil {
+		t.Fatal("Cache is not nil (unicode)")
+	}
+}
+
+func TestRegexpMatchAll(t *testing.T) {
+	const SCRIPT = `
+	(function test(unicode) {
+		var regex = new RegExp('t(e)(st(\\d?))', unicode?'gu':'g');
+		var string = 'test1test2';
+		var matches = [];
+		for (var match of string.matchAll(regex)) {
+			matches.push(match);
+		}
+		var expectedMatches = [
+		  [
+			'test1',
+			'e',
+			'st1',
+			'1'
+		  ],
+		  [
+			'test2',
+			'e',
+			'st2',
+			'2'
+		  ]
+		];
+		expectedMatches[0].index = 0;
+		expectedMatches[0].input = 'test1test2';
+		expectedMatches[1].index = 5;
+		expectedMatches[1].input = 'test1test2';
+
+		assert(deepEqual(matches, expectedMatches), "#1");
+		assert.sameValue(regex.lastIndex, 0, "#1 lastIndex");
+
+		// try the same regexp with a different string
+		string = ' test5';
+		matches = [];
+		for (var match of string.matchAll(regex)) {
+			matches.push(match);
+		}
+		expectedMatches = [
+			[
+			  'test5',
+			  'e',
+			  'st5',
+			  '5'
+			]
+		];
+		expectedMatches[0].index = 1;
+		expectedMatches[0].input = ' test5';
+		assert(deepEqual(matches, expectedMatches), "#2");
+		assert.sameValue(regex.lastIndex, 0, "#2 lastIndex");
+
+		// continue matching with a different string
+		string = ' test5test6';
+		matches = [];
+		for (var match of string.matchAll(regex)) {
+			matches.push(match);
+		}
+		var expectedMatches = [
+		  [
+			'test5',
+			'e',
+			'st5',
+			'5'
+		  ],
+		  [
+			'test6',
+			'e',
+			'st6',
+			'6'
+		  ]
+		];
+		expectedMatches[0].index = 1;
+		expectedMatches[0].input = ' test5test6';
+		expectedMatches[1].index = 6;
+		expectedMatches[1].input = ' test5test6';
+		assert(deepEqual(matches, expectedMatches), "#3");
+		assert.sameValue(regex.lastIndex, 0, "#3 lastindex");
+	});
+	`
+	vm := New()
+	v, err := vm.RunString(TESTLIBX + SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f func(bool) (*Object, error)
+	err = vm.ExportTo(v, &f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = f(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = f(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRegexpOverrideSpecies(t *testing.T) {
+	const SCRIPT = `
+	Object.defineProperty(RegExp, Symbol.species, {
+		configurable: true,
+		value: function() {
+			throw "passed";
+		}
+	});
+	try {
+		"ab".split(/a/);
+		throw new Error("Expected error");
+	} catch(e) {
+		if (e !== "passed") {
+			throw e;
+		}
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestRegexpSymbolMatchAllCallsIsRegexp(t *testing.T) {
+	// This is tc39's test/built-ins/RegExp/prototype/Symbol.matchAll/isregexp-this-throws.js
+	const SCRIPT = `
+	var a = new Object();
+	Object.defineProperty(a, Symbol.match, {
+		get: function() {
+			throw "passed";
+		}
+	});
+	try {
+		RegExp.prototype[Symbol.matchAll].call(a, '');
+		throw new Error("Expected error");
+	} catch(e) {
+		if (e !== "passed") {
+			throw e;
+		}
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
+}
+
+func TestRegexpMatchAllConstructor(t *testing.T) {
+	// This is tc39's test/built-ins/RegExp/prototype/Symbol.matchAll/species-constuctor.js
+	const SCRIPT = `
+	var callCount = 0;
+	var callArgs;
+	var regexp = /\d/u;
+	var obj = {}
+	Object.defineProperty(obj, Symbol.species, {
+		value: function() {
+		  callCount++;
+		  callArgs = arguments;
+		  return /\w/g;
+		}
+	});
+	regexp.constructor = obj;
+	var str = 'a*b';
+	var iter = regexp[Symbol.matchAll](str);
+
+	assert.sameValue(callCount, 1);
+	assert.sameValue(callArgs.length, 2);
+	assert.sameValue(callArgs[0], regexp);
+	assert.sameValue(callArgs[1], 'u');
+
+	var first = iter.next()
+	assert.sameValue(first.done, false);
+	assert.sameValue(first.value.length, 1);
+	assert.sameValue(first.value[0], "a");
+	var second = iter.next()
+	assert.sameValue(second.done, true);
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestRegexp2InvalidEscape(t *testing.T) {
+	testScript1(`/(?=)\x0/.test("x0")`, valueTrue, t)
+}
+
+func TestRegexpUnicodeEmptyMatch(t *testing.T) {
+	testScript1(`/(0)0|/gu.exec("0\xef").length === 2`, valueTrue, t)
+}
+
+func TestRegexpInvalidGroup(t *testing.T) {
+	const SCRIPT = `
+	["?", "(?)"].forEach(function(s) {
+		assert.throws(SyntaxError, function() {new RegExp(s)}, s);
+	});
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestRegexpLookbehindAssertion(t *testing.T) {
+	const SCRIPT = `
+	var re = /(?<=Jack|Tom)Sprat/;
+	assert(re.test("JackSprat"), "#1");
+	assert(!re.test("JohnSprat"), "#2");
+
+	re = /(?<!-)\d+/;
+	assert(re.test("3"), "#3");
+	assert(!re.test("-3"), "#4");
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestRegexpInvalidUTF8(t *testing.T) {
+	vm := New()
+	// Note that normally vm.ToValue() would replace invalid UTF-8 sequences with RuneError
+	_, err := vm.New(vm.Get("RegExp"), asciiString([]byte{0xAD}))
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
+// this should not cause data races when run with -race
+func TestRegexpConcurrentLiterals(t *testing.T) {
+	prg := MustCompile("test.js", `var r = /(?<!-)\d+/; r.test("");`, false)
+	go func() {
+		vm := New()
+		_, err := vm.RunProgram(prg)
+		if err != nil {
+			panic(err)
+		}
+	}()
+	vm := New()
+	_, _ = vm.RunProgram(prg)
 }
 
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
@@ -406,4 +748,167 @@ func BenchmarkRegexpMatch(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		vm.RunProgram(prg)
 	}
+}
+
+func BenchmarkRegexpMatchCache(b *testing.B) {
+	const SCRIPT = `
+	(function() {
+		var s = "a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+        "
+		var r = /[^\r\n]+/g
+		while(r.exec(s)) {};
+	});
+	`
+	vm := New()
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		b.Fatal(err)
+	}
+	if fn, ok := AssertFunction(v); ok {
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			fn(_undefined)
+		}
+	} else {
+		b.Fatal("not a function")
+	}
+}
+
+func BenchmarkRegexpMatchAll(b *testing.B) {
+	const SCRIPT = `
+	(function() {
+		var s = "a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+         a\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\ra\nb\r\c\nd\r\e\n\f\rg\nh\r\
+        "
+		var r = /[^\r\n]+/g
+		for (var v of s.matchAll(r)) {}
+	});
+	`
+	vm := New()
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		b.Fatal(err)
+	}
+	if fn, ok := AssertFunction(v); ok {
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			fn(_undefined)
+		}
+	} else {
+		b.Fatal("not a function")
+	}
+}
+
+func BenchmarkRegexpSingleExec(b *testing.B) {
+	vm := New()
+	regexp := vm.Get("RegExp")
+	f := func(reStr, str string, b *testing.B) {
+		r, err := vm.New(regexp, vm.ToValue(reStr))
+		if err != nil {
+			b.Fatal(err)
+		}
+		exec, ok := AssertFunction(r.Get("exec"))
+		if !ok {
+			b.Fatal("RegExp.exec is not a function")
+		}
+		arg := vm.ToValue(str)
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			_, err := exec(r, arg)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+
+	b.Run("Re-ASCII", func(b *testing.B) {
+		f("test", "aaaaaaaaaaaaaaaaaaaaaaaaa testing", b)
+	})
+
+	b.Run("Re2-ASCII", func(b *testing.B) {
+		f("(?=)test", "aaaaaaaaaaaaaaaaaaaaaaaaa testing", b)
+	})
+
+	b.Run("Re-Unicode", func(b *testing.B) {
+		f("test", "aaaaaaaaaaaaaaaaaaaaaaaaa testing 😀", b)
+	})
+
+	b.Run("Re2-Unicode", func(b *testing.B) {
+		f("(?=)test", "aaaaaaaaaaaaaaaaaaaaaaaaa testing 😀", b)
+	})
+
 }

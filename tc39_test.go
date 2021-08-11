@@ -34,6 +34,53 @@ var (
 
 var (
 	skipList = map[string]bool{
+
+		// Obsolete tests (see https://github.com/tc39/test262/pull/2445)
+		//TODO: remove this after upgrading the test suite past the above PR
+		"test/language/statements/function/scope-param-rest-elem-var-open.js":         true,
+		"test/language/statements/function/scope-param-rest-elem-var-close.js":        true,
+		"test/language/statements/function/scope-param-elem-var-open.js":              true,
+		"test/language/function-code/eval-param-env-with-prop-initializer.js":         true,
+		"test/language/function-code/eval-param-env-with-computed-key.js":             true,
+		"test/language/expressions/object/scope-meth-param-rest-elem-var-open.js":     true,
+		"test/language/statements/function/scope-param-elem-var-close.js":             true,
+		"test/language/expressions/object/scope-meth-param-rest-elem-var-close.js":    true,
+		"test/language/expressions/object/scope-meth-param-elem-var-open.js":          true,
+		"test/language/expressions/object/scope-meth-param-elem-var-close.js":         true,
+		"test/language/expressions/function/scope-param-rest-elem-var-open.js":        true,
+		"test/language/expressions/function/scope-param-rest-elem-var-close.js":       true,
+		"test/language/expressions/function/scope-param-elem-var-open.js":             true,
+		"test/language/expressions/function/scope-param-elem-var-close.js":            true,
+		"test/language/expressions/arrow-function/scope-param-rest-elem-var-open.js":  true,
+		"test/language/expressions/arrow-function/scope-param-rest-elem-var-close.js": true,
+		"test/language/expressions/arrow-function/scope-param-elem-var-close.js":      true,
+		"test/language/expressions/arrow-function/scope-param-elem-var-open.js":       true,
+		"test/language/function-code/each-param-has-own-scope.js":                     true,
+		"test/language/function-code/each-param-has-own-non-shared-eval-scope.js":     true,
+
+		// These tests are out of date (fixed in https://github.com/tc39/test262/commit/7d998a098e5420cb4b6ee4a05eb8c386d750c596)
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/key-is-numericindex.js":                   true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/key-is-numericindex-desc-configurable.js": true,
+
+		// Fixed in https://github.com/tc39/test262/commit/7d998a098e5420cb4b6ee4a05eb8c386d750c596
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/detached-buffer.js": true,
+		// Fixed in https://github.com/tc39/test262/commit/0bb8fe8aba97765aa3a8d4dd8880cd8e3c238f68
+		"test/built-ins/TypedArrayConstructors/internals/Get/detached-buffer.js":                              true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/tonumber-value-detached-buffer.js": true,
+		// 36c2cd165f93e194b9bcad26e69e8571b1d0e6ed
+		"test/built-ins/ArrayBuffer/prototype/byteLength/detached-buffer.js": true,
+
+		// 96aff62fb25cf9ef27929a8ab822ee853d99b06e
+		"test/built-ins/TypedArrayConstructors/internals/Set/tonumber-value-detached-buffer.js": true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds.js":           true,
+
+		// 167e596a649ede35df11d03cb3c093941c9cf396
+		"test/built-ins/TypedArrayConstructors/internals/Set/detached-buffer.js": true,
+
+		// 59a1a016b7cf5cf43f66b274c7d1db4ec6066935
+		"test/language/expressions/function/name.js":                 true,
+		"test/built-ins/Proxy/revocable/revocation-function-name.js": true,
+
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
@@ -109,34 +156,95 @@ var (
 		"test/language/statements/class/subclass/builtin-objects/RegExp/super-must-be-called.js":                     true,
 		"test/language/statements/class/subclass/builtin-objects/RegExp/regular-subclassing.js":                      true,
 		"test/language/statements/class/subclass/builtin-objects/RegExp/lastIndex.js":                                true,
-
-		// object literals
-		"test/built-ins/Array/from/source-object-iterator-1.js":                   true,
-		"test/built-ins/Array/from/source-object-iterator-2.js":                   true,
-		"test/built-ins/TypedArray/prototype/fill/fill-values-conversion-once.js": true,
-		"test/built-ins/TypedArrays/of/this-is-not-constructor.js":                true,
-		"test/built-ins/TypedArrays/of/argument-number-value-throws.js":           true,
-		"test/built-ins/TypedArrays/from/this-is-not-constructor.js":              true,
-		"test/built-ins/TypedArrays/from/set-value-abrupt-completion.js":          true,
-		"test/built-ins/TypedArrays/from/property-abrupt-completion.js":           true,
-		"test/built-ins/TypedArray/of/this-is-not-constructor.js":                 true,
-		"test/built-ins/TypedArray/from/this-is-not-constructor.js":               true,
-		"test/built-ins/DataView/custom-proto-access-throws.js":                   true,
-		"test/built-ins/DataView/custom-proto-access-throws-sab.js":               true,
-
-		// arrow-function
-		"test/built-ins/Object/prototype/toString/proxy-function.js": true,
+		"TestTC39/tc39/test/language/statements/class/definition/fn-name-method.js":                                  true,
+		"test/language/expressions/object/method-definition/name-invoke-ctor.js":                                     true,
+		"test/language/expressions/object/method.js":                                                                 true,
+		"test/language/expressions/object/setter-super-prop.js":                                                      true,
+		"test/language/expressions/object/getter-super-prop.js":                                                      true,
+		"test/language/expressions/delete/super-property.js":                                                         true,
+		"test/language/statements/let/dstr/obj-ptrn-id-init-fn-name-class.js":                                        true,
+		"test/language/statements/let/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                                   true,
+		"test/language/statements/for/dstr/var-obj-ptrn-id-init-fn-name-class.js":                                    true,
+		"test/language/statements/for/dstr/var-ary-ptrn-elem-id-init-fn-name-class.js":                               true,
+		"test/language/statements/for/dstr/let-ary-ptrn-elem-id-init-fn-name-class.js":                               true,
+		"test/language/statements/for/dstr/let-obj-ptrn-id-init-fn-name-class.js":                                    true,
+		"test/language/statements/const/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                                 true,
+		"test/language/statements/for/dstr/const-obj-ptrn-id-init-fn-name-class.js":                                  true,
+		"test/language/statements/const/dstr/obj-ptrn-id-init-fn-name-class.js":                                      true,
+		"test/language/statements/for/dstr/const-ary-ptrn-elem-id-init-fn-name-class.js":                             true,
+		"test/language/statements/variable/dstr/obj-ptrn-id-init-fn-name-class.js":                                   true,
+		"test/language/statements/variable/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                              true,
+		"test/language/expressions/object/method-definition/name-name-prop-symbol.js":                                true,
+		"test/language/expressions/function/dstr/dflt-obj-ptrn-id-init-fn-name-class.js":                             true,
+		"test/language/expressions/function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-class.js":                        true,
+		"test/language/expressions/function/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                             true,
+		"test/language/expressions/function/dstr/obj-ptrn-id-init-fn-name-class.js":                                  true,
+		"test/language/statements/function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-class.js":                         true,
+		"test/language/statements/function/dstr/obj-ptrn-id-init-fn-name-class.js":                                   true,
+		"test/language/statements/function/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                              true,
+		"test/language/statements/function/dstr/dflt-obj-ptrn-id-init-fn-name-class.js":                              true,
+		"test/language/statements/class/scope-static-setter-paramsbody-var-open.js":                                  true,
+		"test/language/statements/class/scope-static-setter-paramsbody-var-close.js":                                 true,
+		"test/language/statements/class/scope-static-meth-paramsbody-var-open.js":                                    true,
+		"test/language/statements/class/scope-static-meth-paramsbody-var-close.js":                                   true,
+		"test/language/statements/class/scope-setter-paramsbody-var-open.js":                                         true,
+		"test/language/statements/class/scope-setter-paramsbody-var-close.js":                                        true,
+		"test/language/statements/class/scope-meth-paramsbody-var-open.js":                                           true,
+		"test/language/statements/class/scope-meth-paramsbody-var-close.js":                                          true,
+		"test/language/expressions/class/scope-static-setter-paramsbody-var-open.js":                                 true,
+		"test/language/expressions/class/scope-static-setter-paramsbody-var-close.js":                                true,
+		"test/language/expressions/class/scope-static-meth-paramsbody-var-open.js":                                   true,
+		"test/language/expressions/class/scope-static-meth-paramsbody-var-close.js":                                  true,
+		"test/language/expressions/class/scope-setter-paramsbody-var-open.js":                                        true,
+		"test/language/expressions/class/scope-setter-paramsbody-var-close.js":                                       true,
+		"test/language/expressions/class/scope-meth-paramsbody-var-open.js":                                          true,
+		"test/language/expressions/class/scope-meth-paramsbody-var-close.js":                                         true,
+		"test/language/expressions/arrow-function/scope-paramsbody-var-open.js":                                      true,
+		"test/language/expressions/arrow-function/scope-paramsbody-var-close.js":                                     true,
+		"test/language/expressions/arrow-function/scope-body-lex-distinct.js":                                        true,
+		"test/language/statements/for-of/dstr/var-ary-ptrn-elem-id-init-fn-name-class.js":                            true,
+		"test/language/statements/for-of/dstr/var-obj-ptrn-id-init-fn-name-class.js":                                 true,
+		"test/language/statements/for-of/dstr/const-obj-ptrn-id-init-fn-name-class.js":                               true,
+		"test/language/statements/for-of/dstr/let-obj-ptrn-id-init-fn-name-class.js":                                 true,
+		"test/language/statements/for-of/dstr/const-ary-ptrn-elem-id-init-fn-name-class.js":                          true,
+		"test/language/statements/for-of/dstr/let-ary-ptrn-elem-id-init-fn-name-class.js":                            true,
+		"test/language/statements/try/dstr/obj-ptrn-id-init-fn-name-class.js":                                        true,
+		"test/language/statements/try/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                                   true,
+		"test/language/expressions/arrow-function/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                       true,
+		"test/language/expressions/arrow-function/dstr/dflt-obj-ptrn-id-init-fn-name-class.js":                       true,
+		"test/language/expressions/arrow-function/dstr/obj-ptrn-id-init-fn-name-class.js":                            true,
+		"test/language/expressions/arrow-function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-class.js":                  true,
+		"test/language/statements/class/static-method-length-dflt.js":                                                true,
+		"test/language/statements/class/setter-length-dflt.js":                                                       true,
+		"test/language/statements/class/restricted-properties.js":                                                    true,
+		"test/language/statements/class/method-length-dflt.js":                                                       true,
+		"test/language/statements/class/definition/methods-restricted-properties.js":                                 true,
+		"test/language/expressions/class/static-method-length-dflt.js":                                               true,
+		"test/language/expressions/class/setter-length-dflt.js":                                                      true,
+		"test/language/expressions/class/restricted-properties.js":                                                   true,
+		"test/language/expressions/class/method-length-dflt.js":                                                      true,
+		"test/language/expressions/arrow-function/lexical-super-property-from-within-constructor.js":                 true,
+		"test/language/expressions/arrow-function/lexical-super-property.js":                                         true,
+		"test/language/expressions/arrow-function/lexical-supercall-from-immediately-invoked-arrow.js":               true,
 
 		// template strings
-		"test/built-ins/String/raw/zero-literal-segments.js":                             true,
-		"test/built-ins/String/raw/template-substitutions-are-appended-on-same-index.js": true,
-		"test/built-ins/String/raw/special-characters.js":                                true,
-		"test/built-ins/String/raw/return-the-string-value-from-template.js":             true,
+		"test/built-ins/String/raw/zero-literal-segments.js":                                                       true,
+		"test/built-ins/String/raw/template-substitutions-are-appended-on-same-index.js":                           true,
+		"test/built-ins/String/raw/special-characters.js":                                                          true,
+		"test/built-ins/String/raw/return-the-string-value-from-template.js":                                       true,
+		"test/built-ins/TypedArray/prototype/fill/fill-values-conversion-operations-consistent-nan.js":             true,
+		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":                   true,
+		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":                     true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/conversion-operation-consistent-nan.js": true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/conversion-operation-consistent-nan.js":               true,
+		"test/built-ins/RegExp/named-groups/functional-replace-non-global.js":                                      true,
+		"test/built-ins/RegExp/named-groups/functional-replace-global.js":                                          true,
 
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
 		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
 		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":            true,
+		"test/built-ins/RegExp/unicode_restricted_incomplete_quantifier.js":          true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_x.js":              true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_u.js":              true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_c.js":              true,
@@ -145,6 +253,15 @@ var (
 		"test/built-ins/RegExp/unicode_restricted_brackets.js":                       true,
 		"test/built-ins/RegExp/unicode_restricted_character_class_escape.js":         true,
 		"test/annexB/built-ins/RegExp/prototype/compile/pattern-string-invalid-u.js": true,
+
+		// regexp named groups
+		"test/built-ins/RegExp/prototype/Symbol.replace/named-groups-fn.js":               true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups-err.js":      true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups-prop-err.js": true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups-prop.js":     true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups.js":          true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/result-get-groups-err.js":         true,
+		"test/built-ins/RegExp/prototype/Symbol.replace/result-get-groups-prop-err.js":    true,
 
 		// Because goja parser works in UTF-8 it is not possible to pass strings containing invalid UTF-16 code points.
 		// This is mitigated by escaping them as \uXXXX, however because of this the RegExp source becomes
@@ -155,10 +272,38 @@ var (
 
 		// Promise
 		"test/built-ins/Symbol/species/builtin-getter-name.js": true,
+
+		// x ** y
+		"test/built-ins/Array/prototype/pop/clamps-to-integer-limit.js":                           true,
+		"test/built-ins/Array/prototype/pop/length-near-integer-limit.js":                         true,
+		"test/built-ins/Array/prototype/push/clamps-to-integer-limit.js":                          true,
+		"test/built-ins/Array/prototype/push/length-near-integer-limit.js":                        true,
+		"test/built-ins/Array/prototype/push/throws-if-integer-limit-exceeded.js":                 true,
+		"test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-object.js":    true,
+		"test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-proxy.js":     true,
+		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit.js":                  true,
+		"test/built-ins/Array/prototype/splice/clamps-length-to-integer-limit.js":                 true,
+		"test/built-ins/Array/prototype/splice/length-and-deleteCount-exceeding-integer-limit.js": true,
+		"test/built-ins/Array/prototype/splice/length-exceeding-integer-limit-shrink-array.js":    true,
+		"test/built-ins/Array/prototype/splice/length-near-integer-limit-grow-array.js":           true,
+		"test/built-ins/Array/prototype/splice/throws-if-integer-limit-exceeded.js":               true,
+		"test/built-ins/Array/prototype/unshift/clamps-to-integer-limit.js":                       true,
+		"test/built-ins/Array/prototype/unshift/length-near-integer-limit.js":                     true,
+		"test/built-ins/Array/prototype/unshift/throws-if-integer-limit-exceeded.js":              true,
+		"test/built-ins/String/prototype/split/separator-undef-limit-custom.js":                   true,
+
+		// generators
+		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js": true,
 	}
 
 	featuresBlackList = []string{
-		"arrow-function",
+		"async-iteration",
+		"BigInt",
+		"class",
+		"generators",
+		"String.prototype.replaceAll",
+		"String.prototype.at",
+		"super",
 	}
 
 	es6WhiteList = map[string]bool{}
@@ -166,44 +311,106 @@ var (
 	es6IdWhiteList = []string{
 		"8.1.2.1",
 		"9.5",
-		"12.9.3",
-		"12.9.4",
-		"19.1",
-		"19.2",
-		"19.3",
-		"19.4",
-		"19.5",
-		"20.1",
-		"20.2",
-		"20.3",
-		"21.1",
-		"21.2",
-		"22.1",
-		"22.2",
-		"23.1",
-		"23.2",
-		"23.3",
-		"23.4",
-		"24.1",
-		"24.2",
-		"24.3",
-		"25.1.2",
-		"26.1",
-		"26.2",
+		"12.1",
+		"12.2.1",
+		"12.2.2",
+		"12.2.5",
+		"12.2.6.1",
+		"12.2.6.8",
+		"12.4",
+		"12.5",
+		"12.6",
+		"12.7",
+		"12.8",
+		"12.9",
+		"12.10",
+		"13.1",
+		"13.2",
+		"13.3",
+		"13.4",
+		"13.5",
+		"13.6",
+		"13.7",
+		"13.8",
+		"13.9",
+		"13.10",
+		"13.11",
+		"13.12",
+		"13.13",
+		"13.14",
+		"13.15",
+		"14.1",
+		"14.2",
+		"14.3.8",
+		"16.1",
+		"18",
+		"19",
+		"20",
+		"21",
+		"22",
+		"23",
+		"24",
+		"25.1",
+		"26",
 		"B.2.1",
 		"B.2.2",
 	}
 
 	esIdPrefixWhiteList = []string{
+		"sec-addition-*",
 		"sec-array",
 		"sec-%typedarray%",
+		"sec-%typedarray%-of",
+		"sec-@@iterator",
+		"sec-@@tostringtag",
 		"sec-string",
 		"sec-date",
+		"sec-json",
 		"sec-number",
 		"sec-math",
 		"sec-arraybuffer-length",
 		"sec-arraybuffer",
 		"sec-regexp",
+		"sec-string.prototype.trimLeft",
+		"sec-string.prototype.trimRight",
+		"sec-object.getownpropertydescriptor",
+		"sec-object.getownpropertydescriptors",
+		"sec-object.entries",
+		"sec-object.values",
+		"sec-object-initializer",
+		"sec-proxy-*",
+		"sec-for-statement-*",
+		"sec-for-in-and-for-of-statements",
+		"sec-for-in-and-for-of-statements-*",
+		"sec-do-while-statement",
+		"sec-if-statement",
+		"sec-while-statement",
+		"sec-with-statement*",
+		"sec-switch-*",
+		"sec-try-*",
+		"sec-runtime-semantics-catchclauseevaluation",
+		"sec-strict-mode-of-ecmascript",
+		"sec-let-and-const-declarations*",
+		"sec-arguments-exotic-objects-defineownproperty-p-desc",
+		"sec-other-properties-of-the-global-object-globalthis",
+		"sec-variable-statement-runtime-semantics-evaluation",
+		"sec-function-calls-runtime-semantics-evaluation",
+		"sec-function-definitions",
+		"sec-function-definitions-runtime-semantics-evaluation",
+		"sec-function-definitions-runtime-semantics-instantiatefunctionobject",
+		"sec-function-definitions-runtime-semantics-iteratorbindinginitialization",
+		"sec-function-definitions-static-semantics-early-errors",
+		"sec-functiondeclarationinstantiation",
+		"sec-functiondeclarations-in-ifstatement-statement-clauses",
+		"sec-arrow-function-definitions",
+		"sec-arrow-function-definitions-runtime-semantics-evaluation",
+		"sec-arrow-function-definitions-static-semantics-early-errors",
+		"sec-evaldeclarationinstantiation",
+		"sec-integer-indexed-exotic-objects-defineownproperty-p-desc",
+		"sec-integer-indexed-exotic-objects-get-p-receiver",
+		"sec-integer-indexed-exotic-objects-set-p-v-receiver",
+		"sec-destructuring-binding-patterns",
+		"sec-runtime-semantics-keyeddestructuringassignmentevaluation",
 	}
 )
 
@@ -329,7 +536,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 			}
 			t.Fatalf("%s: %v", name, err)
 		} else {
-			if meta.Negative.Phase == "early" && !early || meta.Negative.Phase == "runtime" && early {
+			if (meta.Negative.Phase == "early" || meta.Negative.Phase == "parse") && !early || meta.Negative.Phase == "runtime" && early {
 				t.Fatalf("%s: error %v happened at the wrong phase (expected %s)", name, err, meta.Negative.Phase)
 			}
 			var errType string
@@ -389,6 +596,9 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		t.Errorf("Could not parse %s: %v", name, err)
 		return
 	}
+	if meta.hasFlag("async") {
+		t.Skip("async")
+	}
 	if meta.Es5id == "" {
 		skip := true
 		//t.Logf("%s: Not ES5, skipped", name)
@@ -409,11 +619,17 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		if skip {
 			if meta.Esid != "" {
 				for _, prefix := range esIdPrefixWhiteList {
-					if strings.HasPrefix(meta.Esid, prefix) &&
-						(len(meta.Esid) == len(prefix) || meta.Esid[len(prefix)] == '.') {
-
-						skip = false
-						break
+					if strings.HasSuffix(prefix, "*") {
+						if strings.HasPrefix(meta.Esid, prefix[:len(prefix)-1]) {
+							skip = false
+							break
+						}
+					} else {
+						if strings.HasPrefix(meta.Esid, prefix) &&
+							(len(meta.Esid) == len(prefix) || meta.Esid[len(prefix)] == '.') {
+							skip = false
+							break
+						}
 					}
 				}
 			}
@@ -440,13 +656,13 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 
 	if hasRaw || !meta.hasFlag("onlyStrict") {
 		//log.Printf("Running normal test: %s", name)
-		//t.Logf("Running normal test: %s", name)
+		t.Logf("Running normal test: %s", name)
 		ctx.runTC39Test(name, src, meta, t)
 	}
 
 	if !hasRaw && !meta.hasFlag("noStrict") {
 		//log.Printf("Running strict test: %s", name)
-		//t.Logf("Running strict test: %s", name)
+		t.Logf("Running strict test: %s", name)
 		ctx.runTC39Test(name, "'use strict';\n"+src, meta, t)
 	}
 
@@ -548,8 +764,9 @@ func (ctx *tc39TestCtx) runTC39Tests(name string) {
 		if file.IsDir() {
 			ctx.runTC39Tests(path.Join(name, file.Name()))
 		} else {
-			if strings.HasSuffix(file.Name(), ".js") {
-				name := path.Join(name, file.Name())
+			fileName := file.Name()
+			if strings.HasSuffix(fileName, ".js") && !strings.HasSuffix(fileName, "_FIXTURE.js") {
+				name := path.Join(name, fileName)
 				ctx.runTest(name, func(t *testing.T) {
 					ctx.runTC39File(name, t)
 				})
@@ -565,7 +782,7 @@ func TestTC39(t *testing.T) {
 	}
 
 	if _, err := os.Stat(tc39BASE); err != nil {
-		t.Skipf("If you want to run tc39 tests, download them from https://github.com/tc39/test262 and put into %s. The last working commit is 1ba3a7c4a93fc93b3d0d7e4146f59934a896837d. (%v)", tc39BASE, err)
+		t.Skipf("If you want to run tc39 tests, download them from https://github.com/tc39/test262 and put into %s. The current working commit is ddfe24afe3043388827aa220ef623b8540958bbd. (%v)", tc39BASE, err)
 	}
 
 	ctx := &tc39TestCtx{
@@ -596,6 +813,8 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/language/white-space")
 		ctx.runTC39Tests("test/built-ins")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimLeft")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimRight")
 		ctx.runTC39Tests("test/annexB/built-ins/escape")
 		ctx.runTC39Tests("test/annexB/built-ins/unescape")
 		ctx.runTC39Tests("test/annexB/built-ins/RegExp")

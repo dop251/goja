@@ -80,6 +80,7 @@ type valueContainer interface {
 
 type typeError string
 type rangeError string
+type referenceError string
 
 type valueInt int64
 type valueFloat float64
@@ -88,7 +89,12 @@ type valueNull struct{}
 type valueUndefined struct {
 	valueNull
 }
-type valueSymbol struct {
+
+// *Symbol is a Value containing ECMAScript Symbol primitive. Symbols must only be created
+// using NewSymbol(). Zero values and copying of values (i.e. *s1 = *s2) are not permitted.
+// Well-known Symbols can be accessed using Sym* package variables (SymIterator, etc...)
+// Symbols can be shared by multiple Runtimes.
+type Symbol struct {
 	h    uintptr
 	desc valueString
 }
@@ -111,6 +117,11 @@ type valueProperty struct {
 	getterFunc   *Object
 	setterFunc   *Object
 }
+
+var (
+	errAccessBeforeInit = referenceError("Cannot access a variable before initialization")
+	errAssignToConst    = typeError("Assignment to constant variable.")
+)
 
 func propGetter(o Value, v Value, r *Runtime) *Object {
 	if v == _undefined {
@@ -194,7 +205,7 @@ func (i valueInt) Equals(other Value) bool {
 	case valueBool:
 		return int64(i) == o.ToInteger()
 	case *Object:
-		return i.Equals(o.toPrimitiveNumber())
+		return i.Equals(o.toPrimitive())
 	}
 
 	return false
@@ -615,7 +626,7 @@ func (f valueFloat) Equals(other Value) bool {
 	case valueString, valueBool:
 		return float64(f) == o.ToFloat()
 	case *Object:
-		return f.Equals(o.toPrimitiveNumber())
+		return f.Equals(o.toPrimitive())
 	}
 
 	return false
@@ -700,7 +711,7 @@ func (o *Object) Equals(other Value) bool {
 	}
 
 	switch o1 := other.(type) {
-	case valueInt, valueFloat, valueString:
+	case valueInt, valueFloat, valueString, *Symbol:
 		return o.toPrimitive().Equals(other)
 	case valueBool:
 		return o.Equals(o1.ToNumber())
@@ -720,8 +731,15 @@ func (o *Object) baseObject(*Runtime) *Object {
 	return o
 }
 
-func (o *Object) Export() interface{} {
-	return o.self.export(&objectExportCtx{})
+// Export the Object to a plain Go type. The returned value will be map[string]interface{} unless
+// the Object is a wrapped Go value (created using ToValue()).
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process.
+func (o *Object) Export() (ret interface{}) {
+	o.runtime.tryPanic(func() {
+		ret = o.self.export(&objectExportCtx{})
+	})
+
+	return
 }
 
 func (o *Object) ExportType() reflect.Type {
@@ -732,24 +750,47 @@ func (o *Object) hash(*maphash.Hash) uint64 {
 	return o.getId()
 }
 
+// Get an object's property by name.
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process.
 func (o *Object) Get(name string) Value {
 	return o.self.getStr(unistring.NewFromString(name), nil)
 }
 
+// GetSymbol returns the value of a symbol property. Use one of the Sym* values for well-known
+// symbols (such as SymIterator, SymToStringTag, etc...).
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process.
+func (o *Object) GetSymbol(sym *Symbol) Value {
+	return o.self.getSym(sym, nil)
+}
+
+// Keys returns a list of Object's enumerable keys.
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process.
 func (o *Object) Keys() (keys []string) {
-	names := o.self.ownKeys(false, nil)
-	keys = make([]string, 0, len(names))
-	for _, name := range names {
-		keys = append(keys, name.String())
+	iter := &enumerableIter{
+		wrapped: o.self.enumerateOwnKeys(),
+	}
+	for item, next := iter.next(); next != nil; item, next = next() {
+		keys = append(keys, item.name.String())
 	}
 
 	return
 }
 
+// Symbols returns a list of Object's enumerable symbol properties.
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process.
+func (o *Object) Symbols() []*Symbol {
+	symbols := o.self.ownSymbols(false, nil)
+	ret := make([]*Symbol, len(symbols))
+	for i, sym := range symbols {
+		ret[i], _ = sym.(*Symbol)
+	}
+	return ret
+}
+
 // DefineDataProperty is a Go equivalent of Object.defineProperty(o, name, {value: value, writable: writable,
 // configurable: configurable, enumerable: enumerable})
 func (o *Object) DefineDataProperty(name string, value Value, writable, configurable, enumerable Flag) error {
-	return tryFunc(func() {
+	return o.runtime.try(func() {
 		o.self.defineOwnPropertyStr(unistring.NewFromString(name), PropertyDescriptor{
 			Value:        value,
 			Writable:     writable,
@@ -762,7 +803,7 @@ func (o *Object) DefineDataProperty(name string, value Value, writable, configur
 // DefineAccessorProperty is a Go equivalent of Object.defineProperty(o, name, {get: getter, set: setter,
 // configurable: configurable, enumerable: enumerable})
 func (o *Object) DefineAccessorProperty(name string, getter, setter Value, configurable, enumerable Flag) error {
-	return tryFunc(func() {
+	return o.runtime.try(func() {
 		o.self.defineOwnPropertyStr(unistring.NewFromString(name), PropertyDescriptor{
 			Getter:       getter,
 			Setter:       setter,
@@ -772,9 +813,67 @@ func (o *Object) DefineAccessorProperty(name string, getter, setter Value, confi
 	})
 }
 
+// DefineDataPropertySymbol is a Go equivalent of Object.defineProperty(o, name, {value: value, writable: writable,
+// configurable: configurable, enumerable: enumerable})
+func (o *Object) DefineDataPropertySymbol(name *Symbol, value Value, writable, configurable, enumerable Flag) error {
+	return o.runtime.try(func() {
+		o.self.defineOwnPropertySym(name, PropertyDescriptor{
+			Value:        value,
+			Writable:     writable,
+			Configurable: configurable,
+			Enumerable:   enumerable,
+		}, true)
+	})
+}
+
+// DefineAccessorPropertySymbol is a Go equivalent of Object.defineProperty(o, name, {get: getter, set: setter,
+// configurable: configurable, enumerable: enumerable})
+func (o *Object) DefineAccessorPropertySymbol(name *Symbol, getter, setter Value, configurable, enumerable Flag) error {
+	return o.runtime.try(func() {
+		o.self.defineOwnPropertySym(name, PropertyDescriptor{
+			Getter:       getter,
+			Setter:       setter,
+			Configurable: configurable,
+			Enumerable:   enumerable,
+		}, true)
+	})
+}
+
 func (o *Object) Set(name string, value interface{}) error {
-	return tryFunc(func() {
+	return o.runtime.try(func() {
 		o.self.setOwnStr(unistring.NewFromString(name), o.runtime.ToValue(value), true)
+	})
+}
+
+func (o *Object) SetSymbol(name *Symbol, value interface{}) error {
+	return o.runtime.try(func() {
+		o.self.setOwnSym(name, o.runtime.ToValue(value), true)
+	})
+}
+
+func (o *Object) Delete(name string) error {
+	return o.runtime.try(func() {
+		o.self.deleteStr(unistring.NewFromString(name), true)
+	})
+}
+
+func (o *Object) DeleteSymbol(name *Symbol) error {
+	return o.runtime.try(func() {
+		o.self.deleteSym(name, true)
+	})
+}
+
+// Prototype returns the Object's prototype, same as Object.getPrototypeOf(). If the prototype is null
+// returns nil.
+func (o *Object) Prototype() *Object {
+	return o.self.proto()
+}
+
+// SetPrototype sets the Object's prototype, same as Object.setPrototypeOf(). Setting proto to nil
+// is an equivalent of Object.setPrototypeOf(null).
+func (o *Object) SetPrototype(proto *Object) error {
+	return o.runtime.try(func() {
+		o.self.setProto(proto, true)
 	})
 }
 
@@ -884,70 +983,80 @@ func (o valueUnresolved) hash(*maphash.Hash) uint64 {
 	return 0
 }
 
-func (s *valueSymbol) ToInteger() int64 {
+func (s *Symbol) ToInteger() int64 {
 	panic(typeError("Cannot convert a Symbol value to a number"))
 }
 
-func (s *valueSymbol) toString() valueString {
+func (s *Symbol) toString() valueString {
 	panic(typeError("Cannot convert a Symbol value to a string"))
 }
 
-func (s *valueSymbol) ToString() Value {
+func (s *Symbol) ToString() Value {
 	return s
 }
 
-func (s *valueSymbol) String() string {
-	return s.desc.String()
+func (s *Symbol) String() string {
+	if s.desc != nil {
+		return s.desc.String()
+	}
+	return ""
 }
 
-func (s *valueSymbol) string() unistring.String {
-	return s.desc.string()
+func (s *Symbol) string() unistring.String {
+	if s.desc != nil {
+		return s.desc.string()
+	}
+	return ""
 }
 
-func (s *valueSymbol) ToFloat() float64 {
+func (s *Symbol) ToFloat() float64 {
 	panic(typeError("Cannot convert a Symbol value to a number"))
 }
 
-func (s *valueSymbol) ToNumber() Value {
+func (s *Symbol) ToNumber() Value {
 	panic(typeError("Cannot convert a Symbol value to a number"))
 }
 
-func (s *valueSymbol) ToBoolean() bool {
+func (s *Symbol) ToBoolean() bool {
 	return true
 }
 
-func (s *valueSymbol) ToObject(r *Runtime) *Object {
+func (s *Symbol) ToObject(r *Runtime) *Object {
 	return s.baseObject(r)
 }
 
-func (s *valueSymbol) SameAs(other Value) bool {
-	if s1, ok := other.(*valueSymbol); ok {
+func (s *Symbol) SameAs(other Value) bool {
+	if s1, ok := other.(*Symbol); ok {
 		return s == s1
 	}
 	return false
 }
 
-func (s *valueSymbol) Equals(o Value) bool {
+func (s *Symbol) Equals(o Value) bool {
+	switch o := o.(type) {
+	case *Object:
+		return s.Equals(o.toPrimitive())
+	}
 	return s.SameAs(o)
 }
 
-func (s *valueSymbol) StrictEquals(o Value) bool {
+func (s *Symbol) StrictEquals(o Value) bool {
 	return s.SameAs(o)
 }
 
-func (s *valueSymbol) Export() interface{} {
+func (s *Symbol) Export() interface{} {
 	return s.String()
 }
 
-func (s *valueSymbol) ExportType() reflect.Type {
+func (s *Symbol) ExportType() reflect.Type {
 	return reflectTypeString
 }
 
-func (s *valueSymbol) baseObject(r *Runtime) *Object {
+func (s *Symbol) baseObject(r *Runtime) *Object {
 	return r.newPrimitiveObject(s, r.global.SymbolPrototype, "Symbol")
 }
 
-func (s *valueSymbol) hash(*maphash.Hash) uint64 {
+func (s *Symbol) hash(*maphash.Hash) uint64 {
 	return uint64(s.h)
 }
 
@@ -958,9 +1067,9 @@ func exportValue(v Value, ctx *objectExportCtx) interface{} {
 	return v.Export()
 }
 
-func newSymbol(s valueString) *valueSymbol {
-	r := &valueSymbol{
-		desc: asciiString("Symbol(").concat(s).concat(asciiString(")")),
+func newSymbol(s valueString) *Symbol {
+	r := &Symbol{
+		desc: s,
 	}
 	// This may need to be reconsidered in the future.
 	// Depending on changes in Go's allocation policy and/or introduction of a compacting GC
@@ -968,6 +1077,33 @@ func newSymbol(s valueString) *valueSymbol {
 	// synchronised random generator/hasher/sequencer and I don't want to go down that route just yet.
 	r.h = uintptr(unsafe.Pointer(r))
 	return r
+}
+
+func NewSymbol(s string) *Symbol {
+	return newSymbol(newStringValue(s))
+}
+
+func (s *Symbol) descriptiveString() valueString {
+	desc := s.desc
+	if desc == nil {
+		desc = stringEmpty
+	}
+	return asciiString("Symbol(").concat(desc).concat(asciiString(")"))
+}
+
+func funcName(prefix string, n Value) valueString {
+	var b valueStringBuilder
+	b.WriteString(asciiString(prefix))
+	if sym, ok := n.(*Symbol); ok {
+		if sym.desc != nil {
+			b.WriteRune('[')
+			b.WriteString(sym.desc)
+			b.WriteRune(']')
+		}
+	} else {
+		b.WriteString(n.toString())
+	}
+	return b.String()
 }
 
 func init() {

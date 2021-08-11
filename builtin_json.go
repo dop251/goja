@@ -132,14 +132,11 @@ func (r *Runtime) builtinJSON_decodeArray(d *json.Decoder) (*Object, error) {
 }
 
 func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holder *Object, name Value) Value {
-	value := holder.get(name, nil)
-	if value == nil {
-		value = _undefined
-	}
+	value := nilSafe(holder.get(name, nil))
 
 	if object, ok := value.(*Object); ok {
 		if isArray(object) {
-			length := object.self.getStr("length", nil).ToInteger()
+			length := toLength(object.self.getStr("length", nil))
 			for index := int64(0); index < length; index++ {
 				name := intToValue(index)
 				value := r.builtinJSON_reviveWalk(reviver, object, name)
@@ -150,12 +147,15 @@ func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holde
 				}
 			}
 		} else {
-			for _, itemName := range object.self.ownKeys(false, nil) {
-				value := r.builtinJSON_reviveWalk(reviver, object, itemName)
+			iter := &enumerableIter{
+				wrapped: object.self.enumerateOwnKeys(),
+			}
+			for item, next := iter.next(); next != nil; item, next = next() {
+				value := r.builtinJSON_reviveWalk(reviver, object, stringValueFromRaw(item.name))
 				if value == _undefined {
-					object.self.deleteStr(itemName.string(), false)
+					object.self.deleteStr(item.name, false)
 				} else {
-					object.self.setOwnStr(itemName.string(), value, false)
+					object.self.setOwnStr(item.name, value, false)
 				}
 			}
 		}
@@ -183,7 +183,7 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 	replacer, _ := call.Argument(1).(*Object)
 	if replacer != nil {
 		if isArray(replacer) {
-			length := replacer.self.getStr("length", nil).ToInteger()
+			length := toLength(replacer.self.getStr("length", nil))
 			seen := map[string]bool{}
 			propertyList := make([]Value, length)
 			length = 0
@@ -261,10 +261,7 @@ func (ctx *_builtinJSON_stringifyContext) do(v Value) bool {
 }
 
 func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
-	value := holder.get(key, nil)
-	if value == nil {
-		value = _undefined
-	}
+	value := nilSafe(holder.get(key, nil))
 
 	if object, ok := value.(*Object); ok {
 		if toJSON, ok := object.self.getStr("toJSON", nil).(*Object); ok {
@@ -365,7 +362,7 @@ func (ctx *_builtinJSON_stringifyContext) ja(array *Object) {
 		stepback = ctx.indent
 		ctx.indent += ctx.gap
 	}
-	length := array.self.getStr("length", nil).ToInteger()
+	length := toLength(array.self.getStr("length", nil))
 	if length == 0 {
 		ctx.buf.WriteString("[]")
 		return
@@ -417,7 +414,7 @@ func (ctx *_builtinJSON_stringifyContext) jo(object *Object) {
 
 	var props []Value
 	if ctx.propertyList == nil {
-		props = append(props, object.self.ownKeys(false, nil)...)
+		props = object.self.ownKeys(false, nil)
 	} else {
 		props = ctx.propertyList
 	}
@@ -502,7 +499,7 @@ func (r *Runtime) initJSON() {
 	JSON := r.newBaseObject(r.global.ObjectPrototype, "JSON")
 	JSON._putProp("parse", r.newNativeFunc(r.builtinJSON_parse, nil, "parse", nil, 2), true, false, true)
 	JSON._putProp("stringify", r.newNativeFunc(r.builtinJSON_stringify, nil, "stringify", nil, 3), true, false, true)
-	JSON._putSym(symToStringTag, valueProp(asciiString(classJSON), false, false, true))
+	JSON._putSym(SymToStringTag, valueProp(asciiString(classJSON), false, false, true))
 
 	r.addToGlobal("JSON", JSON.val)
 }

@@ -1,7 +1,6 @@
 package goja
 
 import (
-	"runtime"
 	"testing"
 )
 
@@ -19,30 +18,6 @@ func TestWeakSetBasic(t *testing.T) {
 	}
 	`
 	testScript1(SCRIPT, _undefined, t)
-}
-
-func TestWeakSetExpiry(t *testing.T) {
-	vm := New()
-	_, err := vm.RunString(`
-	var s = new WeakSet();
-	var o = {};
-	s.add(o);
-	if (!s.has(o)) {
-		throw new Error("has");
-	}
-	o = undefined;
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	runtime.GC()
-	runtime.GC()
-	vm.RunString("true") // this will trigger dead keys removal
-	wso := vm.Get("s").ToObject(vm).self.(*weakSetObject)
-	l := len(wso.s.data)
-	if l > 0 {
-		t.Fatal("Object has not been removed")
-	}
 }
 
 func TestWeakSetArraySimple(t *testing.T) {

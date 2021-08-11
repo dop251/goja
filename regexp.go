@@ -11,7 +11,18 @@ import (
 	"unicode/utf16"
 )
 
-type regexp2Wrapper regexp2.Regexp
+type regexp2MatchCache struct {
+	target valueString
+	runes  []rune
+	posMap []int
+}
+
+// Not goroutine-safe. Use regexp2Wrapper.clone()
+type regexp2Wrapper struct {
+	rx    *regexp2.Regexp
+	cache *regexp2MatchCache
+}
+
 type regexpWrapper regexp.Regexp
 
 type positionMapItem struct {
@@ -20,8 +31,8 @@ type positionMapItem struct {
 type positionMap []positionMapItem
 
 func (m positionMap) get(src int) int {
-	if src == 0 {
-		return 0
+	if src <= 0 {
+		return src
 	}
 	res := sort.Search(len(m), func(n int) bool { return m[n].src >= src })
 	if res >= len(m) || m[res].src != src {
@@ -46,6 +57,7 @@ func (rd *arrayRuneReader) ReadRune() (r rune, size int, err error) {
 	return
 }
 
+// Not goroutine-safe. Use regexpPattern.clone()
 type regexpPattern struct {
 	src string
 
@@ -68,7 +80,7 @@ func compileRegexp2(src string, multiline, ignoreCase bool) (*regexp2Wrapper, er
 		return nil, fmt.Errorf("Invalid regular expression (regexp2): %s (%v)", src, err1)
 	}
 
-	return (*regexp2Wrapper)(regexp2Pattern), nil
+	return &regexp2Wrapper{rx: regexp2Pattern}, nil
 }
 
 func (p *regexpPattern) createRegexp2() {
@@ -107,14 +119,14 @@ func buildUTF8PosMap(s valueString) (positionMap, string) {
 
 func (p *regexpPattern) findSubmatchIndex(s valueString, start int) []int {
 	if p.regexpWrapper == nil {
-		return p.regexp2Wrapper.findSubmatchIndex(s, start, p.unicode)
+		return p.regexp2Wrapper.findSubmatchIndex(s, start, p.unicode, p.global || p.sticky)
 	}
 	if start != 0 {
 		// Unfortunately Go's regexp library does not allow starting from an arbitrary position.
 		// If we just drop the first _start_ characters of the string the assertions (^, $, \b and \B) will not
 		// work correctly.
 		p.createRegexp2()
-		return p.regexp2Wrapper.findSubmatchIndex(s, start, p.unicode)
+		return p.regexp2Wrapper.findSubmatchIndex(s, start, p.unicode, p.global || p.sticky)
 	}
 	return p.regexpWrapper.findSubmatchIndex(s, p.unicode)
 }
@@ -128,7 +140,7 @@ func (p *regexpPattern) findAllSubmatchIndex(s valueString, start int, limit int
 			return p.regexpWrapper.findAllSubmatchIndex(s.String(), limit, sticky)
 		}
 		if limit == 1 {
-			result := p.regexpWrapper.findSubmatchIndex(s, p.unicode)
+			result := p.regexpWrapper.findSubmatchIndexUnicode(s.(unicodeString), p.unicode)
 			if result == nil {
 				return nil
 			}
@@ -155,6 +167,25 @@ func (p *regexpPattern) findAllSubmatchIndex(s valueString, start int, limit int
 	return p.regexp2Wrapper.findAllSubmatchIndex(s, start, limit, sticky, p.unicode)
 }
 
+// clone creates a copy of the regexpPattern which can be used concurrently.
+func (p *regexpPattern) clone() *regexpPattern {
+	ret := &regexpPattern{
+		src:        p.src,
+		global:     p.global,
+		ignoreCase: p.ignoreCase,
+		multiline:  p.multiline,
+		sticky:     p.sticky,
+		unicode:    p.unicode,
+	}
+	if p.regexpWrapper != nil {
+		ret.regexpWrapper = p.regexpWrapper.clone()
+	}
+	if p.regexp2Wrapper != nil {
+		ret.regexp2Wrapper = p.regexp2Wrapper.clone()
+	}
+	return ret
+}
+
 type regexpObject struct {
 	baseObject
 	pattern *regexpPattern
@@ -163,16 +194,41 @@ type regexpObject struct {
 	standard bool
 }
 
-func (r *regexp2Wrapper) findSubmatchIndex(s valueString, start int, fullUnicode bool) (result []int) {
+func (r *regexp2Wrapper) findSubmatchIndex(s valueString, start int, fullUnicode, doCache bool) (result []int) {
 	if fullUnicode {
-		return r.findSubmatchIndexUnicode(s, start)
+		return r.findSubmatchIndexUnicode(s, start, doCache)
 	}
-	return r.findSubmatchIndexUTF16(s, start)
+	return r.findSubmatchIndexUTF16(s, start, doCache)
 }
 
-func (r *regexp2Wrapper) findSubmatchIndexUTF16(s valueString, start int) (result []int) {
-	wrapped := (*regexp2.Regexp)(r)
-	match, err := wrapped.FindRunesMatchStartingAt(s.utf16Runes(), start)
+func (r *regexp2Wrapper) findUTF16Cached(s valueString, start int, doCache bool) (match *regexp2.Match, runes []rune, err error) {
+	wrapped := r.rx
+	cache := r.cache
+	if cache != nil && cache.posMap == nil && cache.target.SameAs(s) {
+		runes = cache.runes
+	} else {
+		runes = s.utf16Runes()
+		cache = nil
+	}
+	match, err = wrapped.FindRunesMatchStartingAt(runes, start)
+	if doCache && match != nil && err == nil {
+		if cache == nil {
+			if r.cache == nil {
+				r.cache = new(regexp2MatchCache)
+			}
+			*r.cache = regexp2MatchCache{
+				target: s,
+				runes:  runes,
+			}
+		}
+	} else {
+		r.cache = nil
+	}
+	return
+}
+
+func (r *regexp2Wrapper) findSubmatchIndexUTF16(s valueString, start int, doCache bool) (result []int) {
+	match, _, err := r.findUTF16Cached(s, start, doCache)
 	if err != nil {
 		return
 	}
@@ -193,17 +249,55 @@ func (r *regexp2Wrapper) findSubmatchIndexUTF16(s valueString, start int) (resul
 	return
 }
 
-func (r *regexp2Wrapper) findSubmatchIndexUnicode(s valueString, start int) (result []int) {
-	wrapped := (*regexp2.Regexp)(r)
-	posMap, runes, mappedStart := buildPosMap(&lenientUtf16Decoder{utf16Reader: s.utf16Reader(0)}, s.length(), start)
-	match, err := wrapped.FindRunesMatchStartingAt(runes, mappedStart)
-	if err != nil {
+func (r *regexp2Wrapper) findUnicodeCached(s valueString, start int, doCache bool) (match *regexp2.Match, posMap []int, err error) {
+	var (
+		runes       []rune
+		mappedStart int
+		splitPair   bool
+		savedRune   rune
+	)
+	wrapped := r.rx
+	cache := r.cache
+	if cache != nil && cache.posMap != nil && cache.target.SameAs(s) {
+		runes, posMap = cache.runes, cache.posMap
+		mappedStart, splitPair = posMapReverseLookup(posMap, start)
+	} else {
+		posMap, runes, mappedStart, splitPair = buildPosMap(&lenientUtf16Decoder{utf16Reader: s.utf16Reader(0)}, s.length(), start)
+		cache = nil
+	}
+	if splitPair {
+		// temporarily set the rune at mappedStart to the second code point of the pair
+		_, second := utf16.EncodeRune(runes[mappedStart])
+		savedRune, runes[mappedStart] = runes[mappedStart], second
+	}
+	match, err = wrapped.FindRunesMatchStartingAt(runes, mappedStart)
+	if doCache && match != nil && err == nil {
+		if splitPair {
+			runes[mappedStart] = savedRune
+		}
+		if cache == nil {
+			if r.cache == nil {
+				r.cache = new(regexp2MatchCache)
+			}
+			*r.cache = regexp2MatchCache{
+				target: s,
+				runes:  runes,
+				posMap: posMap,
+			}
+		}
+	} else {
+		r.cache = nil
+	}
+
+	return
+}
+
+func (r *regexp2Wrapper) findSubmatchIndexUnicode(s valueString, start int, doCache bool) (result []int) {
+	match, posMap, err := r.findUnicodeCached(s, start, doCache)
+	if match == nil || err != nil {
 		return
 	}
 
-	if match == nil {
-		return
-	}
 	groups := match.Groups()
 
 	result = make([]int, 0, len(groups)<<1)
@@ -218,10 +312,9 @@ func (r *regexp2Wrapper) findSubmatchIndexUnicode(s valueString, start int) (res
 }
 
 func (r *regexp2Wrapper) findAllSubmatchIndexUTF16(s valueString, start, limit int, sticky bool) [][]int {
-	wrapped := (*regexp2.Regexp)(r)
-	runes := s.utf16Runes()
-	match, err := wrapped.FindRunesMatchStartingAt(runes, start)
-	if err != nil {
+	wrapped := r.rx
+	match, runes, err := r.findUTF16Cached(s, start, false)
+	if match == nil || err != nil {
 		return nil
 	}
 	if limit < 0 {
@@ -263,7 +356,7 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUTF16(s valueString, start, limit i
 	return results
 }
 
-func buildPosMap(rd io.RuneReader, l, start int) (posMap []int, runes []rune, mappedStart int) {
+func buildPosMap(rd io.RuneReader, l, start int) (posMap []int, runes []rune, mappedStart int, splitPair bool) {
 	posMap = make([]int, 0, l+1)
 	curPos := 0
 	runes = make([]rune, 0, l)
@@ -277,8 +370,7 @@ func buildPosMap(rd io.RuneReader, l, start int) (posMap []int, runes []rune, ma
 			if curPos > start {
 				// start position splits a surrogate pair
 				mappedStart = len(runes) - 1
-				_, second := utf16.EncodeRune(runes[mappedStart])
-				runes[mappedStart] = second
+				splitPair = true
 				startFound = true
 			}
 		}
@@ -294,15 +386,21 @@ func buildPosMap(rd io.RuneReader, l, start int) (posMap []int, runes []rune, ma
 	return
 }
 
+func posMapReverseLookup(posMap []int, pos int) (int, bool) {
+	mapped := sort.SearchInts(posMap, pos)
+	if mapped < len(posMap) && posMap[mapped] != pos {
+		return mapped - 1, true
+	}
+	return mapped, false
+}
+
 func (r *regexp2Wrapper) findAllSubmatchIndexUnicode(s unicodeString, start, limit int, sticky bool) [][]int {
-	wrapped := (*regexp2.Regexp)(r)
+	wrapped := r.rx
 	if limit < 0 {
 		limit = len(s) + 1
 	}
 	results := make([][]int, 0, limit)
-	posMap, runes, mappedStart := buildPosMap(&lenientUtf16Decoder{utf16Reader: s.utf16Reader(0)}, s.length(), start)
-
-	match, err := wrapped.FindRunesMatchStartingAt(runes, mappedStart)
+	match, posMap, err := r.findUnicodeCached(s, start, false)
 	if err != nil {
 		return nil
 	}
@@ -351,6 +449,12 @@ func (r *regexp2Wrapper) findAllSubmatchIndex(s valueString, start, limit int, s
 	}
 }
 
+func (r *regexp2Wrapper) clone() *regexp2Wrapper {
+	return &regexp2Wrapper{
+		rx: r.rx,
+	}
+}
+
 func (r *regexpWrapper) findAllSubmatchIndex(s string, limit int, sticky bool) (results [][]int) {
 	wrapped := (*regexp.Regexp)(r)
 	results = wrapped.FindAllStringSubmatchIndex(s, limit)
@@ -368,17 +472,39 @@ func (r *regexpWrapper) findAllSubmatchIndex(s string, limit int, sticky bool) (
 	return
 }
 
-func (r *regexpWrapper) findSubmatchIndex(s valueString, fullUnicode bool) (result []int) {
+func (r *regexpWrapper) findSubmatchIndex(s valueString, fullUnicode bool) []int {
+	switch s := s.(type) {
+	case asciiString:
+		return r.findSubmatchIndexASCII(string(s))
+	case unicodeString:
+		return r.findSubmatchIndexUnicode(s, fullUnicode)
+	default:
+		panic("Unsupported string type")
+	}
+}
+
+func (r *regexpWrapper) findSubmatchIndexASCII(s string) []int {
+	wrapped := (*regexp.Regexp)(r)
+	return wrapped.FindStringSubmatchIndex(s)
+}
+
+func (r *regexpWrapper) findSubmatchIndexUnicode(s unicodeString, fullUnicode bool) (result []int) {
 	wrapped := (*regexp.Regexp)(r)
 	if fullUnicode {
-		posMap, runes, _ := buildPosMap(&lenientUtf16Decoder{utf16Reader: s.utf16Reader(0)}, s.length(), 0)
+		posMap, runes, _, _ := buildPosMap(&lenientUtf16Decoder{utf16Reader: s.utf16Reader(0)}, s.length(), 0)
 		res := wrapped.FindReaderSubmatchIndex(&arrayRuneReader{runes: runes})
 		for i, item := range res {
-			res[i] = posMap[item]
+			if item >= 0 {
+				res[i] = posMap[item]
+			}
 		}
 		return res
 	}
 	return wrapped.FindReaderSubmatchIndex(s.utf16Reader(0))
+}
+
+func (r *regexpWrapper) clone() *regexpWrapper {
+	return r
 }
 
 func (r *regexpObject) execResultToArray(target valueString, result []int) Value {
@@ -452,12 +578,12 @@ func (r *regexpObject) test(target valueString) bool {
 	return match
 }
 
-func (r *regexpObject) clone() *Object {
+func (r *regexpObject) clone() *regexpObject {
 	r1 := r.val.runtime.newRegexpObject(r.prototype)
 	r1.source = r.source
 	r1.pattern = r.pattern
 
-	return r1.val
+	return r1
 }
 
 func (r *regexpObject) init() {
@@ -482,6 +608,17 @@ func (r *regexpObject) defineOwnPropertyStr(name unistring.String, desc Property
 	return res
 }
 
+func (r *regexpObject) defineOwnPropertySym(name *Symbol, desc PropertyDescriptor, throw bool) bool {
+	res := r.baseObject.defineOwnPropertySym(name, desc, throw)
+	if res && r.standard {
+		switch name {
+		case SymMatch, SymMatchAll, SymSearch, SymSplit, SymReplace:
+			r.standard = false
+		}
+	}
+	return res
+}
+
 func (r *regexpObject) deleteStr(name unistring.String, throw bool) bool {
 	res := r.baseObject.deleteStr(name, throw)
 	if res {
@@ -491,14 +628,20 @@ func (r *regexpObject) deleteStr(name unistring.String, throw bool) bool {
 }
 
 func (r *regexpObject) setOwnStr(name unistring.String, value Value, throw bool) bool {
-	if r.standard {
-		if name == "exec" {
-			res := r.baseObject.setOwnStr(name, value, throw)
-			if res {
-				r.standard = false
-			}
-			return res
+	res := r.baseObject.setOwnStr(name, value, throw)
+	if res && r.standard && name == "exec" {
+		r.standard = false
+	}
+	return res
+}
+
+func (r *regexpObject) setOwnSym(name *Symbol, value Value, throw bool) bool {
+	res := r.baseObject.setOwnSym(name, value, throw)
+	if res && r.standard {
+		switch name {
+		case SymMatch, SymMatchAll, SymSearch, SymSplit, SymReplace:
+			r.standard = false
 		}
 	}
-	return r.baseObject.setOwnStr(name, value, throw)
+	return res
 }

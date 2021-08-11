@@ -328,6 +328,7 @@ func (r *Runtime) builtin_unescape(call FunctionCall) Value {
 
 func (r *Runtime) initGlobalObject() {
 	o := r.globalObject.self
+	o._putProp("globalThis", r.globalObject, true, false, true)
 	o._putProp("NaN", _NaN, false, false, false)
 	o._putProp("undefined", _undefined, false, false, false)
 	o._putProp("Infinity", _positiveInf, false, false, false)
@@ -343,9 +344,7 @@ func (r *Runtime) initGlobalObject() {
 	o._putProp("escape", r.newNativeFunc(r.builtin_escape, nil, "escape", nil, 1), true, false, true)
 	o._putProp("unescape", r.newNativeFunc(r.builtin_unescape, nil, "unescape", nil, 1), true, false, true)
 
-	o._putProp("toString", r.newNativeFunc(func(FunctionCall) Value {
-		return stringGlobalObject
-	}, nil, "toString", nil, 0), false, false, false)
+	o._putSym(SymToStringTag, valueProp(asciiString(classGlobal), false, false, true))
 
 	// TODO: Annex B
 

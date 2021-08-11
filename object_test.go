@@ -1,18 +1,10 @@
 package goja
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
-
-func TestArray1(t *testing.T) {
-	r := &Runtime{}
-	a := r.newArray(nil)
-	a.setOwnIdx(valueInt(0), asciiString("test"), true)
-	if l := a.getStr("length", nil).ToInteger(); l != 1 {
-		t.Fatalf("Unexpected length: %d", l)
-	}
-}
 
 func TestDefineProperty(t *testing.T) {
 	r := New()
@@ -110,6 +102,23 @@ func TestDefinePropertiesSymbol(t *testing.T) {
 	`
 
 	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestObjectShorthandProperties(t *testing.T) {
+	const SCRIPT = `
+	var b = 1;
+	var a = {b, get() {return "c"}};
+
+	assert.sameValue(a.b, b, "#1");
+	assert.sameValue(a.get(), "c", "#2");
+
+	var obj = {
+		w\u0069th() { return 42; }
+    };
+
+	assert.sameValue(obj['with'](), 42, 'property exists');
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
 func TestObjectAssign(t *testing.T) {
@@ -241,6 +250,64 @@ func TestExportToCircular(t *testing.T) {
 	}
 }
 
+func TestExportWrappedMap(t *testing.T) {
+	vm := New()
+	m := map[string]interface{}{
+		"test": "failed",
+	}
+	exported := vm.ToValue(m).Export()
+	if exportedMap, ok := exported.(map[string]interface{}); ok {
+		exportedMap["test"] = "passed"
+		if v := m["test"]; v != "passed" {
+			t.Fatalf("Unexpected m[\"test\"]: %v", v)
+		}
+	} else {
+		t.Fatalf("Unexpected export type: %T", exported)
+	}
+}
+
+func TestExportToWrappedMap(t *testing.T) {
+	vm := New()
+	m := map[string]interface{}{
+		"test": "failed",
+	}
+	var exported map[string]interface{}
+	err := vm.ExportTo(vm.ToValue(m), &exported)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported["test"] = "passed"
+	if v := m["test"]; v != "passed" {
+		t.Fatalf("Unexpected m[\"test\"]: %v", v)
+	}
+}
+
+func TestExportToWrappedMapCustom(t *testing.T) {
+	type CustomMap map[string]bool
+	vm := New()
+	m := CustomMap{}
+	var exported CustomMap
+	err := vm.ExportTo(vm.ToValue(m), &exported)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported["test"] = true
+	if v := m["test"]; v != true {
+		t.Fatalf("Unexpected m[\"test\"]: %v", v)
+	}
+}
+
+func ExampleObject_Delete() {
+	vm := New()
+	obj := vm.NewObject()
+	_ = obj.Set("test", true)
+	before := obj.Get("test")
+	_ = obj.Delete("test")
+	after := obj.Get("test")
+	fmt.Printf("before: %v, after: %v", before, after)
+	// Output: before: true, after: <nil>
+}
+
 func BenchmarkPut(b *testing.B) {
 	v := &Object{}
 
@@ -347,85 +414,6 @@ func BenchmarkConv(b *testing.B) {
 	if count == 0 {
 		b.Fatal("zero")
 	}
-}
-
-func BenchmarkArrayGetStr(b *testing.B) {
-	b.StopTimer()
-	r := New()
-	v := &Object{runtime: r}
-
-	a := &arrayObject{
-		baseObject: baseObject{
-			val:        v,
-			extensible: true,
-		},
-	}
-	v.self = a
-
-	a.init()
-
-	v.setOwn(valueInt(0), asciiString("test"), false)
-	b.StartTimer()
-
-	for i := 0; i < b.N; i++ {
-		a.getStr("0", nil)
-	}
-
-}
-
-func BenchmarkArrayGet(b *testing.B) {
-	b.StopTimer()
-	r := New()
-	v := &Object{runtime: r}
-
-	a := &arrayObject{
-		baseObject: baseObject{
-			val:        v,
-			extensible: true,
-		},
-	}
-	v.self = a
-
-	a.init()
-
-	var idx Value = valueInt(0)
-
-	v.setOwn(idx, asciiString("test"), false)
-
-	b.StartTimer()
-
-	for i := 0; i < b.N; i++ {
-		v.get(idx, nil)
-	}
-
-}
-
-func BenchmarkArrayPut(b *testing.B) {
-	b.StopTimer()
-	r := New()
-
-	v := &Object{runtime: r}
-
-	a := &arrayObject{
-		baseObject: baseObject{
-			val:        v,
-			extensible: true,
-		},
-	}
-
-	v.self = a
-
-	a.init()
-
-	var idx Value = valueInt(0)
-	var val Value = asciiString("test")
-
-	b.StartTimer()
-
-	for i := 0; i < b.N; i++ {
-		v.setOwn(idx, val, false)
-	}
-
 }
 
 func BenchmarkToUTF8String(b *testing.B) {

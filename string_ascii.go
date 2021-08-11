@@ -40,7 +40,7 @@ func (s asciiString) utf16Reader(start int) io.RuneReader {
 	return s.reader(start)
 }
 
-func (s asciiString) runes() []rune {
+func (s asciiString) utf16Runes() []rune {
 	runes := make([]rune, len(s))
 	for i := 0; i < len(s); i++ {
 		runes[i] = rune(s[i])
@@ -48,12 +48,8 @@ func (s asciiString) runes() []rune {
 	return runes
 }
 
-func (s asciiString) utf16Runes() []rune {
-	return s.runes()
-}
-
 // ss must be trimmed
-func strToInt(ss string) (int64, error) {
+func stringToInt(ss string) (int64, error) {
 	if ss == "" {
 		return 0, nil
 	}
@@ -74,7 +70,7 @@ func strToInt(ss string) (int64, error) {
 }
 
 func (s asciiString) _toInt() (int64, error) {
-	return strToInt(strings.TrimSpace(string(s)))
+	return stringToInt(strings.TrimSpace(string(s)))
 }
 
 func isRangeErr(err error) bool {

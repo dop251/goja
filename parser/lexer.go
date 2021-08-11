@@ -149,6 +149,7 @@ func isId(tkn token.Token) bool {
 		token.DO,
 
 		token.VAR,
+		token.LET,
 		token.FOR,
 		token.NEW,
 		token.TRY,
@@ -158,6 +159,7 @@ func isId(tkn token.Token) bool {
 		token.VOID,
 		token.WITH,
 
+		token.CONST,
 		token.WHILE,
 		token.BREAK,
 		token.CATCH,
@@ -180,6 +182,40 @@ func isId(tkn token.Token) bool {
 		return true
 	}
 	return false
+}
+
+type parserState struct {
+	tok                                token.Token
+	literal                            string
+	parsedLiteral                      unistring.String
+	implicitSemicolon, insertSemicolon bool
+	chr                                rune
+	chrOffset, offset                  int
+	errorCount                         int
+}
+
+func (self *_parser) mark(state *parserState) *parserState {
+	if state == nil {
+		state = &parserState{}
+	}
+	state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset =
+		self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
+
+	state.errorCount = len(self.errors)
+	return state
+}
+
+func (self *_parser) restore(state *parserState) {
+	self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset =
+		state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset
+	self.errors = self.errors[:state.errorCount]
+}
+
+func (self *_parser) peek() token.Token {
+	implicitSemicolon, insertSemicolon, chr, chrOffset, offset := self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
+	tok, _, _, _ := self.scan()
+	self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset = implicitSemicolon, insertSemicolon, chr, chrOffset, offset
+	return tok
 }
 
 func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unistring.String, idx file.Idx) {
@@ -211,7 +247,7 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 				case 0: // Not a keyword
 					if parsedLiteral == "true" || parsedLiteral == "false" {
 						if hasEscape {
-							tkn = token.ILLEGAL
+							tkn = token.STRING
 							return
 						}
 						self.insertSemicolon = true
@@ -219,7 +255,7 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 						return
 					} else if parsedLiteral == "null" {
 						if hasEscape {
-							tkn = token.ILLEGAL
+							tkn = token.STRING
 							return
 						}
 						self.insertSemicolon = true
@@ -229,7 +265,7 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 
 				case token.KEYWORD:
 					if hasEscape {
-						tkn = token.ILLEGAL
+						tkn = token.STRING
 						return
 					}
 					tkn = token.KEYWORD
@@ -247,7 +283,7 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 					token.CONTINUE,
 					token.DEBUGGER:
 					if hasEscape {
-						tkn = token.ILLEGAL
+						tkn = token.STRING
 						return
 					}
 					self.insertSemicolon = true
@@ -255,7 +291,7 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 
 				default:
 					if hasEscape {
-						tkn = token.ILLEGAL
+						tkn = token.STRING
 					}
 					return
 
@@ -288,7 +324,17 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 					insertSemicolon = true
 					tkn, literal = self.scanNumericLiteral(true)
 				} else {
-					tkn = token.PERIOD
+					if self.chr == '.' {
+						self.read()
+						if self.chr == '.' {
+							self.read()
+							tkn = token.ELLIPSIS
+						} else {
+							tkn = token.ILLEGAL
+						}
+					} else {
+						tkn = token.PERIOD
+					}
 				}
 			case ',':
 				tkn = token.COMMA
@@ -342,10 +388,19 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 			case '>':
 				tkn = self.switch6(token.GREATER, token.GREATER_OR_EQUAL, '>', token.SHIFT_RIGHT, token.SHIFT_RIGHT_ASSIGN, '>', token.UNSIGNED_SHIFT_RIGHT, token.UNSIGNED_SHIFT_RIGHT_ASSIGN)
 			case '=':
-				tkn = self.switch2(token.ASSIGN, token.EQUAL)
-				if tkn == token.EQUAL && self.chr == '=' {
+				if self.chr == '>' {
 					self.read()
-					tkn = token.STRICT_EQUAL
+					if self.implicitSemicolon {
+						tkn = token.ILLEGAL
+					} else {
+						tkn = token.ARROW
+					}
+				} else {
+					tkn = self.switch2(token.ASSIGN, token.EQUAL)
+					if tkn == token.EQUAL && self.chr == '=' {
+						self.read()
+						tkn = token.STRICT_EQUAL
+					}
 				}
 			case '!':
 				tkn = self.switch2(token.NOT, token.NOT_EQUAL)
@@ -354,12 +409,7 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 					tkn = token.STRICT_NOT_EQUAL
 				}
 			case '&':
-				if self.chr == '^' {
-					self.read()
-					tkn = self.switch2(token.AND_NOT, token.AND_NOT_ASSIGN)
-				} else {
-					tkn = self.switch3(token.AND, token.AND_ASSIGN, '&', token.LOGICAL_AND)
-				}
+				tkn = self.switch3(token.AND, token.AND_ASSIGN, '&', token.LOGICAL_AND)
 			case '|':
 				tkn = self.switch3(token.OR, token.OR_ASSIGN, '|', token.LOGICAL_OR)
 			case '~':
@@ -445,32 +495,13 @@ func (self *_parser) switch6(tkn0, tkn1 token.Token, chr2 rune, tkn2, tkn3 token
 }
 
 func (self *_parser) _peek() rune {
-	if self.offset+1 < self.length {
-		return rune(self.str[self.offset+1])
+	if self.offset < self.length {
+		return rune(self.str[self.offset])
 	}
 	return -1
 }
 
 func (self *_parser) read() {
-	if self.offset < self.length {
-		self.chrOffset = self.offset
-		chr, width := rune(self.str[self.offset]), 1
-		if chr >= utf8.RuneSelf { // !ASCII
-			chr, width = utf8.DecodeRuneInString(self.str[self.offset:])
-			if chr == utf8.RuneError && width == 1 {
-				self.error(self.chrOffset, "Invalid UTF-8 character")
-			}
-		}
-		self.offset += width
-		self.chr = chr
-	} else {
-		self.chrOffset = self.length
-		self.chr = -1 // EOF
-	}
-}
-
-// This is here since the functions are so similar
-func (self *_RegExp_parser) read() {
 	if self.offset < self.length {
 		self.chrOffset = self.offset
 		chr, width := rune(self.str[self.offset]), 1
@@ -774,6 +805,9 @@ func parseStringLiteral1(literal string, length int, unicode bool) (unistring.St
 			var size int
 			value, size = utf8.DecodeRuneInString(str)
 			str = str[size:] // \ + <character>
+			if value == '\u2028' || value == '\u2029' {
+				continue
+			}
 		} else {
 			str = str[2:] // \<character>
 			switch chr {

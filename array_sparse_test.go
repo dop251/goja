@@ -172,3 +172,61 @@ func TestArraySparseMaxLength(t *testing.T) {
 
 	testScript1(SCRIPT, valueTrue, t)
 }
+
+func TestArraySparseExportProps(t *testing.T) {
+	vm := New()
+	proto := vm.NewArray()
+	for _, idx := range []string{"0", "500", "9999", "10001", "20471"} {
+		err := proto.Set(idx, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	arr := vm.NewArray()
+	err := arr.SetPrototype(proto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = arr.DefineDataProperty("20470", vm.ToValue(true), FLAG_TRUE, FLAG_FALSE, FLAG_TRUE)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = arr.DefineDataProperty("10000", vm.ToValue(true), FLAG_TRUE, FLAG_FALSE, FLAG_TRUE)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = arr.Set("length", 20472)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual := arr.Export()
+	if actualArr, ok := actual.([]interface{}); ok {
+		if len(actualArr) == 20472 {
+			expectedIdx := map[int]struct{}{
+				0:     {},
+				500:   {},
+				9999:  {},
+				10000: {},
+				10001: {},
+				20470: {},
+				20471: {},
+			}
+			for i, v := range actualArr {
+				if _, exists := expectedIdx[i]; exists {
+					if v != true {
+						t.Fatalf("Expected true at %d, got %v", i, v)
+					}
+				} else {
+					if v != nil {
+						t.Fatalf("Expected nil at %d, got %v", i, v)
+					}
+				}
+			}
+		} else {
+			t.Fatalf("Expected len 20471, actual: %d", len(actualArr))
+		}
+	} else {
+		t.Fatalf("Invalid export type: %T", actual)
+	}
+}

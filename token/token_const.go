@@ -26,7 +26,6 @@ const (
 	SHIFT_LEFT           // <<
 	SHIFT_RIGHT          // >>
 	UNSIGNED_SHIFT_RIGHT // >>>
-	AND_NOT              // &^
 
 	ADD_ASSIGN       // +=
 	SUBTRACT_ASSIGN  // -=
@@ -40,7 +39,6 @@ const (
 	SHIFT_LEFT_ASSIGN           // <<=
 	SHIFT_RIGHT_ASSIGN          // >>=
 	UNSIGNED_SHIFT_RIGHT_ASSIGN // >>>=
-	AND_NOT_ASSIGN              // &^=
 
 	LOGICAL_AND // &&
 	LOGICAL_OR  // ||
@@ -73,6 +71,8 @@ const (
 	SEMICOLON         // ;
 	COLON             // :
 	QUESTION_MARK     // ?
+	ARROW             // =>
+	ELLIPSIS          // ...
 
 	firstKeyword
 	IF
@@ -81,6 +81,7 @@ const (
 	DO
 
 	VAR
+	LET
 	FOR
 	NEW
 	TRY
@@ -91,6 +92,7 @@ const (
 	VOID
 	WITH
 
+	CONST
 	WHILE
 	BREAK
 	CATCH
@@ -133,7 +135,6 @@ var token2string = [...]string{
 	SHIFT_LEFT:                  "<<",
 	SHIFT_RIGHT:                 ">>",
 	UNSIGNED_SHIFT_RIGHT:        ">>>",
-	AND_NOT:                     "&^",
 	ADD_ASSIGN:                  "+=",
 	SUBTRACT_ASSIGN:             "-=",
 	MULTIPLY_ASSIGN:             "*=",
@@ -145,7 +146,6 @@ var token2string = [...]string{
 	SHIFT_LEFT_ASSIGN:           "<<=",
 	SHIFT_RIGHT_ASSIGN:          ">>=",
 	UNSIGNED_SHIFT_RIGHT_ASSIGN: ">>>=",
-	AND_NOT_ASSIGN:              "&^=",
 	LOGICAL_AND:                 "&&",
 	LOGICAL_OR:                  "||",
 	INCREMENT:                   "++",
@@ -172,11 +172,14 @@ var token2string = [...]string{
 	SEMICOLON:                   ";",
 	COLON:                       ":",
 	QUESTION_MARK:               "?",
+	ARROW:                       "=>",
+	ELLIPSIS:                    "...",
 	IF:                          "if",
 	IN:                          "in",
 	OF:                          "of",
 	DO:                          "do",
 	VAR:                         "var",
+	LET:                         "let",
 	FOR:                         "for",
 	NEW:                         "new",
 	TRY:                         "try",
@@ -185,6 +188,7 @@ var token2string = [...]string{
 	CASE:                        "case",
 	VOID:                        "void",
 	WITH:                        "with",
+	CONST:                       "const",
 	WHILE:                       "while",
 	BREAK:                       "break",
 	CATCH:                       "catch",
@@ -281,8 +285,7 @@ var keywordTable = map[string]_keyword{
 		token: INSTANCEOF,
 	},
 	"const": {
-		token:         KEYWORD,
-		futureKeyword: true,
+		token: CONST,
 	},
 	"class": {
 		token:         KEYWORD,
@@ -319,9 +322,8 @@ var keywordTable = map[string]_keyword{
 		strict:        true,
 	},
 	"let": {
-		token:         KEYWORD,
-		futureKeyword: true,
-		strict:        true,
+		token:  LET,
+		strict: true,
 	},
 	"package": {
 		token:         KEYWORD,

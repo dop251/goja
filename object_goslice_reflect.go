@@ -9,16 +9,19 @@ import (
 
 type objectGoSliceReflect struct {
 	objectGoReflect
-	lengthProp      valueProperty
-	sliceExtensible bool
+	lengthProp valueProperty
 }
 
 func (o *objectGoSliceReflect) init() {
 	o.objectGoReflect.init()
 	o.class = classArray
 	o.prototype = o.val.runtime.global.ArrayPrototype
-	o.sliceExtensible = o.value.CanSet()
-	o.lengthProp.writable = o.sliceExtensible
+	if !o.value.CanSet() {
+		value := reflect.Indirect(reflect.New(o.value.Type()))
+		value.Set(o.value)
+		o.value = value
+	}
+	o.lengthProp.writable = true
 	o.updateLen()
 	o.baseObject._put("length", &o.lengthProp)
 }
@@ -98,10 +101,6 @@ func (o *objectGoSliceReflect) getOwnPropIdx(idx valueInt) Value {
 
 func (o *objectGoSliceReflect) putIdx(idx int, v Value, throw bool) bool {
 	if idx >= o.value.Len() {
-		if !o.sliceExtensible {
-			o.val.runtime.typeErrorResult(throw, "Cannot extend a Go unaddressable reflect slice")
-			return false
-		}
 		o.grow(idx + 1)
 	}
 	err := o.val.runtime.toReflectValue(v, o.value.Index(idx), &objectExportCtx{})
@@ -113,23 +112,9 @@ func (o *objectGoSliceReflect) putIdx(idx int, v Value, throw bool) bool {
 }
 
 func (o *objectGoSliceReflect) grow(size int) {
-	newcap := o.value.Cap()
-	if newcap < size {
-		// Use the same algorithm as in runtime.growSlice
-		doublecap := newcap + newcap
-		if size > doublecap {
-			newcap = size
-		} else {
-			if o.value.Len() < 1024 {
-				newcap = doublecap
-			} else {
-				for newcap < size {
-					newcap += newcap / 4
-				}
-			}
-		}
-
-		n := reflect.MakeSlice(o.value.Type(), size, newcap)
+	oldcap := o.value.Cap()
+	if oldcap < size {
+		n := reflect.MakeSlice(o.value.Type(), size, growCap(size, o.value.Len(), oldcap))
 		reflect.Copy(n, o.value)
 		o.value.Set(n)
 	} else {
@@ -157,16 +142,8 @@ func (o *objectGoSliceReflect) putLength(v Value, throw bool) bool {
 	newLen := toIntStrict(toLength(v))
 	curLen := o.value.Len()
 	if newLen > curLen {
-		if !o.sliceExtensible {
-			o.val.runtime.typeErrorResult(throw, "Cannot extend Go slice")
-			return false
-		}
 		o.grow(newLen)
 	} else if newLen < curLen {
-		if !o.sliceExtensible {
-			o.val.runtime.typeErrorResult(throw, "Cannot shrink Go slice")
-			return false
-		}
 		o.shrink(newLen)
 	}
 	return true
@@ -279,12 +256,15 @@ func (o *objectGoSliceReflect) toPrimitive() Value {
 	return o.toPrimitiveString()
 }
 
+func (o *objectGoSliceReflect) _deleteIdx(idx int) {
+	if idx < o.value.Len() {
+		o.value.Index(idx).Set(reflect.Zero(o.value.Type().Elem()))
+	}
+}
+
 func (o *objectGoSliceReflect) deleteStr(name unistring.String, throw bool) bool {
-	if idx := strToIdx64(name); idx >= 0 {
-		if idx < int64(o.value.Len()) {
-			o.val.runtime.typeErrorResult(throw, "Can't delete from Go slice")
-			return false
-		}
+	if idx := strToGoIdx(name); idx >= 0 {
+		o._deleteIdx(idx)
 		return true
 	}
 
@@ -292,12 +272,9 @@ func (o *objectGoSliceReflect) deleteStr(name unistring.String, throw bool) bool
 }
 
 func (o *objectGoSliceReflect) deleteIdx(i valueInt, throw bool) bool {
-	idx := int64(i)
+	idx := toIntStrict(int64(i))
 	if idx >= 0 {
-		if idx < int64(o.value.Len()) {
-			o.val.runtime.typeErrorResult(throw, "Can't delete from Go slice")
-			return false
-		}
+		o._deleteIdx(idx)
 	}
 	return true
 }
@@ -314,7 +291,7 @@ func (i *gosliceReflectPropIter) next() (propIterItem, iterNextFunc) {
 		return propIterItem{name: unistring.String(name), enumerable: _ENUM_TRUE}, i.next
 	}
 
-	return i.o.objectGoReflect.enumerateUnfiltered()()
+	return i.o.objectGoReflect.enumerateOwnKeys()()
 }
 
 func (o *objectGoSliceReflect) ownKeys(all bool, accum []Value) []Value {
@@ -325,7 +302,7 @@ func (o *objectGoSliceReflect) ownKeys(all bool, accum []Value) []Value {
 	return o.objectGoReflect.ownKeys(all, accum)
 }
 
-func (o *objectGoSliceReflect) enumerateUnfiltered() iterNextFunc {
+func (o *objectGoSliceReflect) enumerateOwnKeys() iterNextFunc {
 	return (&gosliceReflectPropIter{
 		o:     o,
 		limit: o.value.Len(),

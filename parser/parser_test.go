@@ -101,6 +101,9 @@ func TestParserErr(t *testing.T) {
 			is(parser.slice(stmt.From, stmt.To), "break; ")
 		}
 
+		s := string([]byte{0x22, 0x25, 0x21, 0x63, 0x28, 0x73, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x3d, 0x25, 0x63, 0x25, 0x9c, 0x29, 0x25, 0x21, 0x5c, 0x28, 0x73, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x3d, 0x5c, 0xe2, 0x80, 0xa9, 0x29, 0x78, 0x39, 0x63, 0x22})
+		test(s, `(anonymous): Line 1:16 Invalid UTF-8 character`)
+
 		test("{", "(anonymous): Line 1:2 Unexpected end of input")
 
 		test("}", "(anonymous): Line 1:1 Unexpected token }")
@@ -268,8 +271,6 @@ func TestParserErr(t *testing.T) {
 
 		test("try {}", "(anonymous): Line 1:1 Missing catch or finally after try")
 
-		test("try {} catch {}", "(anonymous): Line 1:14 Unexpected token {")
-
 		test("try {} catch () {}", "(anonymous): Line 1:15 Unexpected token )")
 
 		test("\u203f = 1", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
@@ -411,9 +412,9 @@ func TestParserErr(t *testing.T) {
 			test("abc.class = 1", nil)
 			test("var class;", "(anonymous): Line 1:5 Unexpected reserved word")
 
-			test("const", "(anonymous): Line 1:1 Unexpected reserved word")
+			test("const", "(anonymous): Line 1:6 Unexpected end of input")
 			test("abc.const = 1", nil)
-			test("var const;", "(anonymous): Line 1:5 Unexpected reserved word")
+			test("var const;", "(anonymous): Line 1:5 Unexpected token const")
 
 			test("enum", "(anonymous): Line 1:1 Unexpected reserved word")
 			test("abc.enum = 1", nil)
@@ -484,6 +485,8 @@ func TestParserErr(t *testing.T) {
 			test(`abc.yield = 1`, nil)
 			test(`var yield;`, nil)
 		}
+		test(`0, { get a(param = null) {} };`, "(anonymous): Line 1:11 Getter must not have any formal parameters.")
+		test(`let{f(`, "(anonymous): Line 1:7 Unexpected end of input")
 	})
 }
 
@@ -602,6 +605,8 @@ func TestParser(t *testing.T) {
         `, nil)
 
 		test(`try {} catch (abc) {} finally {}`, nil)
+
+		test("try {} catch {}", nil)
 
 		test(`
             do {
@@ -771,6 +776,7 @@ func TestParser(t *testing.T) {
 
 		//// 11.13.1-1-1
 		test("42 = 42;", "(anonymous): Line 1:1 Invalid left-hand side in assignment")
+		test("s &^= 42;", "(anonymous): Line 1:4 Unexpected token ^=")
 
 		// S11.13.2_A4.2_T1.3
 		test(`
@@ -870,7 +876,25 @@ func TestParser(t *testing.T) {
                 2
             debugger
         `, nil)
+
+		test("'ё\\\u2029'", nil)
+
+		test(`[a, b] = [1, 2]`, nil)
+		test(`({"a b": {}} = {})`, nil)
+
+		test(`ref = (a, b = 39,) => {
+		};`, nil)
+		test(`(a,) => {}`, nil)
 	})
+}
+
+func TestParseDestruct(t *testing.T) {
+	parser := newParser("", `({a: (a.b), ...spread,} = {})`)
+	prg, err := parser.parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = prg
 }
 
 func Test_parseStringLiteral(t *testing.T) {
@@ -1006,5 +1030,63 @@ func TestPosition(t *testing.T) {
 		is(err, nil)
 		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.FunctionLiteral)
 		is(node.(*ast.FunctionLiteral).Source, "function(){ return abc; }")
+	})
+}
+
+func TestExtractSourceMapLine(t *testing.T) {
+	tt(t, func() {
+		is(extractSourceMapLine(""), "")
+		is(extractSourceMapLine("\n"), "")
+		is(extractSourceMapLine(" "), "")
+		is(extractSourceMapLine("1\n2\n3\n4\n"), "")
+
+		src := `"use strict";
+var x = {};
+//# sourceMappingURL=delme.js.map`
+		modSrc := `(function(exports, require, module) {` + src + `
+})`
+		is(extractSourceMapLine(modSrc), "//# sourceMappingURL=delme.js.map")
+		is(extractSourceMapLine(modSrc+"\n\n\n\n"), "//# sourceMappingURL=delme.js.map")
+	})
+}
+
+func TestSourceMapOptions(t *testing.T) {
+	tt(t, func() {
+		count := 0
+		requestedPath := ""
+		loader := func(p string) ([]byte, error) {
+			count++
+			requestedPath = p
+			return nil, nil
+		}
+		src := `"use strict";
+var x = {};
+//# sourceMappingURL=delme.js.map`
+		_, err := ParseFile(nil, "delme.js", src, 0, WithSourceMapLoader(loader))
+		is(err, nil)
+		is(count, 1)
+		is(requestedPath, "delme.js.map")
+
+		count = 0
+		_, err = ParseFile(nil, "", src, 0, WithSourceMapLoader(loader))
+		is(err, nil)
+		is(count, 1)
+		is(requestedPath, "delme.js.map")
+
+		count = 0
+		_, err = ParseFile(nil, "delme.js", src, 0, WithDisableSourceMaps)
+		is(err, nil)
+		is(count, 0)
+
+		_, err = ParseFile(nil, "/home/user/src/delme.js", src, 0, WithSourceMapLoader(loader))
+		is(err, nil)
+		is(count, 1)
+		is(requestedPath, "/home/user/src/delme.js.map")
+
+		count = 0
+		_, err = ParseFile(nil, "https://site.com/delme.js", src, 0, WithSourceMapLoader(loader))
+		is(err, nil)
+		is(count, 1)
+		is(requestedPath, "https://site.com/delme.js.map")
 	})
 }

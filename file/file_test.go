@@ -1,4 +1,4 @@
-package goja
+package file
 
 import "testing"
 
@@ -6,7 +6,7 @@ func TestPosition(t *testing.T) {
 	const SRC = `line1
 line2
 line3`
-	f := NewSrcFile("", SRC, nil)
+	f := NewFile("", SRC, 0)
 
 	tests := []struct {
 		offset int
@@ -27,17 +27,17 @@ line3`
 	}
 
 	for i, test := range tests {
-		if p := f.Position(test.offset); p.Line != test.line || p.Col != test.col {
-			t.Fatalf("%d. Line: %d, col: %d", i, p.Line, p.Col)
+		if p := f.Position(test.offset); p.Line != test.line || p.Column != test.col {
+			t.Fatalf("%d. Line: %d, col: %d", i, p.Line, p.Column)
 		}
 	}
 }
 
-func TestSrcFileConcurrency(t *testing.T) {
+func TestFileConcurrency(t *testing.T) {
 	const SRC = `line1
 line2
 line3`
-	f := NewSrcFile("", SRC, nil)
+	f := NewFile("", SRC, 0)
 	go func() {
 		f.Position(12)
 	}()

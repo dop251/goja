@@ -252,8 +252,10 @@ func (b *valueStringBuilder) WriteSubstring(source valueString, start int, end i
 	if ascii, ok := source.(asciiString); ok {
 		if b.ascii() {
 			b.asciiBuilder.WriteString(string(ascii[start:end]))
-			return
+		} else {
+			b.unicodeBuilder.writeASCIIString(string(ascii[start:end]))
 		}
+		return
 	}
 	us := source.(unicodeString)
 	if b.ascii() {
@@ -288,10 +290,6 @@ func (s unicodeString) utf16Reader(start int) io.RuneReader {
 	return &utf16RuneReader{
 		s: s[start+1:],
 	}
-}
-
-func (s unicodeString) runes() []rune {
-	return utf16.Decode(s[1:])
 }
 
 func (s unicodeString) utf16Runes() []rune {

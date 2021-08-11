@@ -296,3 +296,11 @@ func TestTypedArraySortComparatorReturnValueNegZero(t *testing.T) {
 	`
 	testScript1(SCRIPT, _undefined, t)
 }
+
+func TestInt32ArrayNegativeIndex(t *testing.T) {
+	const SCRIPT = `
+	new Int32Array()[-1] === undefined;
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
