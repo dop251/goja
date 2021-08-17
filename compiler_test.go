@@ -4113,6 +4113,17 @@ func TestArrowUseStrict(t *testing.T) {
 	}
 }
 
+func TestParameterOverride(t *testing.T) {
+	const SCRIPT = `
+	function f(arg) {
+		var arg = arg || "default"
+		return arg
+	}
+	f()
+	`
+	testScript1(SCRIPT, asciiString("default"), t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")
