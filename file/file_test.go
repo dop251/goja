@@ -43,3 +43,26 @@ line3`
 	}()
 	f.Position(2)
 }
+
+func TestGetSourceFilename(t *testing.T) {
+	tests := []struct {
+		source, basename, result string
+	}{
+		{"test.js", "base.js", "test.js"}, // TODO FIX
+		{"test.js", "/somewhere/base.js", "/somewhere/test.js"},
+		{"/test.js", "/somewhere/base.js", "/test.js"},
+		{"/test.js", "file:///somewhere/base.js", "file:///test.js"},
+		{"file:///test.js", "base.js", "file:///test.js"},
+		{"file:///test.js", "/somwehere/base.js", "file:///test.js"},
+		{"file:///test.js", "file:///somewhere/base.js", "file:///test.js"},
+		{"../test.js", "/somewhere/else/base.js", "/somewhere/test.js"},
+		{"../test.js", "file:///somewhere/else/base.js", "file:///somewhere/test.js"},
+		{"../test.js", "https://example.com/somewhere/else/base.js", "https://example.com/somewhere/test.js"},
+		// TODO find something that won't parse
+	}
+	for _, test := range tests {
+		if result := getSourceFilename(test.source, test.basename); result != test.result {
+			t.Fatalf("source: %q, basename %q produced %q instead of %q", test.source, test.basename, result, test.result)
+		}
+	}
+}
