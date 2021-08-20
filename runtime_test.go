@@ -2104,6 +2104,164 @@ func TestStacktraceLocationThrowFromGo(t *testing.T) {
 	}
 }
 
+func TestStrToInt64(t *testing.T) {
+	if _, ok := strToInt64(""); ok {
+		t.Fatal("<empty>")
+	}
+	if n, ok := strToInt64("0"); !ok || n != 0 {
+		t.Fatal("0", n, ok)
+	}
+	if n, ok := strToInt64("-0"); ok {
+		t.Fatal("-0", n, ok)
+	}
+	if n, ok := strToInt64("-1"); !ok || n != -1 {
+		t.Fatal("-1", n, ok)
+	}
+	if n, ok := strToInt64("9223372036854775808"); ok {
+		t.Fatal("max+1", n, ok)
+	}
+	if n, ok := strToInt64("9223372036854775817"); ok {
+		t.Fatal("9223372036854775817", n, ok)
+	}
+	if n, ok := strToInt64("-9223372036854775818"); ok {
+		t.Fatal("-9223372036854775818", n, ok)
+	}
+	if n, ok := strToInt64("9223372036854775807"); !ok || n != 9223372036854775807 {
+		t.Fatal("max", n, ok)
+	}
+	if n, ok := strToInt64("-9223372036854775809"); ok {
+		t.Fatal("min-1", n, ok)
+	}
+	if n, ok := strToInt64("-9223372036854775808"); !ok || n != -9223372036854775808 {
+		t.Fatal("min", n, ok)
+	}
+	if n, ok := strToInt64("-00"); ok {
+		t.Fatal("-00", n, ok)
+	}
+	if n, ok := strToInt64("-01"); ok {
+		t.Fatal("-01", n, ok)
+	}
+}
+
+func TestStrToInt32(t *testing.T) {
+	if _, ok := strToInt32(""); ok {
+		t.Fatal("<empty>")
+	}
+	if n, ok := strToInt32("0"); !ok || n != 0 {
+		t.Fatal("0", n, ok)
+	}
+	if n, ok := strToInt32("-0"); ok {
+		t.Fatal("-0", n, ok)
+	}
+	if n, ok := strToInt32("-1"); !ok || n != -1 {
+		t.Fatal("-1", n, ok)
+	}
+	if n, ok := strToInt32("2147483648"); ok {
+		t.Fatal("max+1", n, ok)
+	}
+	if n, ok := strToInt32("2147483657"); ok {
+		t.Fatal("2147483657", n, ok)
+	}
+	if n, ok := strToInt32("-2147483658"); ok {
+		t.Fatal("-2147483658", n, ok)
+	}
+	if n, ok := strToInt32("2147483647"); !ok || n != 2147483647 {
+		t.Fatal("max", n, ok)
+	}
+	if n, ok := strToInt32("-2147483649"); ok {
+		t.Fatal("min-1", n, ok)
+	}
+	if n, ok := strToInt32("-2147483648"); !ok || n != -2147483648 {
+		t.Fatal("min", n, ok)
+	}
+	if n, ok := strToInt32("-00"); ok {
+		t.Fatal("-00", n, ok)
+	}
+	if n, ok := strToInt32("-01"); ok {
+		t.Fatal("-01", n, ok)
+	}
+}
+
+func TestDestructSymbol(t *testing.T) {
+	const SCRIPT = `
+	var S = Symbol("S");
+	var s, rest;
+
+	({[S]: s, ...rest} = {[S]: true, test: 1});
+	assert.sameValue(s, true, "S");
+	assert(deepEqual(rest, {test: 1}), "rest");
+	`
+	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+}
+
+func TestAccessorFuncName(t *testing.T) {
+	const SCRIPT = `
+	const namedSym = Symbol('test262');
+	const emptyStrSym = Symbol("");
+	const anonSym = Symbol();
+
+	const o = {
+	  get id() {},
+	  get [anonSym]() {},
+	  get [namedSym]() {},
+      get [emptyStrSym]() {},
+	  set id(v) {},
+	  set [anonSym](v) {},
+	  set [namedSym](v) {},
+      set [emptyStrSym](v) {}
+	};
+
+	let prop;
+	prop = Object.getOwnPropertyDescriptor(o, 'id');
+	assert.sameValue(prop.get.name, 'get id');
+	assert.sameValue(prop.set.name, 'set id');
+
+	prop = Object.getOwnPropertyDescriptor(o, anonSym);
+	assert.sameValue(prop.get.name, 'get ');
+	assert.sameValue(prop.set.name, 'set ');
+
+	prop = Object.getOwnPropertyDescriptor(o, emptyStrSym);
+	assert.sameValue(prop.get.name, 'get []');
+	assert.sameValue(prop.set.name, 'set []');
+
+	prop = Object.getOwnPropertyDescriptor(o, namedSym);
+	assert.sameValue(prop.get.name, 'get [test262]');
+	assert.sameValue(prop.set.name, 'set [test262]');
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestCoverFuncName(t *testing.T) {
+	const SCRIPT = `
+	var namedSym = Symbol('');
+	var anonSym = Symbol();
+	var o;
+
+	o = {
+	  xId: (0, function() {}),
+	  id: (function() {}),
+      id1: function x() {},
+	  [anonSym]: (function() {}),
+	  [namedSym]: (function() {})
+	};
+
+	assert(o.xId.name !== 'xId');
+	assert.sameValue(o.id1.name, 'x'); 
+	assert.sameValue(o.id.name, 'id', 'via IdentifierName');
+	assert.sameValue(o[anonSym].name, '', 'via anonymous Symbol');
+	assert.sameValue(o[namedSym].name, '[]', 'via Symbol');
+	`
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestAnonFuncName(t *testing.T) {
+	const SCRIPT = `
+	const d = Object.getOwnPropertyDescriptor((function() {}), 'name');
+	d !== undefined && d.value === '';
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

@@ -326,7 +326,7 @@ func TestProxy_native_proxy_getOwnPropertyDescriptorIdx(t *testing.T) {
 	a := vm.NewArray()
 	proxy1 := vm.NewProxy(a, &ProxyTrapConfig{
 		GetOwnPropertyDescriptor: func(target *Object, prop string) PropertyDescriptor {
-			panic(vm.NewTypeError("GetOwnPropertyDescriptor was called"))
+			panic(vm.NewTypeError("GetOwnPropertyDescriptor was called for %q", prop))
 		},
 		GetOwnPropertyDescriptorIdx: func(target *Object, prop int) PropertyDescriptor {
 			if prop >= -1 && prop <= 1 {
@@ -352,8 +352,21 @@ func TestProxy_native_proxy_getOwnPropertyDescriptorIdx(t *testing.T) {
 		},
 	})
 
+	proxy3 := vm.NewProxy(a, &ProxyTrapConfig{
+		GetOwnPropertyDescriptor: func(target *Object, prop string) PropertyDescriptor {
+			return PropertyDescriptor{
+				Value:        vm.ToValue(prop),
+				Configurable: FLAG_TRUE,
+			}
+		},
+		GetOwnPropertyDescriptorIdx: func(target *Object, prop int) PropertyDescriptor {
+			panic(vm.NewTypeError("GetOwnPropertyDescriptorIdx was called for %d", prop))
+		},
+	})
+
 	vm.Set("proxy1", proxy1)
 	vm.Set("proxy2", proxy2)
+	vm.Set("proxy3", proxy3)
 	_, err := vm.RunString(TESTLIBX + `
 	var desc;
 	for (var i = -1; i <= 1; i++) {
@@ -368,6 +381,11 @@ func TestProxy_native_proxy_getOwnPropertyDescriptorIdx(t *testing.T) {
 
 		desc = Object.getOwnPropertyDescriptor(proxy2, ""+i);
 		assert(deepEqual(desc, {value: ""+i, writable: false, enumerable: false, configurable: true}), "2. str "+i);
+	}
+
+	for (const prop of ["00", " 0", "-0", "01"]) {
+		desc = Object.getOwnPropertyDescriptor(proxy3, prop);
+		assert(deepEqual(desc, {value: prop, writable: false, enumerable: false, configurable: true}), "3. "+prop);
 	}
 	`)
 	if err != nil {
@@ -1228,4 +1246,37 @@ func TestProxyExport(t *testing.T) {
 	if _, ok := v1.(Proxy); !ok {
 		t.Fatalf("Export returned unexpected type: %T", v1)
 	}
+}
+
+func TestProxy_proxy_createTargetNotCallable(t *testing.T) {
+	// from https://github.com/tc39/test262/blob/main/test/built-ins/Proxy/create-target-is-not-callable.js
+	const SCRIPT = `
+	var p = new Proxy({}, {});
+
+	assert.throws(TypeError, function() {
+		  p();
+	});
+	`
+
+	testScript1(TESTLIB+SCRIPT, _undefined, t)
+}
+
+func TestProxyEnumerableSymbols(t *testing.T) {
+	const SCRIPT = `
+	var getOwnKeys = [];
+	var ownKeysResult = [Symbol(), "foo", "0"];
+	var proxy = new Proxy({}, {
+	  getOwnPropertyDescriptor: function(_target, key) {
+		getOwnKeys.push(key);
+	  },
+	  ownKeys: function() {
+		return ownKeysResult;
+	  },
+	});
+
+	let {...$} = proxy;
+	compareArray(getOwnKeys, ownKeysResult);
+	`
+
+	testScript1(TESTLIB+SCRIPT, valueTrue, t)
 }

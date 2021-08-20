@@ -485,6 +485,8 @@ func TestParserErr(t *testing.T) {
 			test(`abc.yield = 1`, nil)
 			test(`var yield;`, nil)
 		}
+		test(`0, { get a(param = null) {} };`, "(anonymous): Line 1:11 Getter must not have any formal parameters.")
+		test(`let{f(`, "(anonymous): Line 1:7 Unexpected end of input")
 	})
 }
 
@@ -876,7 +878,23 @@ func TestParser(t *testing.T) {
         `, nil)
 
 		test("'ё\\\u2029'", nil)
+
+		test(`[a, b] = [1, 2]`, nil)
+		test(`({"a b": {}} = {})`, nil)
+
+		test(`ref = (a, b = 39,) => {
+		};`, nil)
+		test(`(a,) => {}`, nil)
 	})
+}
+
+func TestParseDestruct(t *testing.T) {
+	parser := newParser("", `({a: (a.b), ...spread,} = {})`)
+	prg, err := parser.parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = prg
 }
 
 func Test_parseStringLiteral(t *testing.T) {
