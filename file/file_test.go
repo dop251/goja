@@ -63,7 +63,7 @@ func TestGetSourceFilename(t *testing.T) {
 		// TODO find something that won't parse
 	}
 	for _, test := range tests {
-		resultURL := ResolveSourcemapURL(test.source, test.basename)
+		resultURL := ResolveSourcemapURL(test.basename, test.source)
 		result := resultURL.String()
 		if result != test.result {
 			t.Fatalf("source: %q, basename %q produced %q instead of %q", test.source, test.basename, result, test.result)
