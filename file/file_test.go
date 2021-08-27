@@ -1,6 +1,8 @@
 package file
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestPosition(t *testing.T) {
 	const SRC = `line1
@@ -61,7 +63,9 @@ func TestGetSourceFilename(t *testing.T) {
 		// TODO find something that won't parse
 	}
 	for _, test := range tests {
-		if result := getSourceFilename(test.source, test.basename); result != test.result {
+		resultURL := ResolveSourcemapURL(test.source, test.basename)
+		result := resultURL.String()
+		if result != test.result {
 			t.Fatalf("source: %q, basename %q produced %q instead of %q", test.source, test.basename, result, test.result)
 		}
 	}

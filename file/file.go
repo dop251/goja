@@ -161,7 +161,7 @@ func (fl *File) Position(offset int) Position {
 	if fl.sourceMap != nil {
 		if source, _, row, col, ok := fl.sourceMap.Source(row, col); ok {
 			return Position{
-				Filename: getSourceFilename(source, fl.Name()),
+				Filename: ResolveSourcemapURL(fl.Name(), source).String(),
 				Line:     row,
 				Column:   col,
 			}
@@ -175,17 +175,20 @@ func (fl *File) Position(offset int) Position {
 	}
 }
 
-func getSourceFilename(source, basename string) string {
+func ResolveSourcemapURL(basename, source string) *url.URL {
 	// if the url is absolute(has scheme) there is nothing to do
-	if smURL, err := url.Parse(source); err == nil && !smURL.IsAbs() {
+	smURL, err := url.Parse(source)
+	if err == nil && !smURL.IsAbs() {
 		baseURL, err1 := url.Parse(basename)
 		if err1 == nil && path.IsAbs(baseURL.Path) {
-			source = baseURL.ResolveReference(smURL).String()
+			smURL = baseURL.ResolveReference(smURL)
 		} else {
-			source = path.Join(path.Dir(basename), smURL.Path)
+			// pathological case where both are not absolute paths and using Resolve as above will produce an absolute
+			// one
+			smURL, _ = url.Parse(path.Join(path.Dir(basename), smURL.Path))
 		}
 	}
-	return source
+	return smURL
 }
 
 func findNextLineStart(s string) int {
