@@ -3942,6 +3942,41 @@ func TestFuncParamRestStashSimple(t *testing.T) {
 	testScript1(SCRIPT, asciiString("2,3"), t)
 }
 
+func TestRestArgsNotInStash(t *testing.T) {
+	const SCRIPT = `
+	function f(...rest) {
+		() => rest;
+		return rest.length;
+	}
+	f(1,2);
+	`
+	testScript1(SCRIPT, valueInt(2), t)
+}
+
+func TestRestArgsInStash(t *testing.T) {
+	const SCRIPT = `
+	function f(first, ...rest) {
+		() => first;
+		() => rest;
+		return rest.length;
+	}
+	f(1,2);
+	`
+	testScript1(SCRIPT, valueInt(1), t)
+}
+
+func TestRestArgsInStashFwdRef(t *testing.T) {
+	const SCRIPT = `
+	function f(first = eval(), ...rest) {
+		() => first;
+		() => rest;
+		return rest.length === 1 && rest[0] === 2;
+	}
+	f(1,2);
+	`
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func TestFuncParamRestPattern(t *testing.T) {
 	const SCRIPT = `
 	function f(arg1, ...{0: rest1, 1: rest2}) {
