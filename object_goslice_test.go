@@ -229,3 +229,20 @@ func TestGoSliceShift(t *testing.T) {
 		t.Fatal(v)
 	}
 }
+
+func TestGoSliceLengthProperty(t *testing.T) {
+	vm := New()
+	vm.Set("s", []interface{}{2, 3, 4})
+	_, err := vm.RunString(`
+	if (!s.hasOwnProperty("length")) {
+		throw new Error("hasOwnProperty() returned false");
+	}
+	let desc = Object.getOwnPropertyDescriptor(s, "length");
+	if (desc.value !== 3 || !desc.writable || desc.enumerable || desc.configurable) {
+		throw new Error("incorrect property descriptor: " + JSON.stringify(desc));
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
