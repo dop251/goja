@@ -3,9 +3,11 @@ package goja
 import (
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGoReflectGet(t *testing.T) {
@@ -1167,5 +1169,25 @@ func TestGoReflectUnicodeProps(t *testing.T) {
 	`)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestGoReflectPreserveType(t *testing.T) {
+	vm := New()
+	var expect = time.Duration(math.MaxInt64)
+	vm.Set(`make`, func() time.Duration {
+		return expect
+	})
+	vm.Set(`handle`, func(d time.Duration) {
+		if d.String() != expect.String() {
+			t.Fatal(`expect`, expect, `, but get`, d)
+		}
+	})
+	_, e := vm.RunString(`
+	var d=make()
+	handle(d)
+	`)
+	if e != nil {
+		t.Fatal(e)
 	}
 }
