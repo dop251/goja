@@ -176,6 +176,8 @@ type Runtime struct {
 	vm    *vm
 	hash  *maphash.Hash
 	idSeq uint64
+
+	opts *options
 }
 
 type StackFrame struct {
@@ -1135,8 +1137,14 @@ func (r *Runtime) toBoolean(b bool) Value {
 
 // New creates an instance of a Javascript runtime that can be used to run code. Multiple instances may be created and
 // used simultaneously, however it is not possible to pass JS values across runtimes.
-func New() *Runtime {
-	r := &Runtime{}
+func New(opt ...Option) *Runtime {
+	opts := defaultOptions
+	for _, o := range opt {
+		o.apply(&opts)
+	}
+	r := &Runtime{
+		opts: &opts,
+	}
 	r.init()
 	return r
 }
@@ -1689,6 +1697,18 @@ func (r *Runtime) ToValue(i interface{}) Value {
 
 func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value {
 	return func(call FunctionCall) Value {
+		var (
+			callerFactory = r.opts.callerFactory
+			caller        Caller
+		)
+		if callerFactory != nil {
+			caller = callerFactory.Get()
+			defer callerFactory.Put(caller)
+			if err := caller.Before(&call); err != nil {
+				panic(r.NewGoError(err))
+			}
+		}
+
 		typ := value.Type()
 		nargs := typ.NumIn()
 		var in []reflect.Value
@@ -1747,7 +1767,17 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 			}
 			in[i] = v
 		}
-
+		if caller != nil {
+			out, err := caller.Call(callSlice, value, in)
+			if err != nil {
+				panic(r.NewGoError(err))
+			}
+			result, err := caller.After(out)
+			if err != nil {
+				panic(r.NewGoError(err))
+			}
+			return result
+		}
 		var out []reflect.Value
 		if callSlice {
 			out = value.CallSlice(in)
