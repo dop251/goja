@@ -2262,6 +2262,19 @@ func TestAnonFuncName(t *testing.T) {
 	testScript1(SCRIPT, valueTrue, t)
 }
 
+func TestStringToBytesConversion(t *testing.T) {
+	vm := New()
+	v := vm.ToValue("Test")
+	var b []byte
+	err := vm.ExportTo(v, &b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "Test" {
+		t.Fatal(b)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
