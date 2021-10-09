@@ -4159,6 +4159,16 @@ func TestParameterOverride(t *testing.T) {
 	testScript1(SCRIPT, asciiString("default"), t)
 }
 
+func TestEvalInIterScope(t *testing.T) {
+	const SCRIPT = `
+	for (let a = 0; a < 1; a++) {
+		eval("a");
+	}
+	`
+
+	testScript1(SCRIPT, valueInt(0), t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")
