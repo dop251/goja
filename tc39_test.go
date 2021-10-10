@@ -85,10 +85,6 @@ var (
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
 
-		// \u{xxxxx}
-		"test/annexB/built-ins/escape/escape-above-astral.js": true,
-		"test/built-ins/RegExp/prototype/source/value-u.js":   true,
-
 		// SharedArrayBuffer
 		"test/built-ins/ArrayBuffer/prototype/slice/this-is-sharedarraybuffer.js": true,
 
@@ -227,19 +223,6 @@ var (
 		"test/language/expressions/arrow-function/lexical-super-property.js":                                         true,
 		"test/language/expressions/arrow-function/lexical-supercall-from-immediately-invoked-arrow.js":               true,
 
-		// template strings
-		"test/built-ins/String/raw/zero-literal-segments.js":                                                       true,
-		"test/built-ins/String/raw/template-substitutions-are-appended-on-same-index.js":                           true,
-		"test/built-ins/String/raw/special-characters.js":                                                          true,
-		"test/built-ins/String/raw/return-the-string-value-from-template.js":                                       true,
-		"test/built-ins/TypedArray/prototype/fill/fill-values-conversion-operations-consistent-nan.js":             true,
-		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":                   true,
-		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":                     true,
-		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/conversion-operation-consistent-nan.js": true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/conversion-operation-consistent-nan.js":               true,
-		"test/built-ins/RegExp/named-groups/functional-replace-non-global.js":                                      true,
-		"test/built-ins/RegExp/named-groups/functional-replace-global.js":                                          true,
-
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
 		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
@@ -262,6 +245,8 @@ var (
 		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups.js":          true,
 		"test/built-ins/RegExp/prototype/Symbol.replace/result-get-groups-err.js":         true,
 		"test/built-ins/RegExp/prototype/Symbol.replace/result-get-groups-prop-err.js":    true,
+		"test/built-ins/RegExp/named-groups/functional-replace-non-global.js":             true,
+		"test/built-ins/RegExp/named-groups/functional-replace-global.js":                 true,
 
 		// Because goja parser works in UTF-8 it is not possible to pass strings containing invalid UTF-16 code points.
 		// This is mitigated by escaping them as \uXXXX, however because of this the RegExp source becomes
@@ -291,6 +276,8 @@ var (
 		"test/built-ins/Array/prototype/unshift/length-near-integer-limit.js":                     true,
 		"test/built-ins/Array/prototype/unshift/throws-if-integer-limit-exceeded.js":              true,
 		"test/built-ins/String/prototype/split/separator-undef-limit-custom.js":                   true,
+		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":  true,
+		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":    true,
 
 		// generators
 		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js": true,
@@ -311,12 +298,15 @@ var (
 	es6IdWhiteList = []string{
 		"8.1.2.1",
 		"9.5",
+		"11.8.6",
 		"12.1",
 		"12.2.1",
 		"12.2.2",
 		"12.2.5",
 		"12.2.6.1",
 		"12.2.6.8",
+		"12.2.8",
+		"12.2.9",
 		"12.4",
 		"12.5",
 		"12.6",
@@ -411,6 +401,10 @@ var (
 		"sec-integer-indexed-exotic-objects-set-p-v-receiver",
 		"sec-destructuring-binding-patterns",
 		"sec-runtime-semantics-keyeddestructuringassignmentevaluation",
+		"sec-gettemplateobject",
+		"sec-tagged-templates-runtime-semantics-evaluation",
+		"sec-template-literal-lexical-components",
+		"sec-template-literals",
 	}
 )
 

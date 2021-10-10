@@ -153,10 +153,18 @@ func TestTransformRegExp(t *testing.T) {
 	tt(t, func() {
 		pattern, err := TransformRegExp(`\s+abc\s+`)
 		is(err, nil)
-		_, incompat := err.(RegexpErrorIncompatible)
-		is(incompat, false)
 		is(pattern, `[`+WhitespaceChars+`]+abc[`+WhitespaceChars+`]+`)
 		is(regexp.MustCompile(pattern).MatchString("\t abc def"), true)
+	})
+	tt(t, func() {
+		pattern, err := TransformRegExp(`\u{1d306}`)
+		is(err, nil)
+		is(pattern, `\x{1d306}`)
+	})
+	tt(t, func() {
+		pattern, err := TransformRegExp(`\u1234`)
+		is(err, nil)
+		is(pattern, `\x{1234}`)
 	})
 }
 

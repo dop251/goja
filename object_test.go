@@ -381,7 +381,7 @@ func BenchmarkGetStr(b *testing.B) {
 	}
 }
 
-func _toString(v Value) string {
+func __toString(v Value) string {
 	switch v := v.(type) {
 	case asciiString:
 		return string(v)
@@ -402,7 +402,7 @@ func BenchmarkToString2(b *testing.B) {
 	v := asciiString("test")
 
 	for i := 0; i < b.N; i++ {
-		_toString(v)
+		__toString(v)
 	}
 }
 
