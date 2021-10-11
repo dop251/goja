@@ -1080,6 +1080,21 @@ func (self *_parser) scanNumericLiteral(decimalPoint bool) (token.Token, string)
 		} else if self.chr == '.' {
 			// Float
 			goto float
+		} else if self.chr == 'o' || self.chr == 'O' {
+			self.read()
+			self.scanMantissa(8)
+			if self.chr == '8' || self.chr == '9' {
+				return token.ILLEGAL, self.str[offset:self.chrOffset]
+			}
+			goto octal
+		} else if self.chr == 'b' || self.chr == 'B' {
+			self.read()
+			self.scanMantissa(2)
+			if isIdentifierStart(self.chr) || isDecimalDigit(self.chr) {
+				return token.ILLEGAL, self.str[offset:self.chrOffset]
+			}
+
+			return tkn, self.str[offset:self.chrOffset]
 		} else {
 			// Octal, Float
 			if self.chr == 'e' || self.chr == 'E' {

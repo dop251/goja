@@ -298,6 +298,7 @@ var (
 	es6IdWhiteList = []string{
 		"8.1.2.1",
 		"9.5",
+		"11.8.3",
 		"11.8.6",
 		"12.1",
 		"12.2.1",
@@ -798,7 +799,8 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/language/global-code")
 		ctx.runTC39Tests("test/language/identifier-resolution")
 		ctx.runTC39Tests("test/language/identifiers")
-		//ctx.runTC39Tests("test/language/literals") // octal sequences in strict mode
+		// ctx.runTC39Tests("test/language/literals") // octal sequences in strict mode
+		ctx.runTC39Tests("test/language/literals/numeric")
 		ctx.runTC39Tests("test/language/punctuators")
 		ctx.runTC39Tests("test/language/reserved-words")
 		ctx.runTC39Tests("test/language/source-text")
