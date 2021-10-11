@@ -1055,53 +1055,41 @@ func (self *_parser) scanNumericLiteral(decimalPoint bool) (token.Token, string)
 	if decimalPoint {
 		offset--
 		self.scanMantissa(10)
-		goto exponent
-	}
-
-	if self.chr == '0' {
-		offset := self.chrOffset
-		self.read()
-		if self.chr == 'x' || self.chr == 'X' {
-			// Hexadecimal
+	} else {
+		if self.chr == '0' {
 			self.read()
-			if isDigit(self.chr, 16) {
+			base := 0
+			switch self.chr {
+			case 'x', 'X':
+				base = 16
+			case 'o', 'O':
+				base = 8
+			case 'b', 'B':
+				base = 2
+			case '.', 'e', 'E':
+				// no-op
+			default:
+				// legacy octal
+				self.scanMantissa(8)
+				goto end
+			}
+			if base > 0 {
 				self.read()
-			} else {
-				return token.ILLEGAL, self.str[offset:self.chrOffset]
+				if !isDigit(self.chr, base) {
+					return token.ILLEGAL, self.str[offset:self.chrOffset]
+				}
+				self.scanMantissa(base)
+				goto end
 			}
-			self.scanMantissa(16)
-
-			if self.chrOffset-offset <= 2 {
-				// Only "0x" or "0X"
-				self.error(0, "Illegal hexadecimal number")
-			}
-
-			goto hexadecimal
-		} else if self.chr == '.' {
-			// Float
-			goto float
 		} else {
-			// Octal, Float
-			if self.chr == 'e' || self.chr == 'E' {
-				goto exponent
-			}
-			self.scanMantissa(8)
-			if self.chr == '8' || self.chr == '9' {
-				return token.ILLEGAL, self.str[offset:self.chrOffset]
-			}
-			goto octal
+			self.scanMantissa(10)
+		}
+		if self.chr == '.' {
+			self.read()
+			self.scanMantissa(10)
 		}
 	}
 
-	self.scanMantissa(10)
-
-float:
-	if self.chr == '.' {
-		self.read()
-		self.scanMantissa(10)
-	}
-
-exponent:
 	if self.chr == 'e' || self.chr == 'E' {
 		self.read()
 		if self.chr == '-' || self.chr == '+' {
@@ -1114,9 +1102,7 @@ exponent:
 			return token.ILLEGAL, self.str[offset:self.chrOffset]
 		}
 	}
-
-hexadecimal:
-octal:
+end:
 	if isIdentifierStart(self.chr) || isDecimalDigit(self.chr) {
 		return token.ILLEGAL, self.str[offset:self.chrOffset]
 	}

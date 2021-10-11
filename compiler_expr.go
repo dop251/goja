@@ -2,16 +2,10 @@ package goja
 
 import (
 	"fmt"
-	"regexp"
-
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
 	"github.com/dop251/goja/unistring"
-)
-
-var (
-	octalRegexp = regexp.MustCompile(`^0[0-7]`)
 )
 
 type compiledExpr interface {
@@ -2050,7 +2044,7 @@ func (c *compiler) compileIdentifierExpression(v *ast.Identifier) compiledExpr {
 }
 
 func (c *compiler) compileNumberLiteral(v *ast.NumberLiteral) compiledExpr {
-	if c.scope.strict && octalRegexp.MatchString(v.Literal) {
+	if c.scope.strict && len(v.Literal) > 1 && v.Literal[0] == '0' && v.Literal[1] <= '7' && v.Literal[1] >= '0' {
 		c.throwSyntaxError(int(v.Idx)-1, "Octal literals are not allowed in strict mode")
 		panic("Unreachable")
 	}

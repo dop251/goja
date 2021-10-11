@@ -133,6 +133,10 @@ func TestParserErr(t *testing.T) {
 
 		test("01.0", "(anonymous): Line 1:3 Unexpected number")
 
+		test(".0.9", "(anonymous): Line 1:3 Unexpected number")
+
+		test("0o3e1", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
+
 		test("01a", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
 		test("0x3in[]", "(anonymous): Line 1:1 Unexpected token ILLEGAL")

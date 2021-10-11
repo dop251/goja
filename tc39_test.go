@@ -298,6 +298,7 @@ var (
 	es6IdWhiteList = []string{
 		"8.1.2.1",
 		"9.5",
+		"11.8.3",
 		"11.8.6",
 		"12.1",
 		"12.2.1",
@@ -406,6 +407,9 @@ var (
 		"sec-tagged-templates-runtime-semantics-evaluation",
 		"sec-template-literal-lexical-components",
 		"sec-template-literals",
+		"sec-literals-numeric-literals",
+		"sec-literals-string-literals",
+		"sec-additional-syntax-numeric-literals",
 	}
 )
 
@@ -799,7 +803,8 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/language/global-code")
 		ctx.runTC39Tests("test/language/identifier-resolution")
 		ctx.runTC39Tests("test/language/identifiers")
-		//ctx.runTC39Tests("test/language/literals") // octal sequences in strict mode
+		//ctx.runTC39Tests("test/language/literals") // legacy octal escape in strings in strict mode and regexp
+		ctx.runTC39Tests("test/language/literals/numeric")
 		ctx.runTC39Tests("test/language/punctuators")
 		ctx.runTC39Tests("test/language/reserved-words")
 		ctx.runTC39Tests("test/language/source-text")
