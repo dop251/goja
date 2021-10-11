@@ -4148,6 +4148,19 @@ func TestArrowUseStrict(t *testing.T) {
 	}
 }
 
+func TestArrowBoxedThis(t *testing.T) {
+	const SCRIPT = `
+	var context;
+	fn = function() {
+		return (arg) => { var local; context = this; };
+	};
+	
+	fn()();
+	context === this;
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
 func TestParameterOverride(t *testing.T) {
 	const SCRIPT = `
 	function f(arg) {

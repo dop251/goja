@@ -1320,13 +1320,11 @@ func (e *compiledThisExpr) emitGetter(putOnStack bool) {
 	if putOnStack {
 		e.addSrcMap()
 		scope := e.c.scope
-		for ; scope != nil && !scope.function && !scope.eval; scope = scope.outer {
+		for ; scope != nil && (scope.arrow || !scope.function && !scope.eval); scope = scope.outer {
 		}
 
 		if scope != nil {
-			if !scope.arrow {
-				scope.thisNeeded = true
-			}
+			scope.thisNeeded = true
 			e.c.emit(loadStack(0))
 		} else {
 			e.c.emit(loadGlobalObject)
