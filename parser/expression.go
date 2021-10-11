@@ -613,14 +613,17 @@ func (self *_parser) parseLeftHandSideExpression() ast.Expression {
 	} else {
 		left = self.parsePrimaryExpression()
 	}
-
+L:
 	for {
-		if self.token == token.PERIOD {
+		switch self.token {
+		case token.PERIOD:
 			left = self.parseDotMember(left)
-		} else if self.token == token.LEFT_BRACKET {
+		case token.LEFT_BRACKET:
 			left = self.parseBracketMember(left)
-		} else {
-			break
+		case token.BACKTICK:
+			left = self.parseTaggedTemplateLiteral(left)
+		default:
+			break L
 		}
 	}
 
@@ -641,16 +644,19 @@ func (self *_parser) parseLeftHandSideExpressionAllowCall() ast.Expression {
 	} else {
 		left = self.parsePrimaryExpression()
 	}
-
+L:
 	for {
-		if self.token == token.PERIOD {
+		switch self.token {
+		case token.PERIOD:
 			left = self.parseDotMember(left)
-		} else if self.token == token.LEFT_BRACKET {
+		case token.LEFT_BRACKET:
 			left = self.parseBracketMember(left)
-		} else if self.token == token.LEFT_PARENTHESIS {
+		case token.LEFT_PARENTHESIS:
 			left = self.parseCallExpression(left)
-		} else {
-			break
+		case token.BACKTICK:
+			left = self.parseTaggedTemplateLiteral(left)
+		default:
+			break L
 		}
 	}
 
@@ -682,8 +688,6 @@ func (self *_parser) parsePostfixExpression() ast.Expression {
 			Operand:  operand,
 			Postfix:  true,
 		}
-	case token.BACKTICK:
-		return self.parseTaggedTemplateLiteral(operand)
 	}
 
 	return operand
