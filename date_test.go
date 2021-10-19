@@ -421,3 +421,14 @@ func TestDateToJSON(t *testing.T) {
 	`
 	testScript1(SCRIPT, intToValue(1), t)
 }
+
+func TestDateExportType(t *testing.T) {
+	vm := New()
+	v, err := vm.RunString(`new Date()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if typ := v.ExportType(); typ != typeTime {
+		t.Fatal(typ)
+	}
+}
