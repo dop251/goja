@@ -77,13 +77,24 @@ var (
 		// 167e596a649ede35df11d03cb3c093941c9cf396
 		"test/built-ins/TypedArrayConstructors/internals/Set/detached-buffer.js": true,
 
-		// 59a1a016b7cf5cf43f66b274c7d1db4ec6066935
-		"test/language/expressions/function/name.js":                 true,
-		"test/built-ins/Proxy/revocable/revocation-function-name.js": true,
+		// Anonymous function name property (now always present)
+		"test/language/expressions/function/name.js":                         true,
+		"test/built-ins/Proxy/revocable/revocation-function-name.js":         true,
+		"test/built-ins/Promise/all/resolve-element-function-name.js":        true,
+		"test/built-ins/Promise/allSettled/resolve-element-function-name.js": true,
+		"test/built-ins/Promise/allSettled/reject-element-function-name.js":  true,
+		"test/built-ins/Promise/resolve-function-name.js":                    true,
+		"test/built-ins/Promise/reject-function-name.js":                     true,
 
-		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
-		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
-		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
+		// obsolete tests (to remove)
+		"test/built-ins/Promise/race/invoke-resolve-get-error-close.js":       true,
+		"test/built-ins/Promise/allSettled/invoke-resolve-get-error-close.js": true,
+		"test/built-ins/Promise/all/invoke-resolve-get-error-close.js":        true,
+
+		// timezone
+		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true,
+		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true,
+		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true,
 
 		// SharedArrayBuffer
 		"test/built-ins/ArrayBuffer/prototype/slice/this-is-sharedarraybuffer.js": true,
@@ -222,6 +233,14 @@ var (
 		"test/language/expressions/arrow-function/lexical-super-property-from-within-constructor.js":                 true,
 		"test/language/expressions/arrow-function/lexical-super-property.js":                                         true,
 		"test/language/expressions/arrow-function/lexical-supercall-from-immediately-invoked-arrow.js":               true,
+		"test/language/statements/class/subclass/builtin-objects/Promise/super-must-be-called.js":                    true,
+		"test/language/statements/class/subclass/builtin-objects/Promise/regular-subclassing.js":                     true,
+		"test/built-ins/Promise/prototype/finally/subclass-species-constructor-resolve-count.js":                     true,
+		"test/built-ins/Promise/prototype/finally/subclass-species-constructor-reject-count.js":                      true,
+		"test/built-ins/Promise/prototype/finally/subclass-resolve-count.js":                                         true,
+		"test/built-ins/Promise/prototype/finally/species-symbol.js":                                                 true,
+		"test/built-ins/Promise/prototype/finally/subclass-reject-count.js":                                          true,
+		"test/built-ins/Promise/prototype/finally/species-constructor.js":                                            true,
 
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
@@ -343,6 +362,7 @@ var (
 		"23",
 		"24",
 		"25.1",
+		"25.4",
 		"26",
 		"B.2.1",
 		"B.2.2",
@@ -410,6 +430,14 @@ var (
 		"sec-literals-numeric-literals",
 		"sec-literals-string-literals",
 		"sec-additional-syntax-numeric-literals",
+		"sec-promise",
+		"sec-promise-constructor",
+		"sec-promise-executor",
+		"sec-promise-reject-functions",
+		"sec-promise-resolve-functions",
+		"sec-performpromiseall",
+		"sec-performpromiseallsettled",
+		"sec-properties-of-the-promise-prototype-object",
 	}
 )
 
@@ -522,8 +550,21 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	_262.Set("createRealm", ctx.throwIgnorableTestError)
 	vm.Set("$262", _262)
 	vm.Set("IgnorableTestError", ignorableTestError)
-	vm.Set("print", t.Log)
 	vm.RunProgram(sabStub)
+	var out []string
+	async := meta.hasFlag("async")
+	if async {
+		err := ctx.runFile(ctx.base, path.Join("harness", "doneprintHandle.js"), vm)
+		if err != nil {
+			t.Fatal(err)
+		}
+		vm.Set("print", func(msg string) {
+			out = append(out, msg)
+		})
+	} else {
+		vm.Set("print", t.Log)
+	}
+
 	err, early := ctx.runTC39Script(name, src, meta.Includes, vm)
 
 	if err != nil {
@@ -582,6 +623,22 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	if l := len(vm.vm.iterStack); l > 0 {
 		t.Fatalf("iter stack is not empty: %d", l)
 	}
+	if async {
+		complete := false
+		for _, line := range out {
+			if strings.HasPrefix(line, "Test262:AsyncTestFailure:") {
+				t.Fatal(line)
+			} else if line == "Test262:AsyncTestComplete" {
+				complete = true
+			}
+		}
+		if !complete {
+			for _, line := range out {
+				t.Log(line)
+			}
+			t.Fatal("Test262:AsyncTestComplete was not printed")
+		}
+	}
 }
 
 func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
@@ -594,9 +651,6 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		//t.Fatalf("Could not parse %s: %v", name, err)
 		t.Errorf("Could not parse %s: %v", name, err)
 		return
-	}
-	if meta.hasFlag("async") {
-		t.Skip("async")
 	}
 	if meta.Es5id == "" {
 		skip := true
