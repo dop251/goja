@@ -50,7 +50,8 @@ func TestGetSourceFilename(t *testing.T) {
 	tests := []struct {
 		source, basename, result string
 	}{
-		{"test.js", "base.js", "test.js"}, // TODO FIX
+		{"test.js", "base.js", "test.js"},
+		{"test.js", "../base.js", "../test.js"},
 		{"test.js", "/somewhere/base.js", "/somewhere/test.js"},
 		{"/test.js", "/somewhere/base.js", "/test.js"},
 		{"/test.js", "file:///somewhere/base.js", "file:///test.js"},
