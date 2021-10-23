@@ -190,12 +190,9 @@ func (s *stringObject) getStr(name unistring.String, receiver Value) Value {
 }
 
 func (s *stringObject) getIdx(idx valueInt, receiver Value) Value {
-	i := int64(idx)
-	if i >= 0 {
-		if i < int64(s.length) {
-			return s._getIdx(int(i))
-		}
-		return nil
+	i := int(idx)
+	if i >= 0 && i < s.length {
+		return s._getIdx(i)
 	}
 	return s.baseObject.getStr(idx.string(), receiver)
 }
