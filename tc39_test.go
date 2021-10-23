@@ -297,9 +297,14 @@ var (
 		"test/built-ins/String/prototype/split/separator-undef-limit-custom.js":                   true,
 		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":  true,
 		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":    true,
+		"test/built-ins/String/prototype/split/separator-undef-limit-zero.js":                     true,
 
 		// generators
 		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js": true,
+		"test/language/statements/switch/scope-lex-generator.js":               true,
+
+		// async
+		"test/language/eval-code/direct/async-func-decl-a-preceding-parameter-is-named-arguments-declare-arguments-and-assign.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -310,6 +315,10 @@ var (
 		"String.prototype.replaceAll",
 		"String.prototype.at",
 		"super",
+		"resizable-arraybuffer",
+		"array-find-from-last",
+		"Array.prototype.at",
+		"TypedArray.prototype.at",
 	}
 
 	es6WhiteList = map[string]bool{}

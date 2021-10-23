@@ -505,25 +505,24 @@ func (a *typedArrayObject) getIdx(idx valueInt, receiver Value) Value {
 	return a._getIdx(toIntClamp(int64(idx)))
 }
 
-func (a *typedArrayObject) isValidIntegerIndex(idx int, throw bool) bool {
-	if a.viewedArrayBuf.ensureNotDetached(throw) {
+func (a *typedArrayObject) isValidIntegerIndex(idx int) bool {
+	if a.viewedArrayBuf.ensureNotDetached(false) {
 		if idx >= 0 && idx < a.length {
 			return true
 		}
-		a.val.runtime.typeErrorResult(throw, "Invalid typed array index")
 	}
 	return false
 }
 
 func (a *typedArrayObject) _putIdx(idx int, v Value) {
 	v = v.ToNumber()
-	if a.isValidIntegerIndex(idx, false) {
+	if a.isValidIntegerIndex(idx) {
 		a.typedArray.set(idx+a.offset, v)
 	}
 }
 
 func (a *typedArrayObject) _hasIdx(idx int) bool {
-	return a.isValidIntegerIndex(idx, false)
+	return a.isValidIntegerIndex(idx)
 }
 
 func (a *typedArrayObject) setOwnStr(p unistring.String, v Value, throw bool) bool {
@@ -534,7 +533,7 @@ func (a *typedArrayObject) setOwnStr(p unistring.String, v Value, throw bool) bo
 	}
 	if idx == 0 {
 		v.ToNumber() // make sure it throws
-		return false
+		return true
 	}
 	return a.baseObject.setOwnStr(p, v, throw)
 }
@@ -574,7 +573,8 @@ func (a *typedArrayObject) _defineIdxProperty(idx int, desc PropertyDescriptor, 
 	}
 	_, ok := a._defineOwnProperty(unistring.String(strconv.Itoa(idx)), a.getOwnPropIdx(valueInt(idx)), desc, throw)
 	if ok {
-		if !a.isValidIntegerIndex(idx, throw) {
+		if !a.isValidIntegerIndex(idx) {
+			a.val.runtime.typeErrorResult(throw, "Invalid typed array index")
 			return false
 		}
 		a._putIdx(idx, desc.Value)
@@ -603,7 +603,7 @@ func (a *typedArrayObject) defineOwnPropertyIdx(name valueInt, desc PropertyDesc
 func (a *typedArrayObject) deleteStr(name unistring.String, throw bool) bool {
 	idx, ok := strToIntNum(name)
 	if ok {
-		if !a.isValidIntegerIndex(idx, false) {
+		if !a.isValidIntegerIndex(idx) {
 			a.val.runtime.typeErrorResult(throw, "Cannot delete property '%d' of %s", idx, a.val.String())
 			return false
 		}

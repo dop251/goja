@@ -433,8 +433,11 @@ func (r *Runtime) typedArrayProto_every(call FunctionCall) Value {
 			Arguments: []Value{nil, nil, call.This},
 		}
 		for k := 0; k < ta.length; k++ {
-			ta.viewedArrayBuf.ensureNotDetached(true)
-			fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
+			if ta.isValidIntegerIndex(k) {
+				fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
+			} else {
+				fc.Arguments[0] = _undefined
+			}
 			fc.Arguments[1] = intToValue(int64(k))
 			if !callbackFn(fc).ToBoolean() {
 				return valueFalse
@@ -479,13 +482,21 @@ func (r *Runtime) typedArrayProto_filter(call FunctionCall) Value {
 		}
 		buf := make([]byte, 0, ta.length*ta.elemSize)
 		captured := 0
+		rawVal := make([]byte, ta.elemSize)
 		for k := 0; k < ta.length; k++ {
-			ta.viewedArrayBuf.ensureNotDetached(true)
-			fc.Arguments[0] = ta.typedArray.get(k)
+			if ta.isValidIntegerIndex(k) {
+				fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
+				i := (ta.offset + k) * ta.elemSize
+				copy(rawVal, ta.viewedArrayBuf.data[i:])
+			} else {
+				fc.Arguments[0] = _undefined
+				for i := range rawVal {
+					rawVal[i] = 0
+				}
+			}
 			fc.Arguments[1] = intToValue(int64(k))
 			if callbackFn(fc).ToBoolean() {
-				i := (ta.offset + k) * ta.elemSize
-				buf = append(buf, ta.viewedArrayBuf.data[i:i+ta.elemSize]...)
+				buf = append(buf, rawVal...)
 				captured++
 			}
 		}
@@ -499,7 +510,7 @@ func (r *Runtime) typedArrayProto_filter(call FunctionCall) Value {
 			ret := r.typedArrayCreate(c, []Value{intToValue(int64(captured))})
 			keptTa := kept.self.(*typedArrayObject)
 			for i := 0; i < captured; i++ {
-				ret.typedArray.set(i, keptTa.typedArray.get(i))
+				ret.typedArray.set(i, keptTa.typedArray.get(keptTa.offset+i))
 			}
 			return ret.val
 		}
@@ -516,8 +527,10 @@ func (r *Runtime) typedArrayProto_find(call FunctionCall) Value {
 			Arguments: []Value{nil, nil, call.This},
 		}
 		for k := 0; k < ta.length; k++ {
-			ta.viewedArrayBuf.ensureNotDetached(true)
-			val := ta.typedArray.get(ta.offset + k)
+			var val Value
+			if ta.isValidIntegerIndex(k) {
+				val = ta.typedArray.get(ta.offset + k)
+			}
 			fc.Arguments[0] = val
 			fc.Arguments[1] = intToValue(int64(k))
 			if predicate(fc).ToBoolean() {
@@ -538,8 +551,11 @@ func (r *Runtime) typedArrayProto_findIndex(call FunctionCall) Value {
 			Arguments: []Value{nil, nil, call.This},
 		}
 		for k := 0; k < ta.length; k++ {
-			ta.viewedArrayBuf.ensureNotDetached(true)
-			fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
+			if ta.isValidIntegerIndex(k) {
+				fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
+			} else {
+				fc.Arguments[0] = _undefined
+			}
 			fc.Arguments[1] = intToValue(int64(k))
 			if predicate(fc).ToBoolean() {
 				return fc.Arguments[1]
@@ -559,12 +575,13 @@ func (r *Runtime) typedArrayProto_forEach(call FunctionCall) Value {
 			Arguments: []Value{nil, nil, call.This},
 		}
 		for k := 0; k < ta.length; k++ {
-			ta.viewedArrayBuf.ensureNotDetached(true)
-			if val := ta.typedArray.get(k); val != nil {
-				fc.Arguments[0] = val
-				fc.Arguments[1] = intToValue(int64(k))
-				callbackFn(fc)
+			var val Value
+			if ta.isValidIntegerIndex(k) {
+				val = ta.typedArray.get(ta.offset + k)
 			}
+			fc.Arguments[0] = val
+			fc.Arguments[1] = intToValue(int64(k))
+			callbackFn(fc)
 		}
 		return _undefined
 	}
@@ -588,14 +605,20 @@ func (r *Runtime) typedArrayProto_includes(call FunctionCall) Value {
 			n = max(length+n, 0)
 		}
 
-		ta.viewedArrayBuf.ensureNotDetached(true)
 		searchElement := call.Argument(0)
 		if searchElement == _negativeZero {
 			searchElement = _positiveZero
 		}
+		startIdx := toIntStrict(n)
+		if !ta.viewedArrayBuf.ensureNotDetached(false) {
+			if searchElement == _undefined && startIdx < ta.length {
+				return valueTrue
+			}
+			return valueFalse
+		}
 		if ta.typedArray.typeMatch(searchElement) {
 			se := ta.typedArray.toRaw(searchElement)
-			for k := toIntStrict(n); k < ta.length; k++ {
+			for k := startIdx; k < ta.length; k++ {
 				if ta.typedArray.getRaw(ta.offset+k) == se {
 					return valueTrue
 				}
@@ -623,16 +646,17 @@ func (r *Runtime) typedArrayProto_indexOf(call FunctionCall) Value {
 			n = max(length+n, 0)
 		}
 
-		ta.viewedArrayBuf.ensureNotDetached(true)
-		searchElement := call.Argument(0)
-		if searchElement == _negativeZero {
-			searchElement = _positiveZero
-		}
-		if !IsNaN(searchElement) && ta.typedArray.typeMatch(searchElement) {
-			se := ta.typedArray.toRaw(searchElement)
-			for k := toIntStrict(n); k < ta.length; k++ {
-				if ta.typedArray.getRaw(ta.offset+k) == se {
-					return intToValue(int64(k))
+		if ta.viewedArrayBuf.ensureNotDetached(false) {
+			searchElement := call.Argument(0)
+			if searchElement == _negativeZero {
+				searchElement = _positiveZero
+			}
+			if !IsNaN(searchElement) && ta.typedArray.typeMatch(searchElement) {
+				se := ta.typedArray.toRaw(searchElement)
+				for k := toIntStrict(n); k < ta.length; k++ {
+					if ta.typedArray.getRaw(ta.offset+k) == se {
+						return intToValue(int64(k))
+					}
 				}
 			}
 		}
@@ -658,18 +682,21 @@ func (r *Runtime) typedArrayProto_join(call FunctionCall) Value {
 
 		var buf valueStringBuilder
 
-		ta.viewedArrayBuf.ensureNotDetached(true)
-		element0 := ta.typedArray.get(0)
+		var element0 Value
+		if ta.isValidIntegerIndex(0) {
+			element0 = ta.typedArray.get(ta.offset + 0)
+		}
 		if element0 != nil && element0 != _undefined && element0 != _null {
 			buf.WriteString(element0.toString())
 		}
 
 		for i := 1; i < l; i++ {
-			ta.viewedArrayBuf.ensureNotDetached(true)
 			buf.WriteString(sep)
-			element := ta.typedArray.get(i)
-			if element != nil && element != _undefined && element != _null {
-				buf.WriteString(element.toString())
+			if ta.isValidIntegerIndex(i) {
+				element := ta.typedArray.get(ta.offset + i)
+				if element != nil && element != _undefined && element != _null {
+					buf.WriteString(element.toString())
+				}
 			}
 		}
 
@@ -710,16 +737,17 @@ func (r *Runtime) typedArrayProto_lastIndexOf(call FunctionCall) Value {
 			}
 		}
 
-		ta.viewedArrayBuf.ensureNotDetached(true)
-		searchElement := call.Argument(0)
-		if searchElement == _negativeZero {
-			searchElement = _positiveZero
-		}
-		if !IsNaN(searchElement) && ta.typedArray.typeMatch(searchElement) {
-			se := ta.typedArray.toRaw(searchElement)
-			for k := toIntStrict(fromIndex); k >= 0; k-- {
-				if ta.typedArray.getRaw(ta.offset+k) == se {
-					return intToValue(int64(k))
+		if ta.viewedArrayBuf.ensureNotDetached(false) {
+			searchElement := call.Argument(0)
+			if searchElement == _negativeZero {
+				searchElement = _positiveZero
+			}
+			if !IsNaN(searchElement) && ta.typedArray.typeMatch(searchElement) {
+				se := ta.typedArray.toRaw(searchElement)
+				for k := toIntStrict(fromIndex); k >= 0; k-- {
+					if ta.typedArray.getRaw(ta.offset+k) == se {
+						return intToValue(int64(k))
+					}
 				}
 			}
 		}
@@ -739,8 +767,11 @@ func (r *Runtime) typedArrayProto_map(call FunctionCall) Value {
 		}
 		dst := r.typedArraySpeciesCreate(ta, []Value{intToValue(int64(ta.length))})
 		for i := 0; i < ta.length; i++ {
-			ta.viewedArrayBuf.ensureNotDetached(true)
-			fc.Arguments[0] = ta.typedArray.get(ta.offset + i)
+			if ta.isValidIntegerIndex(i) {
+				fc.Arguments[0] = ta.typedArray.get(ta.offset + i)
+			} else {
+				fc.Arguments[0] = _undefined
+			}
 			fc.Arguments[1] = intToValue(int64(i))
 			dst.typedArray.set(i, callbackFn(fc))
 		}
@@ -770,9 +801,12 @@ func (r *Runtime) typedArrayProto_reduce(call FunctionCall) Value {
 			panic(r.NewTypeError("Reduce of empty array with no initial value"))
 		}
 		for ; k < ta.length; k++ {
-			ta.viewedArrayBuf.ensureNotDetached(true)
+			if ta.isValidIntegerIndex(k) {
+				fc.Arguments[1] = ta.typedArray.get(ta.offset + k)
+			} else {
+				fc.Arguments[1] = _undefined
+			}
 			idx := valueInt(k)
-			fc.Arguments[1] = ta.typedArray.get(ta.offset + k)
 			fc.Arguments[2] = idx
 			fc.Arguments[0] = callbackFn(fc)
 		}
@@ -802,9 +836,12 @@ func (r *Runtime) typedArrayProto_reduceRight(call FunctionCall) Value {
 			panic(r.NewTypeError("Reduce of empty array with no initial value"))
 		}
 		for ; k >= 0; k-- {
-			ta.viewedArrayBuf.ensureNotDetached(true)
+			if ta.isValidIntegerIndex(k) {
+				fc.Arguments[1] = ta.typedArray.get(ta.offset + k)
+			} else {
+				fc.Arguments[1] = _undefined
+			}
 			idx := valueInt(k)
-			fc.Arguments[1] = ta.typedArray.get(ta.offset + k)
 			fc.Arguments[2] = idx
 			fc.Arguments[0] = callbackFn(fc)
 		}
@@ -895,7 +932,9 @@ func (r *Runtime) typedArrayProto_set(call FunctionCall) Value {
 			for i := 0; i < srcLen; i++ {
 				val := nilSafe(srcObj.self.getIdx(valueInt(i), nil))
 				ta.viewedArrayBuf.ensureNotDetached(true)
-				ta.typedArray.set(targetOffset+i, val)
+				if ta.isValidIntegerIndex(i) {
+					ta.typedArray.set(targetOffset+i, val)
+				}
 			}
 		}
 		return _undefined
@@ -948,8 +987,11 @@ func (r *Runtime) typedArrayProto_some(call FunctionCall) Value {
 			Arguments: []Value{nil, nil, call.This},
 		}
 		for k := 0; k < ta.length; k++ {
-			ta.viewedArrayBuf.ensureNotDetached(true)
-			fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
+			if ta.isValidIntegerIndex(k) {
+				fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
+			} else {
+				fc.Arguments[0] = _undefined
+			}
 			fc.Arguments[1] = intToValue(int64(k))
 			if callbackFn(fc).ToBoolean() {
 				return valueTrue
@@ -1009,7 +1051,7 @@ func (r *Runtime) typedArrayProto_toLocaleString(call FunctionCall) Value {
 			if i > 0 {
 				buf.WriteRune(',')
 			}
-			item := ta.typedArray.get(i)
+			item := ta.typedArray.get(ta.offset + i)
 			r.writeItemLocaleString(item, &buf)
 		}
 		return buf.String()
