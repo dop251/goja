@@ -2,6 +2,7 @@ package goja
 
 import (
 	"math"
+	"math/big"
 	"reflect"
 	"strconv"
 	"unsafe"
@@ -63,6 +64,8 @@ type uint32Array []uint32
 type int32Array []int32
 type float32Array []float32
 type float64Array []float64
+type bigInt64Array []int64
+type bigUint64Array []uint64
 
 type typedArrayObject struct {
 	baseObject
@@ -125,6 +128,9 @@ func (a *uint8Array) getRaw(idx int) uint64 {
 }
 
 func (a *uint8Array) set(idx int, value Value) {
+	if _, ok := value.(valueBigInt); ok {
+		panic(typeError("Cannot set bigint value"))
+	}
 	(*a)[idx] = toUint8(value)
 }
 
@@ -160,6 +166,9 @@ func (a *uint8ClampedArray) getRaw(idx int) uint64 {
 }
 
 func (a *uint8ClampedArray) set(idx int, value Value) {
+	if _, ok := value.(valueBigInt); ok {
+		panic(typeError("Cannot set bigint value"))
+	}
 	(*a)[idx] = toUint8Clamp(value)
 }
 
@@ -195,6 +204,9 @@ func (a *int8Array) getRaw(idx int) uint64 {
 }
 
 func (a *int8Array) set(idx int, value Value) {
+	if _, ok := value.(valueBigInt); ok {
+		panic(typeError("Cannot set bigint value"))
+	}
 	(*a)[idx] = toInt8(value)
 }
 
@@ -230,6 +242,9 @@ func (a *uint16Array) getRaw(idx int) uint64 {
 }
 
 func (a *uint16Array) set(idx int, value Value) {
+	if _, ok := value.(valueBigInt); ok {
+		panic(typeError("Cannot set bigint value"))
+	}
 	(*a)[idx] = toUint16(value)
 }
 
@@ -265,6 +280,9 @@ func (a *int16Array) getRaw(idx int) uint64 {
 }
 
 func (a *int16Array) set(idx int, value Value) {
+	if _, ok := value.(valueBigInt); ok {
+		panic(typeError("Cannot set bigint value"))
+	}
 	(*a)[idx] = toInt16(value)
 }
 
@@ -300,6 +318,9 @@ func (a *uint32Array) getRaw(idx int) uint64 {
 }
 
 func (a *uint32Array) set(idx int, value Value) {
+	if _, ok := value.(valueBigInt); ok {
+		panic(typeError("Cannot set bigint value"))
+	}
 	(*a)[idx] = toUint32(value)
 }
 
@@ -335,6 +356,9 @@ func (a *int32Array) getRaw(idx int) uint64 {
 }
 
 func (a *int32Array) set(idx int, value Value) {
+	if _, ok := value.(valueBigInt); ok {
+		panic(typeError("Cannot set bigint value"))
+	}
 	(*a)[idx] = toInt32(value)
 }
 
@@ -370,6 +394,9 @@ func (a *float32Array) getRaw(idx int) uint64 {
 }
 
 func (a *float32Array) set(idx int, value Value) {
+	if _, ok := value.(valueBigInt); ok {
+		panic(typeError("Cannot set bigint value"))
+	}
 	(*a)[idx] = toFloat32(value)
 }
 
@@ -420,6 +447,9 @@ func (a *float64Array) getRaw(idx int) uint64 {
 }
 
 func (a *float64Array) set(idx int, value Value) {
+	if _, ok := value.(valueBigInt); ok {
+		panic(typeError("Cannot set bigint value"))
+	}
 	(*a)[idx] = value.ToFloat()
 }
 
@@ -443,6 +473,108 @@ func (a *float64Array) typeMatch(v Value) bool {
 	switch v.(type) {
 	case valueInt, valueFloat:
 		return true
+	}
+	return false
+}
+
+func (a *bigInt64Array) get(idx int) Value {
+	x := (*a)[idx]
+	return valueBigInt{big.NewInt(x)}
+}
+
+func (a *bigInt64Array) getRaw(idx int) uint64 {
+	return uint64((*a)[idx])
+}
+
+func (a *bigInt64Array) set(idx int, value Value) {
+	switch value.(type) {
+	case valueNull, valueUndefined:
+		panic(typeError("Cannot set an empty value to a bigint64"))
+	case valueInt, valueFloat:
+		panic(typeError("bigint argument required"))
+	}
+	(*a)[idx] = toInt64(value)
+}
+
+func (a *bigInt64Array) toRaw(v Value) uint64 {
+	switch v.(type) {
+	case valueNull, valueUndefined:
+		panic(typeError("Cannot convert an empty value to a bigint64"))
+	case valueString:
+		i, err := strconv.ParseInt(v.String(), 0, 64)
+		if err != nil {
+			panic(typeError("Cannot convert string to bigint"))
+		}
+		return uint64(i)
+	}
+	return uint64(toInt64(v))
+}
+
+func (a *bigInt64Array) setRaw(idx int, v uint64) {
+	(*a)[idx] = int64(v)
+}
+
+func (a *bigInt64Array) less(i, j int) bool {
+	return (*a)[i] < (*a)[j]
+}
+
+func (a *bigInt64Array) swap(i, j int) {
+	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
+}
+
+func (a *bigInt64Array) typeMatch(v Value) bool {
+	if _, ok := v.(valueBigInt); ok {
+		return true
+	}
+	return false
+}
+
+func (a *bigUint64Array) get(idx int) Value {
+	x := (*a)[idx]
+	b := &big.Int{}
+	b.SetUint64(x)
+	return valueBigInt{b}
+}
+
+func (a *bigUint64Array) getRaw(idx int) uint64 {
+	return uint64((*a)[idx])
+}
+
+func (a *bigUint64Array) set(idx int, value Value) {
+	switch value.(type) {
+	case valueNull, valueUndefined:
+		panic(typeError("Cannot set an empty value to a biguint64"))
+	case valueInt, valueFloat:
+		panic(typeError("bigint argument required"))
+	}
+	(*a)[idx] = toUint64(value)
+}
+
+func (a *bigUint64Array) toRaw(v Value) uint64 {
+	switch v.(type) {
+	case valueNull, valueUndefined:
+		panic(typeError("Cannot convert an empty value to a biguint64"))
+	case valueInt, valueFloat:
+		panic(typeError("bigint argument required"))
+	}
+	return uint64(toUint64(v))
+}
+
+func (a *bigUint64Array) setRaw(idx int, v uint64) {
+	(*a)[idx] = uint64(v)
+}
+
+func (a *bigUint64Array) less(i, j int) bool {
+	return (*a)[i] < (*a)[j]
+}
+
+func (a *bigUint64Array) swap(i, j int) {
+	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
+}
+
+func (a *bigUint64Array) typeMatch(v Value) bool {
+	if i, ok := v.(valueBigInt); ok {
+		return i.Sign() >= 0 && true
 	}
 	return false
 }
@@ -712,6 +844,14 @@ func (r *Runtime) newFloat32ArrayObject(buf *arrayBufferObject, offset, length i
 
 func (r *Runtime) newFloat64ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
 	return r._newTypedArrayObject(buf, offset, length, 8, r.global.Float64Array, (*float64Array)(unsafe.Pointer(&buf.data)), proto)
+}
+
+func (r *Runtime) newBigInt64ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
+	return r._newTypedArrayObject(buf, offset, length, 8, r.global.BigInt64Array, (*bigInt64Array)(unsafe.Pointer(&buf.data)), proto)
+}
+
+func (r *Runtime) newBigUint64ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
+	return r._newTypedArrayObject(buf, offset, length, 8, r.global.BigUint64Array, (*bigUint64Array)(unsafe.Pointer(&buf.data)), proto)
 }
 
 func (o *dataViewObject) getIdxAndByteOrder(idxVal, littleEndianVal Value, size int) (int, byteOrder) {

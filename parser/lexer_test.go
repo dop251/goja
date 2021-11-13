@@ -106,6 +106,24 @@ func TestLexer(t *testing.T) {
 			token.EOF, "", 12,
 		)
 
+		test("abc = 1n / 2n",
+			token.IDENTIFIER, "abc", 1,
+			token.ASSIGN, "", 5,
+			token.NUMBER, "1n", 7,
+			token.SLASH, "", 10,
+			token.NUMBER, "2n", 12,
+			token.EOF, "", 14,
+		)
+
+		test("abc = 0x1n / 0x2n",
+			token.IDENTIFIER, "abc", 1,
+			token.ASSIGN, "", 5,
+			token.NUMBER, "0x1n", 7,
+			token.SLASH, "", 12,
+			token.NUMBER, "0x2n", 14,
+			token.EOF, "", 18,
+		)
+
 		test("xyzzy = 'Nothing happens.'",
 			token.IDENTIFIER, "xyzzy", 1,
 			token.ASSIGN, "", 7,

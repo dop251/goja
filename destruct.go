@@ -158,6 +158,10 @@ func (d *destructKeyedSource) toPrimitiveNumber() Value {
 	return d.w().toPrimitiveNumber()
 }
 
+func (d *destructKeyedSource) toPrimitiveBigInt() Value {
+	return d.w().toPrimitiveBigInt()
+}
+
 func (d *destructKeyedSource) toPrimitiveString() Value {
 	return d.w().toPrimitiveString()
 }

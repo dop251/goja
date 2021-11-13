@@ -68,6 +68,18 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 		}
 	case token.NUMBER:
 		self.next()
+		if literal[len(literal)-1] == 'n' {
+			if value, err := parseBigIntLiteral(literal); err != nil {
+				self.error(idx, err.Error())
+				value = 0
+			} else {
+				return &ast.BigIntLiteral{
+					Idx:     idx,
+					Literal: literal,
+					Value:   value,
+				}
+			}
+		}
 		value, err := parseNumberLiteral(literal)
 		if err != nil {
 			self.error(idx, err.Error())
@@ -292,14 +304,27 @@ func (self *_parser) parseObjectPropertyKey() (unistring.String, ast.Expression,
 			Value:   unistring.String(literal),
 		}
 	case token.NUMBER:
-		num, err := parseNumberLiteral(literal)
-		if err != nil {
-			self.error(idx, err.Error())
+		if literal[len(literal)-1] == 'n' {
+			num, err := parseBigIntLiteral(literal)
+			if err != nil {
+				self.error(idx, err.Error())
+			} else {
+				value = &ast.BigIntLiteral{
+					Idx:     idx,
+					Literal: literal,
+					Value:   num,
+				}
+			}
 		} else {
-			value = &ast.NumberLiteral{
-				Idx:     idx,
-				Literal: literal,
-				Value:   num,
+			num, err := parseNumberLiteral(literal)
+			if err != nil {
+				self.error(idx, err.Error())
+			} else {
+				value = &ast.NumberLiteral{
+					Idx:     idx,
+					Literal: literal,
+					Value:   num,
+				}
 			}
 		}
 	case token.STRING:

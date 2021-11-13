@@ -402,6 +402,10 @@ func (o *baseDynamicObject) toPrimitiveNumber() Value {
 	return o.val.genericToPrimitiveNumber()
 }
 
+func (o *baseDynamicObject) toPrimitiveBigInt() Value {
+	return o.val.genericToPrimitiveBigInt()
+}
+
 func (o *baseDynamicObject) toPrimitiveString() Value {
 	return o.val.genericToPrimitiveString()
 }

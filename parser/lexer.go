@@ -3,6 +3,7 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
@@ -862,6 +863,23 @@ error:
 	return nil, errors.New("Illegal numeric literal")
 }
 
+func parseBigIntLiteral(literal string) (value interface{}, err error) {
+	if literal[len(literal)-1] != 'n' {
+		return nil, fmt.Errorf("expected suffix n")
+	}
+	literal = literal[:len(literal)-1]
+
+	b := &big.Int{}
+	b, ok := b.SetString(literal, 0)
+	if ok {
+		value = b
+		return
+	} else {
+		err = errors.New("Illegal bigint literal")
+	}
+	return
+}
+
 func parseStringLiteral(literal string, length int, unicode, strict bool) (unistring.String, error) {
 	var sb strings.Builder
 	var chars []uint16
@@ -1066,7 +1084,7 @@ func (self *_parser) scanNumericLiteral(decimalPoint bool) (token.Token, string)
 				base = 8
 			case 'b', 'B':
 				base = 2
-			case '.', 'e', 'E':
+			case '.', 'e', 'E', 'n':
 				// no-op
 			default:
 				// legacy octal
@@ -1103,8 +1121,11 @@ func (self *_parser) scanNumericLiteral(decimalPoint bool) (token.Token, string)
 		}
 	}
 end:
-	if isIdentifierStart(self.chr) || isDecimalDigit(self.chr) {
+	if (isIdentifierStart(self.chr) || isDecimalDigit(self.chr)) && self.chr != 'n' {
 		return token.ILLEGAL, self.str[offset:self.chrOffset]
+	} else if self.chr == 'n' {
+		self.read()
+		return tkn, self.str[offset:self.chrOffset]
 	}
 
 	return tkn, self.str[offset:self.chrOffset]

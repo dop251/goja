@@ -295,7 +295,15 @@ func (r *Runtime) stringproto_indexOf(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	value := call.This.toString()
 	target := call.Argument(0).toString()
-	pos := call.Argument(1).ToInteger()
+	var pos int64
+	posArg := call.Argument(1)
+	if o, ok := posArg.(*Object); ok {
+		posArg = o.toPrimitiveNumber()
+	}
+	if isBigInt(posArg) {
+		panic(r.NewTypeError("pos must be a number"))
+	}
+	pos = posArg.ToInteger()
 
 	if pos < 0 {
 		pos = 0

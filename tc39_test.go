@@ -59,23 +59,31 @@ var (
 		"test/language/function-code/each-param-has-own-non-shared-eval-scope.js":     true,
 
 		// These tests are out of date (fixed in https://github.com/tc39/test262/commit/7d998a098e5420cb4b6ee4a05eb8c386d750c596)
-		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/key-is-numericindex.js":                   true,
-		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/key-is-numericindex-desc-configurable.js": true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/key-is-numericindex.js":                          true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/BigInt/key-is-numericindex.js":                   true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/key-is-numericindex-desc-configurable.js":        true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/BigInt/key-is-numericindex-desc-configurable.js": true,
 
 		// Fixed in https://github.com/tc39/test262/commit/7d998a098e5420cb4b6ee4a05eb8c386d750c596
-		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/detached-buffer.js": true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/detached-buffer.js":        true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/BigInt/detached-buffer.js": true,
 		// Fixed in https://github.com/tc39/test262/commit/0bb8fe8aba97765aa3a8d4dd8880cd8e3c238f68
-		"test/built-ins/TypedArrayConstructors/internals/Get/detached-buffer.js":                              true,
-		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/tonumber-value-detached-buffer.js": true,
+		"test/built-ins/TypedArrayConstructors/internals/Get/detached-buffer.js":                                     true,
+		"test/built-ins/TypedArrayConstructors/internals/Get/BigInt/detached-buffer.js":                              true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/tonumber-value-detached-buffer.js":        true,
+		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/BigInt/tonumber-value-detached-buffer.js": true,
 		// 36c2cd165f93e194b9bcad26e69e8571b1d0e6ed
 		"test/built-ins/ArrayBuffer/prototype/byteLength/detached-buffer.js": true,
 
 		// 96aff62fb25cf9ef27929a8ab822ee853d99b06e
-		"test/built-ins/TypedArrayConstructors/internals/Set/tonumber-value-detached-buffer.js": true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds.js":           true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/tonumber-value-detached-buffer.js":        true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/BigInt/tonumber-value-detached-buffer.js": true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds.js":                  true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-out-of-bounds.js":           true,
 
 		// 167e596a649ede35df11d03cb3c093941c9cf396
-		"test/built-ins/TypedArrayConstructors/internals/Set/detached-buffer.js": true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/detached-buffer.js":        true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/BigInt/detached-buffer.js": true,
 
 		// Anonymous function name property (now always present)
 		"test/language/expressions/function/name.js":                         true,
@@ -298,13 +306,17 @@ var (
 		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":  true,
 		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":    true,
 
+		// multiplicative order of evaluation
+		"test/language/expressions/multiplication/order-of-evaluation.js": true,
+		"test/language/expressions/division/order-of-evaluation.js": true,
+		"test/language/expressions/modulus/order-of-evaluation.js": true,
+
 		// generators
 		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js": true,
 	}
 
 	featuresBlackList = []string{
 		"async-iteration",
-		"BigInt",
 		"class",
 		"generators",
 		"String.prototype.replaceAll",
@@ -370,6 +382,7 @@ var (
 
 	esIdPrefixWhiteList = []string{
 		"sec-addition-*",
+		"sec-multiplicative-*",
 		"sec-array",
 		"sec-%typedarray%",
 		"sec-%typedarray%-of",
@@ -380,6 +393,8 @@ var (
 		"sec-json",
 		"sec-number",
 		"sec-math",
+		"sec-postfix-*",
+		"sec-prefix-*",
 		"sec-arraybuffer-length",
 		"sec-arraybuffer",
 		"sec-regexp",

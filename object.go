@@ -19,6 +19,7 @@ const (
 	classSet      = "Set"
 	classFunction = "Function"
 	classNumber   = "Number"
+	classBigInt   = "BigInt"
 	classString   = "String"
 	classBoolean  = "Boolean"
 	classError    = "Error"
@@ -39,6 +40,7 @@ const (
 var (
 	hintDefault Value = asciiString("default")
 	hintNumber  Value = asciiString("number")
+	hintBigInt  Value = asciiString("bigint")
 	hintString  Value = asciiString("string")
 )
 
@@ -181,6 +183,7 @@ type objectImpl interface {
 	deleteSym(s *Symbol, throw bool) bool
 
 	toPrimitiveNumber() Value
+	toPrimitiveBigInt() Value
 	toPrimitiveString() Value
 	toPrimitive() Value
 	assertCallable() (call func(FunctionCall) Value, ok bool)
@@ -832,6 +835,22 @@ func (o *baseObject) toPrimitiveNumber() Value {
 	return o.val.genericToPrimitiveNumber()
 }
 
+func (o *Object) genericToPrimitiveBigInt() Value {
+	if v := o.tryPrimitive("valueOf"); v != nil {
+		return v
+	}
+
+	if v := o.tryPrimitive("toString"); v != nil {
+		return v
+	}
+
+	panic(o.runtime.NewTypeError("Could not convert %v to primitive", o.self))
+}
+
+func (o *baseObject) toPrimitiveBigInt() Value {
+	return o.val.genericToPrimitiveBigInt()
+}
+
 func (o *Object) genericToPrimitiveString() Value {
 	if v := o.tryPrimitive("toString"); v != nil {
 		return v
@@ -877,6 +896,14 @@ func (o *Object) toPrimitiveNumber() Value {
 	}
 
 	return o.self.toPrimitiveNumber()
+}
+
+func (o *Object) toPrimitiveBigInt() Value {
+	if v := o.tryExoticToPrimitive(hintBigInt); v != nil {
+		return v
+	}
+
+	return o.self.toPrimitiveBigInt()
 }
 
 func (o *Object) toPrimitiveString() Value {
