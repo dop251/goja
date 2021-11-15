@@ -33,7 +33,7 @@ type stash struct {
 
 type context struct {
 	prg       *Program
-	funcName  unistring.String
+	funcName  unistring.String // only valid when prg is nil
 	stash     *stash
 	newTarget Value
 	result    Value
@@ -141,7 +141,7 @@ func (r *unresolvedRef) refname() unistring.String {
 type vm struct {
 	r            *Runtime
 	prg          *Program
-	funcName     unistring.String
+	funcName     unistring.String // only valid when prg == nil
 	pc           int
 	stack        valueStack
 	sp, sb, args int
@@ -436,11 +436,23 @@ func (vm *vm) ClearInterrupt() {
 func (vm *vm) captureStack(stack []StackFrame, ctxOffset int) []StackFrame {
 	// Unroll the context stack
 	if vm.pc != -1 {
-		stack = append(stack, StackFrame{prg: vm.prg, pc: vm.pc, funcName: vm.funcName})
+		var funcName unistring.String
+		if vm.prg != nil {
+			funcName = vm.prg.funcName
+		} else {
+			funcName = vm.funcName
+		}
+		stack = append(stack, StackFrame{prg: vm.prg, pc: vm.pc, funcName: funcName})
 	}
 	for i := len(vm.callStack) - 1; i > ctxOffset-1; i-- {
 		if vm.callStack[i].pc != -1 {
-			stack = append(stack, StackFrame{prg: vm.callStack[i].prg, pc: vm.callStack[i].pc - 1, funcName: vm.callStack[i].funcName})
+			var funcName unistring.String
+			if prg := vm.callStack[i].prg; prg != nil {
+				funcName = prg.funcName
+			} else {
+				funcName = vm.callStack[i].funcName
+			}
+			stack = append(stack, StackFrame{prg: vm.callStack[i].prg, pc: vm.callStack[i].pc - 1, funcName: funcName})
 		}
 	}
 	return stack
@@ -539,13 +551,8 @@ func (vm *vm) peek() Value {
 }
 
 func (vm *vm) saveCtx(ctx *context) {
-	ctx.prg, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args =
-		vm.prg, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args
-	if vm.funcName != "" {
-		ctx.funcName = vm.funcName
-	} else if ctx.prg != nil && ctx.prg.funcName != "" {
-		ctx.funcName = ctx.prg.funcName
-	}
+	ctx.prg, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args, ctx.funcName =
+		vm.prg, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args, vm.funcName
 }
 
 func (vm *vm) pushCtx() {

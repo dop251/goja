@@ -2082,6 +2082,10 @@ func TestStacktraceLocationThrowFromGo(t *testing.T) {
 	vm.Set("f", f)
 	_, err := vm.RunString(`
 	function main() {
+		(function noop() {})();
+		return callee();
+	}
+	function callee() {
 		return f();
 	}
 	main();
@@ -2090,17 +2094,20 @@ func TestStacktraceLocationThrowFromGo(t *testing.T) {
 		t.Fatal("Expected error")
 	}
 	stack := err.(*Exception).stack
-	if len(stack) != 3 {
+	if len(stack) != 4 {
 		t.Fatalf("Unexpected stack len: %v", stack)
 	}
 	if frame := stack[0]; !strings.HasSuffix(frame.funcName.String(), "TestStacktraceLocationThrowFromGo.func1") {
 		t.Fatalf("Unexpected stack frame 0: %#v", frame)
 	}
-	if frame := stack[1]; frame.funcName != "main" || frame.pc != 1 {
+	if frame := stack[1]; frame.funcName != "callee" || frame.pc != 1 {
 		t.Fatalf("Unexpected stack frame 1: %#v", frame)
 	}
-	if frame := stack[2]; frame.funcName != "" || frame.pc != 3 {
+	if frame := stack[2]; frame.funcName != "main" || frame.pc != 6 {
 		t.Fatalf("Unexpected stack frame 2: %#v", frame)
+	}
+	if frame := stack[3]; frame.funcName != "" || frame.pc != 4 {
+		t.Fatalf("Unexpected stack frame 3: %#v", frame)
 	}
 }
 
