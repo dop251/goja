@@ -297,6 +297,41 @@ func TestExportToWrappedMapCustom(t *testing.T) {
 	}
 }
 
+func TestSetForeignReturnValue(t *testing.T) {
+	const SCRIPT = `
+	var array = [1, 2, 3];
+	var arrayTarget = new Proxy(array, {});
+
+	Object.preventExtensions(array);
+
+	!Reflect.set(arrayTarget, "foo", 2);
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestDefinePropertiesUndefinedVal(t *testing.T) {
+	const SCRIPT = `
+var target = {};
+var sym = Symbol();
+target[sym] = 1;
+target.foo = 2;
+target[0] = 3;
+
+var getOwnKeys = [];
+var proxy = new Proxy(target, {
+  getOwnPropertyDescriptor: function(_target, key) {
+    getOwnKeys.push(key);
+  },
+});
+
+Object.defineProperties({}, proxy);
+	true;
+	`
+
+	testScript1(SCRIPT, valueTrue, t)
+}
+
 func ExampleObject_Delete() {
 	vm := New()
 	obj := vm.NewObject()

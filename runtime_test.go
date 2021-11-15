@@ -164,6 +164,14 @@ func TestNumberFormatRounding(t *testing.T) {
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestBinOctalNumbers(t *testing.T) {
+	const SCRIPT = `
+	0b111;
+	`
+
+	testScript1(SCRIPT, valueInt(7), t)
+}
+
 func TestSetFunc(t *testing.T) {
 	const SCRIPT = `
 	sum(40, 2);
@@ -1563,26 +1571,6 @@ func TestAutoBoxing(t *testing.T) {
 func TestProtoGetter(t *testing.T) {
 	const SCRIPT = `
 	({}).__proto__ === Object.prototype && [].__proto__ === Array.prototype;
-	`
-	testScript1(SCRIPT, valueTrue, t)
-}
-
-func TestFuncProto(t *testing.T) {
-	const SCRIPT = `
-	"use strict";
-	function A() {}
-	A.__proto__ = Object;
-	A.prototype = {};
-
-	function B() {}
-	B.__proto__ = Object.create(null);
-	var thrown = false;
-	try {
-		delete B.prototype;
-	} catch (e) {
-		thrown = e instanceof TypeError;
-	}
-	thrown;
 	`
 	testScript1(SCRIPT, valueTrue, t)
 }
