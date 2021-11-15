@@ -169,6 +169,12 @@ func (o *lazyObject) toPrimitiveNumber() Value {
 	return obj.toPrimitiveNumber()
 }
 
+func (o *lazyObject) toPrimitiveBigInt() Value {
+	obj := o.create(o.val)
+	o.val.self = obj
+	return obj.toPrimitiveBigInt()
+}
+
 func (o *lazyObject) toPrimitiveString() Value {
 	obj := o.create(o.val)
 	o.val.self = obj

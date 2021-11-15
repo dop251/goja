@@ -8,6 +8,7 @@ import (
 	"go/ast"
 	"hash/maphash"
 	"math"
+	"math/big"
 	"math/bits"
 	"math/rand"
 	"reflect"
@@ -53,6 +54,7 @@ type global struct {
 	Function *Object
 	String   *Object
 	Number   *Object
+	BigInt   *Object
 	Boolean  *Object
 	RegExp   *Object
 	Date     *Object
@@ -72,6 +74,8 @@ type global struct {
 	Int32Array        *Object
 	Float32Array      *Object
 	Float64Array      *Object
+	BigInt64Array     *Object
+	BigUint64Array     *Object
 
 	WeakSet *Object
 	WeakMap *Object
@@ -92,6 +96,7 @@ type global struct {
 	ObjectPrototype   *Object
 	ArrayPrototype    *Object
 	NumberPrototype   *Object
+	BigIntPrototype   *Object
 	StringPrototype   *Object
 	BooleanPrototype  *Object
 	FunctionPrototype *Object
@@ -375,6 +380,7 @@ func (r *Runtime) init() {
 	r.initString()
 	r.initGlobalObject()
 	r.initNumber()
+	r.initBigInt()
 	r.initRegExp()
 	r.initDate()
 	r.initBoolean()
@@ -756,6 +762,24 @@ func (r *Runtime) builtin_newNumber(args []Value, proto *Object) *Object {
 	return r.newPrimitiveObject(v, proto, classNumber)
 }
 
+func (r *Runtime) builtin_BigInt(call FunctionCall) Value {
+	if len(call.Arguments) > 0 {
+		return call.Arguments[0].ToBigInt()
+	} else {
+		return valueBigInt{big.NewInt(0)}
+	}
+}
+
+func (r *Runtime) builtin_newBigInt(args []Value, proto *Object) *Object {
+	var v Value
+	if len(args) > 0 {
+		v = args[0].ToBigInt()
+	} else {
+		v = valueBigInt{big.NewInt(0)}
+	}
+	return r.newPrimitiveObject(v, proto, classNumber)
+}
+
 func (r *Runtime) builtin_Boolean(call FunctionCall) Value {
 	if len(call.Arguments) > 0 {
 		if call.Arguments[0].ToBoolean() {
@@ -1054,6 +1078,11 @@ func toInt64(v Value) int64 {
 			return int64(f)
 		}
 	}
+
+	if b, ok := v.(valueBigInt); ok {
+		return b.Int64()
+	}
+
 	return 0
 }
 
@@ -1068,6 +1097,13 @@ func toUint64(v Value) uint64 {
 		if !math.IsNaN(f) && !math.IsInf(f, 0) {
 			return uint64(int64(f))
 		}
+	}
+
+	if b, ok := v.(valueBigInt); ok {
+		if b.Sign() < 0 {
+			return uint64(b.Int64())
+		}
+		return b.Uint64()
 	}
 	return 0
 }

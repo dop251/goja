@@ -995,6 +995,22 @@ func Test_parseNumberLiteral(t *testing.T) {
 	})
 }
 
+func Test_parseBigIntLiteral(t *testing.T) {
+	tt(t, func() {
+		test := func(input string, expect interface{}) {
+			result, err := parseBigIntLiteral(input)
+			is(err, nil)
+			is(result, expect)
+		}
+
+		test("0n", 0)
+
+		test("100n", 100)
+
+		test("0x100n", 0x100)
+	})
+}
+
 func TestPosition(t *testing.T) {
 	tt(t, func() {
 		parser := newParser("", "// Lorem ipsum")

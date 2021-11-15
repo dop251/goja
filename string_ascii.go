@@ -5,6 +5,7 @@ import (
 	"hash/maphash"
 	"io"
 	"math"
+	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
@@ -173,6 +174,12 @@ func (s asciiString) ToNumber() Value {
 	}
 
 	return _NaN
+}
+
+func (s asciiString) ToBigInt() Value {
+	b := &big.Int{}
+	b.SetString(string(s), 0)
+	return valueBigInt{b}
 }
 
 func (s asciiString) ToObject(r *Runtime) *Object {

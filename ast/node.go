@@ -169,6 +169,12 @@ type (
 		Value   interface{}
 	}
 
+	BigIntLiteral struct {
+		Idx     file.Idx
+		Literal string
+		Value   interface{}
+	}
+
 	ObjectLiteral struct {
 		LeftBrace  file.Idx
 		RightBrace file.Idx
@@ -276,6 +282,7 @@ func (*Identifier) _expressionNode()            {}
 func (*NewExpression) _expressionNode()         {}
 func (*NullLiteral) _expressionNode()           {}
 func (*NumberLiteral) _expressionNode()         {}
+func (*BigIntLiteral) _expressionNode()         {}
 func (*ObjectLiteral) _expressionNode()         {}
 func (*RegExpLiteral) _expressionNode()         {}
 func (*SequenceExpression) _expressionNode()    {}
@@ -568,6 +575,7 @@ func (self *Identifier) Idx0() file.Idx            { return self.Idx }
 func (self *NewExpression) Idx0() file.Idx         { return self.New }
 func (self *NullLiteral) Idx0() file.Idx           { return self.Idx }
 func (self *NumberLiteral) Idx0() file.Idx         { return self.Idx }
+func (self *BigIntLiteral) Idx0() file.Idx         { return self.Idx }
 func (self *ObjectLiteral) Idx0() file.Idx         { return self.LeftBrace }
 func (self *RegExpLiteral) Idx0() file.Idx         { return self.Idx }
 func (self *SequenceExpression) Idx0() file.Idx    { return self.Sequence[0].Idx0() }
@@ -634,6 +642,7 @@ func (self *NewExpression) Idx1() file.Idx {
 }
 func (self *NullLiteral) Idx1() file.Idx        { return file.Idx(int(self.Idx) + 4) } // "null"
 func (self *NumberLiteral) Idx1() file.Idx      { return file.Idx(int(self.Idx) + len(self.Literal)) }
+func (self *BigIntLiteral) Idx1() file.Idx      { return file.Idx(int(self.Idx) + len(self.Literal)) }
 func (self *ObjectLiteral) Idx1() file.Idx      { return self.RightBrace + 1 }
 func (self *ObjectPattern) Idx1() file.Idx      { return self.RightBrace + 1 }
 func (self *RegExpLiteral) Idx1() file.Idx      { return file.Idx(int(self.Idx) + len(self.Literal)) }

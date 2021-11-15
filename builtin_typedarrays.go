@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"unsafe"
 
 	"github.com/dop251/goja/unistring"
@@ -469,7 +470,18 @@ func (r *Runtime) typedArrayProto_fill(call FunctionCall) Value {
 			relEnd = l
 		}
 		final := toIntStrict(relToIdx(relEnd, l))
-		value := ta.typedArray.toRaw(call.Argument(0))
+		arg := call.Argument(0)
+		switch ta.typedArray.(type) {
+		case *bigInt64Array, *bigUint64Array:
+			if _, ok := arg.(valueString); !ok {
+				break
+			}
+			_, err := strconv.ParseInt(arg.String(), 0, 64)
+			if err != nil {
+				panic(r.newSyntaxError("cannot convert to bigint", -1))
+			}
+		}
+		value := ta.typedArray.toRaw(arg)
 		ta.viewedArrayBuf.ensureNotDetached(true)
 		for ; k < final; k++ {
 			ta.typedArray.setRaw(ta.offset+k, value)
@@ -941,6 +953,18 @@ func (r *Runtime) typedArrayProto_set(call FunctionCall) Value {
 				val := nilSafe(srcObj.self.getIdx(valueInt(i), nil))
 				ta.viewedArrayBuf.ensureNotDetached(true)
 				if ta.isValidIntegerIndex(i) {
+					if _, ok := val.(asciiString); ok {
+						switch ta.typedArray.(type) {
+						case *bigUint64Array:
+							if _, err := strconv.ParseUint(val.String(), 0, 64); err != nil && val.String() != "" {
+								panic(r.newError(r.global.SyntaxError, "cannot convert to bigint"))
+							}
+						case *bigInt64Array:
+							if _, err := strconv.ParseInt(val.String(), 0, 64); err != nil && val.String() != "" {
+								panic(r.newError(r.global.SyntaxError, "cannot convert to bigint"))
+							}
+						}
+					}
 					ta.typedArray.set(targetOffset+i, val)
 				}
 			}
@@ -1336,6 +1360,14 @@ func (r *Runtime) newFloat64Array(args []Value, newTarget, proto *Object) *Objec
 	return r._newTypedArray(args, newTarget, r.newFloat64ArrayObject, proto)
 }
 
+func (r *Runtime) newBigInt64Array(args []Value, newTarget *Object) *Object {
+	return r._newTypedArray(args, newTarget, r.newBigInt64ArrayObject)
+}
+
+func (r *Runtime) newBigUint64Array(args []Value, newTarget *Object) *Object {
+	return r._newTypedArray(args, newTarget, r.newBigUint64ArrayObject)
+}
+
 func (r *Runtime) createArrayBufferProto(val *Object) objectImpl {
 	b := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 	byteLengthProp := &valueProperty{
@@ -1526,4 +1558,10 @@ func (r *Runtime) initTypedArrays() {
 
 	r.global.Float64Array = r.newLazyObject(r.typedArrayCreator(r.newFloat64Array, "Float64Array", 8))
 	r.addToGlobal("Float64Array", r.global.Float64Array)
+
+	r.global.BigInt64Array = r.newLazyObject(r.typedArrayCreator(r.newBigInt64Array, "BigInt64Array", 8))
+	r.addToGlobal("BigInt64Array", r.global.BigInt64Array)
+
+	r.global.BigUint64Array = r.newLazyObject(r.typedArrayCreator(r.newBigUint64Array, "BigUint64Array", 8))
+	r.addToGlobal("BigUint64Array", r.global.BigUint64Array)
 }

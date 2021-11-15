@@ -3,6 +3,7 @@ package goja
 import (
 	"fmt"
 	"math"
+	"math/big"
 	"runtime"
 	"strconv"
 	"strings"
@@ -236,6 +237,14 @@ func assertInt64(v Value) (int64, bool) {
 		}
 	}
 	return 0, false
+}
+
+func assertBigInt(v Value) (*big.Int, bool) {
+	num := v.ToNumber()
+	if b, ok := num.(valueBigInt); ok {
+		return b.Int, true
+	}
+	return big.NewInt(0), false
 }
 
 func (s *valueStack) expand(idx int) {
@@ -905,6 +914,16 @@ func (_add) exec(vm *vm) {
 			rightString = right.toString()
 		}
 		ret = leftString.concat(rightString)
+	} else if leftBigInt, ok := left.(valueBigInt); ok {
+		rightBigInt, ok := right.(valueBigInt)
+		if !ok {
+			panic(vm.r.NewTypeError("Cannot add BigInt to other type"))
+		}
+		b := &big.Int{}
+		b.Add(leftBigInt.Int, rightBigInt.Int)
+		ret = valueBigInt{b}
+	} else if _, ok := right.(valueBigInt); ok {
+		panic(vm.r.NewTypeError("Cannot add BigInt to other type"))
 	} else {
 		if leftInt, ok := left.(valueInt); ok {
 			if rightInt, ok := right.(valueInt); ok {
@@ -932,13 +951,21 @@ func (_sub) exec(vm *vm) {
 
 	var result Value
 
-	if left, ok := left.(valueInt); ok {
-		if right, ok := right.(valueInt); ok {
-			result = intToValue(int64(left) - int64(right))
+	if leftInt, ok := left.(valueInt); ok {
+		if rightInt, ok := right.(valueInt); ok {
+			result = intToValue(int64(leftInt) - int64(rightInt))
 			goto end
 		}
+	} else if leftBigInt, ok := left.(valueBigInt); ok {
+		if rightBigInt, ok := right.(valueBigInt); ok {
+			b := &big.Int{}
+			b.Sub(leftBigInt.Int, rightBigInt.Int)
+			result = valueBigInt{b}
+			goto end
+		}
+	} else if _, ok := right.(valueBigInt); ok {
+		panic(vm.r.NewTypeError("Cannot subtract BigInt from other type"))
 	}
-
 	result = floatToValue(left.ToFloat() - right.ToFloat())
 end:
 	vm.sp--
@@ -954,8 +981,28 @@ func (_mul) exec(vm *vm) {
 	left := vm.stack[vm.sp-2]
 	right := vm.stack[vm.sp-1]
 
+	if o, ok := left.(*Object); ok {
+		left = o.toPrimitive()
+	}
+
+	if o, ok := right.(*Object); ok {
+		right = o.toPrimitive()
+	}
+
 	var result Value
 
+	if leftBigInt, ok := left.(valueBigInt); ok {
+		if rightBigInt, ok := right.(valueBigInt); ok {
+			b := &big.Int{}
+			b.Mul(leftBigInt.Int, rightBigInt.Int)
+			result = valueBigInt{b}
+			goto end
+		} else {
+			panic(vm.r.NewTypeError("Cannot multiply BigInt with other type"))
+		}
+	} else if _, ok := right.(valueBigInt); ok {
+		panic(vm.r.NewTypeError("Cannot multiply BigInt with other type"))
+	}
 	if left, ok := assertInt64(left); ok {
 		if right, ok := assertInt64(right); ok {
 			if left == 0 && right == -1 || left == -1 && right == 0 {
@@ -985,26 +1032,55 @@ type _div struct{}
 var div _div
 
 func (_div) exec(vm *vm) {
-	left := vm.stack[vm.sp-2].ToFloat()
-	right := vm.stack[vm.sp-1].ToFloat()
+	left := vm.stack[vm.sp-2]
+	right := vm.stack[vm.sp-1]
+
+	if o, ok := left.(*Object); ok {
+		left = o.toPrimitive()
+	}
+
+	if o, ok := right.(*Object); ok {
+		right = o.toPrimitive()
+	}
 
 	var result Value
+	var rightFloat float64
+	var leftFloat float64
 
-	if math.IsNaN(left) || math.IsNaN(right) {
+	if leftBigInt, ok := left.(valueBigInt); ok {
+		rightBigInt, ok := right.(valueBigInt)
+		if !ok {
+			panic(vm.r.NewTypeError("Cannot divide BigInt by other type"))
+		}
+		if rightBigInt.Int64() == 0 {
+			panic(vm.r.newError(vm.r.global.RangeError, "Cannot divide by zero"))
+		}
+		b := &big.Int{}
+		b.Quo(leftBigInt.Int, rightBigInt.Int)
+		result = valueBigInt{b}
+		goto end
+	} else if _, ok := right.(valueBigInt); ok {
+		panic(vm.r.NewTypeError("Cannot divide BigInt by other type"))
+	}
+
+	leftFloat = left.ToFloat()
+	rightFloat = right.ToFloat()
+
+	if math.IsNaN(leftFloat) || math.IsNaN(rightFloat) {
 		result = _NaN
 		goto end
 	}
-	if math.IsInf(left, 0) && math.IsInf(right, 0) {
+	if math.IsInf(leftFloat, 0) && math.IsInf(rightFloat, 0) {
 		result = _NaN
 		goto end
 	}
-	if left == 0 && right == 0 {
+	if leftFloat == 0 && rightFloat == 0 {
 		result = _NaN
 		goto end
 	}
 
-	if math.IsInf(left, 0) {
-		if math.Signbit(left) == math.Signbit(right) {
+	if math.IsInf(leftFloat, 0) {
+		if math.Signbit(leftFloat) == math.Signbit(rightFloat) {
 			result = _positiveInf
 			goto end
 		} else {
@@ -1012,8 +1088,8 @@ func (_div) exec(vm *vm) {
 			goto end
 		}
 	}
-	if math.IsInf(right, 0) {
-		if math.Signbit(left) == math.Signbit(right) {
+	if math.IsInf(rightFloat, 0) {
+		if math.Signbit(leftFloat) == math.Signbit(rightFloat) {
 			result = _positiveZero
 			goto end
 		} else {
@@ -1021,8 +1097,8 @@ func (_div) exec(vm *vm) {
 			goto end
 		}
 	}
-	if right == 0 {
-		if math.Signbit(left) == math.Signbit(right) {
+	if rightFloat == 0 {
+		if math.Signbit(leftFloat) == math.Signbit(rightFloat) {
 			result = _positiveInf
 			goto end
 		} else {
@@ -1031,7 +1107,7 @@ func (_div) exec(vm *vm) {
 		}
 	}
 
-	result = floatToValue(left / right)
+	result = floatToValue(leftFloat / rightFloat)
 
 end:
 	vm.sp--
@@ -1047,9 +1123,31 @@ func (_mod) exec(vm *vm) {
 	left := vm.stack[vm.sp-2]
 	right := vm.stack[vm.sp-1]
 
+	if o, ok := left.(*Object); ok {
+		left = o.toPrimitive()
+	}
+
+	if o, ok := right.(*Object); ok {
+		right = o.toPrimitive()
+	}
+
 	var result Value
 
-	if leftInt, ok := assertInt64(left); ok {
+	if leftBigInt, ok := left.(valueBigInt); ok {
+		rightBigInt, ok := right.(valueBigInt)
+		if !ok {
+			panic(vm.r.NewTypeError("Cannot get modulus of BigInt with other type"))
+		}
+		if rightBigInt.Int64() == 0 {
+			panic(vm.r.newError(vm.r.global.RangeError, "Cannot divide by zero"))
+		}
+		b := &big.Int{}
+		b.Rem(leftBigInt.Int, rightBigInt.Int)
+		result = valueBigInt{b}
+		goto end
+	} else if _, ok := right.(valueBigInt); ok {
+		panic(vm.r.NewTypeError("Cannot get modulus of BigInt with other type"))
+	} else if leftInt, ok := assertInt64(left); ok {
 		if rightInt, ok := assertInt64(right); ok {
 			if rightInt == 0 {
 				result = _NaN
@@ -1081,7 +1179,11 @@ func (_neg) exec(vm *vm) {
 
 	var result Value
 
-	if i, ok := assertInt64(operand); ok {
+	if b, ok := assertBigInt(operand); ok {
+		nb := &big.Int{}
+		nb.Neg(b)
+		result = valueBigInt{nb}
+	} else if i, ok := assertInt64(operand); ok {
 		if i == 0 {
 			result = _negativeZero
 		} else {
@@ -1118,6 +1220,11 @@ func (_inc) exec(vm *vm) {
 	if i, ok := assertInt64(v); ok {
 		v = intToValue(i + 1)
 		goto end
+	} else if bi, ok := v.(valueBigInt); ok {
+		b := &big.Int{}
+		b.Add(bi.Int, big.NewInt(1))
+		v = valueBigInt{b}
+		goto end
 	}
 
 	v = valueFloat(v.ToFloat() + 1)
@@ -1136,6 +1243,11 @@ func (_dec) exec(vm *vm) {
 
 	if i, ok := assertInt64(v); ok {
 		v = intToValue(i - 1)
+		goto end
+	} else if bi, ok := v.(valueBigInt); ok {
+		b := &big.Int{}
+		b.Sub(bi.Int, big.NewInt(1))
+		v = valueBigInt{b}
 		goto end
 	}
 
