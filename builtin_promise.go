@@ -390,7 +390,7 @@ func (r *Runtime) promise_all(call FunctionCall) Value {
 		iter := r.getIterator(call.Argument(0), nil)
 		var values []Value
 		remainingElementsCount := 1
-		r.iterate(iter, func(nextValue Value) {
+		iter.iterate(func(nextValue Value) {
 			index := len(values)
 			values = append(values, _undefined)
 			nextPromise := promiseResolve(FunctionCall{This: c, Arguments: []Value{nextValue}})
@@ -427,7 +427,7 @@ func (r *Runtime) promise_allSettled(call FunctionCall) Value {
 		iter := r.getIterator(call.Argument(0), nil)
 		var values []Value
 		remainingElementsCount := 1
-		r.iterate(iter, func(nextValue Value) {
+		iter.iterate(func(nextValue Value) {
 			index := len(values)
 			values = append(values, _undefined)
 			nextPromise := promiseResolve(FunctionCall{This: c, Arguments: []Value{nextValue}})
@@ -471,7 +471,7 @@ func (r *Runtime) promise_any(call FunctionCall) Value {
 		iter := r.getIterator(call.Argument(0), nil)
 		var errors []Value
 		remainingElementsCount := 1
-		r.iterate(iter, func(nextValue Value) {
+		iter.iterate(func(nextValue Value) {
 			index := len(errors)
 			errors = append(errors, _undefined)
 			nextPromise := promiseResolve(FunctionCall{This: c, Arguments: []Value{nextValue}})
@@ -511,7 +511,7 @@ func (r *Runtime) promise_race(call FunctionCall) Value {
 	pcap.try(func() {
 		promiseResolve := r.toCallable(c.self.getStr("resolve", nil))
 		iter := r.getIterator(call.Argument(0), nil)
-		r.iterate(iter, func(nextValue Value) {
+		iter.iterate(func(nextValue Value) {
 			nextPromise := promiseResolve(FunctionCall{This: c, Arguments: []Value{nextValue}})
 			r.invoke(nextPromise, "then", pcap.resolveObj, pcap.rejectObj)
 		})

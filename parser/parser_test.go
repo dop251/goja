@@ -450,6 +450,8 @@ func TestParserErr(t *testing.T) {
 			test("{a: 1,}", "(anonymous): Line 1:7 Unexpected token }")
 			test("{a: 1, b: 2}", "(anonymous): Line 1:9 Unexpected token :")
 			test("{a: 1, b: 2,}", "(anonymous): Line 1:9 Unexpected token :")
+			test(`let f = () => new import('');`, "(anonymous): Line 1:19 Unexpected reserved word")
+
 		}
 
 		{ // Reserved words (strict)
@@ -502,6 +504,7 @@ func TestParser(t *testing.T) {
 			is(firstErr(err), chk)
 			return program
 		}
+		test(`new (() => {});`, nil)
 
 		test(`
             abc
@@ -909,7 +912,7 @@ func Test_parseStringLiteral(t *testing.T) {
 			parser.read()
 			parser.read()
 			_, res, err := parser.scanString(0, true)
-			is(err, nil)
+			is(err, "")
 			is(res, want)
 		}
 
@@ -964,7 +967,7 @@ func Test_parseStringLiteral(t *testing.T) {
 			parser.read()
 			parser.read()
 			_, res, err := parser.scanString(0, true)
-			is(err.Error(), want)
+			is(err, want)
 			is(res, "")
 		}
 
@@ -1104,7 +1107,7 @@ func TestParseTemplateCharacters(t *testing.T) {
 	}
 	checkParseTemplateChars := func(expectedLiteral string, expectedParsed unistring.String, expectedFinished, expectParseErr, expectErr bool) {
 		literal, parsed, finished, parseErr, err := parser.parseTemplateCharacters()
-		if err != nil != expectErr {
+		if err != "" != expectErr {
 			t.Fatal(err)
 		}
 		if literal != expectedLiteral {
@@ -1116,7 +1119,7 @@ func TestParseTemplateCharacters(t *testing.T) {
 		if finished != expectedFinished {
 			t.Fatal(finished)
 		}
-		if parseErr != nil != expectParseErr {
+		if parseErr != "" != expectParseErr {
 			t.Fatalf("parseErr: %v", parseErr)
 		}
 	}

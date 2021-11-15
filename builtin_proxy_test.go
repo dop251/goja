@@ -167,7 +167,8 @@ func TestProxy_proxy_preventExtensions(t *testing.T) {
 	var proxy = new Proxy(obj, {
 		preventExtensions: function(target) {
 			target.canEvolve = false;
-			return false;
+			Object.preventExtensions(obj);
+			return true;
 		}
 	});
 	Object.preventExtensions(proxy);
@@ -194,7 +195,11 @@ func TestProxy_native_proxy_preventExtensions(t *testing.T) {
 	proxy := runtime.NewProxy(target, &ProxyTrapConfig{
 		PreventExtensions: func(target *Object) (success bool) {
 			target.Set("canEvolve", false)
-			return false
+			_, err := runtime.RunString("Object.preventExtensions(target)")
+			if err != nil {
+				panic(err)
+			}
+			return true
 		},
 	})
 	runtime.Set("proxy", proxy)
