@@ -166,6 +166,7 @@ func (f *baseJsFuncObject) _call(call FunctionCall, newTarget, this Value) Value
 	vm.pushCtx()
 	vm.args = len(call.Arguments)
 	vm.prg = f.prg
+	vm.funcName = f.prg.funcName
 	vm.stash = f.stash
 	vm.newTarget = newTarget
 	vm.pc = 0

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/dop251/goja/file"
 	"go/ast"
 	"hash/maphash"
 	"math"
@@ -18,6 +17,7 @@ import (
 	"golang.org/x/text/collate"
 
 	js_ast "github.com/dop251/goja/ast"
+	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
 )
@@ -823,6 +823,7 @@ func (r *Runtime) eval(srcVal valueString, direct, strict bool, this Value) Valu
 
 	vm.pushCtx()
 	vm.prg = p
+	vm.funcName = p.funcName
 	vm.pc = 0
 	vm.args = 0
 	vm.result = _undefined
@@ -1272,6 +1273,7 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 		vm.sb = vm.sp - 1
 	}
 	vm.prg = p
+	vm.funcName = p.funcName
 	vm.pc = 0
 	vm.result = _undefined
 	ex := vm.runTry()
@@ -1287,6 +1289,7 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	} else {
 		vm.stack = nil
 		vm.prg = nil
+		vm.funcName = ""
 		r.leave()
 	}
 	return

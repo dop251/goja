@@ -2612,6 +2612,7 @@ repeat:
 		vm.pushCtx()
 		vm.args = n
 		vm.prg = f.prg
+		vm.funcName = f.prg.funcName
 		vm.stash = f.stash
 		vm.pc = 0
 		vm.stack[vm.sp-n-1], vm.stack[vm.sp-n-2] = vm.stack[vm.sp-n-2], vm.stack[vm.sp-n-1]
@@ -2621,6 +2622,7 @@ repeat:
 		vm.pushCtx()
 		vm.args = n
 		vm.prg = f.prg
+		vm.funcName = f.prg.funcName
 		vm.stash = f.stash
 		vm.pc = 0
 		vm.stack[vm.sp-n-1], vm.stack[vm.sp-n-2] = f.this, vm.stack[vm.sp-n-1]
