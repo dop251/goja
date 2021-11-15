@@ -75,7 +75,7 @@ type global struct {
 	Float32Array      *Object
 	Float64Array      *Object
 	BigInt64Array     *Object
-	BigUint64Array     *Object
+	BigUint64Array    *Object
 
 	WeakSet *Object
 	WeakMap *Object

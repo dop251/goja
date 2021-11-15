@@ -228,13 +228,17 @@ var (
 
 		// Left-hand side as a CoverParenthesizedExpression
 		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
+
+		// multiplicative order of evaluation
+		"test/language/expressions/multiplication/order-of-evaluation.js": true,
+		"test/language/expressions/division/order-of-evaluation.js":       true,
+		"test/language/expressions/modulus/order-of-evaluation.js":        true,
 	}
 
 	featuresBlackList = []string{
 		"async-iteration",
 		"Symbol.asyncIterator",
 		"async-functions",
-		"BigInt",
 		"class",
 		"class-static-block",
 		"class-fields-private",

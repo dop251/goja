@@ -1360,12 +1360,12 @@ func (r *Runtime) newFloat64Array(args []Value, newTarget, proto *Object) *Objec
 	return r._newTypedArray(args, newTarget, r.newFloat64ArrayObject, proto)
 }
 
-func (r *Runtime) newBigInt64Array(args []Value, newTarget *Object) *Object {
-	return r._newTypedArray(args, newTarget, r.newBigInt64ArrayObject)
+func (r *Runtime) newBigInt64Array(args []Value, newTarget, proto *Object) *Object {
+	return r._newTypedArray(args, newTarget, r.newBigInt64ArrayObject, proto)
 }
 
-func (r *Runtime) newBigUint64Array(args []Value, newTarget *Object) *Object {
-	return r._newTypedArray(args, newTarget, r.newBigUint64ArrayObject)
+func (r *Runtime) newBigUint64Array(args []Value, newTarget, proto *Object) *Object {
+	return r._newTypedArray(args, newTarget, r.newBigUint64ArrayObject, proto)
 }
 
 func (r *Runtime) createArrayBufferProto(val *Object) objectImpl {
