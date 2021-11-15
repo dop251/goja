@@ -2322,6 +2322,19 @@ assert.sameValue(callCount, 3, '"then"" invoked once for every iterated value');
 	testScript1(TESTLIB+SCRIPT, _undefined, t)
 }
 
+func TestPromiseExport(t *testing.T) {
+	vm := New()
+	p, _, _ := vm.NewPromise()
+	pv := vm.ToValue(p)
+	if actual := pv.ExportType(); actual != reflect.TypeOf((*Promise)(nil)) {
+		t.Fatalf("Export type: %v", actual)
+	}
+
+	if ev := pv.Export(); ev != p {
+		t.Fatalf("Export value: %v", ev)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

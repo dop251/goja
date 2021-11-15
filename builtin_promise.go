@@ -2,6 +2,7 @@ package goja
 
 import (
 	"github.com/dop251/goja/unistring"
+	"reflect"
 )
 
 type PromiseState int
@@ -41,6 +42,8 @@ type promiseReaction struct {
 	typ        promiseReactionType
 	handler    *jobCallback
 }
+
+var typePromise = reflect.TypeOf((*Promise)(nil))
 
 // Promise is a Go wrapper around ECMAScript Promise. Calling Runtime.ToValue() on it
 // returns the underlying Object. Calling Export() on a Promise Object returns a Promise.
@@ -134,6 +137,14 @@ func (p *Promise) fulfill(value Value) Value {
 	p.state = PromiseStateFulfilled
 	p.val.runtime.triggerPromiseReactions(reactions, value)
 	return _undefined
+}
+
+func (p *Promise) exportType() reflect.Type {
+	return typePromise
+}
+
+func (p *Promise) export(*objectExportCtx) interface{} {
+	return p
 }
 
 func (r *Runtime) newPromiseResolveThenableJob(p *Promise, thenable Value, then *jobCallback) func() {
