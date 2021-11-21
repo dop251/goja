@@ -1462,7 +1462,12 @@ operator:
     // If return value is a non-nil *Object, it will be used instead of call.This
     // This way it is possible to return a Go struct or a map converted
     // into goja.Value using ToValue(), however in this case
-    // instanceof will not work as expected.
+    // instanceof will not work as expected, unless you set the prototype:
+    //
+    // instance := &myCustomStruct{}
+    // instanceValue := vm.ToValue(instance).(*Object)
+    // instanceValue.SetPrototype(call.This.Prototype())
+    // return instanceValue
     return nil
  }
 
