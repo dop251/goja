@@ -304,3 +304,23 @@ func TestInt32ArrayNegativeIndex(t *testing.T) {
 
 	testScript1(SCRIPT, valueTrue, t)
 }
+
+func TestTypedArrayDeleteUnconfigurable(t *testing.T) {
+	const SCRIPT = `
+	try {
+		(function() {
+			'use strict';
+			delete Uint8Array.prototype.BYTES_PER_ELEMENT;
+		})();
+	} catch(e) {
+		if (!(e instanceof TypeError)) {
+			throw e;
+		}
+		if (!e.message.startsWith("Cannot delete property")) {
+			throw e;
+		}
+	}
+	`
+
+	testScript1(SCRIPT, _undefined, t)
+}
