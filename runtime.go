@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/dop251/goja/file"
 	"go/ast"
 	"hash/maphash"
 	"math"
@@ -14,6 +13,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/dop251/goja/file"
 
 	"golang.org/x/text/collate"
 
@@ -184,7 +185,8 @@ type Runtime struct {
 
 	jobQueue []func()
 
-	promiseRejectionTracker PromiseRejectionTracker
+	promiseRejectionTracker     PromiseRejectionTracker
+	disableDynamicCodeExecution bool
 }
 
 type StackFrame struct {
@@ -830,6 +832,10 @@ func (r *Runtime) builtin_thrower(call FunctionCall) Value {
 }
 
 func (r *Runtime) eval(srcVal valueString, direct, strict bool, this Value) Value {
+	if r.disableDynamicCodeExecution {
+		panic(r.NewTypeError("Dynamic code execution is disabled"))
+	}
+
 	src := escapeInvalidUtf16(srcVal)
 	vm := r.vm
 	inGlobal := true
@@ -2207,6 +2213,10 @@ func (r *Runtime) SetParserOptions(opts ...parser.Option) {
 // from the vm goroutine or when the vm is not running.
 func (r *Runtime) SetMaxCallStackSize(size int) {
 	r.vm.maxCallStackSize = size
+}
+
+func (r *Runtime) SetDisableDynamicCodeExecution(disable bool) {
+	r.disableDynamicCodeExecution = disable
 }
 
 // New is an equivalent of the 'new' operator allowing to call it directly from Go.
