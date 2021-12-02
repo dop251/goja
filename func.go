@@ -102,7 +102,7 @@ func (f *funcObject) addPrototype() Value {
 }
 
 func (f *funcObject) hasOwnPropertyStr(name unistring.String) bool {
-	if r := f.baseObject.hasOwnPropertyStr(name); r {
+	if f.baseObject.hasOwnPropertyStr(name) {
 		return true
 	}
 

@@ -831,7 +831,7 @@ func ExampleRuntime_ExportTo_funcThrow() {
 	_, err = fn("")
 
 	fmt.Println(err)
-	// Output: Error: testing at f (<eval>:3:9(4))
+	// Output: Error: testing at f (<eval>:3:9(3))
 }
 
 func ExampleRuntime_ExportTo_funcVariadic() {
@@ -2321,6 +2321,26 @@ func TestPromiseExport(t *testing.T) {
 	if ev := pv.Export(); ev != p {
 		t.Fatalf("Export value: %v", ev)
 	}
+}
+
+func TestErrorStack(t *testing.T) {
+	const SCRIPT = `
+	const err = new Error("test");
+	if (!("stack" in err)) {
+		throw new Error("in");
+	}
+	if (Reflect.ownKeys(err)[0] !== "stack") {
+		throw new Error("property order");
+	}
+	if (err.stack !== "Error\n\tat test.js:2:14(3)\n") {
+		throw new Error(stack);
+	}
+	delete err.stack;
+	if ("stack" in err) {
+		throw new Error("stack still in err after delete");
+	}
+	`
+	testScript1(SCRIPT, _undefined, t)
 }
 
 /*
