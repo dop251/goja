@@ -4194,6 +4194,7 @@ func TestArrowBoxedThis(t *testing.T) {
 
 	testScript1(SCRIPT, valueTrue, t)
 }
+
 func TestParameterOverride(t *testing.T) {
 	const SCRIPT = `
 	function f(arg) {
@@ -4262,6 +4263,33 @@ func TestTaggedTemplate(t *testing.T) {
 		`
 
 	testScript1(SCRIPT, valueTrue, t)
+}
+
+func TestDuplicateGlobalFunc(t *testing.T) {
+	const SCRIPT = `
+	function a(){}
+	function b(){ return "b" }
+	function c(){ return "c" }
+	function a(){}
+	b();
+	`
+
+	testScript1(SCRIPT, asciiString("b"), t)
+}
+
+func TestDuplicateFunc(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		function a(){}
+		function b(){ return "b" }
+		function c(){ return "c" }
+		function a(){}
+		return b();
+	}
+	f();
+	`
+
+	testScript1(SCRIPT, asciiString("b"), t)
 }
 
 /*
