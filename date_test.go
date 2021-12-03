@@ -5,131 +5,6 @@ import (
 	"time"
 )
 
-const TESTLIB = `
-function $ERROR(message) {
-	throw new Error(message);
-}
-
-function Test262Error() {
-}
-
-function assert(mustBeTrue, message) {
-    if (mustBeTrue === true) {
-        return;
-    }
-
-    if (message === undefined) {
-        message = 'Expected true but got ' + String(mustBeTrue);
-    }
-    $ERROR(message);
-}
-
-assert._isSameValue = function (a, b) {
-    if (a === b) {
-        // Handle +/-0 vs. -/+0
-        return a !== 0 || 1 / a === 1 / b;
-    }
-
-    // Handle NaN vs. NaN
-    return a !== a && b !== b;
-};
-
-assert.sameValue = function (actual, expected, message) {
-    if (assert._isSameValue(actual, expected)) {
-        return;
-    }
-
-    if (message === undefined) {
-        message = '';
-    } else {
-        message += ' ';
-    }
-
-    message += 'Expected SameValue(«' + String(actual) + '», «' + String(expected) + '») to be true';
-
-    $ERROR(message);
-};
-
-assert.throws = function (expectedErrorConstructor, func, message) {
-  if (typeof func !== "function") {
-    $ERROR('assert.throws requires two arguments: the error constructor ' +
-      'and a function to run');
-    return;
-  }
-  if (message === undefined) {
-    message = '';
-  } else {
-    message += ' ';
-  }
-
-  try {
-    func();
-  } catch (thrown) {
-    if (typeof thrown !== 'object' || thrown === null) {
-      message += 'Thrown value was not an object!';
-      $ERROR(message);
-    } else if (thrown.constructor !== expectedErrorConstructor) {
-      message += 'Expected a ' + expectedErrorConstructor.name + ' but got a ' + thrown.constructor.name;
-      $ERROR(message);
-    }
-    return;
-  }
-
-  message += 'Expected a ' + expectedErrorConstructor.name + ' to be thrown but no exception was thrown at all';
-  $ERROR(message);
-};
-
-function compareArray(a, b) {
-  if (b.length !== a.length) {
-    return false;
-  }
-
-  for (var i = 0; i < a.length; i++) {
-    if (b[i] !== a[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-`
-
-const TESTLIBX = TESTLIB +
-	`function looksNative(fn) {
-		return /native code/.test(Function.prototype.toString.call(fn));
-	}
-
-	function deepEqual(a, b) {
-		if (typeof a === "object") {
-			if (typeof b === "object") {
-				if (a === b) {
-					return true;
-				}
-				if (Reflect.getPrototypeOf(a) !== Reflect.getPrototypeOf(b)) {
-					return false;
-				}
-				var keysA = Object.keys(a);
-				var keysB = Object.keys(b);
-				if (keysA.length !== keysB.length) {
-					return false;
-				}
-				if (!compareArray(keysA.sort(), keysB.sort())) {
-					return false;
-				}
-				for (var i = 0; i < keysA.length; i++) {
-					var key = keysA[i];
-					if (!deepEqual(a[key], b[key])) {
-						return false;
-					}
-				}
-				return true;
-			} else {
-				return false;
-			}
-		}
-		return assert._isSameValue(a, b);
-	}
-`
-
 func TestDateUTC(t *testing.T) {
 	const SCRIPT = `
 	assert.sameValue(Date.UTC(1970, 0), 0, '1970, 0');
@@ -158,7 +33,7 @@ func TestDateUTC(t *testing.T) {
 
 	`
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestNewDate(t *testing.T) {
@@ -167,7 +42,7 @@ func TestNewDate(t *testing.T) {
 	d1.getUTCHours() === 12;
 
 	`
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestNewDate0(t *testing.T) {
@@ -175,7 +50,7 @@ func TestNewDate0(t *testing.T) {
 	(new Date(0)).toUTCString();
 
 	`
-	testScript1(SCRIPT, asciiString("Thu, 01 Jan 1970 00:00:00 GMT"), t)
+	testScript(SCRIPT, asciiString("Thu, 01 Jan 1970 00:00:00 GMT"), t)
 }
 
 func TestSetHour(t *testing.T) {
@@ -205,7 +80,7 @@ func TestSetHour(t *testing.T) {
 	assert.sameValue(d.getSeconds(), 45);
 
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 
 }
 
@@ -232,7 +107,7 @@ func TestSetMinute(t *testing.T) {
 	assert.sameValue(d.getHours(), 13);
 
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 
 }
 
@@ -252,7 +127,7 @@ func TestTimezoneOffset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testScript1(SCRIPT, intToValue(-60), t)
+	testScript(SCRIPT, intToValue(-60), t)
 }
 
 func TestDateValueOf(t *testing.T) {
@@ -261,7 +136,7 @@ func TestDateValueOf(t *testing.T) {
 	d9.valueOf();
 	`
 
-	testScript1(SCRIPT, intToValue(1.23e15), t)
+	testScript(SCRIPT, intToValue(1.23e15), t)
 }
 
 func TestDateSetters(t *testing.T) {
@@ -299,7 +174,7 @@ func TestDateSetters(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestDateParse(t *testing.T) {
@@ -383,7 +258,7 @@ func TestDateParse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestDateMaxValues(t *testing.T) {
@@ -393,7 +268,7 @@ func TestDateMaxValues(t *testing.T) {
 	assert.sameValue((new Date(0)).setUTCMilliseconds(-8.64e15), -8.64e15);
 	assert.sameValue((new Date(0)).setUTCSeconds(-8640000000000), -8.64e15);
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestDateExport(t *testing.T) {
@@ -419,7 +294,7 @@ func TestDateToJSON(t *testing.T) {
 	const SCRIPT = `
 	Date.prototype.toJSON.call({ toISOString: function () { return 1; } })
 	`
-	testScript1(SCRIPT, intToValue(1), t)
+	testScript(SCRIPT, intToValue(1), t)
 }
 
 func TestDateExportType(t *testing.T) {

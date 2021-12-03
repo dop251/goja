@@ -86,7 +86,7 @@ assert.sameValue('A—', String.fromCharCode(65, 0x2014));
 
 	`
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestStringMatchSym(t *testing.T) {
@@ -105,7 +105,7 @@ var prefix2 = new Prefix("def");
 "abc123".match(prefix1) === true && "abc123".match(prefix2) === false &&
 "def123".match(prefix1) === false && "def123".match(prefix2) === true;
 `
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestStringMatchAllSym(t *testing.T) {
@@ -124,7 +124,7 @@ var prefix2 = new Prefix("def");
 "abc123".matchAll(prefix1) === true && "abc123".matchAll(prefix2) === false &&
 "def123".matchAll(prefix1) === false && "def123".matchAll(prefix2) === true;
 `
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestGenericSplitter(t *testing.T) {
@@ -162,7 +162,7 @@ var r = new MyRegexp(/ /);
 var res = "a b c".split(r);
 res.length === 3 && res[0] === "a" && res[1] === "b" && res[2] === "c";
 `
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestStringIterSurrPair(t *testing.T) {
@@ -184,7 +184,7 @@ if (result.value !== pair) {
 }
 
 `
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestValueStringBuilder(t *testing.T) {

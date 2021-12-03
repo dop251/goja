@@ -234,7 +234,7 @@ func TestGoSliceReflectProto(t *testing.T) {
 	r := New()
 	a := []*Object{{}, nil, {}}
 	r.Set("a", &a)
-	_, err := r.RunString(TESTLIB + `
+	r.testScriptWithTestLib(`
 	var proto = [,2,,4];
 	Object.setPrototypeOf(a, proto);
 	assert.sameValue(a[1], null, "a[1]");
@@ -252,11 +252,7 @@ func TestGoSliceReflectProto(t *testing.T) {
 	});
 	a[5] = "test";
 	assert.sameValue(v5, "test", "v5");
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	`, _undefined, t)
 }
 
 func TestGoSliceReflectProtoProto(t *testing.T) {

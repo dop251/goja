@@ -19,7 +19,7 @@ func TestFuncProto(t *testing.T) {
 	}
 	thrown;
 	`
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestFuncPrototypeRedefine(t *testing.T) {
@@ -39,5 +39,5 @@ func TestFuncPrototypeRedefine(t *testing.T) {
 	thrown;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }

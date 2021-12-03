@@ -58,7 +58,7 @@ func TestMapEvilIterator(t *testing.T) {
 
 	undefined;
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func BenchmarkMapDelete(b *testing.B) {

@@ -19,7 +19,7 @@ func TestSparseArraySetLengthWithPropItems(t *testing.T) {
 	thrown && a.length === 3;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestSparseArraySwitch(t *testing.T) {
@@ -139,7 +139,7 @@ func TestSparseArrayOwnKeys(t *testing.T) {
 	keys.length === 1 && keys[0] === "500000"; 
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestSparseArrayEnumerate(t *testing.T) {
@@ -160,7 +160,7 @@ func TestSparseArrayEnumerate(t *testing.T) {
 	seen && count === 1;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestArraySparseMaxLength(t *testing.T) {
@@ -170,7 +170,7 @@ func TestArraySparseMaxLength(t *testing.T) {
 	a.length === 4294967295 && a[4294967294] === 1;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestArraySparseExportProps(t *testing.T) {

@@ -103,7 +103,7 @@ func TestDynamicObject(t *testing.T) {
 	}
 	o := vm.NewDynamicObject(dynObj)
 	vm.Set("o", o)
-	_, err := vm.RunString(TESTLIBX + `
+	vm.testScriptWithTestLibX(`
 	assert(o instanceof Object, "instanceof Object");
 	assert(o === o, "self equality");
 	assert(o !== {}, "non-equality");
@@ -130,10 +130,7 @@ func TestDynamicObject(t *testing.T) {
 	assert.sameValue(o.__proto__, Object.prototype, "__proto__");
 	o.__proto__ = null;
 	assert(!("__proto__" in o), "__proto__ in o after setting to null");
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	`, _undefined, t)
 }
 
 func TestDynamicObjectCustomProto(t *testing.T) {
@@ -145,7 +142,7 @@ func TestDynamicObjectCustomProto(t *testing.T) {
 	}
 	o := vm.NewDynamicObject(dynObj)
 	vm.Set("o", o)
-	_, err := vm.RunString(TESTLIB + `
+	vm.testScriptWithTestLib(`
 	var proto = {
 		valueOf: function() {
 			return this.num;
@@ -157,10 +154,8 @@ func TestDynamicObjectCustomProto(t *testing.T) {
 	assert(o instanceof Object, "instanceof");
 	assert.sameValue(o+1, 42);
 	assert.sameValue(o.toString(), "[object GoObject]");
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	`, _undefined, t)
+
 	if v := m["num"]; v.Export() != int64(41) {
 		t.Fatal(v)
 	}
@@ -173,7 +168,7 @@ func TestDynamicArray(t *testing.T) {
 	}
 	a := vm.NewDynamicArray(dynObj)
 	vm.Set("a", a)
-	_, err := vm.RunString(TESTLIBX + `
+	vm.testScriptWithTestLibX(`
 	assert(a instanceof Array, "instanceof Array");
 	assert(a instanceof Object, "instanceof Object");
 	assert(a === a, "self equality");
@@ -243,9 +238,5 @@ func TestDynamicArray(t *testing.T) {
 		Object.defineProperty(a, 0, {value: 0, writable: false, enumerable: false, configurable: true});
 	}, "define prop");
 
-	`)
-
-	if err != nil {
-		t.Fatal(err)
-	}
+	`, _undefined, t)
 }

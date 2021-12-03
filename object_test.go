@@ -89,7 +89,7 @@ func TestPropertyOrder(t *testing.T) {
 	}
 	`
 
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestDefinePropertiesSymbol(t *testing.T) {
@@ -101,7 +101,7 @@ func TestDefinePropertiesSymbol(t *testing.T) {
 	o[Symbol.toStringTag] === "Test";
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestObjectShorthandProperties(t *testing.T) {
@@ -118,7 +118,7 @@ func TestObjectShorthandProperties(t *testing.T) {
 
 	assert.sameValue(obj['with'](), 42, 'property exists');
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestObjectAssign(t *testing.T) {
@@ -134,7 +134,7 @@ func TestObjectAssign(t *testing.T) {
           delete this.b;
         }, b: 2 }).b, 1, "#2");
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestExportCircular(t *testing.T) {
@@ -307,7 +307,7 @@ func TestSetForeignReturnValue(t *testing.T) {
 	!Reflect.set(arrayTarget, "foo", 2);
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestDefinePropertiesUndefinedVal(t *testing.T) {
@@ -329,7 +329,7 @@ Object.defineProperties({}, proxy);
 	true;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func ExampleObject_Delete() {

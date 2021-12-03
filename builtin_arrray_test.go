@@ -10,7 +10,7 @@ func TestArrayProtoProp(t *testing.T) {
 	a[0]
 	`
 
-	testScript1(SCRIPT, valueInt(42), t)
+	testScript(SCRIPT, valueInt(42), t)
 }
 
 func TestArrayDelete(t *testing.T) {
@@ -23,7 +23,7 @@ func TestArrayDelete(t *testing.T) {
 	deleted && undef && len === 2;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestArrayDeleteNonexisting(t *testing.T) {
@@ -33,7 +33,7 @@ func TestArrayDeleteNonexisting(t *testing.T) {
 	delete a[0] && a[0] === 42;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestArraySetLength(t *testing.T) {
@@ -50,7 +50,7 @@ func TestArraySetLength(t *testing.T) {
 
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestArrayReverseNonOptimisable(t *testing.T) {
@@ -63,7 +63,7 @@ func TestArrayReverseNonOptimisable(t *testing.T) {
 	a.length === 2 && a[0] === 44 && a[1] === 42;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestArrayPushNonOptimisable(t *testing.T) {
@@ -79,7 +79,7 @@ func TestArrayPushNonOptimisable(t *testing.T) {
 	thrown;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestArraySetLengthWithPropItems(t *testing.T) {
@@ -96,7 +96,7 @@ func TestArraySetLengthWithPropItems(t *testing.T) {
 	thrown && a.length === 3;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestArrayFrom(t *testing.T) {
@@ -165,7 +165,7 @@ func TestArrayFrom(t *testing.T) {
 
 	`
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestArrayOf(t *testing.T) {
@@ -204,7 +204,7 @@ func TestArrayOf(t *testing.T) {
 
 	`
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestUnscopables(t *testing.T) {
@@ -217,7 +217,7 @@ func TestUnscopables(t *testing.T) {
 	}
 	_length === 0 && keys.length === 1 && keys[0] === "something";
 	`
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestArraySort(t *testing.T) {
@@ -229,7 +229,7 @@ func TestArraySort(t *testing.T) {
 		[1,2].sort({});
 	}, "non-callable compare function");
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestArraySortNonStdArray(t *testing.T) {
@@ -261,7 +261,7 @@ func TestArraySortNonStdArray(t *testing.T) {
 	assert.sameValue(array[2], undefined);
 	assert.sameValue(array.length, 4);
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestArrayConcat(t *testing.T) {
@@ -295,7 +295,7 @@ func TestArrayConcat(t *testing.T) {
 	}
 	assert.sameValue(array.concat().foo, 1, '@@species');
 	`
-	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+	testScriptWithTestLibX(SCRIPT, _undefined, t)
 }
 
 func TestArrayFlat(t *testing.T) {
@@ -307,7 +307,7 @@ func TestArrayFlat(t *testing.T) {
 	assert(deepEqual(array.flat(4), [1,2,3,4,5,6,7,8,9]), '#4');
 	assert(deepEqual(array.flat(10), [1,2,3,4,5,6,7,8,9]), '#5');
 	`
-	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+	testScriptWithTestLibX(SCRIPT, _undefined, t)
 }
 
 func TestArrayFlatMap(t *testing.T) {
@@ -321,5 +321,5 @@ func TestArrayFlatMap(t *testing.T) {
 	var array = [1, [2,3,[4,5,6]], [[[[7,8,9]]]]];
 	assert(deepEqual(array.flatMap(double), [2,2,3,[4,5,6],[[[7,8,9]]]]), '#1');
 	`
-	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+	testScriptWithTestLibX(SCRIPT, _undefined, t)
 }

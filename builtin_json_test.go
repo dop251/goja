@@ -58,11 +58,11 @@ func TestJSONParseReviver(t *testing.T) {
 	 })["p"]
 	`
 
-	testScript1(SCRIPT, intToValue(10), t)
+	testScript(SCRIPT, intToValue(10), t)
 }
 
 func TestQuoteMalformedSurrogatePair(t *testing.T) {
-	testScript1(`JSON.stringify("\uD800")`, asciiString(`"\ud800"`), t)
+	testScript(`JSON.stringify("\uD800")`, asciiString(`"\ud800"`), t)
 }
 
 func BenchmarkJSONStringify(b *testing.B) {

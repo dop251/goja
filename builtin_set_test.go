@@ -19,5 +19,5 @@ func TestSetEvilIterator(t *testing.T) {
 	new Set(o);
 	undefined;
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }

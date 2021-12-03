@@ -10,7 +10,7 @@ func TestStringOOBProperties(t *testing.T) {
 	string[4];
 	`
 
-	testScript1(SCRIPT, valueInt(1), t)
+	testScript(SCRIPT, valueInt(1), t)
 }
 
 func BenchmarkASCIIConcat(b *testing.B) {

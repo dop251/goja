@@ -52,7 +52,7 @@ func TestEvalVar(t *testing.T) {
 	test();
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 var jumptable = []func(*vm, *instr){

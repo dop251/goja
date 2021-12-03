@@ -38,7 +38,7 @@ func TestArrayCanonicalIndex(t *testing.T) {
 	}
 	`
 
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func BenchmarkArrayGetStr(b *testing.B) {

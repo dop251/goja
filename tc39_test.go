@@ -22,14 +22,6 @@ var (
 	invalidFormatError = errors.New("Invalid file format")
 
 	ignorableTestError = newSymbol(stringEmpty)
-
-	sabStub = MustCompile("sabStub.js", `
-		Object.defineProperty(this, "SharedArrayBuffer", {
-			get: function() {
-				throw IgnorableTestError;
-			}
-		});`,
-		false)
 )
 
 var (
@@ -338,6 +330,7 @@ type tc39TestCtx struct {
 	benchmark    tc39BenchmarkData
 	benchLock    sync.Mutex
 	testQueue    []tc39Test
+	sabStub      *Program
 }
 
 type TC39MetaNegative struct {
@@ -461,7 +454,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	})
 	vm.Set("$262", _262)
 	vm.Set("IgnorableTestError", ignorableTestError)
-	vm.RunProgram(sabStub)
+	vm.RunProgram(ctx.sabStub)
 	var out []string
 	async := meta.hasFlag("async")
 	if async {
@@ -615,6 +608,13 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 
 func (ctx *tc39TestCtx) init() {
 	ctx.prgCache = make(map[string]*Program)
+	ctx.sabStub = MustCompile("sabStub.js", `
+		Object.defineProperty(this, "SharedArrayBuffer", {
+			get: function() {
+				throw IgnorableTestError;
+			}
+		});`,
+		false)
 }
 
 func (ctx *tc39TestCtx) compile(base, name string) (*Program, error) {

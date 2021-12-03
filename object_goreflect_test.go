@@ -1035,7 +1035,7 @@ func TestGoReflectWithProto(t *testing.T) {
 	var s S
 	vm := New()
 	vm.Set("s", &s)
-	_, err := vm.RunString(TESTLIB + `
+	vm.testScriptWithTestLib(`
 	(function() {
 	'use strict';
 	var proto = {
@@ -1064,10 +1064,7 @@ func TestGoReflectWithProto(t *testing.T) {
 	s.test1 = 2;
 	assert.sameValue(test1Holder, 2, "test1Holder");
 	})();
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	`, _undefined, t)
 }
 
 func TestGoReflectSymbols(t *testing.T) {

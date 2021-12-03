@@ -19,7 +19,7 @@ func TestGlobalObjectProto(t *testing.T) {
 	this instanceof Object
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestUnicodeString(t *testing.T) {
@@ -29,7 +29,7 @@ func TestUnicodeString(t *testing.T) {
 
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func Test2TierHierarchyProp(t *testing.T) {
@@ -48,7 +48,7 @@ func Test2TierHierarchyProp(t *testing.T) {
 
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestConstStringIter(t *testing.T) {
@@ -65,7 +65,7 @@ func TestConstStringIter(t *testing.T) {
 	count;
 	`
 
-	testScript1(SCRIPT, intToValue(28), t)
+	testScript(SCRIPT, intToValue(28), t)
 }
 
 func TestUnicodeConcat(t *testing.T) {
@@ -80,7 +80,7 @@ func TestUnicodeConcat(t *testing.T) {
 
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestIndexOf(t *testing.T) {
@@ -89,7 +89,7 @@ func TestIndexOf(t *testing.T) {
 	"abc".indexOf("", 4)
 	`
 
-	testScript1(SCRIPT, intToValue(3), t)
+	testScript(SCRIPT, intToValue(3), t)
 }
 
 func TestUnicodeIndexOf(t *testing.T) {
@@ -97,7 +97,7 @@ func TestUnicodeIndexOf(t *testing.T) {
 	"абвгд".indexOf("вг", 1) === 2 && '中国'.indexOf('国') === 1
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestLastIndexOf(t *testing.T) {
@@ -106,7 +106,7 @@ func TestLastIndexOf(t *testing.T) {
 	"abcabab".lastIndexOf("ab", 3)
 	`
 
-	testScript1(SCRIPT, intToValue(3), t)
+	testScript(SCRIPT, intToValue(3), t)
 }
 
 func TestUnicodeLastIndexOf(t *testing.T) {
@@ -114,7 +114,7 @@ func TestUnicodeLastIndexOf(t *testing.T) {
 	"абвабаб".lastIndexOf("аб", 3)
 	`
 
-	testScript1(SCRIPT, intToValue(3), t)
+	testScript(SCRIPT, intToValue(3), t)
 }
 
 func TestUnicodeLastIndexOf1(t *testing.T) {
@@ -122,7 +122,7 @@ func TestUnicodeLastIndexOf1(t *testing.T) {
 	"abꞐcde".lastIndexOf("cd");
 	`
 
-	testScript1(SCRIPT, intToValue(3), t)
+	testScript(SCRIPT, intToValue(3), t)
 }
 
 func TestNumber(t *testing.T) {
@@ -130,7 +130,7 @@ func TestNumber(t *testing.T) {
 	(new Number(100111122133144155)).toString()
 	`
 
-	testScript1(SCRIPT, asciiString("100111122133144160"), t)
+	testScript(SCRIPT, asciiString("100111122133144160"), t)
 }
 
 func TestFractionalNumberToStringRadix(t *testing.T) {
@@ -138,7 +138,7 @@ func TestFractionalNumberToStringRadix(t *testing.T) {
 	(new Number(123.456)).toString(36)
 	`
 
-	testScript1(SCRIPT, asciiString("3f.gez4w97ry"), t)
+	testScript(SCRIPT, asciiString("3f.gez4w97ry"), t)
 }
 
 func TestNumberFormatRounding(t *testing.T) {
@@ -161,7 +161,7 @@ func TestNumberFormatRounding(t *testing.T) {
 	assert.sameValue((99.9).toFixed(0), "100");
 	assert.sameValue((99.99).toFixed(1), "100.0");
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestBinOctalNumbers(t *testing.T) {
@@ -169,7 +169,7 @@ func TestBinOctalNumbers(t *testing.T) {
 	0b111;
 	`
 
-	testScript1(SCRIPT, valueInt(7), t)
+	testScript(SCRIPT, valueInt(7), t)
 }
 
 func TestSetFunc(t *testing.T) {
@@ -314,7 +314,7 @@ func TestArgsKeys(t *testing.T) {
 	testArgs2(1,2).length
 	`
 
-	testScript1(SCRIPT, intToValue(2), t)
+	testScript(SCRIPT, intToValue(2), t)
 }
 
 func TestIPowOverflow(t *testing.T) {
@@ -322,7 +322,7 @@ func TestIPowOverflow(t *testing.T) {
 	Math.pow(65536, 6)
 	`
 
-	testScript1(SCRIPT, floatToValue(7.922816251426434e+28), t)
+	testScript(SCRIPT, floatToValue(7.922816251426434e+28), t)
 }
 
 func TestIPowZero(t *testing.T) {
@@ -330,7 +330,7 @@ func TestIPowZero(t *testing.T) {
 	Math.pow(0, 0)
 	`
 
-	testScript1(SCRIPT, intToValue(1), t)
+	testScript(SCRIPT, intToValue(1), t)
 }
 
 func TestInterrupt(t *testing.T) {
@@ -1047,7 +1047,7 @@ func TestJSONEscape(t *testing.T) {
 	JSON.stringify(a);
 	`
 
-	testScript1(SCRIPT, asciiString(`"\\+1"`), t)
+	testScript(SCRIPT, asciiString(`"\\+1"`), t)
 }
 
 func TestJSONObjectInArray(t *testing.T) {
@@ -1056,7 +1056,7 @@ func TestJSONObjectInArray(t *testing.T) {
 	JSON.stringify(JSON.parse(a)) == a;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestJSONQuirkyNumbers(t *testing.T) {
@@ -1079,7 +1079,7 @@ func TestJSONQuirkyNumbers(t *testing.T) {
 
 	`
 
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestJSONNil(t *testing.T) {
@@ -1137,7 +1137,7 @@ func TestSortComparatorReturnValues(t *testing.T) {
 	}
 	`
 
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestSortComparatorReturnValueFloats(t *testing.T) {
@@ -1156,7 +1156,7 @@ func TestSortComparatorReturnValueFloats(t *testing.T) {
 		}
 	}
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestSortComparatorReturnValueNegZero(t *testing.T) {
@@ -1169,7 +1169,7 @@ func TestSortComparatorReturnValueNegZero(t *testing.T) {
 		}
 	}
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestNilApplyArg(t *testing.T) {
@@ -1179,7 +1179,7 @@ func TestNilApplyArg(t *testing.T) {
         }).apply(this, [,1])
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestNilCallArg(t *testing.T) {
@@ -1565,14 +1565,14 @@ func TestAutoBoxing(t *testing.T) {
 	a.test === undefined && a.test1 === undefined && f();
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestProtoGetter(t *testing.T) {
 	const SCRIPT = `
 	({}).__proto__ === Object.prototype && [].__proto__ === Array.prototype;
 	`
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestSymbol1(t *testing.T) {
@@ -1580,7 +1580,7 @@ func TestSymbol1(t *testing.T) {
 		Symbol.toPrimitive[Symbol.toPrimitive]() === Symbol.toPrimitive;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestFreezeSymbol(t *testing.T) {
@@ -1593,7 +1593,7 @@ func TestFreezeSymbol(t *testing.T) {
 		o[s] === 42 && Object.isFrozen(o);
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestToPropertyKey(t *testing.T) {
@@ -1633,7 +1633,7 @@ func TestToPropertyKey(t *testing.T) {
 	assert.sameValue(a[1], a[wrapper1], "a[1] === a[wrapper1]");
 	`
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestPrimThisValue(t *testing.T) {
@@ -1657,7 +1657,7 @@ func TestPrimThisValue(t *testing.T) {
 	t();
 	`
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestPrimThisValueGetter(t *testing.T) {
@@ -1678,7 +1678,7 @@ func TestPrimThisValueGetter(t *testing.T) {
 	t();
 	`
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestObjSetSym(t *testing.T) {
@@ -1700,7 +1700,7 @@ func TestObjSetSym(t *testing.T) {
 	o[sym] = 44;
 	o[sym];
 	`
-	testScript1(SCRIPT, intToValue(44), t)
+	testScript(SCRIPT, intToValue(44), t)
 }
 
 func TestObjSet(t *testing.T) {
@@ -1721,7 +1721,7 @@ func TestObjSet(t *testing.T) {
 	o.test = 44;
 	o.test;
 	`
-	testScript1(SCRIPT, intToValue(44), t)
+	testScript(SCRIPT, intToValue(44), t)
 }
 
 func TestToValueNilValue(t *testing.T) {
@@ -1772,7 +1772,7 @@ func TestNativeCtorNewTarget(t *testing.T) {
 	var o = Reflect.construct(Number, [1], NewTarget);
 	o.__proto__ === NewTarget.prototype && o.toString() === "[object Number]";
 	`
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestNativeCtorNonNewCall(t *testing.T) {
@@ -1942,7 +1942,7 @@ func TestNestedEnumerate(t *testing.T) {
 	assert(compareArray(Reflect.ownKeys(o), ["0","1","foo","bar","hidden"]), "keys");
 	res;
 	`
-	testScript1(TESTLIB+SCRIPT, asciiString("baz-foo baz-bar foo-foo foo-bar bar-foo bar-bar "), t)
+	testScriptWithTestLib(SCRIPT, asciiString("baz-foo baz-bar foo-foo foo-bar bar-foo bar-bar "), t)
 }
 
 func TestAbandonedEnumerate(t *testing.T) {
@@ -1958,7 +1958,7 @@ func TestAbandonedEnumerate(t *testing.T) {
 	}
 	res;
 	`
-	testScript1(SCRIPT, asciiString("baz-foo foo-foo bar-foo "), t)
+	testScript(SCRIPT, asciiString("baz-foo foo-foo bar-foo "), t)
 }
 
 func TestIterCloseThrows(t *testing.T) {
@@ -1985,7 +1985,7 @@ func TestIterCloseThrows(t *testing.T) {
 	} catch (e) {};
 	returnCount;
 	`
-	testScript1(SCRIPT, valueInt(1), t)
+	testScript(SCRIPT, valueInt(1), t)
 }
 
 func TestDeclareGlobalFunc(t *testing.T) {
@@ -2005,7 +2005,7 @@ func TestDeclareGlobalFunc(t *testing.T) {
 	assert(!desc.configurable, "configurable");
 	assert.sameValue(initial(), 2222);
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestStackOverflowError(t *testing.T) {
@@ -2186,7 +2186,7 @@ func TestDestructSymbol(t *testing.T) {
 	assert.sameValue(s, true, "S");
 	assert(deepEqual(rest, {test: 1}), "rest");
 	`
-	testScript1(TESTLIBX+SCRIPT, _undefined, t)
+	testScriptWithTestLibX(SCRIPT, _undefined, t)
 }
 
 func TestAccessorFuncName(t *testing.T) {
@@ -2223,7 +2223,7 @@ func TestAccessorFuncName(t *testing.T) {
 	assert.sameValue(prop.get.name, 'get [test262]');
 	assert.sameValue(prop.set.name, 'set [test262]');
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestCoverFuncName(t *testing.T) {
@@ -2246,7 +2246,7 @@ func TestCoverFuncName(t *testing.T) {
 	assert.sameValue(o[anonSym].name, '', 'via anonymous Symbol');
 	assert.sameValue(o[namedSym].name, '[]', 'via Symbol');
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestAnonFuncName(t *testing.T) {
@@ -2254,7 +2254,7 @@ func TestAnonFuncName(t *testing.T) {
 	const d = Object.getOwnPropertyDescriptor((function() {}), 'name');
 	d !== undefined && d.value === '';
 	`
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestStringToBytesConversion(t *testing.T) {
@@ -2307,7 +2307,7 @@ Promise.all([p1, p2, p3]);
 
 assert.sameValue(callCount, 3, '"then"" invoked once for every iterated value');
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestPromiseExport(t *testing.T) {
@@ -2340,7 +2340,7 @@ func TestErrorStack(t *testing.T) {
 		throw new Error("stack still in err after delete");
 	}
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 /*
@@ -2362,7 +2362,7 @@ function foo(a,b,c)
 	a3.length === 1500002 && a3[500000] === 1 && a3[1500001] == 2;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 */
 
