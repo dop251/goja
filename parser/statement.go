@@ -9,6 +9,7 @@ import (
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
+	"github.com/dop251/goja/unistring"
 	"github.com/go-sourcemap/sourcemap"
 )
 
@@ -85,6 +86,10 @@ func (self *_parser) parseStatement() ast.Statement {
 		return self.parseThrowStatement()
 	case token.TRY:
 		return self.parseTryStatement()
+	case token.EXPORT:
+		return self.parseExportDeclaration()
+	case token.IMPORT:
+		return self.parseImportDeclaration()
 	}
 
 	expression := self.parseExpression()
@@ -808,6 +813,64 @@ illegal:
 	return &ast.BadStatement{From: idx, To: self.idx}
 }
 
+// :white_check_mark: export ExportFromClause FromClause; (3. is missing)
+// :white_check_mark: export NamedExports;
+// :white_check_mark: export VariableStatement
+func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
+	self.next()
+
+	// TODO: parse `export Declaration` -> function || generator || async function || async generator || let || const
+
+	switch self.token {
+	case token.MULTIPLY: // FIXME: should also parse NamedExports if '{'
+		exportFromClause := self.parseExportFromClause()
+		fromClause := self.parseFromClause()
+		self.semicolon()
+		return &ast.ExportDeclaration{
+			ExportFromClause: exportFromClause,
+			FromClause:       fromClause,
+		}
+	case token.LEFT_BRACE:
+		namedExports := self.parseNamedExports()
+		self.semicolon()
+		return &ast.ExportDeclaration{NamedExports: namedExports}
+	case token.VAR:
+		self.next()
+		return &ast.ExportDeclaration{Variable: self.parseVariableStatement()}
+	case token.FUNCTION, token.LET, token.CONST: // FIXME: What about function* and async?
+		break // TODO: implement me!
+	case token.DEFAULT: // FIXME: current implementation of HoistableDeclaration only implements function?
+		return &ast.ExportDeclaration{}
+	default:
+		namedExports := self.parseNamedExports()
+		self.semicolon()
+		return &ast.ExportDeclaration{NamedExports: namedExports}
+	}
+
+	return nil
+}
+
+func (self *_parser) parseImportDeclaration() *ast.ImportDeclaration {
+	self.next()
+
+	// _, _, errString := self.scanString(0, false)  // look at first character only
+	if self.token == token.STRING {
+		moduleSpecifier := self.parseModuleSpecifier()
+		self.semicolon()
+
+		return &ast.ImportDeclaration{ModuleSpecifier: moduleSpecifier}
+	}
+
+	importClause := self.parseImportClause()
+	fromClause := self.parseFromClause()
+	self.semicolon()
+
+	return &ast.ImportDeclaration{
+		ImportClause: importClause,
+		FromClause:   fromClause,
+	}
+}
+
 // Find the next statement after an error (recover)
 func (self *_parser) nextStatement() {
 	for {
@@ -839,4 +902,215 @@ func (self *_parser) nextStatement() {
 		}
 		self.next()
 	}
+}
+
+func (self *_parser) parseFromClause() *ast.FromClause {
+	identifier := self.parseIdentifier()
+	if identifier.Name != "from" {
+		self.error(self.idx, "expected 'from' keyword, found '%s' instead", identifier.Name)
+		return nil
+	}
+
+	// expression := self.parsePrimaryExpression() // module specifier (string literal)
+	// stringLiteral, ok := expression.(*ast.StringLiteral)
+	// if !ok {
+	// 	self.error(self.idx, "expected module specifier")
+	// 	return nil
+	// }
+
+	return &ast.FromClause{
+		ModuleSpecifier: self.parseModuleSpecifier(),
+	}
+}
+
+func (self *_parser) parseExportFromClause() *ast.ExportFromClause {
+	if self.token == token.MULTIPLY { // FIXME: rename token to STAR?
+		self.next()
+
+		if self.token != token.IDENTIFIER {
+			return &ast.ExportFromClause{IsWildcard: true}
+		}
+
+		// Is next token a "as" identifier
+		// nextToken, nextLiteral, _, _, := self.scan()
+		// literal, _, _, _ := self.scanIdentifier()
+		if self.literal == "as" {
+			self.next()
+			alias := self.parseIdentifier() // TODO: does it really match specification's IdentifierName?
+			return &ast.ExportFromClause{
+				IsWildcard: true,
+				Alias:      alias.Name,
+			}
+		}
+
+		return &ast.ExportFromClause{
+			IsWildcard: true,
+		}
+	}
+
+	return &ast.ExportFromClause{
+		IsWildcard:   false,
+		NamedExports: self.parseNamedExports(),
+	}
+}
+
+func (self *_parser) parseNamedExports() *ast.NamedExports {
+	_ = self.expect(token.LEFT_BRACE) // FIXME: return idx?
+
+	exportsList := self.parseExportsList()
+
+	self.expect(token.RIGHT_BRACE)
+
+	return &ast.NamedExports{
+		ExportsList: exportsList,
+	}
+}
+
+// MOVE IN EXPRESSION
+func (self *_parser) parseExportsList() (exportsList []*ast.ExportSpecifier) { // FIXME: ast.Binding?
+	for {
+		exportsList = append(exportsList, self.parseExportSpecifier())
+		if self.token != token.COMMA {
+			break
+		}
+
+		self.next()
+	}
+
+	return
+}
+
+func (self *_parser) parseExportSpecifier() *ast.ExportSpecifier {
+	identifier := self.parseIdentifier()
+
+	// Is the next token an identifier?
+	if self.token != token.IDENTIFIER { // No "as" identifier found
+		return &ast.ExportSpecifier{IdentifierName: identifier.Name}
+	}
+
+	as := self.parseIdentifier()
+	// We reach this point only if the next token is an identifier.
+	// Let's now verify if it's "as".
+	if as.Name != "as" { // FIXME: The specification says 'as' is a keyword in this context
+		// FAIL
+		self.error(as.Idx, "Expected 'as' keyword, found '%s' instead", as.Name)
+	}
+
+	alias := self.parseIdentifier()
+
+	return &ast.ExportSpecifier{
+		IdentifierName: identifier.Name,
+		Alias:          alias.Name,
+	}
+}
+
+func (self *_parser) parseImportClause() *ast.ImportClause { // FIXME: return type?
+	switch self.token {
+	case token.LEFT_BRACE:
+		return &ast.ImportClause{NamedImports: self.parseNamedImports()}
+	case token.MULTIPLY:
+		return &ast.ImportClause{NameSpaceImport: self.parseNameSpaceImport()}
+	case token.IDENTIFIER:
+		literal, _, _, _ := self.scanIdentifier()
+		if literal == "*" {
+			return &ast.ImportClause{NameSpaceImport: self.parseNameSpaceImport()}
+		}
+
+		importClause := ast.ImportClause{
+			ImportedDefaultBinding: self.parseImportedDefaultBinding(),
+		}
+
+		if self.token == token.COMMA {
+			self.expect(token.COMMA)
+
+			if self.token == token.MULTIPLY {
+				importClause.NameSpaceImport = self.parseNameSpaceImport()
+			} else {
+				importClause.NamedImports = self.parseNamedImports()
+			}
+		}
+
+		return &importClause
+	}
+
+	return nil // unreachable
+}
+
+func (self *_parser) parseModuleSpecifier() unistring.String {
+	expression := self.parsePrimaryExpression() // module specifier (string literal)
+	stringLiteral, ok := expression.(*ast.StringLiteral)
+	if !ok {
+		self.error(self.idx, "expected module specifier")
+		return ""
+	}
+
+	return stringLiteral.Value
+}
+
+func (self *_parser) parseImportedDefaultBinding() *ast.Identifier {
+	return self.parseImportedBinding()
+}
+
+// FIXME: return type?
+func (self *_parser) parseNameSpaceImport() *ast.NameSpaceImport {
+	self.expect(token.MULTIPLY) // *
+	identifier := self.parseIdentifier()
+	if identifier.Name != "as" {
+		self.error(self.idx, "expected 'as' identifier, found '%s' instead", identifier.Name)
+		return nil
+	}
+
+	return &ast.NameSpaceImport{ImportedBinding: self.parseImportedBinding().Name}
+}
+
+func (self *_parser) parseNamedImports() *ast.NamedImports {
+	_ = self.expect(token.LEFT_BRACE) // FIXME: should we do something with idx?
+
+	importsList := self.parseImportsList()
+
+	self.expect(token.RIGHT_BRACE)
+
+	return &ast.NamedImports{
+		ImportsList: importsList,
+	}
+}
+
+func (self *_parser) parseImportsList() (importsList []*ast.ImportSpecifier) {
+	if self.token == token.RIGHT_BRACE {
+		return
+	}
+
+	for {
+		importsList = append(importsList, self.parseImportSpecifier())
+		if self.token != token.COMMA {
+			break
+		}
+
+		self.next()
+	}
+
+	return
+}
+
+func (self *_parser) parseImportSpecifier() *ast.ImportSpecifier {
+	importSpecifier := &ast.ImportSpecifier{
+		IdentifierName: self.parseImportedBinding().Name,
+	}
+
+	if self.token == token.IDENTIFIER && self.literal == "as" {
+		self.next() // skip "as"
+		importSpecifier.Alias = self.parseIdentifier().Name
+	}
+
+	return importSpecifier
+}
+
+func (self *_parser) parseImportedBinding() *ast.Identifier {
+	return self.parseBindingIdentifier()
+}
+
+func (self *_parser) parseBindingIdentifier() *ast.Identifier {
+	// FIXME: Ecma 262 defines yield and await as permitted binding identifier,
+	// but goja does not support async/await nor generators yet?
+	return self.parseIdentifier()
 }

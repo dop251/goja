@@ -434,6 +434,60 @@ type (
 	FunctionDeclaration struct {
 		Function *FunctionLiteral
 	}
+
+	ImportDeclaration struct {
+		idx0            file.Idx
+		idx1            file.Idx
+		ImportClause    *ImportClause
+		FromClause      *FromClause
+		ModuleSpecifier unistring.String
+	}
+
+	ImportClause struct {
+		ImportedDefaultBinding *Identifier
+		NameSpaceImport        *NameSpaceImport
+		NamedImports           *NamedImports
+	}
+
+	NameSpaceImport struct {
+		ImportedBinding unistring.String
+	}
+
+	NamedImports struct {
+		ImportsList []*ImportSpecifier
+	}
+
+	ImportSpecifier struct {
+		IdentifierName unistring.String
+		Alias          unistring.String
+	}
+
+	ExportDeclaration struct {
+		idx0             file.Idx
+		idx1             file.Idx
+		Variable         *VariableStatement
+		NamedExports     *NamedExports
+		ExportFromClause *ExportFromClause
+		FromClause       *FromClause
+	}
+
+	FromClause struct {
+		ModuleSpecifier unistring.String
+	}
+	ExportFromClause struct {
+		IsWildcard   bool
+		Alias        unistring.String
+		NamedExports *NamedExports
+	}
+
+	NamedExports struct {
+		ExportsList []*ExportSpecifier
+	}
+
+	ExportSpecifier struct {
+		IdentifierName unistring.String
+		Alias          unistring.String
+	}
 )
 
 // _statementNode
@@ -461,6 +515,9 @@ func (*WhileStatement) _statementNode()      {}
 func (*WithStatement) _statementNode()       {}
 func (*LexicalDeclaration) _statementNode()  {}
 func (*FunctionDeclaration) _statementNode() {}
+
+func (*ExportDeclaration) _statementNode() {}
+func (*ImportDeclaration) _statementNode() {}
 
 // =========== //
 // Declaration //
@@ -608,6 +665,9 @@ func (self *PropertyShort) Idx0() file.Idx                 { return self.Name.Id
 func (self *PropertyKeyed) Idx0() file.Idx                 { return self.Key.Idx0() }
 func (self *ExpressionBody) Idx0() file.Idx                { return self.Expression.Idx0() }
 
+func (self *ExportDeclaration) Idx0() file.Idx { return self.idx0 }
+func (self *ImportDeclaration) Idx0() file.Idx { return self.idx0 }
+
 // ==== //
 // Idx1 //
 // ==== //
@@ -707,3 +767,6 @@ func (self *PropertyShort) Idx1() file.Idx {
 func (self *PropertyKeyed) Idx1() file.Idx { return self.Value.Idx1() }
 
 func (self *ExpressionBody) Idx1() file.Idx { return self.Expression.Idx1() }
+
+func (self *ExportDeclaration) Idx1() file.Idx { return self.idx1 }
+func (self *ImportDeclaration) Idx1() file.Idx { return self.idx1 }

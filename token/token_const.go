@@ -112,6 +112,10 @@ const (
 	DEBUGGER
 
 	INSTANCEOF
+
+	// ES6 Modules
+	EXPORT
+	IMPORT
 	lastKeyword
 )
 
@@ -205,6 +209,8 @@ var token2string = [...]string{
 	CONTINUE:                    "continue",
 	DEBUGGER:                    "debugger",
 	INSTANCEOF:                  "instanceof",
+	EXPORT:                      "export",
+	IMPORT:                      "import",
 }
 
 var keywordTable = map[string]_keyword{
@@ -286,6 +292,12 @@ var keywordTable = map[string]_keyword{
 	"instanceof": {
 		token: INSTANCEOF,
 	},
+	"import": {
+		token: IMPORT,
+	},
+	"export": {
+		token: EXPORT,
+	},
 	"const": {
 		token: CONST,
 	},
@@ -297,15 +309,7 @@ var keywordTable = map[string]_keyword{
 		token:         KEYWORD,
 		futureKeyword: true,
 	},
-	"export": {
-		token:         KEYWORD,
-		futureKeyword: true,
-	},
 	"extends": {
-		token:         KEYWORD,
-		futureKeyword: true,
-	},
-	"import": {
 		token:         KEYWORD,
 		futureKeyword: true,
 	},
