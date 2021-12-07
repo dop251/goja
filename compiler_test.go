@@ -4442,6 +4442,79 @@ func TestDuplicateFunc(t *testing.T) {
 	testScript(SCRIPT, asciiString("b"), t)
 }
 
+func TestSrcLocations(t *testing.T) {
+	// Do not reformat, assertions depend on line and column numbers
+	const SCRIPT = `
+	let i = {
+		valueOf() {
+			throw new Error();
+		}
+	};
+	try {
+		i++;
+	} catch(e) {
+		assertStack(e, [["test.js", "valueOf", 4, 10],
+						["test.js", "", 8, 3]
+						]);
+	}
+
+	Object.defineProperty(globalThis, "x", {
+		get() {
+			throw new Error();
+		},
+		set() {
+			throw new Error();
+		}
+	});
+
+	try {
+		x;
+	} catch(e) {
+		assertStack(e, [["test.js", "get", 17, 10],
+						["test.js", "", 25, 3]
+						]);
+	}
+
+	try {
+		x++;
+	} catch(e) {
+		assertStack(e, [["test.js", "get", 17, 10],
+						["test.js", "", 33, 3]
+						]);
+	}
+
+	try {
+		x = 2;
+	} catch(e) {
+		assertStack(e, [["test.js", "set", 20, 10],
+						["test.js", "", 41, 3]
+						]);
+	}
+
+	try {
+		+i;
+	} catch(e) {
+		assertStack(e, [["test.js", "valueOf", 4, 10],
+						["test.js", "", 49, 4]
+						]);
+	}
+
+
+	function assertStack(e, expected) {
+		const lines = e.stack.split('\n');
+		let lnum = 1;
+		for (const [file, func, line, col] of expected) {
+			const expLine = func === "" ?
+				"\tat " + file + ":" + line + ":" + col + "(" :
+				"\tat " + func + " (" + file + ":" + line + ":" + col + "(";
+			assert.sameValue(lines[lnum].substring(0, expLine.length), expLine, "line " + lnum);
+			lnum++;
+		}
+	}
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")
