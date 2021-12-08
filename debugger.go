@@ -14,12 +14,16 @@ import (
 type Debugger struct {
 	vm *vm
 
-	currentLine  int
-	lastLine     int
-	breakpoints  map[string][]int
-	activationCh chan chan ActivationReason
-	currentCh    chan ActivationReason
-	active       bool
+	currentLine    int
+	lastLine       int
+	breakpoints    map[string][]int
+	activationCh   chan chan ActivationReason
+	currentCh      chan ActivationReason
+	active         bool
+	lastBreakpoint struct {
+		filename string
+		line     int
+	}
 }
 
 func newDebugger(vm *vm) *Debugger {

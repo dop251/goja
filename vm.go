@@ -444,14 +444,20 @@ func (vm *vm) debug() {
 			break
 		}
 
-		if vm.debugger != nil && !vm.debugger.active && vm.debugger.breakpoint() {
-			vm.debugger.updateCurrentLine()
-			vm.debugger.activate(BreakpointActivation)
-
-			vm.prg.code[vm.pc].exec(vm)
-		} else {
-			vm.prg.code[vm.pc].exec(vm)
+		if vm.debugger != nil &&
+			(vm.debugger.lastBreakpoint.filename != vm.debugger.Filename() ||
+				vm.debugger.lastBreakpoint.line != vm.debugger.Line()) {
+			if !vm.debugger.active && vm.debugger.breakpoint() {
+				vm.debugger.lastBreakpoint.filename = vm.debugger.Filename()
+				vm.debugger.lastBreakpoint.line = vm.debugger.Line()
+				vm.debugger.updateCurrentLine()
+				vm.debugger.activate(BreakpointActivation)
+			} else {
+				vm.debugger.lastBreakpoint.filename = ""
+				vm.debugger.lastBreakpoint.line = -1
+			}
 		}
+		vm.prg.code[vm.pc].exec(vm)
 
 		ticks++
 		if ticks > 10000 {
