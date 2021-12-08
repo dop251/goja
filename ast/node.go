@@ -463,12 +463,13 @@ type (
 	}
 
 	ExportDeclaration struct {
-		idx0             file.Idx
-		idx1             file.Idx
-		Variable         *VariableStatement
-		NamedExports     *NamedExports
-		ExportFromClause *ExportFromClause
-		FromClause       *FromClause
+		idx0                 file.Idx
+		idx1                 file.Idx
+		Variable             *VariableStatement
+		NamedExports         *NamedExports
+		ExportFromClause     *ExportFromClause
+		FromClause           *FromClause
+		HoistableDeclaration *HoistableDeclaration
 	}
 
 	FromClause struct {
@@ -487,6 +488,10 @@ type (
 	ExportSpecifier struct {
 		IdentifierName unistring.String
 		Alias          unistring.String
+	}
+
+	HoistableDeclaration struct {
+		FunctionDeclaration *FunctionLiteral
 	}
 )
 

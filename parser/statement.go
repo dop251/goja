@@ -840,7 +840,13 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 	case token.FUNCTION, token.LET, token.CONST: // FIXME: What about function* and async?
 		break // TODO: implement me!
 	case token.DEFAULT: // FIXME: current implementation of HoistableDeclaration only implements function?
-		return &ast.ExportDeclaration{}
+		self.next()
+		functionDeclaration := self.parseFunction(false)
+		return &ast.ExportDeclaration{
+			HoistableDeclaration: &ast.HoistableDeclaration{
+				FunctionDeclaration: functionDeclaration,
+			},
+		}
 	default:
 		namedExports := self.parseNamedExports()
 		self.semicolon()
