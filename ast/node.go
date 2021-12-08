@@ -200,9 +200,10 @@ type (
 	}
 
 	PropertyKeyed struct {
-		Key   Expression
-		Kind  PropertyKind
-		Value Expression
+		Key      Expression
+		Kind     PropertyKind
+		Value    Expression
+		Computed bool
 	}
 
 	SpreadElement struct {
@@ -224,6 +225,21 @@ type (
 		Idx     file.Idx
 		Literal string
 		Value   unistring.String
+	}
+
+	TemplateElement struct {
+		Idx     file.Idx
+		Literal string
+		Parsed  unistring.String
+		Valid   bool
+	}
+
+	TemplateLiteral struct {
+		OpenQuote   file.Idx
+		CloseQuote  file.Idx
+		Tag         Expression
+		Elements    []*TemplateElement
+		Expressions []Expression
 	}
 
 	ThisExpression struct {
@@ -264,6 +280,7 @@ func (*ObjectLiteral) _expressionNode()         {}
 func (*RegExpLiteral) _expressionNode()         {}
 func (*SequenceExpression) _expressionNode()    {}
 func (*StringLiteral) _expressionNode()         {}
+func (*TemplateLiteral) _expressionNode()       {}
 func (*ThisExpression) _expressionNode()        {}
 func (*UnaryExpression) _expressionNode()       {}
 func (*MetaProperty) _expressionNode()          {}
@@ -555,6 +572,7 @@ func (self *ObjectLiteral) Idx0() file.Idx         { return self.LeftBrace }
 func (self *RegExpLiteral) Idx0() file.Idx         { return self.Idx }
 func (self *SequenceExpression) Idx0() file.Idx    { return self.Sequence[0].Idx0() }
 func (self *StringLiteral) Idx0() file.Idx         { return self.Idx }
+func (self *TemplateLiteral) Idx0() file.Idx       { return self.OpenQuote }
 func (self *ThisExpression) Idx0() file.Idx        { return self.Idx }
 func (self *UnaryExpression) Idx0() file.Idx       { return self.Idx }
 func (self *MetaProperty) Idx0() file.Idx          { return self.Idx }
@@ -607,15 +625,22 @@ func (self *DotExpression) Idx1() file.Idx         { return self.Identifier.Idx1
 func (self *FunctionLiteral) Idx1() file.Idx       { return self.Body.Idx1() }
 func (self *ArrowFunctionLiteral) Idx1() file.Idx  { return self.Body.Idx1() }
 func (self *Identifier) Idx1() file.Idx            { return file.Idx(int(self.Idx) + len(self.Name)) }
-func (self *NewExpression) Idx1() file.Idx         { return self.RightParenthesis + 1 }
-func (self *NullLiteral) Idx1() file.Idx           { return file.Idx(int(self.Idx) + 4) } // "null"
-func (self *NumberLiteral) Idx1() file.Idx         { return file.Idx(int(self.Idx) + len(self.Literal)) }
-func (self *ObjectLiteral) Idx1() file.Idx         { return self.RightBrace + 1 }
-func (self *ObjectPattern) Idx1() file.Idx         { return self.RightBrace + 1 }
-func (self *RegExpLiteral) Idx1() file.Idx         { return file.Idx(int(self.Idx) + len(self.Literal)) }
-func (self *SequenceExpression) Idx1() file.Idx    { return self.Sequence[len(self.Sequence)-1].Idx1() }
-func (self *StringLiteral) Idx1() file.Idx         { return file.Idx(int(self.Idx) + len(self.Literal)) }
-func (self *ThisExpression) Idx1() file.Idx        { return self.Idx + 4 }
+func (self *NewExpression) Idx1() file.Idx {
+	if self.ArgumentList != nil {
+		return self.RightParenthesis + 1
+	} else {
+		return self.Callee.Idx1()
+	}
+}
+func (self *NullLiteral) Idx1() file.Idx        { return file.Idx(int(self.Idx) + 4) } // "null"
+func (self *NumberLiteral) Idx1() file.Idx      { return file.Idx(int(self.Idx) + len(self.Literal)) }
+func (self *ObjectLiteral) Idx1() file.Idx      { return self.RightBrace + 1 }
+func (self *ObjectPattern) Idx1() file.Idx      { return self.RightBrace + 1 }
+func (self *RegExpLiteral) Idx1() file.Idx      { return file.Idx(int(self.Idx) + len(self.Literal)) }
+func (self *SequenceExpression) Idx1() file.Idx { return self.Sequence[len(self.Sequence)-1].Idx1() }
+func (self *StringLiteral) Idx1() file.Idx      { return file.Idx(int(self.Idx) + len(self.Literal)) }
+func (self *TemplateLiteral) Idx1() file.Idx    { return self.CloseQuote + 1 }
+func (self *ThisExpression) Idx1() file.Idx     { return self.Idx + 4 }
 func (self *UnaryExpression) Idx1() file.Idx {
 	if self.Postfix {
 		return self.Operand.Idx1() + 2 // ++ --

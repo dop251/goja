@@ -22,223 +22,107 @@ var (
 	invalidFormatError = errors.New("Invalid file format")
 
 	ignorableTestError = newSymbol(stringEmpty)
-
-	sabStub = MustCompile("sabStub.js", `
-		Object.defineProperty(this, "SharedArrayBuffer", {
-			get: function() {
-				throw IgnorableTestError;
-			}
-		});`,
-		false)
 )
 
 var (
+	skipPrefixes prefixList
+
 	skipList = map[string]bool{
 
-		// Obsolete tests (see https://github.com/tc39/test262/pull/2445)
-		//TODO: remove this after upgrading the test suite past the above PR
-		"test/language/statements/function/scope-param-rest-elem-var-open.js":         true,
-		"test/language/statements/function/scope-param-rest-elem-var-close.js":        true,
-		"test/language/statements/function/scope-param-elem-var-open.js":              true,
-		"test/language/function-code/eval-param-env-with-prop-initializer.js":         true,
-		"test/language/function-code/eval-param-env-with-computed-key.js":             true,
-		"test/language/expressions/object/scope-meth-param-rest-elem-var-open.js":     true,
-		"test/language/statements/function/scope-param-elem-var-close.js":             true,
-		"test/language/expressions/object/scope-meth-param-rest-elem-var-close.js":    true,
-		"test/language/expressions/object/scope-meth-param-elem-var-open.js":          true,
-		"test/language/expressions/object/scope-meth-param-elem-var-close.js":         true,
-		"test/language/expressions/function/scope-param-rest-elem-var-open.js":        true,
-		"test/language/expressions/function/scope-param-rest-elem-var-close.js":       true,
-		"test/language/expressions/function/scope-param-elem-var-open.js":             true,
-		"test/language/expressions/function/scope-param-elem-var-close.js":            true,
-		"test/language/expressions/arrow-function/scope-param-rest-elem-var-open.js":  true,
-		"test/language/expressions/arrow-function/scope-param-rest-elem-var-close.js": true,
-		"test/language/expressions/arrow-function/scope-param-elem-var-close.js":      true,
-		"test/language/expressions/arrow-function/scope-param-elem-var-open.js":       true,
-		"test/language/function-code/each-param-has-own-scope.js":                     true,
-		"test/language/function-code/each-param-has-own-non-shared-eval-scope.js":     true,
+		// timezone
+		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true,
+		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true,
+		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true,
 
-		// These tests are out of date (fixed in https://github.com/tc39/test262/commit/7d998a098e5420cb4b6ee4a05eb8c386d750c596)
-		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/key-is-numericindex.js":                   true,
-		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/key-is-numericindex-desc-configurable.js": true,
+		// floating point date calculations
+		"test/built-ins/Date/UTC/fp-evaluation-order.js": true,
 
-		// Fixed in https://github.com/tc39/test262/commit/7d998a098e5420cb4b6ee4a05eb8c386d750c596
-		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/detached-buffer.js": true,
-		// Fixed in https://github.com/tc39/test262/commit/0bb8fe8aba97765aa3a8d4dd8880cd8e3c238f68
-		"test/built-ins/TypedArrayConstructors/internals/Get/detached-buffer.js":                              true,
-		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/tonumber-value-detached-buffer.js": true,
-		// 36c2cd165f93e194b9bcad26e69e8571b1d0e6ed
-		"test/built-ins/ArrayBuffer/prototype/byteLength/detached-buffer.js": true,
+		// quantifier integer limit in regexp
+		"test/built-ins/RegExp/quantifier-integer-limit.js": true,
 
-		// 96aff62fb25cf9ef27929a8ab822ee853d99b06e
-		"test/built-ins/TypedArrayConstructors/internals/Set/tonumber-value-detached-buffer.js": true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds.js":           true,
+		// GetFunctionRealm
+		"test/built-ins/Function/internals/Construct/base-ctor-revoked-proxy.js": true,
 
-		// 167e596a649ede35df11d03cb3c093941c9cf396
-		"test/built-ins/TypedArrayConstructors/internals/Set/detached-buffer.js": true,
-
-		// 59a1a016b7cf5cf43f66b274c7d1db4ec6066935
-		"test/language/expressions/function/name.js":                 true,
-		"test/built-ins/Proxy/revocable/revocation-function-name.js": true,
-
-		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true, // timezone
-		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true, // timezone
-		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true, // timezone
-
-		// \u{xxxxx}
-		"test/annexB/built-ins/escape/escape-above-astral.js": true,
-		"test/built-ins/RegExp/prototype/source/value-u.js":   true,
-
-		// SharedArrayBuffer
-		"test/built-ins/ArrayBuffer/prototype/slice/this-is-sharedarraybuffer.js": true,
+		// Go 1.14 supports unicode 12
+		"test/language/identifiers/start-unicode-13.0.0.js":         true,
+		"test/language/identifiers/start-unicode-13.0.0-escaped.js": true,
+		"test/language/identifiers/start-unicode-14.0.0.js":         true,
+		"test/language/identifiers/start-unicode-14.0.0-escaped.js": true,
+		"test/language/identifiers/part-unicode-13.0.0.js":          true,
+		"test/language/identifiers/part-unicode-13.0.0-escaped.js":  true,
+		"test/language/identifiers/part-unicode-14.0.0.js":          true,
+		"test/language/identifiers/part-unicode-14.0.0-escaped.js":  true,
 
 		// class
-		"test/language/statements/class/subclass/builtin-objects/Symbol/symbol-valid-as-extends-value.js":            true,
-		"test/language/statements/class/subclass/builtin-objects/Symbol/new-symbol-with-super-throws.js":             true,
-		"test/language/statements/class/subclass/builtin-objects/WeakSet/super-must-be-called.js":                    true,
-		"test/language/statements/class/subclass/builtin-objects/WeakSet/regular-subclassing.js":                     true,
-		"test/language/statements/class/subclass/builtin-objects/WeakMap/super-must-be-called.js":                    true,
-		"test/language/statements/class/subclass/builtin-objects/WeakMap/regular-subclassing.js":                     true,
-		"test/language/statements/class/subclass/builtin-objects/Map/super-must-be-called.js":                        true,
-		"test/language/statements/class/subclass/builtin-objects/Map/regular-subclassing.js":                         true,
-		"test/language/statements/class/subclass/builtin-objects/Set/super-must-be-called.js":                        true,
-		"test/language/statements/class/subclass/builtin-objects/Set/regular-subclassing.js":                         true,
-		"test/language/statements/class/subclass/builtin-objects/Object/replacing-prototype.js":                      true,
-		"test/language/statements/class/subclass/builtin-objects/Object/regular-subclassing.js":                      true,
-		"test/built-ins/Array/prototype/concat/Array.prototype.concat_non-array.js":                                  true,
-		"test/language/statements/class/subclass/builtin-objects/Array/length.js":                                    true,
-		"test/language/statements/class/subclass/builtin-objects/TypedArray/super-must-be-called.js":                 true,
-		"test/language/statements/class/subclass/builtin-objects/TypedArray/regular-subclassing.js":                  true,
-		"test/language/statements/class/subclass/builtin-objects/DataView/super-must-be-called.js":                   true,
-		"test/language/statements/class/subclass/builtin-objects/DataView/regular-subclassing.js":                    true,
-		"test/language/statements/class/subclass/builtin-objects/String/super-must-be-called.js":                     true,
-		"test/language/statements/class/subclass/builtin-objects/String/regular-subclassing.js":                      true,
-		"test/language/statements/class/subclass/builtin-objects/String/length.js":                                   true,
-		"test/language/statements/class/subclass/builtin-objects/Date/super-must-be-called.js":                       true,
-		"test/language/statements/class/subclass/builtin-objects/Date/regular-subclassing.js":                        true,
-		"test/language/statements/class/subclass/builtin-objects/Number/super-must-be-called.js":                     true,
-		"test/language/statements/class/subclass/builtin-objects/Number/regular-subclassing.js":                      true,
-		"test/language/statements/class/subclass/builtin-objects/Function/super-must-be-called.js":                   true,
-		"test/language/statements/class/subclass/builtin-objects/Function/regular-subclassing.js":                    true,
-		"test/language/statements/class/subclass/builtin-objects/Function/instance-name.js":                          true,
-		"test/language/statements/class/subclass/builtin-objects/Function/instance-length.js":                        true,
-		"test/language/statements/class/subclass/builtin-objects/Boolean/super-must-be-called.js":                    true,
-		"test/language/statements/class/subclass/builtin-objects/Boolean/regular-subclassing.js":                     true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/URIError-super.js":                      true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/URIError-name.js":                       true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/URIError-message.js":                    true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/TypeError-super.js":                     true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/TypeError-name.js":                      true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/TypeError-message.js":                   true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/SyntaxError-super.js":                   true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/SyntaxError-name.js":                    true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/SyntaxError-message.js":                 true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/ReferenceError-super.js":                true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/ReferenceError-name.js":                 true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/ReferenceError-message.js":              true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/RangeError-super.js":                    true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/RangeError-name.js":                     true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/RangeError-message.js":                  true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/EvalError-super.js":                     true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/EvalError-name.js":                      true,
-		"test/language/statements/class/subclass/builtin-objects/NativeError/EvalError-message.js":                   true,
-		"test/language/statements/class/subclass/builtin-objects/Error/super-must-be-called.js":                      true,
-		"test/language/statements/class/subclass/builtin-objects/Error/regular-subclassing.js":                       true,
-		"test/language/statements/class/subclass/builtin-objects/Error/message-property-assignment.js":               true,
-		"test/language/statements/class/subclass/builtin-objects/Array/super-must-be-called.js":                      true,
-		"test/language/statements/class/subclass/builtin-objects/Array/regular-subclassing.js":                       true,
-		"test/language/statements/class/subclass/builtin-objects/Array/contructor-calls-super-single-argument.js":    true,
-		"test/language/statements/class/subclass/builtin-objects/Array/contructor-calls-super-multiple-arguments.js": true,
-		"test/language/statements/class/subclass/builtin-objects/ArrayBuffer/super-must-be-called.js":                true,
-		"test/language/statements/class/subclass/builtin-objects/ArrayBuffer/regular-subclassing.js":                 true,
-		"test/built-ins/ArrayBuffer/isView/arg-is-typedarray-subclass-instance.js":                                   true,
-		"test/built-ins/ArrayBuffer/isView/arg-is-dataview-subclass-instance.js":                                     true,
-		"test/language/statements/class/subclass/builtin-objects/RegExp/super-must-be-called.js":                     true,
-		"test/language/statements/class/subclass/builtin-objects/RegExp/regular-subclassing.js":                      true,
-		"test/language/statements/class/subclass/builtin-objects/RegExp/lastIndex.js":                                true,
-		"TestTC39/tc39/test/language/statements/class/definition/fn-name-method.js":                                  true,
-		"test/language/expressions/object/method-definition/name-invoke-ctor.js":                                     true,
-		"test/language/expressions/object/method.js":                                                                 true,
-		"test/language/expressions/object/setter-super-prop.js":                                                      true,
-		"test/language/expressions/object/getter-super-prop.js":                                                      true,
-		"test/language/expressions/delete/super-property.js":                                                         true,
-		"test/language/statements/let/dstr/obj-ptrn-id-init-fn-name-class.js":                                        true,
-		"test/language/statements/let/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                                   true,
-		"test/language/statements/for/dstr/var-obj-ptrn-id-init-fn-name-class.js":                                    true,
-		"test/language/statements/for/dstr/var-ary-ptrn-elem-id-init-fn-name-class.js":                               true,
-		"test/language/statements/for/dstr/let-ary-ptrn-elem-id-init-fn-name-class.js":                               true,
-		"test/language/statements/for/dstr/let-obj-ptrn-id-init-fn-name-class.js":                                    true,
-		"test/language/statements/const/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                                 true,
-		"test/language/statements/for/dstr/const-obj-ptrn-id-init-fn-name-class.js":                                  true,
-		"test/language/statements/const/dstr/obj-ptrn-id-init-fn-name-class.js":                                      true,
-		"test/language/statements/for/dstr/const-ary-ptrn-elem-id-init-fn-name-class.js":                             true,
-		"test/language/statements/variable/dstr/obj-ptrn-id-init-fn-name-class.js":                                   true,
-		"test/language/statements/variable/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                              true,
-		"test/language/expressions/object/method-definition/name-name-prop-symbol.js":                                true,
-		"test/language/expressions/function/dstr/dflt-obj-ptrn-id-init-fn-name-class.js":                             true,
-		"test/language/expressions/function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-class.js":                        true,
-		"test/language/expressions/function/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                             true,
-		"test/language/expressions/function/dstr/obj-ptrn-id-init-fn-name-class.js":                                  true,
-		"test/language/statements/function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-class.js":                         true,
-		"test/language/statements/function/dstr/obj-ptrn-id-init-fn-name-class.js":                                   true,
-		"test/language/statements/function/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                              true,
-		"test/language/statements/function/dstr/dflt-obj-ptrn-id-init-fn-name-class.js":                              true,
-		"test/language/statements/class/scope-static-setter-paramsbody-var-open.js":                                  true,
-		"test/language/statements/class/scope-static-setter-paramsbody-var-close.js":                                 true,
-		"test/language/statements/class/scope-static-meth-paramsbody-var-open.js":                                    true,
-		"test/language/statements/class/scope-static-meth-paramsbody-var-close.js":                                   true,
-		"test/language/statements/class/scope-setter-paramsbody-var-open.js":                                         true,
-		"test/language/statements/class/scope-setter-paramsbody-var-close.js":                                        true,
-		"test/language/statements/class/scope-meth-paramsbody-var-open.js":                                           true,
-		"test/language/statements/class/scope-meth-paramsbody-var-close.js":                                          true,
-		"test/language/expressions/class/scope-static-setter-paramsbody-var-open.js":                                 true,
-		"test/language/expressions/class/scope-static-setter-paramsbody-var-close.js":                                true,
-		"test/language/expressions/class/scope-static-meth-paramsbody-var-open.js":                                   true,
-		"test/language/expressions/class/scope-static-meth-paramsbody-var-close.js":                                  true,
-		"test/language/expressions/class/scope-setter-paramsbody-var-open.js":                                        true,
-		"test/language/expressions/class/scope-setter-paramsbody-var-close.js":                                       true,
-		"test/language/expressions/class/scope-meth-paramsbody-var-open.js":                                          true,
-		"test/language/expressions/class/scope-meth-paramsbody-var-close.js":                                         true,
-		"test/language/expressions/arrow-function/scope-paramsbody-var-open.js":                                      true,
-		"test/language/expressions/arrow-function/scope-paramsbody-var-close.js":                                     true,
-		"test/language/expressions/arrow-function/scope-body-lex-distinct.js":                                        true,
-		"test/language/statements/for-of/dstr/var-ary-ptrn-elem-id-init-fn-name-class.js":                            true,
-		"test/language/statements/for-of/dstr/var-obj-ptrn-id-init-fn-name-class.js":                                 true,
-		"test/language/statements/for-of/dstr/const-obj-ptrn-id-init-fn-name-class.js":                               true,
-		"test/language/statements/for-of/dstr/let-obj-ptrn-id-init-fn-name-class.js":                                 true,
-		"test/language/statements/for-of/dstr/const-ary-ptrn-elem-id-init-fn-name-class.js":                          true,
-		"test/language/statements/for-of/dstr/let-ary-ptrn-elem-id-init-fn-name-class.js":                            true,
-		"test/language/statements/try/dstr/obj-ptrn-id-init-fn-name-class.js":                                        true,
-		"test/language/statements/try/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                                   true,
-		"test/language/expressions/arrow-function/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                       true,
-		"test/language/expressions/arrow-function/dstr/dflt-obj-ptrn-id-init-fn-name-class.js":                       true,
-		"test/language/expressions/arrow-function/dstr/obj-ptrn-id-init-fn-name-class.js":                            true,
-		"test/language/expressions/arrow-function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-class.js":                  true,
-		"test/language/statements/class/static-method-length-dflt.js":                                                true,
-		"test/language/statements/class/setter-length-dflt.js":                                                       true,
-		"test/language/statements/class/restricted-properties.js":                                                    true,
-		"test/language/statements/class/method-length-dflt.js":                                                       true,
-		"test/language/statements/class/definition/methods-restricted-properties.js":                                 true,
-		"test/language/expressions/class/static-method-length-dflt.js":                                               true,
-		"test/language/expressions/class/setter-length-dflt.js":                                                      true,
-		"test/language/expressions/class/restricted-properties.js":                                                   true,
-		"test/language/expressions/class/method-length-dflt.js":                                                      true,
-		"test/language/expressions/arrow-function/lexical-super-property-from-within-constructor.js":                 true,
-		"test/language/expressions/arrow-function/lexical-super-property.js":                                         true,
-		"test/language/expressions/arrow-function/lexical-supercall-from-immediately-invoked-arrow.js":               true,
-
-		// template strings
-		"test/built-ins/String/raw/zero-literal-segments.js":                                                       true,
-		"test/built-ins/String/raw/template-substitutions-are-appended-on-same-index.js":                           true,
-		"test/built-ins/String/raw/special-characters.js":                                                          true,
-		"test/built-ins/String/raw/return-the-string-value-from-template.js":                                       true,
-		"test/built-ins/TypedArray/prototype/fill/fill-values-conversion-operations-consistent-nan.js":             true,
-		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":                   true,
-		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":                     true,
-		"test/built-ins/TypedArrayConstructors/internals/DefineOwnProperty/conversion-operation-consistent-nan.js": true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/conversion-operation-consistent-nan.js":               true,
-		"test/built-ins/RegExp/named-groups/functional-replace-non-global.js":                                      true,
-		"test/built-ins/RegExp/named-groups/functional-replace-global.js":                                          true,
+		"test/built-ins/Array/prototype/concat/Array.prototype.concat_non-array.js":                    true,
+		"test/built-ins/ArrayBuffer/isView/arg-is-typedarray-subclass-instance.js":                     true,
+		"test/built-ins/ArrayBuffer/isView/arg-is-dataview-subclass-instance.js":                       true,
+		"test/language/expressions/object/method-definition/name-invoke-ctor.js":                       true,
+		"test/language/expressions/object/method.js":                                                   true,
+		"test/language/expressions/object/setter-super-prop.js":                                        true,
+		"test/language/expressions/object/getter-super-prop.js":                                        true,
+		"test/language/expressions/delete/super-property.js":                                           true,
+		"test/language/statements/let/dstr/obj-ptrn-id-init-fn-name-class.js":                          true,
+		"test/language/statements/let/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                     true,
+		"test/language/statements/for/dstr/var-obj-ptrn-id-init-fn-name-class.js":                      true,
+		"test/language/statements/for/dstr/var-ary-ptrn-elem-id-init-fn-name-class.js":                 true,
+		"test/language/statements/for/dstr/let-ary-ptrn-elem-id-init-fn-name-class.js":                 true,
+		"test/language/statements/for/dstr/let-obj-ptrn-id-init-fn-name-class.js":                      true,
+		"test/language/statements/const/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                   true,
+		"test/language/statements/for/dstr/const-obj-ptrn-id-init-fn-name-class.js":                    true,
+		"test/language/statements/const/dstr/obj-ptrn-id-init-fn-name-class.js":                        true,
+		"test/language/statements/for/dstr/const-ary-ptrn-elem-id-init-fn-name-class.js":               true,
+		"test/language/statements/variable/dstr/obj-ptrn-id-init-fn-name-class.js":                     true,
+		"test/language/statements/variable/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                true,
+		"test/language/expressions/object/method-definition/name-name-prop-symbol.js":                  true,
+		"test/language/expressions/function/dstr/dflt-obj-ptrn-id-init-fn-name-class.js":               true,
+		"test/language/expressions/function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-class.js":          true,
+		"test/language/expressions/function/dstr/ary-ptrn-elem-id-init-fn-name-class.js":               true,
+		"test/language/expressions/function/dstr/obj-ptrn-id-init-fn-name-class.js":                    true,
+		"test/language/statements/function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-class.js":           true,
+		"test/language/statements/function/dstr/obj-ptrn-id-init-fn-name-class.js":                     true,
+		"test/language/statements/function/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                true,
+		"test/language/statements/function/dstr/dflt-obj-ptrn-id-init-fn-name-class.js":                true,
+		"test/language/expressions/arrow-function/scope-paramsbody-var-open.js":                        true,
+		"test/language/expressions/arrow-function/scope-paramsbody-var-close.js":                       true,
+		"test/language/expressions/arrow-function/scope-body-lex-distinct.js":                          true,
+		"test/language/statements/for-of/dstr/var-ary-ptrn-elem-id-init-fn-name-class.js":              true,
+		"test/language/statements/for-of/dstr/var-obj-ptrn-id-init-fn-name-class.js":                   true,
+		"test/language/statements/for-of/dstr/const-obj-ptrn-id-init-fn-name-class.js":                 true,
+		"test/language/statements/for-of/dstr/let-obj-ptrn-id-init-fn-name-class.js":                   true,
+		"test/language/statements/for-of/dstr/const-ary-ptrn-elem-id-init-fn-name-class.js":            true,
+		"test/language/statements/for-of/dstr/let-ary-ptrn-elem-id-init-fn-name-class.js":              true,
+		"test/language/statements/try/dstr/obj-ptrn-id-init-fn-name-class.js":                          true,
+		"test/language/statements/try/dstr/ary-ptrn-elem-id-init-fn-name-class.js":                     true,
+		"test/language/expressions/arrow-function/dstr/ary-ptrn-elem-id-init-fn-name-class.js":         true,
+		"test/language/expressions/arrow-function/dstr/dflt-obj-ptrn-id-init-fn-name-class.js":         true,
+		"test/language/expressions/arrow-function/dstr/obj-ptrn-id-init-fn-name-class.js":              true,
+		"test/language/expressions/arrow-function/dstr/dflt-ary-ptrn-elem-id-init-fn-name-class.js":    true,
+		"test/language/expressions/arrow-function/lexical-super-property-from-within-constructor.js":   true,
+		"test/language/expressions/arrow-function/lexical-super-property.js":                           true,
+		"test/language/expressions/arrow-function/lexical-supercall-from-immediately-invoked-arrow.js": true,
+		"test/built-ins/Promise/prototype/finally/subclass-species-constructor-resolve-count.js":       true,
+		"test/built-ins/Promise/prototype/finally/subclass-species-constructor-reject-count.js":        true,
+		"test/built-ins/Promise/prototype/finally/subclass-resolve-count.js":                           true,
+		"test/built-ins/Promise/prototype/finally/species-symbol.js":                                   true,
+		"test/built-ins/Promise/prototype/finally/subclass-reject-count.js":                            true,
+		"test/built-ins/Promise/prototype/finally/species-constructor.js":                              true,
+		"test/language/statements/switch/scope-lex-class.js":                                           true,
+		"test/language/expressions/arrow-function/lexical-super-call-from-within-constructor.js":       true,
+		"test/language/expressions/object/dstr/meth-dflt-ary-ptrn-elem-id-init-fn-name-class.js":       true,
+		"test/language/expressions/object/dstr/meth-ary-ptrn-elem-id-init-fn-name-class.js":            true,
+		"test/language/expressions/object/dstr/meth-dflt-obj-ptrn-id-init-fn-name-class.js":            true,
+		"test/language/expressions/object/dstr/meth-obj-ptrn-id-init-fn-name-class.js":                 true,
+		"test/built-ins/Promise/prototype/finally/resolved-observable-then-calls-PromiseResolve.js":    true,
+		"test/built-ins/Promise/prototype/finally/rejected-observable-then-calls-PromiseResolve.js":    true,
+		"test/built-ins/Function/prototype/toString/class-expression-explicit-ctor.js":                 true,
+		"test/built-ins/Function/prototype/toString/class-expression-implicit-ctor.js":                 true,
+		"test/language/global-code/decl-lex.js":                                                        true,
+		"test/language/global-code/decl-lex-deletion.js":                                               true,
+		"test/language/global-code/script-decl-var-collision.js":                                       true,
+		"test/language/global-code/script-decl-lex.js":                                                 true,
+		"test/language/global-code/script-decl-lex-lex.js":                                             true,
+		"test/language/global-code/script-decl-lex-deletion.js":                                        true,
 
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
@@ -254,15 +138,6 @@ var (
 		"test/built-ins/RegExp/unicode_restricted_character_class_escape.js":         true,
 		"test/annexB/built-ins/RegExp/prototype/compile/pattern-string-invalid-u.js": true,
 
-		// regexp named groups
-		"test/built-ins/RegExp/prototype/Symbol.replace/named-groups-fn.js":               true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups-err.js":      true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups-prop-err.js": true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups-prop.js":     true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups.js":          true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/result-get-groups-err.js":         true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/result-get-groups-prop-err.js":    true,
-
 		// Because goja parser works in UTF-8 it is not possible to pass strings containing invalid UTF-16 code points.
 		// This is mitigated by escaping them as \uXXXX, however because of this the RegExp source becomes
 		// `\uXXXX` instead of `<the actual UTF-16 code point of XXXX>`.
@@ -270,149 +145,169 @@ var (
 		"test/annexB/built-ins/RegExp/RegExp-leading-escape-BMP.js":  true,
 		"test/annexB/built-ins/RegExp/RegExp-trailing-escape-BMP.js": true,
 
-		// Promise
-		"test/built-ins/Symbol/species/builtin-getter-name.js": true,
-
 		// x ** y
-		"test/built-ins/Array/prototype/pop/clamps-to-integer-limit.js":                           true,
-		"test/built-ins/Array/prototype/pop/length-near-integer-limit.js":                         true,
-		"test/built-ins/Array/prototype/push/clamps-to-integer-limit.js":                          true,
-		"test/built-ins/Array/prototype/push/length-near-integer-limit.js":                        true,
-		"test/built-ins/Array/prototype/push/throws-if-integer-limit-exceeded.js":                 true,
-		"test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-object.js":    true,
-		"test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-proxy.js":     true,
-		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit.js":                  true,
-		"test/built-ins/Array/prototype/splice/clamps-length-to-integer-limit.js":                 true,
-		"test/built-ins/Array/prototype/splice/length-and-deleteCount-exceeding-integer-limit.js": true,
-		"test/built-ins/Array/prototype/splice/length-exceeding-integer-limit-shrink-array.js":    true,
-		"test/built-ins/Array/prototype/splice/length-near-integer-limit-grow-array.js":           true,
-		"test/built-ins/Array/prototype/splice/throws-if-integer-limit-exceeded.js":               true,
-		"test/built-ins/Array/prototype/unshift/clamps-to-integer-limit.js":                       true,
-		"test/built-ins/Array/prototype/unshift/length-near-integer-limit.js":                     true,
-		"test/built-ins/Array/prototype/unshift/throws-if-integer-limit-exceeded.js":              true,
-		"test/built-ins/String/prototype/split/separator-undef-limit-custom.js":                   true,
+		"test/built-ins/Array/prototype/pop/clamps-to-integer-limit.js":                                        true,
+		"test/built-ins/Array/prototype/pop/length-near-integer-limit.js":                                      true,
+		"test/built-ins/Array/prototype/push/clamps-to-integer-limit.js":                                       true,
+		"test/built-ins/Array/prototype/push/length-near-integer-limit.js":                                     true,
+		"test/built-ins/Array/prototype/push/throws-if-integer-limit-exceeded.js":                              true,
+		"test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-object.js":                 true,
+		"test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-proxy.js":                  true,
+		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit.js":                               true,
+		"test/built-ins/Array/prototype/splice/clamps-length-to-integer-limit.js":                              true,
+		"test/built-ins/Array/prototype/splice/length-and-deleteCount-exceeding-integer-limit.js":              true,
+		"test/built-ins/Array/prototype/splice/length-exceeding-integer-limit-shrink-array.js":                 true,
+		"test/built-ins/Array/prototype/splice/length-near-integer-limit-grow-array.js":                        true,
+		"test/built-ins/Array/prototype/splice/throws-if-integer-limit-exceeded.js":                            true,
+		"test/built-ins/Array/prototype/unshift/clamps-to-integer-limit.js":                                    true,
+		"test/built-ins/Array/prototype/unshift/length-near-integer-limit.js":                                  true,
+		"test/built-ins/Array/prototype/unshift/throws-if-integer-limit-exceeded.js":                           true,
+		"test/built-ins/String/prototype/split/separator-undef-limit-custom.js":                                true,
+		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":               true,
+		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":                 true,
+		"test/built-ins/String/prototype/split/separator-undef-limit-zero.js":                                  true,
+		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-exponetiation-expression.js": true,
+		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-math.js":                     true,
+		"test/built-ins/RegExp/prototype/exec/failure-lastindex-set.js":                                        true,
 
 		// generators
-		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js": true,
+		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js":                                       true,
+		"test/language/statements/switch/scope-lex-generator.js":                                                     true,
+		"test/language/expressions/in/rhs-yield-present.js":                                                          true,
+		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-yield-expression.js":               true,
+		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-generator-function-declaration.js": true,
+		"test/built-ins/TypedArrayConstructors/ctors/object-arg/as-generator-iterable-returns.js":                    true,
+		"test/built-ins/Object/seal/seal-generatorfunction.js":                                                       true,
+
+		// async
+		"test/language/eval-code/direct/async-func-decl-a-preceding-parameter-is-named-arguments-declare-arguments-and-assign.js": true,
+		"test/language/statements/switch/scope-lex-async-generator.js":                                                            true,
+		"test/language/statements/switch/scope-lex-async-function.js":                                                             true,
+		"test/language/statements/for-of/head-lhs-async-invalid.js":                                                               true,
+		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-async-arrow-function-expression.js":             true,
+		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-await-expression.js":                            true,
+		"test/language/statements/async-function/evaluation-body.js":                                                              true,
+		"test/language/expressions/object/method-definition/object-method-returns-promise.js":                                     true,
+		"test/language/expressions/object/method-definition/async-super-call-param.js":                                            true,
+		"test/language/expressions/object/method-definition/async-super-call-body.js":                                             true,
+		"test/built-ins/Object/seal/seal-asyncgeneratorfunction.js":                                                               true,
+		"test/built-ins/Object/seal/seal-asyncfunction.js":                                                                        true,
+		"test/built-ins/Object/seal/seal-asyncarrowfunction.js":                                                                   true,
+		"test/language/statements/for/head-init-async-of.js":                                                                      true,
+		"test/language/reserved-words/await-module.js":                                                                            true,
+
+		// legacy number literals
+		"test/language/literals/numeric/non-octal-decimal-integer.js": true,
+
+		// coalesce
+		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-expression-coalesce.js": true,
+
+		// integer separators
+		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-integer-separators.js": true,
+
+		// BigInt
+		"test/built-ins/Object/seal/seal-biguint64array.js": true,
+		"test/built-ins/Object/seal/seal-bigint64array.js":  true,
+
+		// FIXME bugs
+
+		// new.target availability
+		"test/language/global-code/new.target-arrow.js":   true,
+		"test/language/eval-code/direct/new.target-fn.js": true,
+
+		// 'in' in a branch
+		"test/language/expressions/conditional/in-branch-1.js": true,
+
+		// Left-hand side as a CoverParenthesizedExpression
+		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
 	}
 
 	featuresBlackList = []string{
 		"async-iteration",
+		"Symbol.asyncIterator",
+		"async-functions",
 		"BigInt",
 		"class",
+		"class-static-block",
+		"class-fields-private",
+		"class-fields-private-in",
+		"super",
 		"generators",
 		"String.prototype.replaceAll",
 		"String.prototype.at",
-		"super",
-	}
-
-	es6WhiteList = map[string]bool{}
-
-	es6IdWhiteList = []string{
-		"8.1.2.1",
-		"9.5",
-		"12.1",
-		"12.2.1",
-		"12.2.2",
-		"12.2.5",
-		"12.2.6.1",
-		"12.2.6.8",
-		"12.4",
-		"12.5",
-		"12.6",
-		"12.7",
-		"12.8",
-		"12.9",
-		"12.10",
-		"13.1",
-		"13.2",
-		"13.3",
-		"13.4",
-		"13.5",
-		"13.6",
-		"13.7",
-		"13.8",
-		"13.9",
-		"13.10",
-		"13.11",
-		"13.12",
-		"13.13",
-		"13.14",
-		"13.15",
-		"14.1",
-		"14.2",
-		"14.3.8",
-		"16.1",
-		"18",
-		"19",
-		"20",
-		"21",
-		"22",
-		"23",
-		"24",
-		"25.1",
-		"26",
-		"B.2.1",
-		"B.2.2",
-	}
-
-	esIdPrefixWhiteList = []string{
-		"sec-addition-*",
-		"sec-array",
-		"sec-%typedarray%",
-		"sec-%typedarray%-of",
-		"sec-@@iterator",
-		"sec-@@tostringtag",
-		"sec-string",
-		"sec-date",
-		"sec-json",
-		"sec-number",
-		"sec-math",
-		"sec-arraybuffer-length",
-		"sec-arraybuffer",
-		"sec-regexp",
-		"sec-string.prototype.trimLeft",
-		"sec-string.prototype.trimRight",
-		"sec-object.getownpropertydescriptor",
-		"sec-object.getownpropertydescriptors",
-		"sec-object.entries",
-		"sec-object.values",
-		"sec-object-initializer",
-		"sec-proxy-*",
-		"sec-for-statement-*",
-		"sec-for-in-and-for-of-statements",
-		"sec-for-in-and-for-of-statements-*",
-		"sec-do-while-statement",
-		"sec-if-statement",
-		"sec-while-statement",
-		"sec-with-statement*",
-		"sec-switch-*",
-		"sec-try-*",
-		"sec-runtime-semantics-catchclauseevaluation",
-		"sec-strict-mode-of-ecmascript",
-		"sec-let-and-const-declarations*",
-		"sec-arguments-exotic-objects-defineownproperty-p-desc",
-		"sec-other-properties-of-the-global-object-globalthis",
-		"sec-variable-statement-runtime-semantics-evaluation",
-		"sec-function-calls-runtime-semantics-evaluation",
-		"sec-function-definitions",
-		"sec-function-definitions-runtime-semantics-evaluation",
-		"sec-function-definitions-runtime-semantics-instantiatefunctionobject",
-		"sec-function-definitions-runtime-semantics-iteratorbindinginitialization",
-		"sec-function-definitions-static-semantics-early-errors",
-		"sec-functiondeclarationinstantiation",
-		"sec-functiondeclarations-in-ifstatement-statement-clauses",
-		"sec-arrow-function-definitions",
-		"sec-arrow-function-definitions-runtime-semantics-evaluation",
-		"sec-arrow-function-definitions-static-semantics-early-errors",
-		"sec-evaldeclarationinstantiation",
-		"sec-integer-indexed-exotic-objects-defineownproperty-p-desc",
-		"sec-integer-indexed-exotic-objects-get-p-receiver",
-		"sec-integer-indexed-exotic-objects-set-p-v-receiver",
-		"sec-destructuring-binding-patterns",
-		"sec-runtime-semantics-keyeddestructuringassignmentevaluation",
+		"resizable-arraybuffer",
+		"array-find-from-last",
+		"Array.prototype.at",
+		"TypedArray.prototype.at",
+		"regexp-named-groups",
+		"regexp-dotall",
+		"regexp-unicode-property-escapes",
+		"regexp-match-indices",
+		"legacy-regexp",
+		"tail-call-optimization",
+		"Temporal",
+		"import-assertions",
+		"dynamic-import",
+		"logical-assignment-operators",
+		"coalesce-expression",
+		"import.meta",
+		"optional-chaining",
+		"Atomics",
+		"Atomics.waitAsync",
+		"FinalizationRegistry",
+		"WeakRef",
+		"numeric-separator-literal",
+		"Object.fromEntries",
+		"Object.hasOwn",
+		"__getter__",
+		"__setter__",
+		"ShadowRealm",
+		"SharedArrayBuffer",
+		"error-cause",
 	}
 )
+
+func init() {
+
+	skip := func(prefixes ...string) {
+		for _, prefix := range prefixes {
+			skipPrefixes.Add(prefix)
+		}
+	}
+
+	skip(
+		// class
+		"test/language/statements/class/",
+		"test/language/expressions/class/",
+		"test/language/expressions/super/",
+		"test/language/expressions/assignment/target-super-",
+		"test/language/arguments-object/cls-",
+		"test/built-ins/Function/prototype/toString/class-",
+		"test/built-ins/Function/prototype/toString/setter-class-",
+		"test/built-ins/Function/prototype/toString/method-class-",
+		"test/built-ins/Function/prototype/toString/getter-class-",
+
+		// async
+		"test/language/eval-code/direct/async-",
+		"test/language/expressions/async-",
+		"test/language/expressions/await/",
+		"test/language/statements/async-function/",
+		"test/built-ins/Async",
+
+		// generators
+		"test/language/eval-code/direct/gen-",
+		"test/built-ins/GeneratorFunction/",
+		"test/built-ins/Function/prototype/toString/generator-",
+
+		// **
+		"test/language/expressions/exponentiation",
+
+		// BigInt
+		"test/built-ins/TypedArrayConstructors/BigUint64Array/",
+		"test/built-ins/TypedArrayConstructors/BigInt64Array/",
+	)
+
+}
 
 type tc39Test struct {
 	name string
@@ -435,6 +330,7 @@ type tc39TestCtx struct {
 	benchmark    tc39BenchmarkData
 	benchLock    sync.Mutex
 	testQueue    []tc39Test
+	sabStub      *Program
 }
 
 type TC39MetaNegative struct {
@@ -449,6 +345,33 @@ type tc39Meta struct {
 	Es5id    string
 	Es6id    string
 	Esid     string
+}
+
+type prefixList struct {
+	prefixes map[int]map[string]struct{}
+}
+
+func (pl *prefixList) Add(prefix string) {
+	l := pl.prefixes[len(prefix)]
+	if l == nil {
+		l = make(map[string]struct{})
+		if pl.prefixes == nil {
+			pl.prefixes = make(map[int]map[string]struct{})
+		}
+		pl.prefixes[len(prefix)] = l
+	}
+	l[prefix] = struct{}{}
+}
+
+func (pl *prefixList) Match(s string) bool {
+	for l, prefixes := range pl.prefixes {
+		if len(s) >= l {
+			if _, exists := prefixes[s[:l]]; exists {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (m *tc39Meta) hasFlag(flag string) bool {
@@ -521,10 +444,31 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	_262 := vm.NewObject()
 	_262.Set("detachArrayBuffer", ctx.detachArrayBuffer)
 	_262.Set("createRealm", ctx.throwIgnorableTestError)
+	_262.Set("evalScript", func(call FunctionCall) Value {
+		script := call.Argument(0).String()
+		result, err := vm.RunString(script)
+		if err != nil {
+			panic(err)
+		}
+		return result
+	})
 	vm.Set("$262", _262)
 	vm.Set("IgnorableTestError", ignorableTestError)
-	vm.Set("print", t.Log)
-	vm.RunProgram(sabStub)
+	vm.RunProgram(ctx.sabStub)
+	var out []string
+	async := meta.hasFlag("async")
+	if async {
+		err := ctx.runFile(ctx.base, path.Join("harness", "doneprintHandle.js"), vm)
+		if err != nil {
+			t.Fatal(err)
+		}
+		vm.Set("print", func(msg string) {
+			out = append(out, msg)
+		})
+	} else {
+		vm.Set("print", t.Log)
+	}
+
 	err, early := ctx.runTC39Script(name, src, meta.Includes, vm)
 
 	if err != nil {
@@ -583,10 +527,29 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	if l := len(vm.vm.iterStack); l > 0 {
 		t.Fatalf("iter stack is not empty: %d", l)
 	}
+	if async {
+		complete := false
+		for _, line := range out {
+			if strings.HasPrefix(line, "Test262:AsyncTestFailure:") {
+				t.Fatal(line)
+			} else if line == "Test262:AsyncTestComplete" {
+				complete = true
+			}
+		}
+		if !complete {
+			for _, line := range out {
+				t.Log(line)
+			}
+			t.Fatal("Test262:AsyncTestComplete was not printed")
+		}
+	}
 }
 
 func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 	if skipList[name] {
+		t.Skip("Excluded")
+	}
+	if skipPrefixes.Match(name) {
 		t.Skip("Excluded")
 	}
 	p := path.Join(ctx.base, name)
@@ -596,46 +559,12 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		t.Errorf("Could not parse %s: %v", name, err)
 		return
 	}
-	if meta.hasFlag("async") {
-		t.Skip("async")
+	if meta.hasFlag("module") {
+		t.Skip("module")
 	}
 	if meta.Es5id == "" {
-		skip := true
-		//t.Logf("%s: Not ES5, skipped", name)
-		if es6WhiteList[name] {
-			skip = false
-		} else {
-			if meta.Es6id != "" {
-				for _, prefix := range es6IdWhiteList {
-					if strings.HasPrefix(meta.Es6id, prefix) &&
-						(len(meta.Es6id) == len(prefix) || meta.Es6id[len(prefix)] == '.') {
-
-						skip = false
-						break
-					}
-				}
-			}
-		}
-		if skip {
-			if meta.Esid != "" {
-				for _, prefix := range esIdPrefixWhiteList {
-					if strings.HasSuffix(prefix, "*") {
-						if strings.HasPrefix(meta.Esid, prefix[:len(prefix)-1]) {
-							skip = false
-							break
-						}
-					} else {
-						if strings.HasPrefix(meta.Esid, prefix) &&
-							(len(meta.Esid) == len(prefix) || meta.Esid[len(prefix)] == '.') {
-							skip = false
-							break
-						}
-					}
-				}
-			}
-		}
-		if skip {
-			t.Skip("Not ES5")
+		if meta.Es6id == "" && meta.Esid == "" {
+			t.Skip("No ids")
 		}
 
 		for _, feature := range meta.Features {
@@ -679,6 +608,13 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 
 func (ctx *tc39TestCtx) init() {
 	ctx.prgCache = make(map[string]*Program)
+	ctx.sabStub = MustCompile("sabStub.js", `
+		Object.defineProperty(this, "SharedArrayBuffer", {
+			get: function() {
+				throw IgnorableTestError;
+			}
+		});`,
+		false)
 }
 
 func (ctx *tc39TestCtx) compile(base, name string) (*Program, error) {
@@ -804,7 +740,8 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/language/global-code")
 		ctx.runTC39Tests("test/language/identifier-resolution")
 		ctx.runTC39Tests("test/language/identifiers")
-		//ctx.runTC39Tests("test/language/literals") // octal sequences in strict mode
+		//ctx.runTC39Tests("test/language/literals") // legacy octal escape in strings in strict mode and regexp
+		ctx.runTC39Tests("test/language/literals/numeric")
 		ctx.runTC39Tests("test/language/punctuators")
 		ctx.runTC39Tests("test/language/reserved-words")
 		ctx.runTC39Tests("test/language/source-text")

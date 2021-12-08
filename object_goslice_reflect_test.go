@@ -234,7 +234,7 @@ func TestGoSliceReflectProto(t *testing.T) {
 	r := New()
 	a := []*Object{{}, nil, {}}
 	r.Set("a", &a)
-	_, err := r.RunString(TESTLIB + `
+	r.testScriptWithTestLib(`
 	var proto = [,2,,4];
 	Object.setPrototypeOf(a, proto);
 	assert.sameValue(a[1], null, "a[1]");
@@ -252,11 +252,7 @@ func TestGoSliceReflectProto(t *testing.T) {
 	});
 	a[5] = "test";
 	assert.sameValue(v5, "test", "v5");
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	`, _undefined, t)
 }
 
 func TestGoSliceReflectProtoProto(t *testing.T) {
@@ -332,5 +328,45 @@ func TestGoSliceReflectPopNoPtr(t *testing.T) {
 	}
 	if !v.SameAs(asciiString("3")) {
 		t.Fatal(v)
+	}
+}
+
+func TestGoSliceReflectLengthProperty(t *testing.T) {
+	vm := New()
+	vm.Set("s", []int{2, 3, 4})
+	_, err := vm.RunString(`
+	if (!s.hasOwnProperty("length")) {
+		throw new Error("hasOwnProperty() returned false");
+	}
+	let desc = Object.getOwnPropertyDescriptor(s, "length");
+	if (desc.value !== 3 || !desc.writable || desc.enumerable || desc.configurable) {
+		throw new Error("incorrect property descriptor: " + JSON.stringify(desc));
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+type testCustomSliceWithMethods []int
+
+func (a testCustomSliceWithMethods) Method() bool {
+	return true
+}
+
+func TestGoSliceReflectMethods(t *testing.T) {
+	vm := New()
+	vm.Set("s", testCustomSliceWithMethods{1, 2, 3})
+	_, err := vm.RunString(`
+	if (!s.hasOwnProperty("Method")) {
+		throw new Error("hasOwnProperty() returned false");
+	}
+	let desc = Object.getOwnPropertyDescriptor(s, "Method");
+	if (desc.value() !== true || desc.writable || !desc.enumerable || desc.configurable) {
+		throw new Error("incorrect property descriptor: " + JSON.stringify(desc));
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

@@ -11,7 +11,7 @@ func TestArrayBufferNew(t *testing.T) {
 	b.byteLength;
 	`
 
-	testScript1(SCRIPT, intToValue(16), t)
+	testScript(SCRIPT, intToValue(16), t)
 }
 */
 
@@ -59,7 +59,7 @@ func TestNewUint8Array(t *testing.T) {
 	a.byteLength === 1 && a.length === 1 && a[0] === 42;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestNewUint16Array(t *testing.T) {
@@ -69,7 +69,7 @@ func TestNewUint16Array(t *testing.T) {
 	a.byteLength === 2 && a.length === 1 && a[0] === 42;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestTypedArraysSpeciesConstructor(t *testing.T) {
@@ -103,7 +103,7 @@ func TestTypedArraysSpeciesConstructor(t *testing.T) {
 	}
 	`
 
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArrayFromArrayBuffer(t *testing.T) {
@@ -126,7 +126,7 @@ func TestTypedArrayFromArrayBuffer(t *testing.T) {
 	}
 	`
 
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArraySetOverlapDifSize(t *testing.T) {
@@ -141,7 +141,7 @@ func TestTypedArraySetOverlapDifSize(t *testing.T) {
 		throw new Error("dst: " + dst.join(","));
 	}	
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArraySetOverlapDifSize2(t *testing.T) {
@@ -156,7 +156,7 @@ func TestTypedArraySetOverlapDifSize2(t *testing.T) {
 		throw new Error("dst: " + dst.join(","));
 	}	
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArraySetOverlapDifSize3(t *testing.T) {
@@ -173,7 +173,7 @@ func TestTypedArraySetOverlapDifSize3(t *testing.T) {
 		throw new Error("dst: " + dst.join(","));
 	}	
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArraySetOverlapDifSize4(t *testing.T) {
@@ -191,7 +191,7 @@ func TestTypedArraySetOverlapDifSize4(t *testing.T) {
 		throw new Error("dst: " + dst.join(","));
 	}	
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArraySetNoOverlapDifSizeForward(t *testing.T) {
@@ -206,7 +206,7 @@ func TestTypedArraySetNoOverlapDifSizeForward(t *testing.T) {
 		throw new Error("dst: " + dst.join(","));
 	}	
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArraySetNoOverlapDifSizeBackward(t *testing.T) {
@@ -221,7 +221,7 @@ func TestTypedArraySetNoOverlapDifSizeBackward(t *testing.T) {
 		throw new Error("dst: " + dst.join(","));
 	}	
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArraySetNoOverlapDifSizeDifBuffers(t *testing.T) {
@@ -236,7 +236,7 @@ func TestTypedArraySetNoOverlapDifSizeDifBuffers(t *testing.T) {
 		throw new Error("dst: " + dst.join(","));
 	}	
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArraySliceSameType(t *testing.T) {
@@ -247,7 +247,7 @@ func TestTypedArraySliceSameType(t *testing.T) {
 		throw new Error("dst: " + dst.join(","));
 	}	
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArraySliceDifType(t *testing.T) {
@@ -262,7 +262,7 @@ func TestTypedArraySliceDifType(t *testing.T) {
 		throw new Error("dst: " + dst.join(","));
 	}	
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArraySortComparatorReturnValueFloats(t *testing.T) {
@@ -281,7 +281,7 @@ func TestTypedArraySortComparatorReturnValueFloats(t *testing.T) {
 		}
 	}
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArraySortComparatorReturnValueNegZero(t *testing.T) {
@@ -294,7 +294,7 @@ func TestTypedArraySortComparatorReturnValueNegZero(t *testing.T) {
 		}
 	}
 	`
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestInt32ArrayNegativeIndex(t *testing.T) {
@@ -302,5 +302,25 @@ func TestInt32ArrayNegativeIndex(t *testing.T) {
 	new Int32Array()[-1] === undefined;
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestTypedArrayDeleteUnconfigurable(t *testing.T) {
+	const SCRIPT = `
+	try {
+		(function() {
+			'use strict';
+			delete Uint8Array.prototype.BYTES_PER_ELEMENT;
+		})();
+	} catch(e) {
+		if (!(e instanceof TypeError)) {
+			throw e;
+		}
+		if (!e.message.startsWith("Cannot delete property")) {
+			throw e;
+		}
+	}
+	`
+
+	testScript(SCRIPT, _undefined, t)
 }

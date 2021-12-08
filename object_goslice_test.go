@@ -121,7 +121,7 @@ func TestGoSliceProto(t *testing.T) {
 	r := New()
 	a := []interface{}{1, nil, 3}
 	r.Set("a", &a)
-	_, err := r.RunString(TESTLIB + `
+	r.testScriptWithTestLib(`
 	var proto = [,2,,4];
 	Object.setPrototypeOf(a, proto);
 	assert.sameValue(a[1], null, "a[1]");
@@ -139,11 +139,7 @@ func TestGoSliceProto(t *testing.T) {
 	});
 	a[5] = "test";
 	assert.sameValue(v5, "test", "v5");
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	`, _undefined, t)
 }
 
 func TestGoSliceProtoProto(t *testing.T) {
@@ -227,5 +223,22 @@ func TestGoSliceShift(t *testing.T) {
 	}
 	if !v.SameAs(intToValue(1)) {
 		t.Fatal(v)
+	}
+}
+
+func TestGoSliceLengthProperty(t *testing.T) {
+	vm := New()
+	vm.Set("s", []interface{}{2, 3, 4})
+	_, err := vm.RunString(`
+	if (!s.hasOwnProperty("length")) {
+		throw new Error("hasOwnProperty() returned false");
+	}
+	let desc = Object.getOwnPropertyDescriptor(s, "length");
+	if (desc.value !== 3 || !desc.writable || desc.enumerable || desc.configurable) {
+		throw new Error("incorrect property descriptor: " + JSON.stringify(desc));
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

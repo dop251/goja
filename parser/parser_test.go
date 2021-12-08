@@ -8,6 +8,7 @@ import (
 
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
+	"github.com/dop251/goja/token"
 	"github.com/dop251/goja/unistring"
 )
 
@@ -131,6 +132,10 @@ func TestParserErr(t *testing.T) {
 		test("018", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
 		test("01.0", "(anonymous): Line 1:3 Unexpected number")
+
+		test(".0.9", "(anonymous): Line 1:3 Unexpected number")
+
+		test("0o3e1", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
 		test("01a", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
@@ -445,6 +450,8 @@ func TestParserErr(t *testing.T) {
 			test("{a: 1,}", "(anonymous): Line 1:7 Unexpected token }")
 			test("{a: 1, b: 2}", "(anonymous): Line 1:9 Unexpected token :")
 			test("{a: 1, b: 2,}", "(anonymous): Line 1:9 Unexpected token :")
+			test(`let f = () => new import('');`, "(anonymous): Line 1:19 Unexpected reserved word")
+
 		}
 
 		{ // Reserved words (strict)
@@ -497,6 +504,7 @@ func TestParser(t *testing.T) {
 			is(firstErr(err), chk)
 			return program
 		}
+		test(`new (() => {});`, nil)
 
 		test(`
             abc
@@ -904,7 +912,7 @@ func Test_parseStringLiteral(t *testing.T) {
 			parser.read()
 			parser.read()
 			_, res, err := parser.scanString(0, true)
-			is(err, nil)
+			is(err, "")
 			is(res, want)
 		}
 
@@ -959,7 +967,7 @@ func Test_parseStringLiteral(t *testing.T) {
 			parser.read()
 			parser.read()
 			_, res, err := parser.scanString(0, true)
-			is(err.Error(), want)
+			is(err, want)
 			is(res, "")
 		}
 
@@ -1089,4 +1097,80 @@ var x = {};
 		is(count, 1)
 		is(requestedPath, "https://site.com/delme.js.map")
 	})
+}
+
+func TestParseTemplateCharacters(t *testing.T) {
+	parser := newParser("", "`test\\\r\\\n${a}`")
+	parser.next()
+	if parser.token != token.BACKTICK {
+		t.Fatalf("Token: %s", parser.token)
+	}
+	checkParseTemplateChars := func(expectedLiteral string, expectedParsed unistring.String, expectedFinished, expectParseErr, expectErr bool) {
+		literal, parsed, finished, parseErr, err := parser.parseTemplateCharacters()
+		if err != "" != expectErr {
+			t.Fatal(err)
+		}
+		if literal != expectedLiteral {
+			t.Fatalf("Literal: %q", literal)
+		}
+		if parsed != expectedParsed {
+			t.Fatalf("Parsed: %q", parsed)
+		}
+		if finished != expectedFinished {
+			t.Fatal(finished)
+		}
+		if parseErr != "" != expectParseErr {
+			t.Fatalf("parseErr: %v", parseErr)
+		}
+	}
+	checkParseTemplateChars("test\\\n\\\n", "test", false, false, false)
+	parser.next()
+	parser.expect(token.IDENTIFIER)
+	if len(parser.errors) > 0 {
+		t.Fatal(parser.errors)
+	}
+	if parser.token != token.RIGHT_BRACE {
+		t.Fatal("Expected }")
+	}
+	if len(parser.errors) > 0 {
+		t.Fatal(parser.errors)
+	}
+	checkParseTemplateChars("", "", true, false, false)
+	if parser.chr != -1 {
+		t.Fatal("Expected EOF")
+	}
+}
+
+func TestParseTemplateLiteral(t *testing.T) {
+	parser := newParser("", "f()\n`test${a}`")
+	prg, err := parser.parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st, ok := prg.Body[0].(*ast.ExpressionStatement); ok {
+		if expr, ok := st.Expression.(*ast.TemplateLiteral); ok {
+			if expr.Tag == nil {
+				t.Fatal("tag is nil")
+			}
+			if idx0 := expr.Tag.Idx0(); idx0 != 1 {
+				t.Fatalf("Tag.Idx0(): %d", idx0)
+			}
+			if expr.OpenQuote != 5 {
+				t.Fatalf("OpenQuote: %d", expr.OpenQuote)
+			}
+			if expr.CloseQuote != 14 {
+				t.Fatalf("CloseQuote: %d", expr.CloseQuote)
+			}
+			if l := len(expr.Elements); l != 2 {
+				t.Fatalf("len elements: %d", l)
+			}
+			if l := len(expr.Expressions); l != 1 {
+				t.Fatalf("len expressions: %d", l)
+			}
+		} else {
+			t.Fatal(st)
+		}
+	} else {
+		t.Fatal(prg.Body[0])
+	}
 }

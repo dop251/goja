@@ -5,131 +5,6 @@ import (
 	"time"
 )
 
-const TESTLIB = `
-function $ERROR(message) {
-	throw new Error(message);
-}
-
-function Test262Error() {
-}
-
-function assert(mustBeTrue, message) {
-    if (mustBeTrue === true) {
-        return;
-    }
-
-    if (message === undefined) {
-        message = 'Expected true but got ' + String(mustBeTrue);
-    }
-    $ERROR(message);
-}
-
-assert._isSameValue = function (a, b) {
-    if (a === b) {
-        // Handle +/-0 vs. -/+0
-        return a !== 0 || 1 / a === 1 / b;
-    }
-
-    // Handle NaN vs. NaN
-    return a !== a && b !== b;
-};
-
-assert.sameValue = function (actual, expected, message) {
-    if (assert._isSameValue(actual, expected)) {
-        return;
-    }
-
-    if (message === undefined) {
-        message = '';
-    } else {
-        message += ' ';
-    }
-
-    message += 'Expected SameValue(«' + String(actual) + '», «' + String(expected) + '») to be true';
-
-    $ERROR(message);
-};
-
-assert.throws = function (expectedErrorConstructor, func, message) {
-  if (typeof func !== "function") {
-    $ERROR('assert.throws requires two arguments: the error constructor ' +
-      'and a function to run');
-    return;
-  }
-  if (message === undefined) {
-    message = '';
-  } else {
-    message += ' ';
-  }
-
-  try {
-    func();
-  } catch (thrown) {
-    if (typeof thrown !== 'object' || thrown === null) {
-      message += 'Thrown value was not an object!';
-      $ERROR(message);
-    } else if (thrown.constructor !== expectedErrorConstructor) {
-      message += 'Expected a ' + expectedErrorConstructor.name + ' but got a ' + thrown.constructor.name;
-      $ERROR(message);
-    }
-    return;
-  }
-
-  message += 'Expected a ' + expectedErrorConstructor.name + ' to be thrown but no exception was thrown at all';
-  $ERROR(message);
-};
-
-function compareArray(a, b) {
-  if (b.length !== a.length) {
-    return false;
-  }
-
-  for (var i = 0; i < a.length; i++) {
-    if (b[i] !== a[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-`
-
-const TESTLIBX = TESTLIB +
-	`function looksNative(fn) {
-		return /native code/.test(Function.prototype.toString.call(fn));
-	}
-
-	function deepEqual(a, b) {
-		if (typeof a === "object") {
-			if (typeof b === "object") {
-				if (a === b) {
-					return true;
-				}
-				if (Reflect.getPrototypeOf(a) !== Reflect.getPrototypeOf(b)) {
-					return false;
-				}
-				var keysA = Object.keys(a);
-				var keysB = Object.keys(b);
-				if (keysA.length !== keysB.length) {
-					return false;
-				}
-				if (!compareArray(keysA.sort(), keysB.sort())) {
-					return false;
-				}
-				for (var i = 0; i < keysA.length; i++) {
-					var key = keysA[i];
-					if (!deepEqual(a[key], b[key])) {
-						return false;
-					}
-				}
-				return true;
-			} else {
-				return false;
-			}
-		}
-		return assert._isSameValue(a, b);
-	}
-`
-
 func TestDateUTC(t *testing.T) {
 	const SCRIPT = `
 	assert.sameValue(Date.UTC(1970, 0), 0, '1970, 0');
@@ -158,7 +33,7 @@ func TestDateUTC(t *testing.T) {
 
 	`
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestNewDate(t *testing.T) {
@@ -167,7 +42,7 @@ func TestNewDate(t *testing.T) {
 	d1.getUTCHours() === 12;
 
 	`
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestNewDate0(t *testing.T) {
@@ -175,7 +50,7 @@ func TestNewDate0(t *testing.T) {
 	(new Date(0)).toUTCString();
 
 	`
-	testScript1(SCRIPT, asciiString("Thu, 01 Jan 1970 00:00:00 GMT"), t)
+	testScript(SCRIPT, asciiString("Thu, 01 Jan 1970 00:00:00 GMT"), t)
 }
 
 func TestSetHour(t *testing.T) {
@@ -205,7 +80,7 @@ func TestSetHour(t *testing.T) {
 	assert.sameValue(d.getSeconds(), 45);
 
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 
 }
 
@@ -232,7 +107,7 @@ func TestSetMinute(t *testing.T) {
 	assert.sameValue(d.getHours(), 13);
 
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 
 }
 
@@ -252,7 +127,7 @@ func TestTimezoneOffset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testScript1(SCRIPT, intToValue(-60), t)
+	testScript(SCRIPT, intToValue(-60), t)
 }
 
 func TestDateValueOf(t *testing.T) {
@@ -261,7 +136,7 @@ func TestDateValueOf(t *testing.T) {
 	d9.valueOf();
 	`
 
-	testScript1(SCRIPT, intToValue(1.23e15), t)
+	testScript(SCRIPT, intToValue(1.23e15), t)
 }
 
 func TestDateSetters(t *testing.T) {
@@ -299,96 +174,78 @@ func TestDateSetters(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestDateParse(t *testing.T) {
 	const SCRIPT = `
-var zero = new Date(0);
+	var zero = new Date(0);
 
-assert.sameValue(zero.valueOf(), Date.parse(zero.toString()),
-                 "Date.parse(zeroDate.toString())");
-assert.sameValue(zero.valueOf(), Date.parse(zero.toUTCString()),
-                 "Date.parse(zeroDate.toUTCString())");
-assert.sameValue(zero.valueOf(), Date.parse(zero.toISOString()),
-                 "Date.parse(zeroDate.toISOString())");
+	assert.sameValue(zero.valueOf(), Date.parse(zero.toString()),
+					 "Date.parse(zeroDate.toString())");
+	assert.sameValue(zero.valueOf(), Date.parse(zero.toUTCString()),
+					 "Date.parse(zeroDate.toUTCString())");
+	assert.sameValue(zero.valueOf(), Date.parse(zero.toISOString()),
+					 "Date.parse(zeroDate.toISOString())");
 
-assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 MST"), 1136239445000,
-				 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 MST\")");
+	function testParse(str, expected) {
+		assert.sameValue(Date.parse(str), expected, str);
+	}
 
-assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 GMT-07:00 (MST)"), 1136239445000,
-				 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 GMT-07:00 (MST)\")");
+	testParse("Mon, 02 Jan 2006 15:04:05 MST",							1136239445000);
+	testParse("Tue, 22 Jun 2021 13:54:40 GMT",							1624370080000);
+	testParse("Tuesday, 22 Jun 2021 13:54:40 GMT",						1624370080000);
+	testParse("Mon, 02 Jan 2006 15:04:05 GMT-07:00 (MST)",				1136239445000);
+	testParse("Mon, 02 Jan 2006 15:04:05 -07:00 (MST)",					1136239445000);
+	testParse("Monday, 02 Jan 2006 15:04:05 -0700 (MST)",				1136239445000);
+	testParse("Mon Jan 02 2006 15:04:05 GMT-0700 (GMT Standard Time)",	1136239445000);
+	testParse("Mon Jan 2 15:04:05 MST 2006",							1136239445000);
+	testParse("Mon Jan 02 15:04:05 MST 2006",							1136239445000);
+	testParse("Mon Jan 02 15:04:05 -0700 2006",							1136239445000);
 
-assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 -07:00 (MST)"), 1136239445000,
-				 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 -07:00 (MST)\")");
+	testParse("December 04, 1986",	534038400000);
+	testParse("Dec 04, 1986",		534038400000);
+	testParse("Dec 4, 1986",		534038400000);
 
-assert.sameValue(Date.parse("Monday, 02 Jan 2006 15:04:05 -0700 (MST)"), 1136239445000,
-				 "Date.parse(\"Monday, 02 Jan 2006 15:04:05 -0700 (MST)\")");
+	testParse("2006-01-02T15:04:05.000Z",	1136214245000);
+	testParse("2006-06-02T15:04:05.000",	1149275045000);
+	testParse("2006-01-02T15:04:05",		1136232245000);
+	testParse("2006-01-02",					1136160000000);
+	testParse("2006T15:04-0700",			1136153040000);
+	testParse("2006T15:04Z",				1136127840000);
+	testParse("2019-01-01T12:00:00.52Z",	1546344000520);
 
-assert.sameValue(Date.parse("Mon Jan 02 2006 15:04:05 GMT-0700 (GMT Standard Time)"), 1136239445000,
-				 "Date.parse(\"Mon Jan 02 2006 15:04:05 GMT-0700 (GMT Standard Time)\")");
+	var d = new Date("Mon, 02 Jan 2006 15:04:05 MST");
 
-assert.sameValue(Date.parse("2006-01-02T15:04:05.000Z"), 1136214245000,
-				 "Date.parse(\"2006-01-02T15:04:05.000Z\")");
+	assert.sameValue(d.getUTCHours(), 22,
+					"new Date(\"Mon, 02 Jan 2006 15:04:05 MST\").getUTCHours()");
 
-assert.sameValue(Date.parse("2006-06-02T15:04:05.000"), 1149260645000,
-				 "Date.parse(\"2006-01-02T15:04:05.000\")");
+	assert.sameValue(d.getHours(), 17,
+					"new Date(\"Mon, 02 Jan 2006 15:04:05 MST\").getHours()");
 
-assert.sameValue(Date.parse("2006-01-02T15:04:05"), 1136214245000,
-				 "Date.parse(\"2006-01-02T15:04:05\")");
+	assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 zzz"), NaN,
+					 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 zzz\")");
 
-assert.sameValue(Date.parse("2006-01-02"), 1136160000000,
-				 "Date.parse(\"2006-01-02\")");
+	assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 ZZZ"), NaN,
+					 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 ZZZ\")");
 
-assert.sameValue(Date.parse("2006T15:04-0700"), 1136153040000,
-				 "Date.parse(\"2006T15:04-0700\")");
+	var minDateStr = "-271821-04-20T00:00:00.000Z";
+	var minDate = new Date(-8640000000000000);
 
-assert.sameValue(Date.parse("2006T15:04Z"), 1136127840000,
-				 "Date.parse(\"2006T15:04Z\")");
+	assert.sameValue(minDate.toISOString(), minDateStr, "minDateStr");
+	assert.sameValue(Date.parse(minDateStr), minDate.valueOf(), "parse minDateStr");
 
-assert.sameValue(Date.parse("Mon Jan 2 15:04:05 MST 2006"), 1136239445000,
-				 "Date.parse(\"Mon Jan 2 15:04:05 MST 2006\")");
+	var maxDateStr = "+275760-09-13T00:00:00.000Z";
+	var maxDate = new Date(8640000000000000);
 
-assert.sameValue(Date.parse("Mon Jan 02 15:04:05 MST 2006"), 1136239445000,
-				 "Date.parse(\"Mon Jan 02 15:04:05 MST 2006\")");
+	assert.sameValue(maxDate.toISOString(), maxDateStr, "maxDateStr");
+	assert.sameValue(Date.parse(maxDateStr), maxDate.valueOf(), "parse maxDateStr");
 
-assert.sameValue(Date.parse("Mon Jan 02 15:04:05 -0700 2006"), 1136239445000,
-				 "Date.parse(\"Mon Jan 02 15:04:05 -0700 2006\")");
+	var belowRange = "-271821-04-19T23:59:59.999Z";
+	var aboveRange = "+275760-09-13T00:00:00.001Z";
 
-assert.sameValue(Date.parse("2019-01-01T12:00:00.52Z"), 1546344000520,
-				"Date.parse(\"2019-01-01T12:00:00.52\")");
-
-var d = new Date("Mon, 02 Jan 2006 15:04:05 MST");
-
-assert.sameValue(d.getUTCHours(), 22,
-				"new Date(\"Mon, 02 Jan 2006 15:04:05 MST\").getUTCHours()");
-
-assert.sameValue(d.getHours(), 17,
-				"new Date(\"Mon, 02 Jan 2006 15:04:05 MST\").getHours()");
-
-assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 zzz"), NaN,
-				 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 zzz\")");
-
-assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 ZZZ"), NaN,
-				 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 ZZZ\")");
-
-var minDateStr = "-271821-04-20T00:00:00.000Z";
-var minDate = new Date(-8640000000000000);
-
-assert.sameValue(minDate.toISOString(), minDateStr, "minDateStr");
-assert.sameValue(Date.parse(minDateStr), minDate.valueOf(), "parse minDateStr");
-
-var maxDateStr = "+275760-09-13T00:00:00.000Z";
-var maxDate = new Date(8640000000000000);
-
-assert.sameValue(maxDate.toISOString(), maxDateStr, "maxDateStr");
-assert.sameValue(Date.parse(maxDateStr), maxDate.valueOf(), "parse maxDateStr");
-
-var belowRange = "-271821-04-19T23:59:59.999Z";
-var aboveRange = "+275760-09-13T00:00:00.001Z";
-
-assert.sameValue(Date.parse(belowRange), NaN, "parse below minimum time value");
-assert.sameValue(Date.parse(aboveRange), NaN, "parse above maximum time value");
+	assert.sameValue(Date.parse(belowRange), NaN, "parse below minimum time value");
+	assert.sameValue(Date.parse(aboveRange), NaN, "parse above maximum time value");
 	`
 
 	l := time.Local
@@ -401,7 +258,7 @@ assert.sameValue(Date.parse(aboveRange), NaN, "parse above maximum time value");
 		t.Fatal(err)
 	}
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestDateMaxValues(t *testing.T) {
@@ -411,7 +268,7 @@ func TestDateMaxValues(t *testing.T) {
 	assert.sameValue((new Date(0)).setUTCMilliseconds(-8.64e15), -8.64e15);
 	assert.sameValue((new Date(0)).setUTCSeconds(-8640000000000), -8.64e15);
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestDateExport(t *testing.T) {
@@ -437,5 +294,16 @@ func TestDateToJSON(t *testing.T) {
 	const SCRIPT = `
 	Date.prototype.toJSON.call({ toISOString: function () { return 1; } })
 	`
-	testScript1(SCRIPT, intToValue(1), t)
+	testScript(SCRIPT, intToValue(1), t)
+}
+
+func TestDateExportType(t *testing.T) {
+	vm := New()
+	v, err := vm.RunString(`new Date()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if typ := v.ExportType(); typ != typeTime {
+		t.Fatal(typ)
+	}
 }

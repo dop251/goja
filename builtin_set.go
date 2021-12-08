@@ -42,7 +42,7 @@ func (r *Runtime) setProto_add(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	so, ok := thisObj.self.(*setObject)
 	if !ok {
-		panic(r.NewTypeError("Method Set.prototype.add called on incompatible receiver %s", thisObj.String()))
+		panic(r.NewTypeError("Method Set.prototype.add called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 	}
 
 	so.m.set(call.Argument(0), nil)
@@ -53,7 +53,7 @@ func (r *Runtime) setProto_clear(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	so, ok := thisObj.self.(*setObject)
 	if !ok {
-		panic(r.NewTypeError("Method Set.prototype.clear called on incompatible receiver %s", thisObj.String()))
+		panic(r.NewTypeError("Method Set.prototype.clear called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 	}
 
 	so.m.clear()
@@ -64,7 +64,7 @@ func (r *Runtime) setProto_delete(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	so, ok := thisObj.self.(*setObject)
 	if !ok {
-		panic(r.NewTypeError("Method Set.prototype.delete called on incompatible receiver %s", thisObj.String()))
+		panic(r.NewTypeError("Method Set.prototype.delete called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 	}
 
 	return r.toBoolean(so.m.remove(call.Argument(0)))
@@ -78,7 +78,7 @@ func (r *Runtime) setProto_forEach(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	so, ok := thisObj.self.(*setObject)
 	if !ok {
-		panic(r.NewTypeError("Method Set.prototype.forEach called on incompatible receiver %s", thisObj.String()))
+		panic(r.NewTypeError("Method Set.prototype.forEach called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 	}
 	callbackFn, ok := r.toObject(call.Argument(0)).self.assertCallable()
 	if !ok {
@@ -101,7 +101,7 @@ func (r *Runtime) setProto_has(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	so, ok := thisObj.self.(*setObject)
 	if !ok {
-		panic(r.NewTypeError("Method Set.prototype.has called on incompatible receiver %s", thisObj.String()))
+		panic(r.NewTypeError("Method Set.prototype.has called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 	}
 
 	return r.toBoolean(so.m.has(call.Argument(0)))
@@ -111,7 +111,7 @@ func (r *Runtime) setProto_getSize(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	so, ok := thisObj.self.(*setObject)
 	if !ok {
-		panic(r.NewTypeError("Method get Set.prototype.size called on incompatible receiver %s", thisObj.String()))
+		panic(r.NewTypeError("Method get Set.prototype.size called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 	}
 
 	return intToValue(int64(so.m.size))
@@ -140,7 +140,7 @@ func (r *Runtime) builtin_newSet(args []Value, newTarget *Object) *Object {
 			adder := so.getStr("add", nil)
 			iter := r.getIterator(arg, nil)
 			if adder == r.global.setAdder {
-				r.iterate(iter, func(item Value) {
+				iter.iterate(func(item Value) {
 					so.m.set(item, nil)
 				})
 			} else {
@@ -148,7 +148,7 @@ func (r *Runtime) builtin_newSet(args []Value, newTarget *Object) *Object {
 				if adderFn == nil {
 					panic(r.NewTypeError("Set.add in missing"))
 				}
-				r.iterate(iter, func(item Value) {
+				iter.iterate(func(item Value) {
 					adderFn(FunctionCall{This: o, Arguments: []Value{item}})
 				})
 			}
@@ -185,7 +185,7 @@ func (r *Runtime) setIterProto_next(call FunctionCall) Value {
 	if iter, ok := thisObj.self.(*setIterObject); ok {
 		return iter.next()
 	}
-	panic(r.NewTypeError("Method Set Iterator.prototype.next called on incompatible receiver %s", thisObj.String()))
+	panic(r.NewTypeError("Method Set Iterator.prototype.next called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 }
 
 func (r *Runtime) createSetProto(val *Object) objectImpl {
@@ -218,11 +218,7 @@ func (r *Runtime) createSetProto(val *Object) objectImpl {
 
 func (r *Runtime) createSet(val *Object) objectImpl {
 	o := r.newNativeConstructOnly(val, r.builtin_newSet, r.global.SetPrototype, "Set", 0)
-	o._putSym(SymSpecies, &valueProperty{
-		getterFunc:   r.newNativeFunc(r.returnThis, nil, "get [Symbol.species]", nil, 0),
-		accessor:     true,
-		configurable: true,
-	})
+	r.putSpeciesReturnThis(o)
 
 	return o
 }

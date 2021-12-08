@@ -139,7 +139,7 @@ func TestTypedArrayIdx(t *testing.T) {
 	}
 	`
 
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestTypedArraySetDetachedBuffer(t *testing.T) {
@@ -164,10 +164,7 @@ func TestTypedArraySetDetachedBuffer(t *testing.T) {
 	vm.Set("$DETACHBUFFER", func(buf *ArrayBuffer) {
 		buf.Detach()
 	})
-	_, err := vm.RunString(TESTLIB + SCRIPT)
-	if err != nil {
-		t.Fatal(err)
-	}
+	vm.testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestTypedArrayDefinePropDetachedBuffer(t *testing.T) {
@@ -278,10 +275,7 @@ func TestTypedArrayDefinePropDetachedBuffer(t *testing.T) {
 	vm.Set("$DETACHBUFFER", func(buf *ArrayBuffer) {
 		buf.Detach()
 	})
-	_, err := vm.RunString(TESTLIB + SCRIPT)
-	if err != nil {
-		t.Fatal(err)
-	}
+	vm.testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestTypedArrayDefineProperty(t *testing.T) {
@@ -328,7 +322,7 @@ func TestTypedArrayDefineProperty(t *testing.T) {
 	assert.sameValue(descriptor0.enumerable, true);
 	assert.sameValue(descriptor0.writable, true);
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestTypedArrayGetInvalidIndex(t *testing.T) {
@@ -344,5 +338,5 @@ func TestTypedArrayGetInvalidIndex(t *testing.T) {
 	assert.sameValue(a[1], undefined);
 	assert.sameValue(a["1"], undefined);
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }

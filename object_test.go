@@ -89,7 +89,7 @@ func TestPropertyOrder(t *testing.T) {
 	}
 	`
 
-	testScript1(SCRIPT, _undefined, t)
+	testScript(SCRIPT, _undefined, t)
 }
 
 func TestDefinePropertiesSymbol(t *testing.T) {
@@ -101,7 +101,7 @@ func TestDefinePropertiesSymbol(t *testing.T) {
 	o[Symbol.toStringTag] === "Test";
 	`
 
-	testScript1(SCRIPT, valueTrue, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestObjectShorthandProperties(t *testing.T) {
@@ -118,7 +118,7 @@ func TestObjectShorthandProperties(t *testing.T) {
 
 	assert.sameValue(obj['with'](), 42, 'property exists');
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestObjectAssign(t *testing.T) {
@@ -134,7 +134,7 @@ func TestObjectAssign(t *testing.T) {
           delete this.b;
         }, b: 2 }).b, 1, "#2");
 	`
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestExportCircular(t *testing.T) {
@@ -297,6 +297,41 @@ func TestExportToWrappedMapCustom(t *testing.T) {
 	}
 }
 
+func TestSetForeignReturnValue(t *testing.T) {
+	const SCRIPT = `
+	var array = [1, 2, 3];
+	var arrayTarget = new Proxy(array, {});
+
+	Object.preventExtensions(array);
+
+	!Reflect.set(arrayTarget, "foo", 2);
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestDefinePropertiesUndefinedVal(t *testing.T) {
+	const SCRIPT = `
+var target = {};
+var sym = Symbol();
+target[sym] = 1;
+target.foo = 2;
+target[0] = 3;
+
+var getOwnKeys = [];
+var proxy = new Proxy(target, {
+  getOwnPropertyDescriptor: function(_target, key) {
+    getOwnKeys.push(key);
+  },
+});
+
+Object.defineProperties({}, proxy);
+	true;
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func ExampleObject_Delete() {
 	vm := New()
 	obj := vm.NewObject()
@@ -381,7 +416,7 @@ func BenchmarkGetStr(b *testing.B) {
 	}
 }
 
-func _toString(v Value) string {
+func __toString(v Value) string {
 	switch v := v.(type) {
 	case asciiString:
 		return string(v)
@@ -402,7 +437,7 @@ func BenchmarkToString2(b *testing.B) {
 	v := asciiString("test")
 
 	for i := 0; i < b.N; i++ {
-		_toString(v)
+		__toString(v)
 	}
 }
 

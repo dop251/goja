@@ -189,7 +189,7 @@ func TestGoMapWithProto(t *testing.T) {
 		"t": "42",
 	}
 	vm.Set("m", m)
-	_, err := vm.RunString(TESTLIB + `
+	vm.testScriptWithTestLib(`
 	(function() {
 	'use strict';
 	var proto = {};
@@ -237,10 +237,7 @@ func TestGoMapWithProto(t *testing.T) {
 	m.t1 = "test2";
 	assert.sameValue(m.t1, "test2");
 	})();
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	`, _undefined, t)
 }
 
 func TestGoMapProtoProp(t *testing.T) {
@@ -260,10 +257,7 @@ func TestGoMapProtoProp(t *testing.T) {
 
 	r := New()
 	r.Set("m", map[string]interface{}{})
-	_, err := r.RunString(TESTLIB + SCRIPT)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r.testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestGoMapProtoPropChain(t *testing.T) {
@@ -301,10 +295,7 @@ func TestGoMapProtoPropChain(t *testing.T) {
 
 	r := New()
 	r.Set("m", map[string]interface{}{})
-	_, err := r.RunString(TESTLIB + SCRIPT)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r.testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestGoMapUnicode(t *testing.T) {
