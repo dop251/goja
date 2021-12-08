@@ -13,6 +13,8 @@ type _scope struct {
 	inSwitch        bool
 	inFunction      bool
 	declarationList []*ast.VariableDeclaration
+	importEntries   []*ast.ImportDeclaration
+	exportEntries   []*ast.ExportDeclaration
 
 	labels []unistring.String
 }

@@ -2,6 +2,7 @@ package goja
 
 import (
 	"fmt"
+
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
@@ -1737,7 +1738,6 @@ func (e *compiledBinaryExpr) emitGetter(putOnStack bool) {
 }
 
 func (c *compiler) compileBinaryExpression(v *ast.BinaryExpression) compiledExpr {
-
 	switch v.Operator {
 	case token.LOGICAL_OR:
 		return c.compileLogicalOr(v.Left, v.Right, v.Idx0())
@@ -2030,7 +2030,6 @@ func (c *compiler) compileSpreadCallArgument(spread *ast.SpreadElement) compiled
 }
 
 func (c *compiler) compileCallExpression(v *ast.CallExpression) compiledExpr {
-
 	args := make([]compiledExpr, len(v.ArgumentList))
 	isVariadic := false
 	for i, argExpr := range v.ArgumentList {

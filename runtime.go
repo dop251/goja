@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/dop251/goja/file"
 	"go/ast"
 	"hash/maphash"
 	"math"
@@ -14,6 +13,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/dop251/goja/file"
 
 	"golang.org/x/text/collate"
 
@@ -185,6 +186,8 @@ type Runtime struct {
 	jobQueue []func()
 
 	promiseRejectionTracker PromiseRejectionTracker
+	// TODO add a type and a set method
+	hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) ModuleRecord
 }
 
 type StackFrame struct {
@@ -1337,7 +1340,6 @@ func (r *Runtime) RunString(str string) (Value, error) {
 // RunScript executes the given string in the global context.
 func (r *Runtime) RunScript(name, src string) (Value, error) {
 	p, err := r.compile(name, src, false, false, true)
-
 	if err != nil {
 		return nil, err
 	}

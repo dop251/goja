@@ -3399,7 +3399,6 @@ end:
 		return valueTrue
 	}
 	return valueFalse
-
 }
 
 type _op_lt struct{}
