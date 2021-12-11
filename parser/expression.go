@@ -469,25 +469,25 @@ func (self *_parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
 	res := &ast.TemplateLiteral{
 		OpenQuote: self.idx,
 	}
-	for self.chr != -1 {
-		start := self.idx + 1
+	for {
+		start := self.offset
 		literal, parsed, finished, parseErr, err := self.parseTemplateCharacters()
 		if err != "" {
-			self.error(self.idx, err)
+			self.error(self.offset, err)
 		}
 		res.Elements = append(res.Elements, &ast.TemplateElement{
-			Idx:     start,
+			Idx:     self.idxOf(start),
 			Literal: literal,
 			Parsed:  parsed,
 			Valid:   parseErr == "",
 		})
 		if !tagged && parseErr != "" {
-			self.error(self.idx, parseErr)
+			self.error(self.offset, parseErr)
 		}
-		end := self.idx + 1
+		end := self.chrOffset - 1
 		self.next()
 		if finished {
-			res.CloseQuote = end
+			res.CloseQuote = self.idxOf(end)
 			break
 		}
 		expr := self.parseExpression()

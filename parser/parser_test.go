@@ -494,6 +494,9 @@ func TestParserErr(t *testing.T) {
 		}
 		test(`0, { get a(param = null) {} };`, "(anonymous): Line 1:11 Getter must not have any formal parameters.")
 		test(`let{f(`, "(anonymous): Line 1:7 Unexpected end of input")
+		test("`", "(anonymous): Line 1:2 Unexpected end of input")
+		test(" `", "(anonymous): Line 1:3 Unexpected end of input")
+		test("` ", "(anonymous): Line 1:3 Unexpected end of input")
 	})
 }
 
@@ -1166,6 +1169,25 @@ func TestParseTemplateLiteral(t *testing.T) {
 			}
 			if l := len(expr.Expressions); l != 1 {
 				t.Fatalf("len expressions: %d", l)
+			}
+		} else {
+			t.Fatal(st)
+		}
+	} else {
+		t.Fatal(prg.Body[0])
+	}
+}
+
+func TestParseTemplateLiteralWithTail(t *testing.T) {
+	parser := newParser("", "f()\n`test${a}tail` ")
+	prg, err := parser.parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st, ok := prg.Body[0].(*ast.ExpressionStatement); ok {
+		if expr, ok := st.Expression.(*ast.TemplateLiteral); ok {
+			if expr.CloseQuote != 18 {
+				t.Fatalf("CloseQuote: %d", expr.CloseQuote)
 			}
 		} else {
 			t.Fatal(st)

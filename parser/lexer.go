@@ -832,6 +832,7 @@ func (self *_parser) parseTemplateCharacters() (literal string, parsed unistring
 	return
 unterminated:
 	err = err_UnexpectedEndOfInput
+	finished = true
 	return
 }
 
