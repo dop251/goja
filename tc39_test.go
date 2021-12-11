@@ -3,7 +3,6 @@ package goja
 import (
 	"errors"
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"path"
@@ -12,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -264,11 +265,11 @@ var (
 		"ShadowRealm",
 		"SharedArrayBuffer",
 		"error-cause",
+		"top-level-await",
 	}
 )
 
 func init() {
-
 	skip := func(prefixes ...string) {
 		for _, prefix := range prefixes {
 			skipPrefixes.Add(prefix)
@@ -306,7 +307,6 @@ func init() {
 		"test/built-ins/TypedArrayConstructors/BigUint64Array/",
 		"test/built-ins/TypedArrayConstructors/BigInt64Array/",
 	)
-
 }
 
 type tc39Test struct {
@@ -469,7 +469,13 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		vm.Set("print", t.Log)
 	}
 
-	err, early := ctx.runTC39Script(name, src, meta.Includes, vm)
+	var err error
+	var early bool
+	if meta.hasFlag("module") {
+		err, early = ctx.runTC39Module(name, src, meta.Includes, vm)
+	} else {
+		err, early = ctx.runTC39Script(name, src, meta.Includes, vm)
+	}
 
 	if err != nil {
 		if meta.Negative.Type == "" {
@@ -509,6 +515,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 			}
 
 			if errType != meta.Negative.Type {
+				fmt.Println(err)
 				vm.vm.prg.dumpCode(t.Logf)
 				t.Fatalf("%s: unexpected error type (%s), expected (%s)", name, errType, meta.Negative.Type)
 			}
@@ -555,12 +562,9 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 	p := path.Join(ctx.base, name)
 	meta, src, err := parseTC39File(p)
 	if err != nil {
-		//t.Fatalf("Could not parse %s: %v", name, err)
+		// t.Fatalf("Could not parse %s: %v", name, err)
 		t.Errorf("Could not parse %s: %v", name, err)
 		return
-	}
-	if meta.hasFlag("module") {
-		t.Skip("module")
 	}
 	if meta.Es5id == "" {
 		if meta.Es6id == "" && meta.Esid == "" {
@@ -584,13 +588,13 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 	hasRaw := meta.hasFlag("raw")
 
 	if hasRaw || !meta.hasFlag("onlyStrict") {
-		//log.Printf("Running normal test: %s", name)
+		// log.Printf("Running normal test: %s", name)
 		t.Logf("Running normal test: %s", name)
 		ctx.runTC39Test(name, src, meta, t)
 	}
 
 	if !hasRaw && !meta.hasFlag("noStrict") {
-		//log.Printf("Running strict test: %s", name)
+		// log.Printf("Running strict test: %s", name)
 		t.Logf("Running strict test: %s", name)
 		ctx.runTC39Test(name, "'use strict';\n"+src, meta, t)
 	}
@@ -603,7 +607,6 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		})
 		ctx.benchLock.Unlock()
 	}
-
 }
 
 func (ctx *tc39TestCtx) init() {
@@ -653,6 +656,90 @@ func (ctx *tc39TestCtx) runFile(base, name string, vm *Runtime) error {
 	}
 	_, err = vm.RunProgram(prg)
 	return err
+}
+
+func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *Runtime) (err error, early bool) {
+	early = true
+	err = ctx.runFile(ctx.base, path.Join("harness", "assert.js"), vm)
+	if err != nil {
+		return
+	}
+
+	err = ctx.runFile(ctx.base, path.Join("harness", "sta.js"), vm)
+	if err != nil {
+		return
+	}
+
+	for _, include := range includes {
+		err = ctx.runFile(ctx.base, path.Join("harness", include), vm)
+		if err != nil {
+			return
+		}
+	}
+	type cacheElement struct {
+		m   ModuleRecord
+		err error
+	}
+	cache := make(map[string]cacheElement)
+
+	var hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
+	hostResolveImportedModule = func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error) {
+		k, ok := cache[specifier]
+		if ok {
+			return k.m, k.err
+		}
+		fname := path.Join(ctx.base, path.Dir(name), specifier)
+		f, err := os.Open(fname)
+		if err != nil {
+			cache[specifier] = cacheElement{err: err}
+			return nil, err
+		}
+		defer f.Close()
+
+		b, err := ioutil.ReadAll(f)
+		if err != nil {
+			cache[specifier] = cacheElement{err: err}
+			return nil, err
+		}
+
+		str := string(b)
+		p, err := vm.ParseModule(str)
+		if err != nil {
+			cache[specifier] = cacheElement{err: err}
+			return nil, err
+		}
+		p.rt = vm
+		p.compiler = newCompiler()
+		p.compiler.hostResolveImportedModule = hostResolveImportedModule
+		cache[specifier] = cacheElement{m: p}
+		return p, nil
+	}
+
+	vm.hostResolveImportedModule = hostResolveImportedModule
+	var p *SourceTextModuleRecord
+	p, err = vm.ParseModule(src)
+	if err != nil {
+		return
+	}
+	p.rt = vm
+
+	compiler := newCompiler()
+	p.compiler = compiler
+	compiler.hostResolveImportedModule = hostResolveImportedModule
+	err = p.Link()
+	if err != nil {
+		return
+	}
+
+	early = false
+	err = p.Evaluate()
+	if err != nil {
+		return
+	}
+	fmt.Println(p.compiler.p)
+	err = p.ExecuteModule()
+
+	return
 }
 
 func (ctx *tc39TestCtx) runTC39Script(name, src string, includes []string, vm *Runtime) (err error, early bool) {
@@ -709,7 +796,6 @@ func (ctx *tc39TestCtx) runTC39Tests(name string) {
 			}
 		}
 	}
-
 }
 
 func TestTC39(t *testing.T) {
@@ -725,12 +811,12 @@ func TestTC39(t *testing.T) {
 		base: tc39BASE,
 	}
 	ctx.init()
-	//ctx.enableBench = true
+	// ctx.enableBench = true
 
 	t.Run("tc39", func(t *testing.T) {
 		ctx.t = t
-		//ctx.runTC39File("test/language/types/number/8.5.1.js", t)
-		//ctx.runTC39Tests("test/language")
+		// ctx.runTC39File("test/language/types/number/8.5.1.js", t)
+		// ctx.runTC39Tests("test/language")
 		ctx.runTC39Tests("test/language/expressions")
 		ctx.runTC39Tests("test/language/arguments-object")
 		ctx.runTC39Tests("test/language/asi")
@@ -740,7 +826,7 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/language/global-code")
 		ctx.runTC39Tests("test/language/identifier-resolution")
 		ctx.runTC39Tests("test/language/identifiers")
-		//ctx.runTC39Tests("test/language/literals") // legacy octal escape in strings in strict mode and regexp
+		// ctx.runTC39Tests("test/language/literals") // legacy octal escape in strings in strict mode and regexp
 		ctx.runTC39Tests("test/language/literals/numeric")
 		ctx.runTC39Tests("test/language/punctuators")
 		ctx.runTC39Tests("test/language/reserved-words")
@@ -748,6 +834,9 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/language/statements")
 		ctx.runTC39Tests("test/language/types")
 		ctx.runTC39Tests("test/language/white-space")
+		ctx.runTC39Tests("test/language/module-code")
+		ctx.runTC39Tests("test/language/export")
+		ctx.runTC39Tests("test/language/import")
 		ctx.runTC39Tests("test/built-ins")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimLeft")

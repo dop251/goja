@@ -2,8 +2,9 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dop251/goja/token"
 	"sort"
+
+	"github.com/dop251/goja/token"
 
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
@@ -75,6 +76,8 @@ type compiler struct {
 	block *block
 
 	enumGetExpr compiledEnumGetExpr
+	// TODO add a type and a set method
+	hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
 
 	evalVM *vm
 }
@@ -260,6 +263,8 @@ type scope struct {
 	argsNeeded bool
 	// 'this' is used and non-strict, so need to box it (functions only)
 	thisNeeded bool
+	// is module
+	module bool
 }
 
 type block struct {
@@ -668,6 +673,81 @@ found:
 	l := len(s.bindings) - 1
 	s.bindings[l] = nil
 	s.bindings = s.bindings[:l]
+}
+
+func (c *compiler) compileModule(module *SourceTextModuleRecord) {
+	in := module.body
+	c.p.src = in.File
+	c.newScope()
+	scope := c.scope
+	scope.dynamic = true
+	scope.strict = true
+	ownVarScope := true
+	ownLexScope := true
+	c.newBlockScope()
+	scope = c.scope
+	scope.module = true
+	funcs := c.extractFunctions(in.Body)
+	c.createFunctionBindings(funcs)
+	numFuncs := len(scope.bindings)
+	if false && !ownVarScope {
+		if numFuncs == len(funcs) {
+			c.compileFunctionsGlobalAllUnique(funcs)
+		} else {
+			c.compileFunctionsGlobal(funcs)
+		}
+	}
+	c.compileDeclList(in.DeclarationList, false)
+	numVars := len(scope.bindings) - numFuncs
+	vars := make([]unistring.String, len(scope.bindings))
+	for i, b := range scope.bindings {
+		vars[i] = b.name
+	}
+	if len(vars) > 0 && !ownVarScope && ownLexScope {
+		c.emit(&bindVars{names: vars, deletable: false})
+	}
+	var enter *enterBlock
+	if c.compileLexicalDeclarations(in.Body, ownVarScope || !ownLexScope) {
+		if ownLexScope {
+			c.block = &block{
+				outer:      c.block,
+				typ:        blockScope,
+				needResult: true,
+			}
+			enter = &enterBlock{}
+			c.emit(enter)
+		}
+	}
+	c.CyclicModuleRecordConcreteLink(module)
+
+	if len(scope.bindings) > 0 && !ownLexScope {
+		var lets, consts []unistring.String
+		for _, b := range c.scope.bindings[numFuncs+numVars:] {
+			if b.isConst {
+				consts = append(consts, b.name)
+			} else {
+				lets = append(lets, b.name)
+			}
+		}
+		c.emit(&bindGlobal{
+			vars:   vars[numFuncs:],
+			funcs:  vars[:numFuncs],
+			lets:   lets,
+			consts: consts,
+		})
+	}
+	if ownVarScope {
+		c.compileFunctions(funcs)
+	}
+	c.compileStatements(in.Body, true)
+	if enter != nil {
+		c.leaveScopeBlock(enter)
+		c.popScope()
+	}
+
+	c.p.code = append(c.p.code, halt)
+
+	scope.finaliseVarAlloc(0)
 }
 
 func (c *compiler) compile(in *ast.Program, strict, eval, inGlobal bool) {

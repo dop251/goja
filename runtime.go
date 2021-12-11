@@ -187,7 +187,7 @@ type Runtime struct {
 
 	promiseRejectionTracker PromiseRejectionTracker
 	// TODO add a type and a set method
-	hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) ModuleRecord
+	hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
 }
 
 type StackFrame struct {

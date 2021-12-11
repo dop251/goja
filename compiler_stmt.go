@@ -54,7 +54,9 @@ func (c *compiler) compileStatement(v ast.Statement, needResult bool) {
 		c.compileWithStatement(v, needResult)
 	case *ast.DebuggerStatement:
 	case *ast.ImportDeclaration:
-		// TODO
+		c.compileImportDeclaration(v)
+	case *ast.ExportDeclaration:
+		c.compileExportDeclaration(v)
 	default:
 		panic(fmt.Errorf("Unknown statement type: %T", v))
 	}
@@ -756,6 +758,73 @@ func (c *compiler) emitVarAssign(name unistring.String, offset int, init compile
 		c.emitVarRef(name, offset)
 		c.emitNamed(init, name)
 		c.emit(initValueP)
+	}
+}
+
+func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
+	if !c.scope.module {
+		c.throwSyntaxError(int(expr.Idx0()), "import not allowed in non module code")
+	}
+	// TODO
+}
+
+func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
+	if !c.scope.module {
+		c.throwSyntaxError(int(expr.Idx0()), "import not allowed in non module code")
+	}
+	if expr.FromClause == nil {
+		return // TODO is this right?
+	}
+	// TODO fix, maybe cache this?!? have the current module as a field?
+	module, err := c.hostResolveImportedModule(nil, expr.FromClause.ModuleSpecifier.String())
+	if err != nil {
+		// TODO this should in practice never happen
+		c.throwSyntaxError(int(expr.Idx0()), err.Error())
+	}
+	if expr.ImportClause != nil {
+		if namespace := expr.ImportClause.NameSpaceImport; namespace != nil {
+			/*
+				r := &compiledLiteral{
+					val: getModuleNamespace(module),
+				}
+				r.init(c, expr.Idx0())
+				c.emitVarAssign(namespace.ImportedBinding, int(expr.Idx)-1, r)
+			*/
+		}
+		if named := expr.ImportClause.NamedImports; named != nil {
+			for _, name := range named.ImportsList {
+				value, ambiguous := module.ResolveExport(name.IdentifierName.String())
+
+				if ambiguous { // also ambiguous
+					c.throwSyntaxError(int(expr.Idx0()), "ambiguous import of %s", name.IdentifierName.String())
+				}
+				if value == nil {
+					c.throwSyntaxError(int(expr.Idx0()), "import of %s was not expoted from module %s", name.IdentifierName.String(), expr.FromClause.ModuleSpecifier.String())
+				}
+				r := &compiledLiteral{
+					// val: value,
+				}
+				r.init(c, expr.Idx0())
+				// This should probably be the idx of the name?
+				c.emitVarAssign(name.Alias, int(expr.Idx1())-1, r)
+			}
+		}
+
+		if def := expr.ImportClause.ImportedDefaultBinding; def != nil {
+
+			value, ambiguous := module.ResolveExport("default")
+			if ambiguous { // also ambiguous
+				c.throwSyntaxError(int(expr.Idx0()), "ambiguous import of %s", "default")
+			}
+			if value == nil {
+				c.throwSyntaxError(int(expr.Idx0()), "import of \"default\" was not exported from module %s", expr.FromClause.ModuleSpecifier.String())
+			}
+			r := &compiledLiteral{
+				// val: value,
+			}
+			r.init(c, def.Idx0())
+			c.emitVarAssign(def.Name, int(def.Idx1())-1, r)
+		}
 	}
 }
 

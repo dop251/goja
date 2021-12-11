@@ -2,6 +2,7 @@ package goja
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/dop251/goja/ast"
@@ -13,7 +14,7 @@ import (
 // ModuleRecord is the common interface for module record as defined in the EcmaScript specification
 type ModuleRecord interface {
 	GetExportedNames(resolveset ...*SourceTextModuleRecord) []string // TODO maybe this parameter is wrong
-	ResolveExport(exportName string, resolveset ...string) *Value    // TODO this probably should not return Value directly
+	ResolveExport(exportName string, resolveset ...ResolveSetElement) (*ResolvedBinding, bool)
 	Link() error
 	Evaluate() error
 }
@@ -44,13 +45,13 @@ type CyclicModuleRecord interface {
 	ExecuteModule() error
 }
 
-func (rt *Runtime) CyclicModuleRecordConcreteLink(c CyclicModuleRecord) error {
-	if c.Status() == Linking || c.Status() == Evaluating {
+func (c *compiler) CyclicModuleRecordConcreteLink(module CyclicModuleRecord) error {
+	if module.Status() == Linking || module.Status() == Evaluating {
 		return errors.New("bad status on link")
 	}
 
 	stack := []CyclicModuleRecord{}
-	if _, err := rt.innerModuleLinking(c, &stack, 0); err != nil {
+	if _, err := c.innerModuleLinking(module, &stack, 0); err != nil {
 		for _, m := range stack {
 			if m.Status() != Linking {
 				return errors.New("bad status on link")
@@ -60,55 +61,62 @@ func (rt *Runtime) CyclicModuleRecordConcreteLink(c CyclicModuleRecord) error {
 			// TODO reset the rest
 
 		}
-		c.SetStatus(Unlinked)
+		module.SetStatus(Unlinked)
 		return err
 
 	}
 	return nil
 }
 
-func (rt *Runtime) innerModuleLinking(m ModuleRecord, stack *[]CyclicModuleRecord, index uint) (uint, error) {
-	var c CyclicModuleRecord
+func (co *compiler) innerModuleLinking(m ModuleRecord, stack *[]CyclicModuleRecord, index uint) (uint, error) {
+	var module CyclicModuleRecord
 	var ok bool
-	if c, ok = m.(CyclicModuleRecord); !ok {
+	if module, ok = m.(CyclicModuleRecord); !ok {
 		return index, m.Link()
 	}
-	if status := c.Status(); status == Linking || status == Linked || status == Evaluated {
+	if status := module.Status(); status == Linking || status == Linked || status == Evaluated {
 		return index, nil
 	} else if status != Unlinked {
 		return 0, errors.New("bad status on link") // TODO fix
 	}
-	c.SetStatus(Linking)
-	c.SetDFSIndex(index)
-	c.SetDFSAncestorIndex(index)
+	module.SetStatus(Linking)
+	module.SetDFSIndex(index)
+	module.SetDFSAncestorIndex(index)
 	index++
-	*stack = append(*stack, c)
+	*stack = append(*stack, module)
 	var err error
-	for _, required := range c.RequestedModules() {
-		requiredModule := rt.hostResolveImportedModule(c, required)
-		index, err = rt.innerModuleLinking(requiredModule, stack, index)
+	var requiredModule ModuleRecord
+	for _, required := range module.RequestedModules() {
+		requiredModule, err = co.hostResolveImportedModule(module, required)
+		if err != nil {
+			return 0, err
+		}
+		index, err = co.innerModuleLinking(requiredModule, stack, index)
 		if err != nil {
 			return 0, err
 		}
 		if requiredC, ok := requiredModule.(CyclicModuleRecord); ok {
 			// TODO some asserts
 			if requiredC.Status() == Linking {
-				if ancestorIndex := c.DFSAncestorIndex(); requiredC.DFSAncestorIndex() > ancestorIndex {
+				if ancestorIndex := module.DFSAncestorIndex(); requiredC.DFSAncestorIndex() > ancestorIndex {
 					requiredC.SetDFSAncestorIndex(ancestorIndex)
 				}
 			}
 		}
 	}
-	c.InitializeEnvorinment() // TODO implement
+	err = module.InitializeEnvorinment() // TODO implement
+	if err != nil {
+		return 0, err
+	}
 	// TODO more asserts
 
-	if c.DFSAncestorIndex() == c.DFSIndex() {
-		for {
-			requiredModule := (*stack)[len(*stack)-1]
+	if module.DFSAncestorIndex() == module.DFSIndex() {
+		for i := len(*stack) - 1; i >= 0; i-- {
+			requiredModule := (*stack)[i]
 			// TODO assert
 			requiredC := requiredModule.(CyclicModuleRecord)
 			requiredC.SetStatus(Linked)
-			if requiredC == c {
+			if requiredC == module {
 				break
 			}
 		}
@@ -142,7 +150,7 @@ func (rt *Runtime) innerModuleEvaluation(m ModuleRecord, stack *[]CyclicModuleRe
 	}
 	if status := c.Status(); status == Evaluated { // TODO switch
 		return index, c.EvaluationError()
-	} else if status != Evaluating {
+	} else if status == Evaluating {
 		return index, nil
 	} else if status != Linked {
 		return 0, errors.New("module isn't linked when it's being evaluated")
@@ -154,8 +162,12 @@ func (rt *Runtime) innerModuleEvaluation(m ModuleRecord, stack *[]CyclicModuleRe
 
 	*stack = append(*stack, c)
 	var err error
+	var requiredModule ModuleRecord
 	for _, required := range c.RequestedModules() {
-		requiredModule := rt.hostResolveImportedModule(c, required)
+		requiredModule, err = rt.hostResolveImportedModule(c, required)
+		if err != nil {
+			return 0, err
+		}
 		index, err = rt.innerModuleEvaluation(requiredModule, stack, index)
 		if err != nil {
 			return 0, err
@@ -169,12 +181,15 @@ func (rt *Runtime) innerModuleEvaluation(m ModuleRecord, stack *[]CyclicModuleRe
 			}
 		}
 	}
-	c.ExecuteModule()
+	err = c.ExecuteModule()
+	if err != nil {
+		return 0, err
+	}
 	// TODO asserts
 
 	if c.DFSAncestorIndex() == c.DFSIndex() {
-		for {
-			requiredModule := (*stack)[len(*stack)-1]
+		for i := len(*stack) - 1; i >= 0; i-- {
+			requiredModule := (*stack)[i]
 			// TODO assert
 			requiredC := requiredModule.(CyclicModuleRecord)
 			requiredC.SetStatus(Evaluated)
@@ -190,11 +205,12 @@ var _ CyclicModuleRecord = &SourceTextModuleRecord{}
 
 type SourceTextModuleRecord struct {
 	cyclicModuleStub
-	rt   *Runtime // TODO this is not great as it means the whole thing needs to be reparsed for each runtime
-	body *ast.Program
+	rt       *Runtime  // TODO this is not great as it means the whole thing needs to be reparsed for each runtime
+	compiler *compiler // TODO remove this
+	body     *ast.Program
 	// context
 	// importmeta
-	// importEntries
+	importEntries         []importEntry
 	localExportEntries    []exportEntry
 	indirectExportEntries []exportEntry
 	starExportEntries     []exportEntry
@@ -218,6 +234,77 @@ func includes(slice []string, s string) bool {
 	return i < len(slice) && slice[i] == s
 }
 
+func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
+	var result []importEntry
+	for _, importDeclarion := range declarations {
+		importClause := importDeclarion.ImportClause
+		if importDeclarion.FromClause == nil {
+			continue // no entry in this case
+		}
+		moduleRequest := importDeclarion.FromClause.ModuleSpecifier.String()
+		if named := importClause.NamedImports; named != nil {
+			for _, el := range named.ImportsList {
+				result = append(result, importEntry{
+					moduleRequest: moduleRequest,
+					importName:    el.IdentifierName.String(),
+					localName:     el.Alias.String(),
+				})
+			}
+		}
+		if def := importClause.ImportedDefaultBinding; def != nil {
+			result = append(result, importEntry{
+				moduleRequest: moduleRequest,
+				importName:    "default",
+				localName:     def.Name.String(),
+			})
+		}
+		if namespace := importClause.NameSpaceImport; namespace != nil {
+			result = append(result, importEntry{
+				moduleRequest: moduleRequest,
+				importName:    "*",
+				localName:     namespace.ImportedBinding.String(),
+			})
+		}
+	}
+	return result
+}
+
+func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
+	var result []exportEntry
+	for _, exportDeclarion := range declarations {
+		if exportDeclarion.ExportFromClause != nil {
+			if exportDeclarion.ExportFromClause.NamedExports != nil {
+				for _, spec := range exportDeclarion.ExportFromClause.NamedExports.ExportsList {
+					result = append(result, exportEntry{
+						localName:  spec.IdentifierName.String(),
+						exportName: spec.Alias.String(),
+					})
+				}
+			} else {
+				fmt.Println("unimplemented", exportDeclarion.ExportFromClause)
+			}
+		}
+	}
+	return result
+}
+
+func requestedModulesFromAst(imports []*ast.ImportDeclaration, exports []*ast.ExportDeclaration) []string {
+	var result []string
+	for _, imp := range imports {
+		if imp.FromClause != nil {
+			result = append(result, imp.FromClause.ModuleSpecifier.String())
+		} else {
+			result = append(result, imp.ModuleSpecifier.String())
+		}
+	}
+	for _, exp := range exports {
+		if exp.FromClause != nil {
+			result = append(result, exp.FromClause.ModuleSpecifier.String())
+		}
+	}
+	return result
+}
+
 // This should probably be part of Parse
 // TODO arguments to this need fixing
 func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, error) {
@@ -229,7 +316,7 @@ func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, erro
 	}
 	// Let body be ParseText(sourceText, Module).
 	// 3. If body is a List of errors, return body.
-	// 4. Let requestedModules be the ModuleRequests of body.
+	requestedModules := requestedModulesFromAst(body.ImportEntries, body.ExportEntries)
 	// 5. Let importEntries be ImportEntries of body.
 	// importEntries := body.ImportEntries TODO fix
 	// 6. Let importedBoundNames be ImportedLocalNames(importEntries).
@@ -239,15 +326,8 @@ func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, erro
 	var localExportEntries []exportEntry // fix
 	// 9. Let starExportEntries be a new empty List.
 	// 10. Let exportEntries be ExportEntries of body.
-	var exportEntries []exportEntry
-	for _, exportDeclarion := range body.ExportEntries {
-		for _, spec := range exportDeclarion.ExportFromClause.NamedExports.ExportsList {
-			exportEntries = append(exportEntries, exportEntry{
-				localName:  spec.IdentifierName.String(),
-				exportName: spec.Alias.String(),
-			})
-		}
-	}
+	importEntries := importEntriesFromAst(body.ImportEntries)
+	exportEntries := exportEntriesFromAst(body.ExportEntries)
 	for _, ee := range exportEntries {
 		if ee.moduleRequest == "" { // technically nil
 			if !includes(importedBoundNames, ee.localName) { // TODO make it not true always
@@ -264,15 +344,15 @@ func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, erro
 		// environment is undefined
 		// namespace is undefined
 		cyclicModuleStub: cyclicModuleStub{
-			status: Unlinked,
+			status:           Unlinked,
+			requestedModules: requestedModules,
 		},
 		// EvaluationError is undefined
 		// hostDefined TODO
 		body: body,
 		// Context empty
-		// importmenta empty
-		// RequestedModules
-		// ImportEntries
+		// importMeta empty
+		importEntries:      importEntries,
 		localExportEntries: localExportEntries,
 		// indirectExportEntries TODO
 		// starExportEntries TODO
@@ -281,9 +361,11 @@ func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, erro
 	}, nil // TODO fix
 }
 
-func (s *SourceTextModuleRecord) ExecuteModule() error {
+func (module *SourceTextModuleRecord) ExecuteModule() error {
 	// TODO copy runtime.RunProgram here with some changes so that it doesn't touch the global ?
-	return nil
+
+	_, err := module.rt.RunProgram(module.compiler.p)
+	return err
 }
 
 func (module *SourceTextModuleRecord) GetExportedNames(exportStarSet ...*SourceTextModuleRecord) []string {
@@ -302,7 +384,10 @@ func (module *SourceTextModuleRecord) GetExportedNames(exportStarSet ...*SourceT
 		exportedNames = append(exportedNames, e.exportName)
 	}
 	for _, e := range module.starExportEntries {
-		requestedModule := module.rt.hostResolveImportedModule(module, e.moduleRequest)
+		requestedModule, err := module.rt.hostResolveImportedModule(module, e.moduleRequest)
+		if err != nil {
+			panic(err)
+		}
 		starNames := requestedModule.GetExportedNames(exportStarSet...)
 
 		for _, n := range starNames {
@@ -316,20 +401,123 @@ func (module *SourceTextModuleRecord) GetExportedNames(exportStarSet ...*SourceT
 	return exportedNames
 }
 
-func (s *SourceTextModuleRecord) InitializeEnvorinment() error {
+func (module *SourceTextModuleRecord) InitializeEnvorinment() (err error) {
+	defer func() {
+		if x := recover(); x != nil {
+			switch x1 := x.(type) {
+			case *CompilerSyntaxError:
+				err = x1
+			default:
+				panic(x)
+			}
+		}
+	}()
+
+	// TODO catch panics/exceptions
+	module.compiler.compileModule(module)
+	return
+	/* this is in the compiler
+	for _, e := range module.indirectExportEntries {
+		resolution := module.ResolveExport(e.exportName)
+		if resolution == nil { // TODO or ambiguous
+			panic(module.rt.newSyntaxError("bad resolution", -1)) // TODO fix
+		}
+		// TODO asserts
+	}
+	for _, in := range module.importEntries {
+		importedModule := module.rt.hostResolveImportedModule(module, in.moduleRequest)
+		if in.importName == "*" {
+			namespace := getModuleNamespace(importedModule)
+			b, exists := module.compiler.scope.bindName(in.localName)
+			if exists {
+				panic("this bad?")
+			}
+			b.emitInit()
+		}
+
+	}
+
 	return nil // TODO implement
+	*/
 }
 
-func (s *SourceTextModuleRecord) ResolveExport(exportname string, resolveset ...string) *Value {
-	return nil // TODO implement
+type ResolveSetElement struct {
+	Module     ModuleRecord
+	ExportName string
 }
 
-func (s *SourceTextModuleRecord) Evaluate() error {
-	return s.rt.CyclicModuleRecordEvaluate(s)
+type ResolvedBinding struct {
+	Module      ModuleRecord
+	BindingName string
 }
 
-func (s *SourceTextModuleRecord) Link() error {
-	return s.rt.CyclicModuleRecordConcreteLink(s)
+func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolveset ...ResolveSetElement) (*ResolvedBinding, bool) {
+	for _, r := range resolveset {
+		if r.Module == module && exportName == r.ExportName { // TODO better
+			return nil, false
+		}
+	}
+	resolveset = append(resolveset, ResolveSetElement{Module: module, ExportName: exportName})
+	for _, e := range module.localExportEntries {
+		if exportName == e.exportName {
+			// ii. ii. Return ResolvedBinding Record { [[Module]]: module, [[BindingName]]: e.[[LocalName]] }.
+			return &ResolvedBinding{
+				Module:      module,
+				BindingName: e.localName,
+			}, false
+		}
+	}
+
+	for _, e := range module.indirectExportEntries {
+		if exportName == e.exportName {
+			importedModule, err := module.rt.hostResolveImportedModule(module, e.moduleRequest)
+			if err != nil {
+				panic(err) // TODO return err
+			}
+			if e.importName == "*" {
+				// 2. 2. Return ResolvedBinding Record { [[Module]]: importedModule, [[BindingName]]: "*namespace*" }.
+				return &ResolvedBinding{
+					Module:      importedModule,
+					BindingName: "*namespace*",
+				}, false
+			} else {
+				return importedModule.ResolveExport(e.importName, resolveset...)
+			}
+		}
+	}
+	if exportName == "default" {
+		// This actually should've been caught above, but as it didn't it actually makes it s so the `default` export
+		// doesn't resolve anything that is `export * ...`
+		return nil, false
+	}
+	var starResolution *ResolvedBinding
+
+	for _, e := range module.starExportEntries {
+		importedModule, err := module.rt.hostResolveImportedModule(module, e.moduleRequest)
+		if err != nil {
+			panic(err) // TODO return err
+		}
+		resolution, ambiguous := importedModule.ResolveExport(exportName, resolveset...)
+		if ambiguous {
+			return nil, true
+		}
+		if resolution != nil {
+			if starResolution == nil {
+				starResolution = resolution
+			} else if resolution.Module != starResolution.Module || resolution.BindingName != starResolution.BindingName {
+				return nil, true
+			}
+		}
+	}
+	return starResolution, false
+}
+
+func (module *SourceTextModuleRecord) Evaluate() error {
+	return module.rt.CyclicModuleRecordEvaluate(module)
+}
+
+func (module *SourceTextModuleRecord) Link() error {
+	return module.compiler.CyclicModuleRecordConcreteLink(module)
 }
 
 type cyclicModuleStub struct {

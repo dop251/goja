@@ -87,7 +87,9 @@ func (self *_parser) parseStatement() ast.Statement {
 		return self.parseTryStatement()
 	case token.EXPORT:
 		exp := self.parseExportDeclaration()
-		self.scope.exportEntries = append(self.scope.exportEntries, exp)
+		if exp != nil {
+			self.scope.exportEntries = append(self.scope.exportEntries, exp)
+		}
 		return exp
 	case token.IMPORT:
 		imp := self.parseImportDeclaration()
