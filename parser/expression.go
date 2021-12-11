@@ -310,13 +310,15 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String, ast.Exp
 		}
 	default:
 		// null, false, class, etc.
-		if isId(tkn) {
+		if token.IsId(tkn) {
 			value = &ast.StringLiteral{
 				Idx:     idx,
 				Literal: literal,
 				Value:   unistring.String(literal),
 			}
 			tkn = token.KEYWORD
+		} else {
+			self.errorUnexpectedToken(tkn)
 		}
 	}
 	return literal, parsedLiteral, value, tkn
@@ -404,13 +406,15 @@ func (self *_parser) parseObjectProperty() ast.Property {
 	}
 
 	self.expect(token.COLON)
-
-	return &ast.PropertyKeyed{
-		Key:      value,
-		Kind:     ast.PropertyKindValue,
-		Value:    self.parseAssignmentExpression(),
-		Computed: tkn == token.ILLEGAL,
+	if value != nil {
+		return &ast.PropertyKeyed{
+			Key:      value,
+			Kind:     ast.PropertyKindValue,
+			Value:    self.parseAssignmentExpression(),
+			Computed: tkn == token.ILLEGAL,
+		}
 	}
+	return nil
 }
 
 func (self *_parser) parseObjectLiteral() *ast.ObjectLiteral {
@@ -418,7 +422,9 @@ func (self *_parser) parseObjectLiteral() *ast.ObjectLiteral {
 	idx0 := self.expect(token.LEFT_BRACE)
 	for self.token != token.RIGHT_BRACE && self.token != token.EOF {
 		property := self.parseObjectProperty()
-		value = append(value, property)
+		if property != nil {
+			value = append(value, property)
+		}
 		if self.token != token.RIGHT_BRACE {
 			self.expect(token.COMMA)
 		} else {
@@ -543,7 +549,7 @@ func (self *_parser) parseDotMember(left ast.Expression) ast.Expression {
 	literal := self.parsedLiteral
 	idx := self.idx
 
-	if self.token != token.IDENTIFIER && !isId(self.token) {
+	if !token.IsId(self.token) {
 		self.expect(token.IDENTIFIER)
 		self.nextStatement()
 		return &ast.BadExpression{From: period, To: self.idx}
