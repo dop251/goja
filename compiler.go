@@ -682,7 +682,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 	scope := c.scope
 	scope.dynamic = true
 	scope.strict = true
-	ownVarScope := true
+	ownVarScope := false
 	ownLexScope := true
 	c.newBlockScope()
 	scope = c.scope
@@ -718,7 +718,6 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 			c.emit(enter)
 		}
 	}
-	c.CyclicModuleRecordConcreteLink(module)
 
 	if len(scope.bindings) > 0 && !ownLexScope {
 		var lets, consts []unistring.String

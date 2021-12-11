@@ -733,12 +733,6 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 
 	early = false
 	err = p.Evaluate()
-	if err != nil {
-		return
-	}
-	fmt.Println(p.compiler.p)
-	err = p.ExecuteModule()
-
 	return
 }
 
