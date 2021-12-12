@@ -3,7 +3,6 @@ package goja
 import (
 	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/dop251/goja/ast"
 )
@@ -47,14 +46,14 @@ type CyclicModuleRecord interface {
 
 func (c *compiler) CyclicModuleRecordConcreteLink(module CyclicModuleRecord) error {
 	if module.Status() == Linking || module.Status() == Evaluating {
-		return errors.New("bad status on link")
+		return fmt.Errorf("bad status %+v on link", module.Status())
 	}
 
 	stack := []CyclicModuleRecord{}
 	if _, err := c.innerModuleLinking(module, &stack, 0); err != nil {
 		for _, m := range stack {
 			if m.Status() != Linking {
-				return errors.New("bad status on link")
+				return fmt.Errorf("bad status %+v on link", m.Status())
 			}
 			m.SetStatus(Unlinked)
 
@@ -229,11 +228,6 @@ type exportEntry struct {
 	localName     string
 }
 
-func includes(slice []string, s string) bool {
-	i := sort.SearchStrings(slice, s)
-	return i < len(slice) && slice[i] == s
-}
-
 func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
 	var result []importEntry
 	for _, importDeclarion := range declarations {
@@ -305,6 +299,16 @@ func requestedModulesFromAst(imports []*ast.ImportDeclaration, exports []*ast.Ex
 	return result
 }
 
+func findImportByLocalName(importEntries []importEntry, name string) (importEntry, bool) {
+	for _, i := range importEntries {
+		if i.localName == name {
+			return i, true
+		}
+	}
+
+	return importEntry{}, false
+}
+
 // This should probably be part of Parse
 // TODO arguments to this need fixing
 func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, error) {
@@ -314,29 +318,36 @@ func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, erro
 	if err != nil {
 		return nil, err
 	}
-	// Let body be ParseText(sourceText, Module).
-	// 3. If body is a List of errors, return body.
 	requestedModules := requestedModulesFromAst(body.ImportEntries, body.ExportEntries)
-	// 5. Let importEntries be ImportEntries of body.
-	// importEntries := body.ImportEntries TODO fix
-	// 6. Let importedBoundNames be ImportedLocalNames(importEntries).
-	var importedBoundNames []string // fix
-	// 7. Let indirectExportEntries be a new empty List.
-	// 8. Let localExportEntries be a new empty List.
-	var localExportEntries []exportEntry // fix
-	// 9. Let starExportEntries be a new empty List.
-	// 10. Let exportEntries be ExportEntries of body.
 	importEntries := importEntriesFromAst(body.ImportEntries)
+	// 6. Let importedBoundNames be ImportedLocalNames(importEntries).
+	// ^ is skipped as we don't need it.
+
+	var indirectExportEntries []exportEntry
+	var localExportEntries []exportEntry
+	var starExportEntries []exportEntry
 	exportEntries := exportEntriesFromAst(body.ExportEntries)
 	for _, ee := range exportEntries {
 		if ee.moduleRequest == "" { // technically nil
-			if !includes(importedBoundNames, ee.localName) { // TODO make it not true always
+			if ie, ok := findImportByLocalName(importEntries, ee.localName); !ok {
 				localExportEntries = append(localExportEntries, ee)
 			} else {
-				// TODO logic when we reexport something imported
+				if ie.importName == "*" {
+					localExportEntries = append(localExportEntries, ee)
+				} else {
+					indirectExportEntries = append(indirectExportEntries, exportEntry{
+						moduleRequest: ie.moduleRequest,
+						importName:    ie.importName,
+						exportName:    ee.exportName,
+					})
+				}
 			}
 		} else {
-			// TODO implement this where we have export {s } from "somewhere"; and co.
+			if ee.importName == "*" && ee.exportName == "" {
+				starExportEntries = append(starExportEntries, ee)
+			} else {
+				indirectExportEntries = append(indirectExportEntries, ee)
+			}
 		}
 	}
 	return &SourceTextModuleRecord{
@@ -347,18 +358,15 @@ func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, erro
 			status:           Unlinked,
 			requestedModules: requestedModules,
 		},
-		// EvaluationError is undefined
 		// hostDefined TODO
 		body: body,
 		// Context empty
 		// importMeta empty
-		importEntries:      importEntries,
-		localExportEntries: localExportEntries,
-		// indirectExportEntries TODO
-		// starExportEntries TODO
-		// DFSIndex is empty
-		// DFSAncestorIndex is empty
-	}, nil // TODO fix
+		importEntries:         importEntries,
+		localExportEntries:    localExportEntries,
+		indirectExportEntries: indirectExportEntries,
+		starExportEntries:     starExportEntries,
+	}, nil
 }
 
 func (module *SourceTextModuleRecord) ExecuteModule() error {
