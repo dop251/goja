@@ -4515,6 +4515,13 @@ func TestSrcLocations(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestBadObjectKey(t *testing.T) {
+	_, err := Compile("", "({!:0})", false)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")
