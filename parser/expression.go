@@ -308,6 +308,12 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String, ast.Exp
 			Literal: literal,
 			Value:   parsedLiteral,
 		}
+	case token.EXPORT, token.IMPORT:
+		value = &ast.StringLiteral{
+			Idx:     idx,
+			Literal: literal,
+			Value:   parsedLiteral,
+		}
 	default:
 		// null, false, class, etc.
 		if isId(tkn) {
