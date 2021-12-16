@@ -1,9 +1,14 @@
 package goja
 
 import (
+	"errors"
 	"io/ioutil"
+	"reflect"
 	"sync"
 	"testing"
+
+	"github.com/dop251/goja/file"
+	"github.com/dop251/goja/parser"
 )
 
 const TESTLIB = `
@@ -476,7 +481,6 @@ func TestJSCall(t *testing.T) {
 	o.test;
 	`
 	testScript(SCRIPT, intToValue(42), t)
-
 }
 
 func TestLoop1(t *testing.T) {
@@ -540,7 +544,6 @@ func TestBlockBreak(t *testing.T) {
 	rv;
 	`
 	testScript(SCRIPT, intToValue(2), t)
-
 }
 
 func TestTry(t *testing.T) {
@@ -4519,6 +4522,66 @@ func TestBadObjectKey(t *testing.T) {
 	_, err := Compile("", "({!:0})", false)
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestBabelSourcemap(t *testing.T) {
+	// Original source
+	/*
+		export function f2(){
+		   throw "exception in line 2"
+		   console.log("in f2")
+		}
+	*/
+
+	transpiledSrc := `
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+    value: true
+});
+exports.f2 = f2;
+function f2() {
+    throw "exception in line 2";
+    console.log("in f2");
+}
+//# sourceMappingURL=file.map
+`[1:] // this removes the newline at the begining
+
+	sourceMap := []byte(`{"version":3,"sources":["module1.js"],"names":["f2","console","log"],"mappings":";;;;;QAAgBA,E,GAAAA,E;AAAT,SAASA,EAAT,GAAa;AAChB,UAAM,qBAAN;AACAC,YAAQC,GAAR,CAAY,OAAZ;AACH","file":"module1.js","sourcesContent":["export function f2(){\n    throw \"exception in line 2\"\n    console.log(\"in f2\")\n}\n"]}`)
+	astp, err := Parse("script.js", transpiledSrc, parser.WithSourceMapLoader(func(path string) ([]byte, error) {
+		return sourceMap, nil
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error %s", err)
+	}
+	program, err := CompileAST(astp, false)
+	if err != nil {
+		t.Fatalf("unexpected error %s", err)
+	}
+	vm := New()
+	vm.globalObject.Set("exports", vm.NewObject())
+	_, err = vm.RunProgram(program)
+	if err != nil {
+		t.Fatalf("unexpected error %s", err)
+	}
+	f2, _ := AssertFunction(vm.Get("f2"))
+	_, err = f2(Undefined())
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	var e *Exception
+	if !errors.As(err, &e) {
+		t.Fatalf("expected exception got %s", err)
+	}
+	lastPosition := e.stack[0].Position()
+	expectedPosition := file.Position{
+		Filename: "module1.js",
+		Line:     2,
+		Column:   4,
+	}
+	if !reflect.DeepEqual(lastPosition, expectedPosition) {
+		t.Fatalf("Expected position to be %+v but got %+v", expectedPosition, lastPosition)
 	}
 }
 

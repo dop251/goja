@@ -203,7 +203,7 @@ func (c *compiler) compileTryStatement(v *ast.TryStatement, needResult bool) {
 }
 
 func (c *compiler) compileThrowStatement(v *ast.ThrowStatement) {
-	//c.p.srcMap = append(c.p.srcMap, srcMapItem{pc: len(c.p.code), srcPos: int(v.Throw) - 1})
+	c.p.srcMap = append(c.p.srcMap, srcMapItem{pc: len(c.p.code), srcPos: int(v.Throw) - 1})
 	c.compileExpression(v.Argument).emitGetter(true)
 	c.emit(throw)
 }
