@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/dop251/goja/parser"
@@ -18,21 +19,16 @@ func TestDebuggerBreakpoint(t *testing.T) {
 	r.init()
 	debugger := r.AttachDebugger()
 
-	if err := debugger.SetBreakpoint("test.js", 3); err != nil {
-		t.Fatal(err)
-	} else {
-		t.Log("Set breakpoint on line 3")
+	setBreakpointAndLog := func(line int) {
+		if err := debugger.SetBreakpoint("test.js", line); err != nil {
+			t.Fatal(err)
+		} else {
+			t.Logf("Set breakpoint on line %d", line)
+		}
 	}
-	if err := debugger.SetBreakpoint("test.js", 4); err != nil {
-		t.Fatal(err)
-	} else {
-		t.Log("Set breakpoint on line 4")
-	}
-	if err := debugger.SetBreakpoint("test.js", 5); err != nil {
-		t.Fatal(err)
-	} else {
-		t.Log("Set breakpoint on line 5")
-	}
+	setBreakpointAndLog(3)
+	setBreakpointAndLog(4)
+	setBreakpointAndLog(5)
 
 	ch := make(chan struct{})
 	go func() {
@@ -47,12 +43,10 @@ func TestDebuggerBreakpoint(t *testing.T) {
 		reason := debugger.Continue()
 		if reason != BreakpointActivation {
 			t.Fatalf("wrong activation %s", reason)
+		} else if debugger.Line() != 3 {
+			t.Fatalf("wrong line: %d", debugger.Line())
 		} else {
 			t.Logf("hit first breakpoint on line %d", debugger.Line())
-		}
-
-		if debugger.Line() != 3 {
-			t.Fatalf("wrong line: %d", debugger.Line())
 		}
 
 		if err := debugger.ClearBreakpoint("test.js", 5); err != nil {
@@ -181,6 +175,53 @@ func TestDebuggerContinue(t *testing.T) {
 		}
 	}()
 	testScript1WithRuntime(SCRIPT, intToValue(4), t, r)
+	<-ch // wait for the debugger
+}
+
+func TestDebuggerSkipOuterNestedBreakpoint(t *testing.T) {
+	const SCRIPT = `var a = false;
+	function test() {
+		a = true;
+		return a;
+	}
+	test();
+	test();
+	`
+
+	r := &Runtime{}
+	r.init()
+	debugger := r.AttachDebugger()
+
+	for _, line := range []int{3, 6, 7} {
+		if err := debugger.SetBreakpoint("test.js", line); err != nil {
+			t.Fatal(err)
+		} else {
+			t.Logf("Set breakpoint on line %d", line)
+		}
+	}
+
+	ch := make(chan struct{})
+	go func() {
+		defer close(ch)
+		defer debugger.Detach()
+		defer func() {
+			if t.Failed() {
+				r.Interrupt("failed test")
+			}
+		}()
+
+		for _, line := range []int{6, 3, 7, 3} {
+			reason := debugger.Continue()
+			if reason != BreakpointActivation {
+				t.Fatalf("wrong activation %s", reason)
+			} else if debugger.Line() != line {
+				t.Fatalf("expect line: %d, wrong line: %d", line, debugger.Line())
+			} else {
+				t.Logf("hit breakpoint on line %d", debugger.Line())
+			}
+		}
+	}()
+	testScript1WithRuntime(SCRIPT, valueTrue, t, r)
 	<-ch // wait for the debugger
 }
 

@@ -21,8 +21,9 @@ type Debugger struct {
 	currentCh      chan ActivationReason
 	active         bool
 	lastBreakpoint struct {
-		filename string
-		line     int
+		filename   string
+		line       int
+		stackDepth int
 	}
 }
 
@@ -217,6 +218,10 @@ func (dbg *Debugger) updateLastLine(lineNumber int) {
 	if dbg.lastLine != lineNumber {
 		dbg.lastLine = lineNumber
 	}
+}
+
+func (dbg *Debugger) callStackDepth() int {
+	return len(dbg.vm.callStack)
 }
 
 func (dbg *Debugger) Line() int {
