@@ -4515,6 +4515,22 @@ func TestSrcLocations(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestSrcLocationThrowLiteral(t *testing.T) {
+	vm := New()
+	_, err := vm.RunString(`
+	const z = 1;
+	throw "";
+	`)
+	if ex, ok := err.(*Exception); ok {
+		pos := ex.stack[0].Position()
+		if pos.Line != 3 {
+			t.Fatal(pos)
+		}
+	} else {
+		t.Fatal(err)
+	}
+}
+
 func TestBadObjectKey(t *testing.T) {
 	_, err := Compile("", "({!:0})", false)
 	if err == nil {

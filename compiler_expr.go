@@ -300,7 +300,7 @@ func (e *baseCompiledExpr) emitUnary(func(), func(), bool, bool) {
 
 func (e *baseCompiledExpr) addSrcMap() {
 	if e.offset >= 0 {
-		e.c.p.srcMap = append(e.c.p.srcMap, srcMapItem{pc: len(e.c.p.code), srcPos: e.offset})
+		e.c.p.addSrcMap(e.offset)
 	}
 }
 
