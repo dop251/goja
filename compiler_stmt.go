@@ -756,6 +756,7 @@ func (c *compiler) emitVarAssign(name unistring.String, offset int, init compile
 	if init != nil {
 		c.emitVarRef(name, offset)
 		c.emitNamed(init, name)
+		c.p.addSrcMap(offset)
 		c.emit(initValueP)
 	}
 }
@@ -779,6 +780,7 @@ func (c *compiler) emitLexicalAssign(name unistring.String, offset int, init com
 	}
 	if init != nil {
 		c.emitNamed(init, name)
+		c.p.addSrcMap(offset)
 	} else {
 		if isConst {
 			c.throwSyntaxError(offset, "Missing initializer in const declaration")
