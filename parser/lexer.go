@@ -226,7 +226,10 @@ func isId(tkn token.Token) bool {
 		token.CONTINUE,
 		token.DEBUGGER,
 
-		token.INSTANCEOF:
+		token.INSTANCEOF,
+
+		token.EXPORT,
+		token.IMPORT:
 
 		return true
 	}
