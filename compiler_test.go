@@ -4515,6 +4515,55 @@ func TestSrcLocations(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestSrcLocationThrowLiteral(t *testing.T) {
+	vm := New()
+	_, err := vm.RunString(`
+	const z = 1;
+	throw "";
+	`)
+	if ex, ok := err.(*Exception); ok {
+		pos := ex.stack[0].Position()
+		if pos.Line != 3 {
+			t.Fatal(pos)
+		}
+	} else {
+		t.Fatal(err)
+	}
+}
+
+func TestSrcLocation(t *testing.T) {
+	prg := MustCompile("test.js", `
+f();
+var x = 1;
+let y = 1;
+let [z1, z2] = [0, 0];
+
+var [z3, z4] = [0, 0];
+	`, false)
+	const (
+		varLine     = 3
+		letLine     = 4
+		dstrLetLine = 5
+		dstrVarLine = 7
+	)
+	linesOfInterest := map[int]string{
+		varLine:     "var",
+		letLine:     "let",
+		dstrLetLine: "destruct let",
+		dstrVarLine: "destruct var",
+	}
+	for i := range prg.code {
+		loc := prg.src.Position(prg.sourceOffset(i))
+		delete(linesOfInterest, loc.Line)
+		if len(linesOfInterest) == 0 {
+			break
+		}
+	}
+	for _, v := range linesOfInterest {
+		t.Fatalf("no %s line", v)
+	}
+}
+
 func TestBadObjectKey(t *testing.T) {
 	_, err := Compile("", "({!:0})", false)
 	if err == nil {
