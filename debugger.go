@@ -46,6 +46,8 @@ const (
 	BreakpointActivation        ActivationReason = "breakpoint"
 )
 
+var globalBuiltinKeys = map[string]bool{"Object": true, "Function": true, "Array": true, "String": true, "globalThis": true, "NaN": true, "undefined": true, "Infinity": true, "isNaN": true, "parseInt": true, "parseFloat": true, "isFinite": true, "decodeURI": true, "decodeURIComponent": true, "encodeURI": true, "encodeURIComponent": true, "escape": true, "unescape": true, "Number": true, "RegExp": true, "Date": true, "Boolean": true, "Proxy": true, "Reflect": true, "Error": true, "AggregateError": true, "TypeError": true, "ReferenceError": true, "SyntaxError": true, "RangeError": true, "EvalError": true, "URIError": true, "GoError": true, "eval": true, "Math": true, "JSON": true, "ArrayBuffer": true, "DataView": true, "Uint8Array": true, "Uint8ClampedArray": true, "Int8Array": true, "Uint16Array": true, "Int16Array": true, "Uint32Array": true, "Int32Array": true, "Float32Array": true, "Float64Array": true, "Symbol": true, "WeakSet": true, "WeakMap": true, "Map": true, "Set": true, "Promise": true}
+
 func (dbg *Debugger) activate(reason ActivationReason) {
 	dbg.active = true
 	ch := <-dbg.activationCh // get channel from waiter
@@ -333,4 +335,43 @@ func (dbg *Debugger) getValue(varName string) (val Value, err error) {
 		}
 	}
 	return val, nil
+}
+
+func (dbg *Debugger) GetGlobalVariables() (map[string]Value, error) {
+	defer func() {
+		if err := recover(); err != nil {
+			return
+		}
+	}()
+
+	globals := make(map[string]Value)
+	for _, name := range dbg.vm.r.globalObject.self.stringKeys(true, nil) {
+		nameStr := name.String()
+		if globalBuiltinKeys[nameStr] {
+			continue
+		}
+		val := dbg.vm.r.globalObject.self.getStr(unistring.String(nameStr), nil)
+		if val != nil {
+			globals[nameStr] = val
+		}
+	}
+	return globals, nil
+}
+
+func (dbg *Debugger) GetLocalVariables() (map[string]Value, error) {
+	defer func() {
+		if err := recover(); err != nil {
+			return
+		}
+	}()
+
+	locals := make(map[string]Value)
+	for name, _ := range dbg.vm.stash.names {
+		val, _ := dbg.getValue(name.String())
+		if val == nil {
+			locals[name.String()] = Undefined()
+		}
+		locals[name.String()] = val
+	}
+	return locals, nil
 }

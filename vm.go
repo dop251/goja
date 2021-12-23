@@ -450,14 +450,16 @@ func (vm *vm) debug() {
 					vm.debugger.lastBreakpoint.line == vm.debugger.Line() &&
 					vm.debugger.callStackDepth() <= vm.debugger.lastBreakpoint.stackDepth {
 					// Staying on same breakpoint, do nothing.
-				} else if vm.debugger.callStackDepth() < vm.debugger.lastBreakpoint.stackDepth {
-					vm.debugger.lastBreakpoint.filename = ""
-					vm.debugger.lastBreakpoint.line = -1
 				} else {
+					prevStackDepth := vm.debugger.lastBreakpoint.stackDepth
 					vm.debugger.lastBreakpoint.filename = vm.debugger.Filename()
 					vm.debugger.lastBreakpoint.line = vm.debugger.Line()
-					vm.debugger.updateCurrentLine()
-					vm.debugger.activate(BreakpointActivation)
+					vm.debugger.lastBreakpoint.stackDepth = vm.debugger.callStackDepth()
+					if vm.debugger.lastBreakpoint.stackDepth >= prevStackDepth {
+						vm.debugger.updateCurrentLine()
+						vm.debugger.activate(BreakpointActivation)
+					}
+
 				}
 			} else {
 				vm.debugger.lastBreakpoint.filename = ""

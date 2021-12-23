@@ -177,21 +177,96 @@ func TestDebuggerContinue(t *testing.T) {
 	<-ch // wait for the debugger
 }
 
+func TestDebuggerGlobalVariables(t *testing.T) {
+	const SCRIPT = `
+var g_a = 1;
+var g_b = "abc";
+var g_c = null;
+var g_d = false;
+var g_e = [1, 2];
+var g_f = {a: 'foo', b: 42, c: {}};
+
+function f1() {
+	let a = 1;
+	let b = "abc";
+	let c = null;
+	let d = false;
+	let e = [1, 2];
+	let f = {a: 'foo', b: 42, c: {}};
+	a++;
+	return 1;
+}
+f1();
+`
+	r := &Runtime{}
+	r.init()
+	debugger := r.AttachDebugger()
+
+	breakLine := 16
+	if err := debugger.SetBreakpoint("test.js", breakLine); err != nil {
+		t.Fatal(err)
+	} else {
+		t.Logf("Set breakpoint on line %d", breakLine)
+	}
+	ch := make(chan struct{})
+	go func() {
+		defer close(ch)
+		defer debugger.Detach()
+		defer func() {
+			if t.Failed() {
+				r.Interrupt("failed test")
+			}
+		}()
+
+		reason := debugger.Continue()
+		if reason != BreakpointActivation {
+			t.Fatalf("wrong activation %s", reason)
+		} else if debugger.Line() != breakLine {
+			t.Fatalf("expect line: %d, wrong line: %d", breakLine, debugger.Line())
+		} else {
+			t.Logf("hit breakpoint on line %d", debugger.Line())
+		}
+		globals, _ := debugger.GetGlobalVariables()
+		locals, _ := debugger.GetLocalVariables()
+		if len(globals) != 7 {
+			t.Fatalf("wrong globals len: %d, expected 7. globals: %v", len(globals), globals)
+		} else {
+			t.Logf("globals: %v", globals)
+		}
+		if len(locals) != 6 {
+			t.Fatalf("wrong locals len: %d, expected 6. locals: %v", len(locals), locals)
+		} else {
+			t.Logf("locals: %v", locals)
+		}
+	}()
+	testScript1WithRuntime(SCRIPT, intToValue(1), t, r)
+	<-ch // wait for the debugger
+
+}
+
 func TestDebuggerSkipOuterNestedBreakpoint(t *testing.T) {
 	const SCRIPT = `var a = false;
-	function test() {
-		a = true;
-		return a;
-	}
-	test();
-	test();
+function fact(num) {
+  if (num <= 1) {
+	return 1;
+  } else {
+	return num * fact(num - 1);
+  }
+}
+fact(3)
+function test() {
+  let b = true;
+  return b;
+}
+test();
+test();
 	`
 
 	r := &Runtime{}
 	r.init()
 	debugger := r.AttachDebugger()
 
-	for _, line := range []int{3, 6, 7} {
+	for _, line := range []int{6, 9, 11, 14, 15} {
 		if err := debugger.SetBreakpoint("test.js", line); err != nil {
 			t.Fatal(err)
 		} else {
@@ -209,7 +284,7 @@ func TestDebuggerSkipOuterNestedBreakpoint(t *testing.T) {
 			}
 		}()
 
-		for _, line := range []int{6, 3, 7, 3} {
+		for _, line := range []int{9, 6, 6, 14, 11, 15, 11} {
 			reason := debugger.Continue()
 			if reason != BreakpointActivation {
 				t.Fatalf("wrong activation %s", reason)
