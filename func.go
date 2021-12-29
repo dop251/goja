@@ -190,7 +190,11 @@ func (f *baseJsFuncObject) _call(call FunctionCall, newTarget, this Value) Value
 	vm.stash = f.stash
 	vm.newTarget = newTarget
 	vm.pc = 0
-	vm.run()
+	if vm.debugMode {
+		vm.debug()
+	} else {
+		vm.run()
+	}
 	if pc != -1 {
 		vm.popCtx()
 	}
