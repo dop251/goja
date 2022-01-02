@@ -1,6 +1,7 @@
 package goja
 
 import (
+	goctx "context"
 	"errors"
 	"fmt"
 	"math"
@@ -331,6 +332,44 @@ func TestIPowZero(t *testing.T) {
 	`
 
 	testScript(SCRIPT, intToValue(1), t)
+}
+
+func TestContextCancelled(t *testing.T) {
+	ctx, cancel := goctx.WithCancel(goctx.Background())
+	cancel()
+
+	const SCRIPT = `
+	var i = 0;
+	for (;;) {
+		i++;
+	}
+	`
+
+	vm := New()
+	_, err := vm.RunStringWithContext(ctx, SCRIPT)
+	if !errors.Is(err, goctx.Canceled) {
+		t.Logf("Error returned was: %v", err)
+		t.Fatal("Should get a context cancellation error")
+	}
+}
+
+func TestContextDeadline(t *testing.T) {
+	ctx, cancel := goctx.WithTimeout(goctx.Background(), time.Second)
+	defer cancel()
+
+	const SCRIPT = `
+	var i = 0;
+	for (;;) {
+		i++;
+	}
+	`
+
+	vm := New()
+	_, err := vm.RunStringWithContext(ctx, SCRIPT)
+	if !errors.Is(err, goctx.DeadlineExceeded) {
+		t.Logf("Error returned was: %v", err)
+		t.Fatal("Should get a context deadline error")
+	}
 }
 
 func TestInterrupt(t *testing.T) {
@@ -1917,6 +1956,55 @@ func TestNativeCallWithRuntimeParameter(t *testing.T) {
 		return valueFalse
 	})
 	ret, err := vm.RunString(`f()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ret != valueTrue {
+		t.Fatal(ret)
+	}
+}
+
+func TestContextAwareNativeCallWithoutRuntimeParameter(t *testing.T) {
+	rootCtx, cancel := goctx.WithCancel(goctx.Background())
+	defer cancel()
+
+	vm := New()
+	vm.Set("f", func(ctx goctx.Context, _ FunctionCall) Value {
+		if ctx != rootCtx {
+			t.Log("The context was not the instance we expected")
+			return valueFalse
+		}
+
+		return valueTrue
+	})
+
+	ret, err := vm.RunStringWithContext(rootCtx, `f()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ret != valueTrue {
+		t.Fatal(ret)
+	}
+}
+
+func TestContextAwareNativeCallWithRuntimeParameter(t *testing.T) {
+	rootCtx, cancel := goctx.WithCancel(goctx.Background())
+	defer cancel()
+
+	vm := New()
+	vm.Set("f", func(ctx goctx.Context, _ FunctionCall, r *Runtime) Value {
+		if r != vm {
+			t.Log("The VM was not the instance we expected")
+			return valueFalse
+		} else if ctx != rootCtx {
+			t.Log("The context was not the instance we expected")
+			return valueFalse
+		}
+
+		return valueTrue
+	})
+
+	ret, err := vm.RunStringWithContext(rootCtx, `f()`)
 	if err != nil {
 		t.Fatal(err)
 	}

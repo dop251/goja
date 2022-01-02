@@ -1,9 +1,11 @@
 package goja
 
 import (
+	goctx "context"
+	"testing"
+
 	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
-	"testing"
 )
 
 func TestVM1(t *testing.T) {
@@ -308,6 +310,25 @@ func BenchmarkEmptyLoop(b *testing.B) {
 	}
 }
 
+func BenchmarkEmptyLoopWithContexts(b *testing.B) {
+	const SCRIPT = `
+	function f() {
+		for (var i = 0; i < 100; i++) {
+		}
+	}
+	f()
+	`
+	b.StopTimer()
+	vm := New()
+	ctx := goctx.Background()
+	prg := MustCompile("test.js", SCRIPT, false)
+	// prg.dumpCode(log.Printf)
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		vm.RunProgramWithContext(ctx, prg)
+	}
+}
+
 func BenchmarkVMAdd(b *testing.B) {
 	vm := &vm{}
 	vm.stack = append(vm.stack, nil, nil)
@@ -336,6 +357,29 @@ func BenchmarkFuncCall(b *testing.B) {
 	prg := MustCompile("test.js", SCRIPT, false)
 
 	vm.RunProgram(prg)
+	if f, ok := AssertFunction(vm.Get("f")); ok {
+		b.StartTimer()
+		for i := 0; i < b.N; i++ {
+			f(nil, nil, intToValue(1), intToValue(2), intToValue(3), intToValue(4), intToValue(5), intToValue(6))
+		}
+	} else {
+		b.Fatal("f is not a function")
+	}
+}
+
+func BenchmarkFuncCallWithContexts(b *testing.B) {
+	const SCRIPT = `
+	function f(a, b, c, d) {
+	}
+	`
+
+	b.StopTimer()
+
+	vm := New()
+	prg := MustCompile("test.js", SCRIPT, false)
+	ctx := goctx.Background()
+
+	vm.RunProgramWithContext(ctx, prg)
 	if f, ok := AssertFunction(vm.Get("f")); ok {
 		b.StartTimer()
 		for i := 0; i < b.N; i++ {

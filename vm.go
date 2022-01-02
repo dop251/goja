@@ -1,6 +1,7 @@
 package goja
 
 import (
+	goctx "context"
 	"fmt"
 	"math"
 	"runtime"
@@ -185,6 +186,8 @@ type vm struct {
 	interrupted   uint32
 	interruptVal  interface{}
 	interruptLock sync.Mutex
+
+	ctx goctx.Context
 }
 
 type instruction interface {
@@ -407,6 +410,17 @@ func (vm *vm) run() {
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
 			break
 		}
+
+		// If we've got a Go context, then check if its over/terminated
+		if vm.ctx != nil {
+			ctxErr := vm.ctx.Err()
+			if ctxErr != nil {
+				interrupted = true
+				vm.interruptVal = ctxErr
+				break
+			}
+		}
+
 		vm.prg.code[vm.pc].exec(vm)
 		ticks++
 		if ticks > 10000 {
@@ -428,6 +442,11 @@ func (vm *vm) run() {
 			err: v,
 		})
 	}
+}
+
+// setRuntimeContext captures the Go context that was passed into the VM for execution.
+func (vm *vm) setRuntimeContext(ctx goctx.Context) {
+	vm.ctx = ctx
 }
 
 func (vm *vm) Interrupt(v interface{}) {

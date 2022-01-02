@@ -2,9 +2,9 @@ package goja
 
 import (
 	"bytes"
+	goctx "context"
 	"errors"
 	"fmt"
-	"github.com/dop251/goja/file"
 	"go/ast"
 	"hash/maphash"
 	"math"
@@ -14,6 +14,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/dop251/goja/file"
 
 	"golang.org/x/text/collate"
 
@@ -667,6 +669,13 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 	return v
 }
 
+func (r *Runtime) newNativeConstructorWithContext(call func(goctx.Context, ConstructorCall) *Object, name unistring.String, length int64) *Object {
+	return r.newNativeConstructor(func(cc ConstructorCall) *Object {
+		ctx := r.vm.ctx
+		return call(ctx, cc)
+	}, name, length)
+}
+
 func (r *Runtime) newNativeConstructOnly(v *Object, ctor func(args []Value, newTarget *Object) *Object, defaultProto *Object, name unistring.String, length int64) *nativeFuncObject {
 	if v == nil {
 		v = &Object{runtime: r}
@@ -722,6 +731,13 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(ar
 		proto.self._putProp("constructor", v, true, false, true)
 	}
 	return v
+}
+
+func (r *Runtime) newNativeFuncWithContext(call func(goctx.Context, FunctionCall) Value, construct func(args []Value, proto *Object) *Object, name unistring.String, proto *Object, length int) *Object {
+	return r.newNativeFunc(func(fc FunctionCall) Value {
+		ctx := r.vm.ctx
+		return call(ctx, fc)
+	}, construct, name, proto, length)
 }
 
 func (r *Runtime) newNativeFuncConstructObj(v *Object, construct func(args []Value, proto *Object) *Object, name unistring.String, proto *Object, length int) *nativeFuncObject {
@@ -1340,19 +1356,36 @@ func (r *Runtime) compile(name, src string, strict, eval, inGlobal bool) (p *Pro
 	return
 }
 
-// RunString executes the given string in the global context.
+// RunString executes the given string in the global VM context.
 func (r *Runtime) RunString(str string) (Value, error) {
-	return r.RunScript("", str)
+	return r.RunStringWithContext(goctx.TODO(), str)
+}
+
+// RunStringWithContext executes the given string in the global VM context, using the specified
+// Go context to interupt the VM and to get passed to external code calls.
+func (r *Runtime) RunStringWithContext(ctx goctx.Context, str string) (Value, error) {
+	return r.RunScriptWithContext(ctx, "", str)
 }
 
 // RunScript executes the given string in the global context.
 func (r *Runtime) RunScript(name, src string) (Value, error) {
+	return r.RunScriptWithContext(goctx.TODO(), name, src)
+}
+
+// RunScript executes the given string in the global VM context
+func (r *Runtime) RunScriptWithContext(ctx goctx.Context, name, src string) (Value, error) {
 	p, err := r.compile(name, src, false, false, true)
 
 	if err != nil {
 		return nil, err
 	}
 
+	return r.RunProgramWithContext(ctx, p)
+}
+
+// RunProgram executes a pre-compiled (see Compile()) code in the global VM context.
+func (r *Runtime) RunProgramWithContext(ctx goctx.Context, p *Program) (result Value, err error) {
+	r.vm.setRuntimeContext(ctx)
 	return r.RunProgram(p)
 }
 
@@ -1644,19 +1677,39 @@ func (r *Runtime) ToValue(i interface{}) Value {
 	case func(FunctionCall) Value:
 		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
 		return r.newNativeFunc(i, nil, name, nil, 0)
+	case func(goctx.Context, FunctionCall) Value:
+		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
+		return r.newNativeFuncWithContext(i, nil, name, nil, 0)
+
 	case func(FunctionCall, *Runtime) Value:
 		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
 		return r.newNativeFunc(func(call FunctionCall) Value {
 			return i(call, r)
 		}, nil, name, nil, 0)
+	case func(goctx.Context, FunctionCall, *Runtime) Value:
+		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
+		return r.newNativeFuncWithContext(func(ctx goctx.Context, call FunctionCall) Value {
+			return i(ctx, call, r)
+		}, nil, name, nil, 0)
+
 	case func(ConstructorCall) *Object:
 		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
 		return r.newNativeConstructor(i, name, 0)
+	case func(goctx.Context, ConstructorCall) *Object:
+		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
+		return r.newNativeConstructorWithContext(i, name, 0)
+
 	case func(ConstructorCall, *Runtime) *Object:
 		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
 		return r.newNativeConstructor(func(call ConstructorCall) *Object {
 			return i(call, r)
 		}, name, 0)
+	case func(goctx.Context, ConstructorCall, *Runtime) *Object:
+		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
+		return r.newNativeConstructorWithContext(func(ctx goctx.Context, call ConstructorCall) *Object {
+			return i(ctx, call, r)
+		}, name, 0)
+
 	case int:
 		return intToValue(int64(i))
 	case int8:
