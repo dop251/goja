@@ -2314,6 +2314,9 @@ func (r *Runtime) New(construct Value, args ...Value) (o *Object, err error) {
 // Callable represents a JavaScript function that can be called from Go.
 type Callable func(this Value, args ...Value) (Value, error)
 
+// CallableWithContext represents a JavaScript function that can be called from Go.
+type CallableWithContext func(ctx goctx.Context, this Value, args ...Value) (Value, error)
+
 // AssertFunction checks if the Value is a function and returns a Callable.
 func AssertFunction(v Value) (Callable, bool) {
 	if obj, ok := v.(*Object); ok {
@@ -2328,6 +2331,43 @@ func AssertFunction(v Value) (Callable, bool) {
 						}
 					}
 				}()
+				ex := obj.runtime.vm.try(func() {
+					ret = f(FunctionCall{
+						This:      this,
+						Arguments: args,
+					})
+				})
+				if ex != nil {
+					err = ex
+				}
+				vm := obj.runtime.vm
+				vm.clearStack()
+				if len(vm.callStack) == 0 {
+					obj.runtime.leave()
+				}
+				return
+			}, true
+		}
+	}
+	return nil, false
+}
+
+// AssertFunctionWithContext checks if the Value is a function and returns a CallableWithContext.
+func AssertFunctionWithContext(v Value) (CallableWithContext, bool) {
+	if obj, ok := v.(*Object); ok {
+		if f, ok := obj.self.assertCallable(); ok {
+			return func(ctx goctx.Context, this Value, args ...Value) (ret Value, err error) {
+				defer func() {
+					if x := recover(); x != nil {
+						if ex, ok := x.(*uncatchableException); ok {
+							err = ex.err
+						} else {
+							panic(x)
+						}
+					}
+				}()
+
+				obj.runtime.vm.setRuntimeContext(ctx)
 				ex := obj.runtime.vm.try(func() {
 					ret = f(FunctionCall{
 						This:      this,
