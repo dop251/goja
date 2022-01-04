@@ -340,6 +340,20 @@ Second line \
 			token.RIGHT_BRACKET, "", 6,
 		)
 
+		test("x ?.30 : false",
+			token.IDENTIFIER, "x", 1,
+			token.QUESTION_MARK, "", 3,
+			token.NUMBER, ".30", 4,
+			token.COLON, "", 8,
+			token.BOOLEAN, "false", 10,
+		)
+
+		test("a\n?.b",
+			token.IDENTIFIER, "a", 1,
+			token.QUESTION_DOT, "", 3,
+			token.IDENTIFIER, "b", 5,
+		)
+
 		// ILLEGAL
 
 		test(`3ea`,

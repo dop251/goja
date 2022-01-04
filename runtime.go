@@ -303,8 +303,8 @@ type InterruptedError struct {
 	iface interface{}
 }
 
-func (ue *InterruptedError) Unwrap() error {
-	if err, ok := ue.iface.(error); ok {
+func (e *InterruptedError) Unwrap() error {
+	if err, ok := e.iface.(error); ok {
 		return err
 	}
 	return nil

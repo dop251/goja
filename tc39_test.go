@@ -123,6 +123,9 @@ var (
 		"test/language/global-code/script-decl-lex.js":                                                 true,
 		"test/language/global-code/script-decl-lex-lex.js":                                             true,
 		"test/language/global-code/script-decl-lex-deletion.js":                                        true,
+		"test/language/expressions/optional-chaining/super-property-optional-call.js":                  true,
+		"test/language/expressions/optional-chaining/member-expression.js":                             true,
+		"test/language/expressions/optional-chaining/call-expression.js":                               true,
 
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
@@ -195,6 +198,12 @@ var (
 		"test/built-ins/Object/seal/seal-asyncarrowfunction.js":                                                                   true,
 		"test/language/statements/for/head-init-async-of.js":                                                                      true,
 		"test/language/reserved-words/await-module.js":                                                                            true,
+		"test/language/expressions/optional-chaining/optional-chain-async-square-brackets.js":                                     true,
+		"test/language/expressions/optional-chaining/optional-chain-async-optional-chain-square-brackets.js":                      true,
+		"test/language/expressions/optional-chaining/member-expression-async-this.js":                                             true,
+		"test/language/expressions/optional-chaining/member-expression-async-literal.js":                                          true,
+		"test/language/expressions/optional-chaining/member-expression-async-identifier.js":                                       true,
+		"test/language/expressions/optional-chaining/iteration-statement-for-await-of.js":                                         true,
 
 		// legacy number literals
 		"test/language/literals/numeric/non-octal-decimal-integer.js": true,
@@ -251,7 +260,6 @@ var (
 		"logical-assignment-operators",
 		"coalesce-expression",
 		"import.meta",
-		"optional-chaining",
 		"Atomics",
 		"Atomics.waitAsync",
 		"FinalizationRegistry",
