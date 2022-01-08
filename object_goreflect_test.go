@@ -618,7 +618,7 @@ func TestNonStructAnonFields(t *testing.T) {
 	`
 	vm := New()
 	vm.SetFieldNameMapper(fieldNameMapper1{})
-	vm.Set("a", &Test2{Test1: &Test1{M: true}, Test4: []int{1, 2}})
+	vm.Set("a", &Test2{Test1: &Test1{M: true}, Test4: []int{1, 2}, test3: nil})
 	v, err := vm.RunString(SCRIPT)
 	if err != nil {
 		t.Fatal(err)
@@ -787,7 +787,7 @@ func TestDefinePropertyUnexportedJsName(t *testing.T) {
 
 	vm := New()
 	vm.SetFieldNameMapper(fieldNameMapper1{})
-	vm.Set("f", &T{})
+	vm.Set("f", &T{unexported: 0})
 
 	_, err := vm.RunString(`
 	"use strict";
@@ -857,7 +857,7 @@ func BenchmarkGoReflectGet(b *testing.B) {
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		v := vm.ToValue(child{parent: parent{Test: "Test"}}).(*Object)
+		v := vm.ToValue(child{parent: parent{Test: "Test", field: ""}}).(*Object)
 		v.Get("Test")
 	}
 }

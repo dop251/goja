@@ -337,8 +337,9 @@ type tc39TestCtx struct {
 	enableBench  bool
 	benchmark    tc39BenchmarkData
 	benchLock    sync.Mutex
-	testQueue    []tc39Test
 	sabStub      *Program
+	//lint:ignore U1000 Only used with race
+	testQueue []tc39Test
 }
 
 type TC39MetaNegative struct {
