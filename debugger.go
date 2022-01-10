@@ -366,7 +366,7 @@ func (dbg *Debugger) GetLocalVariables() (map[string]Value, error) {
 	}()
 
 	locals := make(map[string]Value)
-	for name, _ := range dbg.vm.stash.names {
+	for name := range dbg.vm.stash.names {
 		val, _ := dbg.getValue(name.String())
 		if val == nil {
 			locals[name.String()] = Undefined()
