@@ -122,7 +122,7 @@ func BenchmarkArrayPut(b *testing.B) {
 
 func BenchmarkArraySetEmpty(b *testing.B) {
 	r := New()
-	r.Get("Array").(*Object).Get("prototype").String() // materialise Array.prototype
+	_ = r.Get("Array").(*Object).Get("prototype").String() // materialise Array.prototype
 	a := r.NewArray(0, 0)
 	values := a.self.(*arrayObject).values
 	b.ResetTimer()
