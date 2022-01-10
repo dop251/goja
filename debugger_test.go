@@ -41,21 +41,21 @@ func TestDebuggerBreakpoint(t *testing.T) {
 
 		reason := debugger.Continue()
 		if reason != BreakpointActivation {
-			t.Fatalf("wrong activation %s", reason)
+			t.Errorf("wrong activation %s", reason)
 		} else if debugger.Line() != 3 {
-			t.Fatalf("wrong line: %d", debugger.Line())
+			t.Errorf("wrong line: %d", debugger.Line())
 		} else {
 			t.Logf("hit first breakpoint on line %d", debugger.Line())
 		}
 
 		if err := debugger.ClearBreakpoint("test.js", 5); err != nil {
-			t.Fatal("cannot clear breakpoint on line 5")
+			t.Error("cannot clear breakpoint on line 5")
 		} else {
 			t.Log("cleared breakpoint on line 5")
 		}
 
 		if breakpoints, err := debugger.Breakpoints(); err != nil {
-			t.Fatalf("error while executing %s", err)
+			t.Errorf("error while executing %s", err)
 		} else {
 			t.Logf("breakpoints are now set on lines: %v", breakpoints["test.js"])
 		}
@@ -65,13 +65,13 @@ func TestDebuggerBreakpoint(t *testing.T) {
 
 		reason = debugger.Continue()
 		if reason != BreakpointActivation {
-			t.Fatalf("wrong activation %s", reason)
+			t.Errorf("wrong activation %s", reason)
 		} else {
 			t.Logf("hit second breakpoint on line %d", debugger.Line())
 		}
 
 		if debugger.Line() != 4 {
-			t.Fatalf("wrong line: %d", debugger.Line())
+			t.Errorf("wrong line: %d", debugger.Line())
 		}
 
 		// Go to next, so that the breakpointed line is executed
@@ -104,24 +104,24 @@ func TestDebuggerNext(t *testing.T) {
 		reason := debugger.Continue()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("wrong activation %s", reason)
+			t.Errorf("wrong activation %s", reason)
 		}
 
 		if err := debugger.Next(); err != nil {
-			t.Fatalf("error while executing %s", err)
+			t.Errorf("error while executing %s", err)
 		}
 		if debugger.PC() != 4 && debugger.Line() != 3 {
-			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+			t.Errorf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
 		} else {
 			src, _ := debugger.List()
 			t.Logf("Go to line 3: > %s\n", src[debugger.Line()-1])
 		}
 
 		if err := debugger.Next(); err != nil {
-			t.Fatalf("error while executing %s", err)
+			t.Errorf("error while executing %s", err)
 		}
 		if debugger.PC() != 6 && debugger.Line() != 4 {
-			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+			t.Errorf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
 		} else {
 			src, _ := debugger.List()
 			t.Logf("Go to line 4: > %s\n", src[debugger.Line()-1])
@@ -155,19 +155,19 @@ func TestDebuggerContinue(t *testing.T) {
 		reason := debugger.Continue()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("wrong activation %s", reason)
+			t.Errorf("wrong activation %s", reason)
 		} else {
 			t.Log("Hit first debugger statement")
 		}
 		reason = debugger.Continue()
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("wrong activation %s", reason)
+			t.Errorf("wrong activation %s", reason)
 		} else {
 			t.Log("Hit second debugger statement")
 		}
 
 		if debugger.PC() != 7 && debugger.Line() != 6 {
-			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+			t.Errorf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
 		} else {
 			src, _ := debugger.List()
 			t.Logf("Continue to line 6: > %s\n", src[debugger.Line()-1])
@@ -220,21 +220,21 @@ f1();
 
 		reason := debugger.Continue()
 		if reason != BreakpointActivation {
-			t.Fatalf("wrong activation %s", reason)
+			t.Errorf("wrong activation %s", reason)
 		} else if debugger.Line() != breakLine {
-			t.Fatalf("expect line: %d, wrong line: %d", breakLine, debugger.Line())
+			t.Errorf("expect line: %d, wrong line: %d", breakLine, debugger.Line())
 		} else {
 			t.Logf("hit breakpoint on line %d", debugger.Line())
 		}
 		globals, _ := debugger.GetGlobalVariables()
 		locals, _ := debugger.GetLocalVariables()
 		if len(globals) != 7 {
-			t.Fatalf("wrong globals len: %d, expected 7. globals: %v", len(globals), globals)
+			t.Errorf("wrong globals len: %d, expected 7. globals: %v", len(globals), globals)
 		} else {
 			t.Logf("globals: %v", globals)
 		}
 		if len(locals) != 6 {
-			t.Fatalf("wrong locals len: %d, expected 6. locals: %v", len(locals), locals)
+			t.Errorf("wrong locals len: %d, expected 6. locals: %v", len(locals), locals)
 		} else {
 			t.Logf("locals: %v", locals)
 		}
@@ -287,9 +287,9 @@ test();
 		for _, line := range []int{9, 6, 6, 14, 11, 15, 11} {
 			reason := debugger.Continue()
 			if reason != BreakpointActivation {
-				t.Fatalf("wrong activation %s", reason)
+				t.Errorf("wrong activation %s", reason)
 			} else if debugger.Line() != line {
-				t.Fatalf("expect line: %d, wrong line: %d", line, debugger.Line())
+				t.Errorf("expect line: %d, wrong line: %d", line, debugger.Line())
 			} else {
 				t.Logf("hit breakpoint on line %d", debugger.Line())
 			}
@@ -323,25 +323,25 @@ func TestDebuggerStepIn(t *testing.T) {
 		reason := debugger.Continue()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("wrong activation %s", reason)
+			t.Errorf("wrong activation %s", reason)
 		}
 
 		if err := debugger.StepIn(); err != nil {
-			t.Fatalf("error while executing %s", err)
+			t.Errorf("error while executing %s", err)
 		}
 		if debugger.PC() != 4 && debugger.Line() != 6 {
-			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+			t.Errorf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
 		} else {
 			src, _ := debugger.List()
 			t.Logf("Step-in to line 6: > %s\n", src[debugger.Line()-1])
 		}
 
 		if err := debugger.StepIn(); err != nil {
-			t.Fatalf("error while executing %s", err)
+			t.Errorf("error while executing %s", err)
 		}
 		// Running inside a function returns scoped vm.pc and line number (everything's reset)
 		if debugger.PC() != 0 && debugger.Line() != 2 {
-			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+			t.Errorf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
 		} else {
 			src, _ := debugger.List()
 			t.Logf("Step-in to line 2 (line 1 of function): > %s\n", src[debugger.Line()])
@@ -376,20 +376,20 @@ func TestDebuggerExecAndPrint(t *testing.T) {
 		reason := debugger.Continue()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("wrong activation %s", reason)
+			t.Errorf("wrong activation %s", reason)
 		}
 		if v, err := debugger.Exec("a = false"); err != nil {
-			t.Fatalf("error while executing %s", err)
+			t.Errorf("error while executing %s", err)
 		} else if v.ToBoolean() {
-			t.Fatalf("wrong returned value %+v", v)
+			t.Errorf("wrong returned value %+v", v)
 		} else {
 			t.Logf("SET a = %s", v)
 		}
 
 		if v, err := debugger.Print("a"); err != nil {
-			t.Fatalf(" error while executing %s", err)
+			t.Errorf(" error while executing %s", err)
 		} else if v == "true" {
-			t.Fatalf("wrong returned value %+v", v)
+			t.Errorf("wrong returned value %+v", v)
 		} else {
 			t.Logf("GET a == %s", v)
 		}
@@ -418,14 +418,14 @@ func TestDebuggerList(t *testing.T) {
 		reason := debugger.Continue()
 		t.Logf("%d\n", debugger.Line())
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("wrong activation %s", reason)
+			t.Errorf("wrong activation %s", reason)
 		}
 
 		if err := debugger.Next(); err != nil {
-			t.Fatalf("error while executing %s", err)
+			t.Errorf("error while executing %s", err)
 		}
 		if src, err := debugger.List(); err != nil || src[debugger.Line()-1] != "	x = 1;" {
-			t.Fatalf("error while executing %s", err)
+			t.Errorf("error while executing %s", err)
 		} else {
 			t.Logf("Current line (%d) contains %s", debugger.Line(), src[debugger.Line()-1])
 		}
@@ -460,13 +460,13 @@ func TestDebuggerSimpleCaseWhereLineIsIncorrectlyReported(t *testing.T) {
 		reason := debugger.Continue()
 		t.Logf("PC: %d, Line: %d", debugger.PC(), debugger.Line())
 		if reason != DebuggerStatementActivation {
-			t.Fatalf("wrong activation: %s", reason)
+			t.Errorf("wrong activation: %s", reason)
 		}
 		if debugger.PC() != 2 && debugger.Line() != 1 {
 			// debugger should wait on the debugger statement and continue from there
 			// yet it executes the debugger statement, which increases program counter (vm.pc) by 1,
 			// which causes the debugger to stop at the next executable line
-			t.Fatalf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
+			t.Errorf("wrong line and vm.pc, PC: %d, Line: %d", debugger.PC(), debugger.Line())
 		}
 	}()
 	testScript1WithRuntime(SCRIPT, valueTrue, t, r)
@@ -521,9 +521,9 @@ testClosure()
 		for _, line := range []int{20, 4, 5, 6, 8, 11, 6, 8, 11, 6, 8, 11, 6, 8, 11, 21} {
 			reason := debugger.Continue()
 			if reason != BreakpointActivation {
-				t.Fatalf("wrong activation %s", reason)
+				t.Errorf("wrong activation %s", reason)
 			} else if debugger.Line() != line {
-				t.Fatalf("expect line: %d, wrong line: %d", line, debugger.Line())
+				t.Errorf("expect line: %d, wrong line: %d", line, debugger.Line())
 			} else {
 				t.Logf("hit breakpoint on line %d", debugger.Line())
 			}
@@ -552,14 +552,14 @@ func testScript1WithRuntime(script string, expectedResult Value, t *testing.T, r
 	t.Logf("stashAllocs: %d", vm.stashAllocs)
 
 	if v == nil && expectedResult != nil || !v.SameAs(expectedResult) {
-		t.Fatalf("Result: %+v, expected: %+v", v, expectedResult)
+		t.Errorf("Result: %+v, expected: %+v", v, expectedResult)
 	}
 
 	if vm.sp != 0 {
-		t.Fatalf("sp: %d", vm.sp)
+		t.Errorf("sp: %d", vm.sp)
 	}
 
 	if l := len(vm.iterStack); l > 0 {
-		t.Fatalf("iter stack is not empty: %d", l)
+		t.Errorf("iter stack is not empty: %d", l)
 	}
 }
