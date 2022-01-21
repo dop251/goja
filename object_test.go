@@ -297,6 +297,99 @@ func TestExportToWrappedMapCustom(t *testing.T) {
 	}
 }
 
+func TestExportToSliceNonIterable(t *testing.T) {
+	vm := New()
+	o := vm.NewObject()
+	var a []interface{}
+	err := vm.ExportTo(o, &a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a) != 0 {
+		t.Fatalf("a: %v", a)
+	}
+}
+
+func ExampleRuntime_ExportTo_iterableToSlice() {
+	vm := New()
+	v, err := vm.RunString(`
+	function reverseIterator() {
+	    const arr = this;
+	    let idx = arr.length;
+	    return {
+			next: () => idx > 0 ? {value: arr[--idx]} : {done: true}
+	    }
+	}
+	const arr = [1,2,3];
+	arr[Symbol.iterator] = reverseIterator;
+	arr;
+	`)
+	if err != nil {
+		panic(err)
+	}
+
+	var arr []int
+	err = vm.ExportTo(v, &arr)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(arr)
+	// Output: [3 2 1]
+}
+
+func TestRuntime_ExportTo_proxiedIterableToSlice(t *testing.T) {
+	vm := New()
+	v, err := vm.RunString(`
+	function reverseIterator() {
+	    const arr = this;
+	    let idx = arr.length;
+	    return {
+			next: () => idx > 0 ? {value: arr[--idx]} : {done: true}
+	    }
+	}
+	const arr = [1,2,3];
+	arr[Symbol.iterator] = reverseIterator;
+	new Proxy(arr, {});
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var arr []int
+	err = vm.ExportTo(v, &arr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out := fmt.Sprint(arr); out != "[3 2 1]" {
+		t.Fatal(out)
+	}
+}
+
+func ExampleRuntime_ExportTo_arrayLikeToSlice() {
+	vm := New()
+	v, err := vm.RunString(`
+	({
+		length: 3,
+		0: 1,
+		1: 2,
+		2: 3
+	});
+	`)
+	if err != nil {
+		panic(err)
+	}
+
+	var arr []int
+	err = vm.ExportTo(v, &arr)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(arr)
+	// Output: [1 2 3]
+}
+
 func TestSetForeignReturnValue(t *testing.T) {
 	const SCRIPT = `
 	var array = [1, 2, 3];

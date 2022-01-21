@@ -1,5 +1,9 @@
 package goja
 
+import "reflect"
+
+var setExportType = reflectTypeArray
+
 type setObject struct {
 	baseObject
 	m *orderedMap
@@ -36,6 +40,65 @@ func (o *setIterObject) next() Value {
 func (so *setObject) init() {
 	so.baseObject.init()
 	so.m = newOrderedMap(so.val.runtime.getHash())
+}
+
+func (so *setObject) exportType() reflect.Type {
+	return setExportType
+}
+
+func (so *setObject) export(ctx *objectExportCtx) interface{} {
+	a := make([]interface{}, so.m.size)
+	ctx.put(so.val, a)
+	iter := so.m.newIter()
+	for i := 0; i < len(a); i++ {
+		entry := iter.next()
+		if entry == nil {
+			break
+		}
+		a[i] = exportValue(entry.key, ctx)
+	}
+	return a
+}
+
+func (so *setObject) exportToSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
+	l := so.m.size
+	if dst.IsNil() || dst.Len() != l {
+		dst.Set(reflect.MakeSlice(typ, l, l))
+	}
+	ctx.putTyped(so.val, typ, dst.Interface())
+	iter := so.m.newIter()
+	r := so.val.runtime
+	for i := 0; i < l; i++ {
+		entry := iter.next()
+		if entry == nil {
+			break
+		}
+		err := r.toReflectValue(entry.key, dst.Index(i), ctx)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (so *setObject) exportToMap(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
+	keyTyp := typ.Key()
+	elemTyp := typ.Elem()
+	iter := so.m.newIter()
+	r := so.val.runtime
+	for {
+		entry := iter.next()
+		if entry == nil {
+			break
+		}
+		keyVal := reflect.New(keyTyp).Elem()
+		err := r.toReflectValue(entry.key, keyVal, ctx)
+		if err != nil {
+			return err
+		}
+		dst.SetMapIndex(keyVal, reflect.Zero(elemTyp))
+	}
+	return nil
 }
 
 func (r *Runtime) setProto_add(call FunctionCall) Value {
