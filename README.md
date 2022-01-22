@@ -17,7 +17,7 @@ Features
 
  * Full ECMAScript 5.1 support (including regex and strict mode).
  * Passes nearly all [tc39 tests](https://github.com/tc39/test262) for the features implemented so far. The goal is to
-   pass all of them. Note, the current working commit is https://github.com/tc39/test262/commit/26f1f4567ee7e33163d961c867d689173cbb9065.
+   pass all of them. See .tc39_test262_checkout.sh for the latest working commit id.
  * Capable of running Babel, Typescript compiler and pretty much anything written in ES5.
  * Sourcemaps.
  * Most of ES6 functionality, still work in progress, see https://github.com/dop251/goja/milestone/1?closed=1
