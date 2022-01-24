@@ -303,11 +303,14 @@ func TestExportToSliceNonIterable(t *testing.T) {
 	o := vm.NewObject()
 	var a []interface{}
 	err := vm.ExportTo(o, &a)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("Expected an error")
 	}
 	if len(a) != 0 {
 		t.Fatalf("a: %v", a)
+	}
+	if msg := err.Error(); msg != "cannot convert [object Object] to []interface {}: not an array or iterable" {
+		t.Fatalf("Unexpected error: %v", err)
 	}
 }
 

@@ -1863,7 +1863,7 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 
 			// if this is a variadic Go function, and the caller has supplied
 			// exactly the number of JavaScript arguments required, and this
-			// is the last JavaScript argument, try treating the it as the
+			// is the last JavaScript argument, try treating it as the
 			// actual set of variadic Go arguments. if that succeeds, break
 			// out of the loop.
 			if typ.IsVariadic() && len(call.Arguments) == nargs && i == nargs-1 {
@@ -1877,7 +1877,7 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 			v := reflect.New(t).Elem()
 			err := r.toReflectValue(a, v, &objectExportCtx{})
 			if err != nil {
-				panic(r.newError(r.global.TypeError, "could not convert function call parameter %v to %v", a, t))
+				panic(r.NewTypeError("could not convert function call parameter %d: %v", i, err))
 			}
 			in[i] = v
 		}
@@ -2195,7 +2195,7 @@ func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.
 // If an object has a 'length' property it is treated as array-like. The resulting slice will contain
 // obj[0], ... obj[length-1].
 //
-// Any other Object is treated as an array-like object with zero length and results in an empty slice.
+// For any other Object an error is returned.
 //
 // Array types
 //

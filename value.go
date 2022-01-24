@@ -767,6 +767,7 @@ func (o *Object) baseObject(*Runtime) *Object {
 // For an array, returns its items as []interface{}.
 //
 // In all other cases returns own enumerable non-symbol properties as map[string]interface{}.
+//
 // This method will panic with an *Exception if a JavaScript exception is thrown in the process.
 func (o *Object) Export() (ret interface{}) {
 	o.runtime.tryPanic(func() {

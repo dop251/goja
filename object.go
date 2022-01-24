@@ -1044,7 +1044,11 @@ func genericExportToArrayOrSlice(o *Object, dst reflect.Value, typ reflect.Type,
 		}
 	} else {
 		// array-like
-		l := toIntStrict(toLength(o.self.getStr("length", nil)))
+		lp := o.self.getStr("length", nil)
+		if lp == nil {
+			return fmt.Errorf("cannot convert %v to %v: not an array or iterable", o, typ)
+		}
+		l := toIntStrict(toLength(lp))
 		if dst.Len() != l {
 			if typ.Kind() == reflect.Array {
 				return fmt.Errorf("cannot convert an array-like object into an array, lengths mismatch (have %d, need %d)", l, dst.Len())
