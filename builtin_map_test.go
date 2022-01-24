@@ -109,6 +109,23 @@ func ExampleRuntime_ExportTo_mapToSlice() {
 	// Output: [[1 true] [2 false]]
 }
 
+func ExampleRuntime_ExportTo_mapToTypedSlice() {
+	vm := New()
+	m, err := vm.RunString(`
+	new Map([[1, true], [2, false]]);
+	`)
+	if err != nil {
+		panic(err)
+	}
+	exp := make([][2]interface{}, 0)
+	err = vm.ExportTo(m, &exp)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(exp)
+	// Output: [[1 true] [2 false]]
+}
+
 func BenchmarkMapDelete(b *testing.B) {
 	var key1 Value = asciiString("a")
 	var key2 Value = asciiString("b")

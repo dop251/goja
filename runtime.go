@@ -1463,6 +1463,8 @@ Export()'ed and therefore copied. This may result in an unexpected behaviour in 
  `)
  fmt.Println(m["obj"].(map[string]interface{})["test"]) // prints "false"
 
+Non-addressable structs, slices and arrays get copied (as if they were passed as a function parameter, by value).
+
 Notes on individual types:
 
 Primitive types
@@ -1539,8 +1541,7 @@ Structs
 Structs are converted to Object-like values. Fields and methods are available as properties, their values are
 results of this method (ToValue()) applied to the corresponding Go value.
 
-Field properties are writable (if the struct is addressable) and non-configurable.
-Method properties are non-writable and non-configurable.
+Field properties are writable and non-configurable. Method properties are non-writable and non-configurable.
 
 Attempt to define a new property or delete an existing property will fail (throw in strict mode) unless it's a Symbol
 property. Symbol properties only exist in the wrapper and do not affect the underlying Go value.
@@ -1610,6 +1611,11 @@ prototype and all the usual methods should work. There is, however, a caveat: co
 an index < length will set it to a zero value (but the property will remain). Nil slice elements are be converted to
 `null`. Accessing an element beyond `length` returns `undefined`. Also see the warning above about passing slices as
 values (as opposed to pointers).
+
+Arrays
+
+Arrays are converted similarly to slices, except the resulting Arrays are not resizable (and therefore the 'length'
+property is non-writable).
 
 Any other type is converted to a generic reflect based host object. Depending on the underlying type it behaves similar
 to a Number, String, Boolean or Object.
@@ -1767,15 +1773,31 @@ func (r *Runtime) ToValue(i interface{}) Value {
 				return obj
 			}
 		}
-	case reflect.Slice:
+	case reflect.Array:
 		obj := &Object{runtime: r}
-		a := &objectGoSliceReflect{
+		a := &objectGoArrayReflect{
 			objectGoReflect: objectGoReflect{
 				baseObject: baseObject{
 					val: obj,
 				},
 				origValue: origValue,
 				value:     value,
+			},
+		}
+		a.init()
+		obj.self = a
+		return obj
+	case reflect.Slice:
+		obj := &Object{runtime: r}
+		a := &objectGoSliceReflect{
+			objectGoArrayReflect: objectGoArrayReflect{
+				objectGoReflect: objectGoReflect{
+					baseObject: baseObject{
+						val: obj,
+					},
+					origValue: origValue,
+					value:     value,
+				},
 			},
 		}
 		a.init()
@@ -2012,13 +2034,13 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 	case reflect.Float32:
 		dst.Set(reflect.ValueOf(toFloat32(v)).Convert(typ))
 		return nil
-	case reflect.Slice:
+	case reflect.Slice, reflect.Array:
 		if o, ok := v.(*Object); ok {
 			if v, exists := ctx.getTyped(o, typ); exists {
 				dst.Set(reflect.ValueOf(v))
 				return nil
 			}
-			return o.self.exportToSlice(dst, typ, ctx)
+			return o.self.exportToArrayOrSlice(dst, typ, ctx)
 		}
 	case reflect.Map:
 		if o, ok := v.(*Object); ok {
@@ -2174,6 +2196,11 @@ func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.
 // obj[0], ... obj[length-1].
 //
 // Any other Object is treated as an array-like object with zero length and results in an empty slice.
+//
+// Array types
+//
+// Anything that can be exported to a slice type can also be exported to an array type, as long as the lengths
+// match. If they do not, an error is returned.
 //
 // Proxy
 //

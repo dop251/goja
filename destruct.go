@@ -245,8 +245,8 @@ func (d *destructKeyedSource) exportToMap(dst reflect.Value, typ reflect.Type, c
 	return d.w().exportToMap(dst, typ, ctx)
 }
 
-func (d *destructKeyedSource) exportToSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
-	return d.w().exportToSlice(dst, typ, ctx)
+func (d *destructKeyedSource) exportToArrayOrSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
+	return d.w().exportToArrayOrSlice(dst, typ, ctx)
 }
 
 func (d *destructKeyedSource) equal(impl objectImpl) bool {

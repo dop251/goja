@@ -3,6 +3,7 @@ package goja
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -388,6 +389,61 @@ func ExampleRuntime_ExportTo_arrayLikeToSlice() {
 
 	fmt.Println(arr)
 	// Output: [1 2 3]
+}
+
+func TestExportArrayToArrayMismatchedLengths(t *testing.T) {
+	vm := New()
+	a := vm.NewArray(1, 2)
+	var a1 [3]int
+	err := vm.ExportTo(a, &a1)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if msg := err.Error(); !strings.Contains(msg, "lengths mismatch") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestExportIterableToArrayMismatchedLengths(t *testing.T) {
+	vm := New()
+	a, err := vm.RunString(`
+		new Map([[1, true], [2, true]]);
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var a1 [3]interface{}
+	err = vm.ExportTo(a, &a1)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if msg := err.Error(); !strings.Contains(msg, "lengths mismatch") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestExportArrayLikeToArrayMismatchedLengths(t *testing.T) {
+	vm := New()
+	a, err := vm.RunString(`
+		({
+			length: 2,
+			0: true,
+			1: true
+		});
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var a1 [3]interface{}
+	err = vm.ExportTo(a, &a1)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if msg := err.Error(); !strings.Contains(msg, "lengths mismatch") {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 func TestSetForeignReturnValue(t *testing.T) {

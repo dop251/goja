@@ -1,6 +1,9 @@
 package goja
 
-import "reflect"
+import (
+	"fmt"
+	"reflect"
+)
 
 var setExportType = reflectTypeArray
 
@@ -60,10 +63,14 @@ func (so *setObject) export(ctx *objectExportCtx) interface{} {
 	return a
 }
 
-func (so *setObject) exportToSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
+func (so *setObject) exportToArrayOrSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
 	l := so.m.size
-	if dst.IsNil() || dst.Len() != l {
-		dst.Set(reflect.MakeSlice(typ, l, l))
+	if dst.Len() != l {
+		if typ.Kind() == reflect.Array {
+			return fmt.Errorf("cannot convert a Set into an array, lengths mismatch: have %d, need %d)", l, dst.Len())
+		} else {
+			dst.Set(reflect.MakeSlice(typ, l, l))
+		}
 	}
 	ctx.putTyped(so.val, typ, dst.Interface())
 	iter := so.m.newIter()

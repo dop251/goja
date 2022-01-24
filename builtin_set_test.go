@@ -2,6 +2,7 @@ package goja
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -79,5 +80,23 @@ func TestSetExportToSliceCircular(t *testing.T) {
 	}
 	if a[0] != s {
 		t.Fatalf("a: %v", a)
+	}
+}
+
+func TestSetExportToArrayMismatchedLengths(t *testing.T) {
+	vm := New()
+	s, err := vm.RunString(`
+	new Set([1, 2])
+	`)
+	if err != nil {
+		panic(err)
+	}
+	var s1 [3]int
+	err = vm.ExportTo(s, &s1)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if msg := err.Error(); !strings.Contains(msg, "lengths mismatch") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

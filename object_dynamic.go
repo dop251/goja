@@ -487,8 +487,8 @@ func (o *baseDynamicObject) exportToMap(dst reflect.Value, typ reflect.Type, ctx
 	return genericExportToMap(o.val, dst, typ, ctx)
 }
 
-func (o *baseDynamicObject) exportToSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
-	return genericExportToSlice(o.val, dst, typ, ctx)
+func (o *baseDynamicObject) exportToArrayOrSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
+	return genericExportToArrayOrSlice(o.val, dst, typ, ctx)
 }
 
 func (o *dynamicObject) equal(impl objectImpl) bool {

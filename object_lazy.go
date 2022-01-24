@@ -259,10 +259,10 @@ func (o *lazyObject) exportToMap(m reflect.Value, typ reflect.Type, ctx *objectE
 	return obj.exportToMap(m, typ, ctx)
 }
 
-func (o *lazyObject) exportToSlice(s reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
+func (o *lazyObject) exportToArrayOrSlice(s reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
 	obj := o.create(o.val)
 	o.val.self = obj
-	return obj.exportToSlice(s, typ, ctx)
+	return obj.exportToArrayOrSlice(s, typ, ctx)
 }
 
 func (o *lazyObject) equal(other objectImpl) bool {

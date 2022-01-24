@@ -194,7 +194,7 @@ type objectImpl interface {
 	export(ctx *objectExportCtx) interface{}
 	exportType() reflect.Type
 	exportToMap(m reflect.Value, typ reflect.Type, ctx *objectExportCtx) error
-	exportToSlice(s reflect.Value, typ reflect.Type, ctx *objectExportCtx) error
+	exportToArrayOrSlice(s reflect.Value, typ reflect.Type, ctx *objectExportCtx) error
 	equal(objectImpl) bool
 
 	iterateStringKeys() iterNextFunc
@@ -1014,7 +1014,7 @@ func (o *baseObject) exportToMap(m reflect.Value, typ reflect.Type, ctx *objectE
 	return genericExportToMap(o.val, m, typ, ctx)
 }
 
-func genericExportToSlice(o *Object, dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) (err error) {
+func genericExportToArrayOrSlice(o *Object, dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) (err error) {
 	r := o.runtime
 
 	if method := toMethod(r.getV(o, SymIterator)); method != nil {
@@ -1028,8 +1028,12 @@ func genericExportToSlice(o *Object, dst reflect.Value, typ reflect.Type, ctx *o
 		if ex != nil {
 			return ex
 		}
-		if dst.IsNil() || dst.Len() != len(values) {
-			dst.Set(reflect.MakeSlice(typ, len(values), len(values)))
+		if dst.Len() != len(values) {
+			if typ.Kind() == reflect.Array {
+				return fmt.Errorf("cannot convert an iterable into an array, lengths mismatch (have %d, need %d)", len(values), dst.Len())
+			} else {
+				dst.Set(reflect.MakeSlice(typ, len(values), len(values)))
+			}
 		}
 		ctx.putTyped(o, typ, dst.Interface())
 		for i, val := range values {
@@ -1041,8 +1045,12 @@ func genericExportToSlice(o *Object, dst reflect.Value, typ reflect.Type, ctx *o
 	} else {
 		// array-like
 		l := toIntStrict(toLength(o.self.getStr("length", nil)))
-		if dst.IsNil() || dst.Len() != l {
-			dst.Set(reflect.MakeSlice(typ, l, l))
+		if dst.Len() != l {
+			if typ.Kind() == reflect.Array {
+				return fmt.Errorf("cannot convert an array-like object into an array, lengths mismatch (have %d, need %d)", l, dst.Len())
+			} else {
+				dst.Set(reflect.MakeSlice(typ, l, l))
+			}
 		}
 		ctx.putTyped(o, typ, dst.Interface())
 		for i := 0; i < l; i++ {
@@ -1057,8 +1065,8 @@ func genericExportToSlice(o *Object, dst reflect.Value, typ reflect.Type, ctx *o
 	return
 }
 
-func (o *baseObject) exportToSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
-	return genericExportToSlice(o.val, dst, typ, ctx)
+func (o *baseObject) exportToArrayOrSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
+	return genericExportToArrayOrSlice(o.val, dst, typ, ctx)
 }
 
 type enumerableFlag int

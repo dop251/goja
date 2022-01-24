@@ -459,12 +459,16 @@ func (a *sparseArrayObject) exportType() reflect.Type {
 	return reflectTypeArray
 }
 
-func (a *sparseArrayObject) exportToSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
+func (a *sparseArrayObject) exportToArrayOrSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
 	r := a.val.runtime
 	if iter := a.getSym(SymIterator, nil); iter == r.global.arrayValues || iter == nil {
 		l := toIntStrict(int64(a.length))
-		if dst.IsNil() || dst.Len() != l {
-			dst.Set(reflect.MakeSlice(typ, l, l))
+		if dst.Len() != l {
+			if typ.Kind() == reflect.Array {
+				return fmt.Errorf("cannot convert an Array into an array, lengths mismatch (have %d, need %d)", l, dst.Len())
+			} else {
+				dst.Set(reflect.MakeSlice(typ, l, l))
+			}
 		}
 		ctx.putTyped(a.val, typ, dst.Interface())
 		for _, item := range a.items {
@@ -483,5 +487,5 @@ func (a *sparseArrayObject) exportToSlice(dst reflect.Value, typ reflect.Type, c
 		}
 		return nil
 	}
-	return a.baseObject.exportToSlice(dst, typ, ctx)
+	return a.baseObject.exportToArrayOrSlice(dst, typ, ctx)
 }
