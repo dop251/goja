@@ -1062,7 +1062,7 @@ func genericExportToArrayOrSlice(o *Object, dst reflect.Value, typ reflect.Type,
 		}
 	}
 
-	return
+	return fmt.Errorf("couldn't export")
 }
 
 func (o *baseObject) exportToArrayOrSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {

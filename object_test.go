@@ -298,6 +298,22 @@ func TestExportToWrappedMapCustom(t *testing.T) {
 	}
 }
 
+func TestExportToFuncVariableExactNumber(t *testing.T) {
+	vm := New()
+	vm.Set("f", func(s string, g ...Value) {
+		something := g[0].ToObject(vm).Get(s).ToInteger()
+		if something != 5 {
+			t.Fatal()
+		}
+	})
+	_, err := vm.RunString(`
+    f("something", {something: 5})
+	`)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func TestExportToSliceNonIterable(t *testing.T) {
 	vm := New()
 	o := vm.NewObject()
