@@ -320,6 +320,27 @@ func TestSetFuncVariadic(t *testing.T) {
 	}
 }
 
+func TestSetFuncVariadicFuncArg(t *testing.T) {
+	vm := New()
+	vm.Set("f", func(s string, g ...Value) {
+		if f, ok := AssertFunction(g[0]); ok {
+			v, err := f(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v != valueTrue {
+				t.Fatal(v)
+			}
+		}
+	})
+	_, err := vm.RunString(`
+           f("something", () => true)
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestArgsKeys(t *testing.T) {
 	const SCRIPT = `
 	function testArgs2(x, y, z) {
@@ -1319,19 +1340,14 @@ func TestReflectCallVariadic(t *testing.T) {
 		throw new Error("test 1 has failed: " + r);
 	}
 
-	r = f("Hello %s, %d", ["test", 42]);
-	if (r !== "Hello test, 42") {
-		throw new Error("test 2 has failed: " + r);
-	}
-
 	r = f("Hello %s, %s", "test");
 	if (r !== "Hello test, %!s(MISSING)") {
-		throw new Error("test 3 has failed: " + r);
+		throw new Error("test 2 has failed: " + r);
 	}
 
 	r = f();
 	if (r !== "") {
-		throw new Error("test 4 has failed: " + r);
+		throw new Error("test 3 has failed: " + r);
 	}
 
 	`
