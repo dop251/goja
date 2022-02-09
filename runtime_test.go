@@ -304,6 +304,22 @@ func TestSetGoFunc(t *testing.T) {
 	}
 }
 
+func TestSetFuncVariadic(t *testing.T) {
+	vm := New()
+	vm.Set("f", func(s string, g ...Value) {
+		something := g[0].ToObject(vm).Get(s).ToInteger()
+		if something != 5 {
+			t.Fatal()
+		}
+	})
+	_, err := vm.RunString(`
+           f("something", {something: 5})
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestArgsKeys(t *testing.T) {
 	const SCRIPT = `
 	function testArgs2(x, y, z) {

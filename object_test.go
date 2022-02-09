@@ -3,6 +3,7 @@ package goja
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -294,6 +295,157 @@ func TestExportToWrappedMapCustom(t *testing.T) {
 	exported["test"] = true
 	if v := m["test"]; v != true {
 		t.Fatalf("Unexpected m[\"test\"]: %v", v)
+	}
+}
+
+func TestExportToSliceNonIterable(t *testing.T) {
+	vm := New()
+	o := vm.NewObject()
+	var a []interface{}
+	err := vm.ExportTo(o, &a)
+	if err == nil {
+		t.Fatal("Expected an error")
+	}
+	if len(a) != 0 {
+		t.Fatalf("a: %v", a)
+	}
+	if msg := err.Error(); msg != "cannot convert [object Object] to []interface {}: not an array or iterable" {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func ExampleRuntime_ExportTo_iterableToSlice() {
+	vm := New()
+	v, err := vm.RunString(`
+	function reverseIterator() {
+	    const arr = this;
+	    let idx = arr.length;
+	    return {
+			next: () => idx > 0 ? {value: arr[--idx]} : {done: true}
+	    }
+	}
+	const arr = [1,2,3];
+	arr[Symbol.iterator] = reverseIterator;
+	arr;
+	`)
+	if err != nil {
+		panic(err)
+	}
+
+	var arr []int
+	err = vm.ExportTo(v, &arr)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(arr)
+	// Output: [3 2 1]
+}
+
+func TestRuntime_ExportTo_proxiedIterableToSlice(t *testing.T) {
+	vm := New()
+	v, err := vm.RunString(`
+	function reverseIterator() {
+	    const arr = this;
+	    let idx = arr.length;
+	    return {
+			next: () => idx > 0 ? {value: arr[--idx]} : {done: true}
+	    }
+	}
+	const arr = [1,2,3];
+	arr[Symbol.iterator] = reverseIterator;
+	new Proxy(arr, {});
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var arr []int
+	err = vm.ExportTo(v, &arr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out := fmt.Sprint(arr); out != "[3 2 1]" {
+		t.Fatal(out)
+	}
+}
+
+func ExampleRuntime_ExportTo_arrayLikeToSlice() {
+	vm := New()
+	v, err := vm.RunString(`
+	({
+		length: 3,
+		0: 1,
+		1: 2,
+		2: 3
+	});
+	`)
+	if err != nil {
+		panic(err)
+	}
+
+	var arr []int
+	err = vm.ExportTo(v, &arr)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(arr)
+	// Output: [1 2 3]
+}
+
+func TestExportArrayToArrayMismatchedLengths(t *testing.T) {
+	vm := New()
+	a := vm.NewArray(1, 2)
+	var a1 [3]int
+	err := vm.ExportTo(a, &a1)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if msg := err.Error(); !strings.Contains(msg, "lengths mismatch") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestExportIterableToArrayMismatchedLengths(t *testing.T) {
+	vm := New()
+	a, err := vm.RunString(`
+		new Map([[1, true], [2, true]]);
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var a1 [3]interface{}
+	err = vm.ExportTo(a, &a1)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if msg := err.Error(); !strings.Contains(msg, "lengths mismatch") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestExportArrayLikeToArrayMismatchedLengths(t *testing.T) {
+	vm := New()
+	a, err := vm.RunString(`
+		({
+			length: 2,
+			0: true,
+			1: true
+		});
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var a1 [3]interface{}
+	err = vm.ExportTo(a, &a1)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if msg := err.Error(); !strings.Contains(msg, "lengths mismatch") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

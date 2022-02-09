@@ -186,56 +186,6 @@ func isLineTerminator(chr rune) bool {
 	return false
 }
 
-func isId(tkn token.Token) bool {
-	switch tkn {
-	case token.KEYWORD,
-		token.BOOLEAN,
-		token.NULL,
-		token.THIS,
-		token.IF,
-		token.IN,
-		token.OF,
-		token.DO,
-
-		token.VAR,
-		token.LET,
-		token.FOR,
-		token.NEW,
-		token.TRY,
-
-		token.ELSE,
-		token.CASE,
-		token.VOID,
-		token.WITH,
-
-		token.CONST,
-		token.WHILE,
-		token.BREAK,
-		token.CATCH,
-		token.THROW,
-
-		token.RETURN,
-		token.TYPEOF,
-		token.DELETE,
-		token.SWITCH,
-
-		token.DEFAULT,
-		token.FINALLY,
-
-		token.FUNCTION,
-		token.CONTINUE,
-		token.DEBUGGER,
-
-		token.INSTANCEOF,
-
-		token.EXPORT,
-		token.IMPORT:
-
-		return true
-	}
-	return false
-}
-
 type parserState struct {
 	tok                                token.Token
 	literal                            string
@@ -271,7 +221,6 @@ func (self *_parser) peek() token.Token {
 }
 
 func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unistring.String, idx file.Idx) {
-
 	self.implicitSemicolon = false
 
 	for {
@@ -455,7 +404,12 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 			case '~':
 				tkn = token.BITWISE_NOT
 			case '?':
-				tkn = token.QUESTION_MARK
+				if self.chr == '.' && !isDecimalDigit(self._peek()) {
+					self.read()
+					tkn = token.QUESTION_DOT
+				} else {
+					tkn = token.QUESTION_MARK
+				}
 			case '"', '\'':
 				insertSemicolon = true
 				tkn = token.STRING
@@ -612,12 +566,6 @@ func (self *_parser) skipWhiteSpace() {
 	}
 }
 
-func (self *_parser) skipLineWhiteSpace() {
-	for isLineWhiteSpace(self.chr) {
-		self.read()
-	}
-}
-
 func (self *_parser) scanMantissa(base int) {
 	for digitValue(self.chr) < base {
 		self.read()
@@ -625,7 +573,6 @@ func (self *_parser) scanMantissa(base int) {
 }
 
 func (self *_parser) scanEscape(quote rune) (int, bool) {
-
 	var length, base uint32
 	chr := self.chr
 	switch chr {
@@ -835,6 +782,7 @@ func (self *_parser) parseTemplateCharacters() (literal string, parsed unistring
 	return
 unterminated:
 	err = err_UnexpectedEndOfInput
+	finished = true
 	return
 }
 
@@ -1094,7 +1042,6 @@ func parseStringLiteral(literal string, length int, unicode, strict bool) (unist
 }
 
 func (self *_parser) scanNumericLiteral(decimalPoint bool) (token.Token, string) {
-
 	offset := self.chrOffset
 	tkn := token.NUMBER
 
