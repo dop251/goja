@@ -86,6 +86,11 @@ func (self *_parser) parseStatement() ast.Statement {
 	case token.TRY:
 		return self.parseTryStatement()
 	case token.EXPORT:
+		if self.scope.outer != nil {
+			self.next()
+			self.error(self.idx, "export only allowed in global scope")
+			return &ast.BadStatement{From: self.idx, To: self.idx + 1}
+		}
 		exp := self.parseExportDeclaration()
 		if exp != nil {
 			// TODO this needs to be fixed
@@ -93,6 +98,11 @@ func (self *_parser) parseStatement() ast.Statement {
 			return exp
 		}
 	case token.IMPORT:
+		if self.scope.outer != nil {
+			self.next()
+			self.error(self.idx, "import only allowed in global scope")
+			return &ast.BadStatement{From: self.idx, To: self.idx + 1}
+		}
 		imp := self.parseImportDeclaration()
 		self.scope.importEntries = append(self.scope.importEntries, imp)
 		return imp
