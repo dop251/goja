@@ -844,8 +844,12 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 		}
 	case token.LEFT_BRACE:
 		namedExports := self.parseNamedExports()
+		fromClause := self.parseFromClause()
 		self.semicolon()
-		return &ast.ExportDeclaration{NamedExports: namedExports}
+		return &ast.ExportDeclaration{
+			NamedExports: namedExports,
+			FromClause:   fromClause,
+		}
 	case token.VAR:
 		self.next()
 		return &ast.ExportDeclaration{Variable: self.parseVariableStatement()}
@@ -986,6 +990,10 @@ func (self *_parser) parseNamedExports() *ast.NamedExports {
 
 // MOVE IN EXPRESSION
 func (self *_parser) parseExportsList() (exportsList []*ast.ExportSpecifier) { // FIXME: ast.Binding?
+	if self.token == token.RIGHT_BRACE {
+		return
+	}
+
 	for {
 		exportsList = append(exportsList, self.parseExportSpecifier())
 		if self.token != token.COMMA {
