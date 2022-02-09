@@ -678,19 +678,29 @@ found:
 func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 	in := module.body
 	c.p.src = in.File
+	strict := true
+	inGlobal := false
+	eval := false
+
 	c.newScope()
 	scope := c.scope
 	scope.dynamic = true
-	scope.strict = true
-	ownVarScope := false
-	ownLexScope := true
-	c.newBlockScope()
-	scope = c.scope
-	scope.module = true
+	scope.eval = eval
+	if !strict && len(in.Body) > 0 {
+		strict = c.isStrict(in.Body) != nil
+	}
+	scope.strict = strict
+	ownVarScope := eval && strict
+	ownLexScope := !inGlobal || eval
+	if ownVarScope {
+		c.newBlockScope()
+		scope = c.scope
+		scope.function = true
+	}
 	funcs := c.extractFunctions(in.Body)
 	c.createFunctionBindings(funcs)
 	numFuncs := len(scope.bindings)
-	if false && !ownVarScope {
+	if inGlobal && !ownVarScope {
 		if numFuncs == len(funcs) {
 			c.compileFunctionsGlobalAllUnique(funcs)
 		} else {
@@ -704,7 +714,15 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		vars[i] = b.name
 	}
 	if len(vars) > 0 && !ownVarScope && ownLexScope {
-		c.emit(&bindVars{names: vars, deletable: false})
+		if inGlobal {
+			c.emit(&bindGlobal{
+				vars:      vars[numFuncs:],
+				funcs:     vars[:numFuncs],
+				deletable: eval,
+			})
+		} else {
+			c.emit(&bindVars{names: vars, deletable: eval})
+		}
 	}
 	var enter *enterBlock
 	if c.compileLexicalDeclarations(in.Body, ownVarScope || !ownLexScope) {
@@ -735,7 +753,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 			consts: consts,
 		})
 	}
-	if ownVarScope {
+	if !inGlobal || ownVarScope {
 		c.compileFunctions(funcs)
 	}
 	c.compileStatements(in.Body, true)
