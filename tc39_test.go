@@ -596,13 +596,13 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 
 	hasRaw := meta.hasFlag("raw")
 
-	if hasRaw || !meta.hasFlag("onlyStrict") {
+	if hasRaw || !meta.hasFlag("onlyStrict") && !meta.hasFlag("module") {
 		// log.Printf("Running normal test: %s", name)
 		t.Logf("Running normal test: %s", name)
 		ctx.runTC39Test(name, src, meta, t)
 	}
 
-	if !hasRaw && !meta.hasFlag("noStrict") {
+	if (!hasRaw && !meta.hasFlag("noStrict")) || meta.hasFlag("module") {
 		// log.Printf("Running strict test: %s", name)
 		t.Logf("Running strict test: %s", name)
 		ctx.runTC39Test(name, "'use strict';\n"+src, meta, t)
