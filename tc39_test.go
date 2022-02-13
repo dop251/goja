@@ -205,6 +205,8 @@ var (
 		"test/language/expressions/optional-chaining/member-expression-async-literal.js":                                          true,
 		"test/language/expressions/optional-chaining/member-expression-async-identifier.js":                                       true,
 		"test/language/expressions/optional-chaining/iteration-statement-for-await-of.js":                                         true,
+		"test/language/statements/labeled/value-await-module.js":                                                                  true,
+		"test/language/statements/labeled/value-await-module-escaped.js":                                                          true,
 
 		// legacy number literals
 		"test/language/literals/numeric/non-octal-decimal-integer.js": true,
@@ -531,6 +533,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		}
 	} else {
 		if meta.Negative.Type != "" {
+			t.Fatalf("%s: Expected error: %v", name, err)
 			vm.vm.prg.dumpCode(t.Logf)
 			t.Fatalf("%s: Expected error: %v", name, err)
 		}
@@ -732,6 +735,7 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 	}
 	p.rt = vm
 
+	early = false
 	compiler := newCompiler()
 	p.compiler = compiler
 	compiler.hostResolveImportedModule = hostResolveImportedModule
@@ -740,7 +744,6 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 		return
 	}
 
-	early = false
 	err = p.Evaluate()
 	return
 }

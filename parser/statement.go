@@ -837,7 +837,6 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 	case token.MULTIPLY: // FIXME: should also parse NamedExports if '{'
 		exportFromClause := self.parseExportFromClause()
 		fromClause := self.parseFromClause()
-		self.semicolon()
 		return &ast.ExportDeclaration{
 			ExportFromClause: exportFromClause,
 			FromClause:       fromClause,
@@ -845,16 +844,18 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 	case token.LEFT_BRACE:
 		namedExports := self.parseNamedExports()
 		fromClause := self.parseFromClause()
-		self.semicolon()
 		return &ast.ExportDeclaration{
 			NamedExports: namedExports,
 			FromClause:   fromClause,
 		}
 	case token.VAR:
-		self.next()
 		return &ast.ExportDeclaration{Variable: self.parseVariableStatement()}
-	case token.FUNCTION, token.LET, token.CONST: // FIXME: What about function* and async?
-		break // TODO: implement me!
+	case token.LET, token.CONST:
+		return &ast.ExportDeclaration{LexicalDeclaration: self.parseLexicalDeclaration(self.token)}
+	case token.FUNCTION: // FIXME: What about function* and async?
+		// TODO implement
+		self.next()
+		self.error(self.idx, "unsupported")
 	case token.DEFAULT: // FIXME: current implementation of HoistableDeclaration only implements function?
 		self.next()
 		functionDeclaration := self.parseFunction(false)
@@ -873,6 +874,7 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 }
 
 func (self *_parser) parseImportDeclaration() *ast.ImportDeclaration {
+	idx := self.idx
 	self.next()
 
 	// _, _, errString := self.scanString(0, false)  // look at first character only
@@ -885,11 +887,11 @@ func (self *_parser) parseImportDeclaration() *ast.ImportDeclaration {
 
 	importClause := self.parseImportClause()
 	fromClause := self.parseFromClause()
-	self.semicolon()
 
 	return &ast.ImportDeclaration{
 		ImportClause: importClause,
 		FromClause:   fromClause,
+		Idx:          idx,
 	}
 }
 
@@ -927,11 +929,15 @@ func (self *_parser) nextStatement() {
 }
 
 func (self *_parser) parseFromClause() *ast.FromClause {
-	identifier := self.parseIdentifier()
-	if identifier.Name != "from" {
-		self.error(self.idx, "expected 'from' keyword, found '%s' instead", identifier.Name)
-		return nil
+	if self.literal == "from" {
+		self.next()
+		return &ast.FromClause{
+			ModuleSpecifier: self.parseModuleSpecifier(),
+		}
+	} else {
+		self.semicolon()
 	}
+	return nil
 
 	// expression := self.parsePrimaryExpression() // module specifier (string literal)
 	// stringLiteral, ok := expression.(*ast.StringLiteral)
@@ -939,10 +945,6 @@ func (self *_parser) parseFromClause() *ast.FromClause {
 	// 	self.error(self.idx, "expected module specifier")
 	// 	return nil
 	// }
-
-	return &ast.FromClause{
-		ModuleSpecifier: self.parseModuleSpecifier(),
-	}
 }
 
 func (self *_parser) parseExportFromClause() *ast.ExportFromClause {

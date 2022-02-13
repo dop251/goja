@@ -3,6 +3,7 @@ package goja
 import (
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/dop251/goja/ast"
 )
@@ -16,6 +17,8 @@ type ModuleRecord interface {
 	ResolveExport(exportName string, resolveset ...ResolveSetElement) (*ResolvedBinding, bool)
 	Link() error
 	Evaluate() error
+	Namespace() *Namespace
+	SetNamespace(*Namespace)
 }
 
 type CyclicModuleRecordStatus uint8
@@ -51,6 +54,7 @@ func (c *compiler) CyclicModuleRecordConcreteLink(module CyclicModuleRecord) err
 
 	stack := []CyclicModuleRecord{}
 	if _, err := c.innerModuleLinking(module, &stack, 0); err != nil {
+		fmt.Println(err)
 		for _, m := range stack {
 			if m.Status() != Linking {
 				return fmt.Errorf("bad status %+v on link", m.Status())
@@ -204,6 +208,7 @@ var _ CyclicModuleRecord = &SourceTextModuleRecord{}
 
 type SourceTextModuleRecord struct {
 	cyclicModuleStub
+	scope    *scope
 	rt       *Runtime  // TODO this is not great as it means the whole thing needs to be reparsed for each runtime
 	compiler *compiler // TODO remove this
 	body     *ast.Program
@@ -219,6 +224,7 @@ type importEntry struct {
 	moduleRequest string
 	importName    string
 	localName     string
+	offset        int
 }
 
 type exportEntry struct {
@@ -242,6 +248,7 @@ func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
 					moduleRequest: moduleRequest,
 					importName:    el.IdentifierName.String(),
 					localName:     el.Alias.String(),
+					offset:        int(importDeclarion.Idx0()),
 				})
 			}
 		}
@@ -250,6 +257,7 @@ func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
 				moduleRequest: moduleRequest,
 				importName:    "default",
 				localName:     def.Name.String(),
+				offset:        int(importDeclarion.Idx0()),
 			})
 		}
 		if namespace := importClause.NameSpaceImport; namespace != nil {
@@ -257,6 +265,7 @@ func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
 				moduleRequest: moduleRequest,
 				importName:    "*",
 				localName:     namespace.ImportedBinding.String(),
+				offset:        int(importDeclarion.Idx0()),
 			})
 		}
 	}
@@ -265,18 +274,91 @@ func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
 
 func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 	var result []exportEntry
-	for _, exportDeclarion := range declarations {
-		if exportDeclarion.ExportFromClause != nil {
-			if exportDeclarion.ExportFromClause.NamedExports != nil {
-				for _, spec := range exportDeclarion.ExportFromClause.NamedExports.ExportsList {
+	for _, exportDeclaration := range declarations {
+		if exportDeclaration.ExportFromClause != nil {
+			exportFromClause := exportDeclaration.ExportFromClause
+			if namedExports := exportFromClause.NamedExports; namedExports != nil {
+				for _, spec := range namedExports.ExportsList {
 					result = append(result, exportEntry{
 						localName:  spec.IdentifierName.String(),
 						exportName: spec.Alias.String(),
 					})
 				}
+			} else if exportFromClause.IsWildcard {
+				if from := exportDeclaration.FromClause; from != nil {
+					result = append(result, exportEntry{
+						exportName:    exportFromClause.Alias.String(),
+						importName:    "*",
+						moduleRequest: from.ModuleSpecifier.String(),
+					})
+				} else {
+					result = append(result, exportEntry{
+						exportName: exportFromClause.Alias.String(),
+						importName: "*",
+					})
+				}
 			} else {
-				fmt.Println("unimplemented", exportDeclarion.ExportFromClause)
+				fmt.Printf("unimplemented %+v\n", exportDeclaration.ExportFromClause)
+				panic("wat")
 			}
+		} else if variableDeclaration := exportDeclaration.Variable; variableDeclaration != nil {
+			for _, l := range variableDeclaration.List {
+				id, ok := l.Target.(*ast.Identifier)
+				if !ok {
+					panic("target wasn;t identifier")
+				}
+				result = append(result, exportEntry{
+					localName:  id.Name.String(),
+					exportName: id.Name.String(),
+				})
+
+			}
+		} else if LexicalDeclaration := exportDeclaration.LexicalDeclaration; LexicalDeclaration != nil {
+			for _, l := range LexicalDeclaration.List {
+
+				id, ok := l.Target.(*ast.Identifier)
+				if !ok {
+					panic("target wasn;t identifier")
+				}
+				result = append(result, exportEntry{
+					localName:  id.Name.String(),
+					exportName: id.Name.String(),
+				})
+
+			}
+		} else if hoistable := exportDeclaration.HoistableDeclaration; hoistable != nil {
+			localName := "default"
+			if hoistable.FunctionDeclaration.Name != nil {
+				localName = string(hoistable.FunctionDeclaration.Name.Name.String())
+			}
+			result = append(result, exportEntry{
+				localName:  localName,
+				exportName: "default",
+			})
+		} else if fromClause := exportDeclaration.FromClause; fromClause != nil {
+			if namedExports := exportDeclaration.NamedExports; namedExports != nil {
+				for _, spec := range namedExports.ExportsList {
+					result = append(result, exportEntry{
+						localName:     spec.IdentifierName.String(),
+						exportName:    spec.Alias.String(),
+						moduleRequest: fromClause.ModuleSpecifier.String(),
+					})
+				}
+			} else {
+				fmt.Printf("unimplemented %+v\n", exportDeclaration.ExportFromClause)
+				panic("wat")
+			}
+		} else if namedExports := exportDeclaration.NamedExports; namedExports != nil {
+			for _, spec := range namedExports.ExportsList {
+				result = append(result, exportEntry{
+					localName:  spec.IdentifierName.String(),
+					exportName: spec.Alias.String(),
+				})
+			}
+		} else {
+			fmt.Printf("unimplemented %+v\n", exportDeclaration)
+			panic("wat")
+
 		}
 	}
 	return result
@@ -449,6 +531,40 @@ func (module *SourceTextModuleRecord) InitializeEnvorinment() (err error) {
 	*/
 }
 
+func (rt *Runtime) getModuleNamespace(module ModuleRecord) *Namespace {
+	if c, ok := module.(CyclicModuleRecord); ok && c.Status() == Unlinked {
+		panic("oops") // TODO beter oops
+	}
+	namespace := module.Namespace()
+	if namespace == nil {
+		exportedNames := module.GetExportedNames()
+		var unambiguousNames []string
+		for _, name := range exportedNames {
+			_, ok := module.ResolveExport(name)
+			if ok {
+				unambiguousNames = append(unambiguousNames, name)
+			}
+		}
+		namespace := rt.moduleNamespaceCreate(module, unambiguousNames)
+		module.SetNamespace(namespace)
+	}
+	return namespace
+}
+
+// TODO this probably should really be goja.Object
+type Namespace struct {
+	module  ModuleRecord
+	exports []string
+}
+
+func (rt *Runtime) moduleNamespaceCreate(module ModuleRecord, exports []string) *Namespace {
+	sort.Strings(exports)
+	return &Namespace{
+		module:  module,
+		exports: exports,
+	}
+}
+
 type ResolveSetElement struct {
 	Module     ModuleRecord
 	ExportName string
@@ -529,6 +645,7 @@ func (module *SourceTextModuleRecord) Link() error {
 }
 
 type cyclicModuleStub struct {
+	namespace        *Namespace
 	status           CyclicModuleRecordStatus
 	dfsIndex         uint
 	ancestorDfsIndex uint
@@ -574,4 +691,12 @@ func (c *cyclicModuleStub) SetRequestedModules(modules []string) {
 
 func (c *cyclicModuleStub) RequestedModules() []string {
 	return c.requestedModules
+}
+
+func (c *cyclicModuleStub) Namespace() *Namespace {
+	return c.namespace
+}
+
+func (c *cyclicModuleStub) SetNamespace(namespace *Namespace) {
+	c.namespace = namespace
 }

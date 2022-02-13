@@ -692,12 +692,45 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 
 	c.newScope()
 	scope := c.scope
+	scope.module = true
+	module.scope = scope
 	scope.dynamic = true
 	scope.eval = eval
 	if !strict && len(in.Body) > 0 {
 		strict = c.isStrict(in.Body) != nil
 	}
 	scope.strict = strict
+	// 15.2.1.17.4 step 9 start
+	for _, in := range module.importEntries {
+		importedModule, err := module.rt.hostResolveImportedModule(module, in.moduleRequest)
+		if err != nil {
+			panic(fmt.Errorf("previously resolved module returned error %w", err))
+		}
+		if in.importName == "*" {
+			namespace := module.rt.getModuleNamespace(importedModule)
+			b := c.createImmutableBinding(unistring.NewFromString(in.localName), true)
+			_ = namespace
+			_ = b
+			// TODO fix
+		} else {
+			resolution, ambiguous := importedModule.ResolveExport(in.importName)
+			if resolution == nil || ambiguous {
+				c.throwSyntaxError(in.offset, "ambiguous import of %s", in.importName)
+			}
+			if resolution.BindingName == "*namespace*" {
+				namespace := module.rt.getModuleNamespace(resolution.Module)
+				b := c.createImmutableBinding(unistring.NewFromString(in.localName), true)
+				_ = namespace
+				_ = b
+				// TODO fix
+			} else {
+				c.createImportBinding(in.localName, resolution.Module, resolution.BindingName)
+			}
+
+		}
+
+	}
+	// 15.2.1.17.4 step 9 end
 	ownVarScope := eval && strict
 	ownLexScope := !inGlobal || eval
 	if ownVarScope {
@@ -997,6 +1030,18 @@ func (c *compiler) createVarBindings(v *ast.VariableDeclaration, inFunc bool) {
 	for _, item := range v.List {
 		c.createVarBinding(item.Target, inFunc)
 	}
+}
+
+func (c *compiler) createImmutableBinding(name unistring.String, isStrict bool) *binding {
+	b, _ := c.scope.bindName(name)
+	b.isConst = true
+	b.isStrict = isStrict
+	return b
+}
+
+func (c *compiler) createImportBinding(n string, m ModuleRecord, n2 string) *binding {
+	// TODO Do something :shrug:
+	return nil
 }
 
 func (c *compiler) createLexicalIdBinding(name unistring.String, isConst bool, offset int) *binding {

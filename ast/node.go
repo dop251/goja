@@ -444,8 +444,7 @@ type (
 	}
 
 	ImportDeclaration struct {
-		idx0            file.Idx
-		idx1            file.Idx
+		Idx             file.Idx
 		ImportClause    *ImportClause
 		FromClause      *FromClause
 		ModuleSpecifier unistring.String
@@ -471,9 +470,11 @@ type (
 	}
 
 	ExportDeclaration struct {
-		idx0                 file.Idx
-		idx1                 file.Idx
-		Variable             *VariableStatement
+		idx0               file.Idx
+		idx1               file.Idx
+		Variable           *VariableStatement
+		LexicalDeclaration *LexicalDeclaration
+		// ClassDeclaration
 		NamedExports         *NamedExports
 		ExportFromClause     *ExportFromClause
 		FromClause           *FromClause
@@ -500,6 +501,8 @@ type (
 
 	HoistableDeclaration struct {
 		FunctionDeclaration *FunctionLiteral
+		// GeneratorDeclaration
+		// AsyncFunc and AsyncGenerator
 	}
 )
 
@@ -681,7 +684,7 @@ func (self *PropertyKeyed) Idx0() file.Idx                 { return self.Key.Idx
 func (self *ExpressionBody) Idx0() file.Idx                { return self.Expression.Idx0() }
 
 func (self *ExportDeclaration) Idx0() file.Idx { return self.idx0 }
-func (self *ImportDeclaration) Idx0() file.Idx { return self.idx0 }
+func (self *ImportDeclaration) Idx0() file.Idx { return self.Idx }
 
 // ==== //
 // Idx1 //
@@ -785,4 +788,4 @@ func (self *PropertyKeyed) Idx1() file.Idx { return self.Value.Idx1() }
 func (self *ExpressionBody) Idx1() file.Idx { return self.Expression.Idx1() }
 
 func (self *ExportDeclaration) Idx1() file.Idx { return self.idx1 }
-func (self *ImportDeclaration) Idx1() file.Idx { return self.idx1 }
+func (self *ImportDeclaration) Idx1() file.Idx { return self.Idx } // TODO fix

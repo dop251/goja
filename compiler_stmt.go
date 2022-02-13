@@ -807,7 +807,7 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 					c.throwSyntaxError(int(expr.Idx0()), "import of %s was not expoted from module %s", name.IdentifierName.String(), expr.FromClause.ModuleSpecifier.String())
 				}
 				r := &compiledLiteral{
-					// val: value,
+					val: Undefined(), // TODO FIX
 				}
 				r.init(c, expr.Idx0())
 				// This should probably be the idx of the name?
@@ -825,6 +825,7 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 				c.throwSyntaxError(int(expr.Idx0()), "import of \"default\" was not exported from module %s", expr.FromClause.ModuleSpecifier.String())
 			}
 			r := &compiledLiteral{
+				val: Undefined(), // TODO FIX
 				// val: value,
 			}
 			r.init(c, def.Idx0())
