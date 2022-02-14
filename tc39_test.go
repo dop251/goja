@@ -696,49 +696,45 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 
 	var hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
 	hostResolveImportedModule = func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error) {
-		k, ok := cache[specifier]
+		fname := path.Join(ctx.base, path.Dir(name), specifier)
+		k, ok := cache[fname]
 		if ok {
 			return k.m, k.err
 		}
-		fname := path.Join(ctx.base, path.Dir(name), specifier)
 		f, err := os.Open(fname)
 		if err != nil {
-			cache[specifier] = cacheElement{err: err}
+			cache[fname] = cacheElement{err: err}
 			return nil, err
 		}
 		defer f.Close()
 
 		b, err := ioutil.ReadAll(f)
 		if err != nil {
-			cache[specifier] = cacheElement{err: err}
+			cache[fname] = cacheElement{err: err}
 			return nil, err
 		}
 
 		str := string(b)
 		p, err := vm.ParseModule(str)
 		if err != nil {
-			cache[specifier] = cacheElement{err: err}
+			cache[fname] = cacheElement{err: err}
 			return nil, err
 		}
 		p.rt = vm
 		p.compiler = newCompiler()
 		p.compiler.hostResolveImportedModule = hostResolveImportedModule
-		cache[specifier] = cacheElement{m: p}
+		cache[fname] = cacheElement{m: p}
 		return p, nil
 	}
 
 	vm.hostResolveImportedModule = hostResolveImportedModule
-	var p *SourceTextModuleRecord
-	p, err = vm.ParseModule(src)
+	m, err := vm.hostResolveImportedModule(nil, path.Base(name))
 	if err != nil {
 		return
 	}
-	p.rt = vm
+	p := m.(*SourceTextModuleRecord)
 
 	early = false
-	compiler := newCompiler()
-	p.compiler = compiler
-	compiler.hostResolveImportedModule = hostResolveImportedModule
 	err = p.Link()
 	if err != nil {
 		return
