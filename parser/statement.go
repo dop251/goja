@@ -91,6 +91,11 @@ func (self *_parser) parseStatement() ast.Statement {
 			self.error(self.idx, "export only allowed in global scope")
 			return &ast.BadStatement{From: self.idx, To: self.idx + 1}
 		}
+		if !self.opts.module {
+			self.next()
+			self.error(self.idx, "export not supported in script")
+			return &ast.BadStatement{From: self.idx, To: self.idx + 1}
+		}
 		exp := self.parseExportDeclaration()
 		if exp != nil {
 			// TODO this needs to be fixed
@@ -103,8 +108,14 @@ func (self *_parser) parseStatement() ast.Statement {
 			self.error(self.idx, "import only allowed in global scope")
 			return &ast.BadStatement{From: self.idx, To: self.idx + 1}
 		}
+		if !self.opts.module {
+			self.next()
+			self.error(self.idx, "import not supported in script")
+			return &ast.BadStatement{From: self.idx, To: self.idx + 1}
+		}
 		imp := self.parseImportDeclaration()
 		self.scope.importEntries = append(self.scope.importEntries, imp)
+
 		return imp
 	}
 

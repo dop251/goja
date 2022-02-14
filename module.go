@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/dop251/goja/ast"
+	"github.com/dop251/goja/parser"
 )
 
 // TODO most things here probably should be unexported and names should be revised before merged in master
@@ -107,7 +108,7 @@ func (co *compiler) innerModuleLinking(m ModuleRecord, stack *[]CyclicModuleReco
 			}
 		}
 	}
-	err = module.InitializeEnvorinment() // TODO implement
+	err = module.InitializeEnvorinment()
 	if err != nil {
 		return 0, err
 	}
@@ -395,7 +396,8 @@ func findImportByLocalName(importEntries []importEntry, name string) (importEntr
 // TODO arguments to this need fixing
 func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, error) {
 	// TODO asserts
-	body, err := Parse("module", sourceText, rt.parserOptions...)
+	opts := append(rt.parserOptions, parser.IsModule)
+	body, err := Parse("module", sourceText, opts...)
 	_ = body
 	if err != nil {
 		return nil, err

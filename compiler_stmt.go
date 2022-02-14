@@ -767,16 +767,29 @@ func (c *compiler) emitVarAssign(name unistring.String, offset int, init compile
 }
 
 func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
+	/* TODO fix
 	if !c.scope.module {
-		c.throwSyntaxError(int(expr.Idx0()), "import not allowed in non module code")
+		c.throwSyntaxError(int(expr.Idx0()), "export not allowed in non module code")
+	}
+	*/
+
+	if expr.Variable != nil {
+		c.compileVariableStatement(expr.Variable)
+	} else if expr.LexicalDeclaration != nil {
+		c.compileLexicalDeclaration(expr.LexicalDeclaration)
+	} else if expr.HoistableDeclaration != nil {
+		// TODO this is not enough I think
+		c.compileFunctionLiteral(expr.HoistableDeclaration.FunctionDeclaration, false)
 	}
 	// TODO
 }
 
 func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
+	/* TODO fix
 	if !c.scope.module {
 		c.throwSyntaxError(int(expr.Idx0()), "import not allowed in non module code")
 	}
+	*/
 	if expr.FromClause == nil {
 		return // TODO is this right?
 	}
