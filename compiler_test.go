@@ -3351,6 +3351,31 @@ func TestLexicalDynamicScope(t *testing.T) {
 	testScript(SCRIPT, valueInt(3), t)
 }
 
+func TestLexicalDynamicScope1(t *testing.T) {
+	const SCRIPT = `
+	(function() {
+		const x = 1 * 4;
+		return (function() {
+			eval("");
+			return x;
+		})();
+	})();
+	`
+	testScript(SCRIPT, intToValue(4), t)
+}
+
+func TestLexicalDynamicScope2(t *testing.T) {
+	const SCRIPT = `
+	(function() {
+		const x = 1 + 3;
+		var y = 2 * 2;
+		eval("");
+		return x;
+	})();
+	`
+	testScript(SCRIPT, intToValue(4), t)
+}
+
 func TestNonStrictLet(t *testing.T) {
 	const SCRIPT = `
 	var let = 1;
@@ -3755,6 +3780,19 @@ func TestObjectAssignmentPattern(t *testing.T) {
 	assert.sameValue(a, 1, "a");
 	assert.sameValue(b, 2, "b");
 	assert.sameValue(c, 3, "c");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestObjectAssignmentPatternNoDyn(t *testing.T) {
+	const SCRIPT = `
+	(function() {
+		let a, b, c;
+		({a, b, c=3} = {a: 1, b: 2});
+		assert.sameValue(a, 1, "a");
+		assert.sameValue(b, 2, "b");
+		assert.sameValue(c, 3, "c");
+	})();
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
@@ -4569,6 +4607,113 @@ func TestBadObjectKey(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
+}
+
+func TestConstantFolding(t *testing.T) {
+	testValues := func(prg *Program, result Value, t *testing.T) {
+		if len(prg.values) != 1 || !prg.values[0].SameAs(result) {
+			prg.dumpCode(t.Logf)
+			t.Fatalf("values: %v", prg.values)
+		}
+	}
+	f := func(src string, result Value, t *testing.T) {
+		prg := MustCompile("test.js", src, false)
+		testValues(prg, result, t)
+		New().testPrg(prg, result, t)
+	}
+	ff := func(src string, result Value, t *testing.T) {
+		prg := MustCompile("test.js", src, false)
+		fl := prg.code[0].(*newFunc)
+		testValues(fl.prg, result, t)
+		New().testPrg(prg, result, t)
+	}
+
+	t.Run("lexical binding", func(t *testing.T) {
+		f("const x = 1 + 2; x", valueInt(3), t)
+	})
+	t.Run("var binding", func(t *testing.T) {
+		f("var x = 1 + 2; x", valueInt(3), t)
+	})
+	t.Run("assignment", func(t *testing.T) {
+		f("x = 1 + 2; x", valueInt(3), t)
+	})
+	t.Run("object pattern", func(t *testing.T) {
+		f("const {x = 1 + 2} = {}; x", valueInt(3), t)
+	})
+	t.Run("array pattern", func(t *testing.T) {
+		f("const [x = 1 + 2] = []; x", valueInt(3), t)
+	})
+	t.Run("object literal", func(t *testing.T) {
+		f("var o = {x: 1 + 2}; o.x", valueInt(3), t)
+	})
+	t.Run("array literal", func(t *testing.T) {
+		f("var a = [3, 3, 3, 1 + 2]; a[3]", valueInt(3), t)
+	})
+	t.Run("default function parameter", func(t *testing.T) {
+		ff("function f(arg = 1 + 2) {return arg}; f()", valueInt(3), t)
+	})
+	t.Run("return", func(t *testing.T) {
+		ff("function f() {return 1 + 2}; f()", valueInt(3), t)
+	})
+}
+
+func TestAssignBeforeInit(t *testing.T) {
+	const SCRIPT = `
+	assert.throws(ReferenceError, () => {
+		a = 1;
+		let a;
+	});
+
+	assert.throws(ReferenceError, () => {
+	    ({a, b} = {a: 1, b: 2});
+	    let a, b;
+	});
+
+	assert.throws(ReferenceError, () => {
+		(function() {
+			eval("");
+			({a} = {a: 1});
+		})();
+		let a;
+	});
+
+	assert.throws(ReferenceError, () => {
+	    const ctx = {x: 1};
+	    function t() {
+	        delete ctx.x;
+	        return 42;
+	    }
+	    with(ctx) {
+	        (function() {
+	            'use strict';
+	            ({x} = {x: t()});
+	        })();
+	    }
+	    return ctx.x;
+	});
+
+	assert.throws(ReferenceError, () => {
+	    const ctx = {x: 1};
+	    function t() {
+	        delete ctx.x;
+	        return 42;
+	    }
+	    with(ctx) {
+	        (function() {
+	            'use strict';
+				const src = {};
+				Object.defineProperty(src, "x", {
+					get() {
+						return t();
+					}
+				});
+	            ({x} = src);
+	        })();
+	    }
+	    return ctx.x;
+	});
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 /*

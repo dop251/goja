@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"fmt"
 	"hash/maphash"
 	"testing"
 )
@@ -59,6 +60,70 @@ func TestMapEvilIterator(t *testing.T) {
 	undefined;
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func ExampleObject_Export_map() {
+	vm := New()
+	m, err := vm.RunString(`
+	new Map([[1, true], [2, false]]);
+	`)
+	if err != nil {
+		panic(err)
+	}
+	exp := m.Export()
+	fmt.Printf("%T, %v\n", exp, exp)
+	// Output: [][2]interface {}, [[1 true] [2 false]]
+}
+
+func ExampleRuntime_ExportTo_mapToMap() {
+	vm := New()
+	m, err := vm.RunString(`
+	new Map([[1, true], [2, false]]);
+	`)
+	if err != nil {
+		panic(err)
+	}
+	exp := make(map[int]bool)
+	err = vm.ExportTo(m, &exp)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(exp)
+	// Output: map[1:true 2:false]
+}
+
+func ExampleRuntime_ExportTo_mapToSlice() {
+	vm := New()
+	m, err := vm.RunString(`
+	new Map([[1, true], [2, false]]);
+	`)
+	if err != nil {
+		panic(err)
+	}
+	exp := make([][]interface{}, 0)
+	err = vm.ExportTo(m, &exp)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(exp)
+	// Output: [[1 true] [2 false]]
+}
+
+func ExampleRuntime_ExportTo_mapToTypedSlice() {
+	vm := New()
+	m, err := vm.RunString(`
+	new Map([[1, true], [2, false]]);
+	`)
+	if err != nil {
+		panic(err)
+	}
+	exp := make([][2]interface{}, 0)
+	err = vm.ExportTo(m, &exp)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(exp)
+	// Output: [[1 true] [2 false]]
 }
 
 func BenchmarkMapDelete(b *testing.B) {

@@ -111,6 +111,54 @@ func TestGoSliceReflectPush(t *testing.T) {
 
 }
 
+func TestGoSliceReflectStructField(t *testing.T) {
+	vm := New()
+	var s struct {
+		A []int
+		B *[]int
+	}
+	vm.Set("s", &s)
+	_, err := vm.RunString(`
+		'use strict';
+		s.A.push(1);
+		if (s.B !== null) {
+			throw new Error("s.B is not null: " + s.B);
+		}
+		s.B = [2];
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.A) != 1 || s.A[0] != 1 {
+		t.Fatalf("s.A: %v", s.A)
+	}
+	if len(*s.B) != 1 || (*s.B)[0] != 2 {
+		t.Fatalf("s.B: %v", *s.B)
+	}
+}
+
+func TestGoSliceReflectExportToStructField(t *testing.T) {
+	vm := New()
+	v, err := vm.RunString(`({A: [1], B: [2]})`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s struct {
+		A []int
+		B *[]int
+	}
+	err = vm.ExportTo(v, &s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.A) != 1 || s.A[0] != 1 {
+		t.Fatalf("s.A: %v", s.A)
+	}
+	if len(*s.B) != 1 || (*s.B)[0] != 2 {
+		t.Fatalf("s.B: %v", *s.B)
+	}
+}
+
 func TestGoSliceReflectProtoMethod(t *testing.T) {
 	const SCRIPT = `
 	a.join(",")
@@ -368,5 +416,35 @@ func TestGoSliceReflectMethods(t *testing.T) {
 	`)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestGoSliceReflectExportAfterGrow(t *testing.T) {
+	vm := New()
+	vm.Set("a", []int{1})
+	v, err := vm.RunString(`
+		a.push(2);
+		a;
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exp := v.Export()
+	if a, ok := exp.([]int); ok {
+		if len(a) != 2 || a[0] != 1 || a[1] != 2 {
+			t.Fatal(a)
+		}
+	} else {
+		t.Fatalf("Wrong type: %T", exp)
+	}
+}
+
+func BenchmarkGoSliceReflectSet(b *testing.B) {
+	vm := New()
+	a := vm.ToValue([]int{1}).(*Object)
+	b.ResetTimer()
+	v := intToValue(0)
+	for i := 0; i < b.N; i++ {
+		a.Set("0", v)
 	}
 }

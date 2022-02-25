@@ -727,7 +727,7 @@ func TestTC39(t *testing.T) {
 	}
 
 	if _, err := os.Stat(tc39BASE); err != nil {
-		t.Skipf("If you want to run tc39 tests, download them from https://github.com/tc39/test262 and put into %s. The current working commit is ddfe24afe3043388827aa220ef623b8540958bbd. (%v)", tc39BASE, err)
+		t.Skipf("If you want to run tc39 tests, download them from https://github.com/tc39/test262 and put into %s. See .tc39_test262_checkout.sh for the latest working commit id. (%v)", tc39BASE, err)
 	}
 
 	ctx := &tc39TestCtx{
