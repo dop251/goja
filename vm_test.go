@@ -80,6 +80,16 @@ func TestResolveMixedStack1(t *testing.T) {
 	testScript(SCRIPT, valueInt(42), t)
 }
 
+func TestNewArrayFromIterClosed(t *testing.T) {
+	const SCRIPT = `
+	const [a, ...other] = [];
+	assert.sameValue(a, undefined);
+	assert(Array.isArray(other));
+	assert.sameValue(other.length, 0);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func BenchmarkVmNOP2(b *testing.B) {
 	prg := []func(*vm){
 		//loadVal(0).exec,
