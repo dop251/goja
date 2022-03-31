@@ -497,6 +497,9 @@ func TestParserErr(t *testing.T) {
 		test("`", "(anonymous): Line 1:2 Unexpected end of input")
 		test(" `", "(anonymous): Line 1:3 Unexpected end of input")
 		test("` ", "(anonymous): Line 1:3 Unexpected end of input")
+		test(`var{..(`, "(anonymous): Line 1:7 Unexpected token ILLEGAL")
+		test(`var{get..(`, "(anonymous): Line 1:10 Unexpected token ILLEGAL")
+		test(`var{set..(`, "(anonymous): Line 1:10 Unexpected token ILLEGAL")
 	})
 }
 
