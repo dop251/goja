@@ -3086,10 +3086,10 @@ func (vm *vm) alreadyDeclared(name unistring.String) Value {
 func (vm *vm) checkBindVarsGlobal(names []unistring.String) {
 	o := vm.r.globalObject.self
 	sn := vm.r.global.stash.names
-	if o, ok := o.(*baseObject); ok {
+	if bo, ok := o.(*baseObject); ok {
 		// shortcut
 		for _, name := range names {
-			if !o.hasOwnPropertyStr(name) && !o.extensible {
+			if !bo.hasOwnPropertyStr(name) && !bo.extensible {
 				panic(vm.r.NewTypeError("Cannot define global variable '%s', global object is not extensible", name))
 			}
 			if _, exists := sn[name]; exists {
@@ -3115,10 +3115,10 @@ func (vm *vm) createGlobalVarBindings(names []unistring.String, d bool) {
 		vm.r.global.varNames = globalVarNames
 	}
 	o := vm.r.globalObject.self
-	if o, ok := o.(*baseObject); ok {
+	if bo, ok := o.(*baseObject); ok {
 		for _, name := range names {
-			if !o.hasOwnPropertyStr(name) && o.extensible {
-				o._putProp(name, _undefined, true, true, d)
+			if !bo.hasOwnPropertyStr(name) && bo.extensible {
+				bo._putProp(name, _undefined, true, true, d)
 			}
 			globalVarNames[name] = struct{}{}
 		}
