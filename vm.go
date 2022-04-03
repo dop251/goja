@@ -3088,12 +3088,20 @@ func (vm *vm) checkBindVarsGlobal(names []unistring.String) {
 	sn := vm.r.global.stash.names
 	if bo, ok := o.(*baseObject); ok {
 		// shortcut
-		for _, name := range names {
-			if !bo.hasOwnPropertyStr(name) && !bo.extensible {
-				panic(vm.r.NewTypeError("Cannot define global variable '%s', global object is not extensible", name))
+		if bo.extensible {
+			for _, name := range names {
+				if _, exists := sn[name]; exists {
+					panic(vm.alreadyDeclared(name))
+				}
 			}
-			if _, exists := sn[name]; exists {
-				panic(vm.alreadyDeclared(name))
+		} else {
+			for _, name := range names {
+				if !bo.hasOwnPropertyStr(name) {
+					panic(vm.r.NewTypeError("Cannot define global variable '%s', global object is not extensible", name))
+				}
+				if _, exists := sn[name]; exists {
+					panic(vm.alreadyDeclared(name))
+				}
 			}
 		}
 	} else {
