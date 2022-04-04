@@ -6,15 +6,16 @@ import (
 )
 
 type _scope struct {
-	outer           *_scope
-	allowIn         bool
-	allowLet        bool
-	inIteration     bool
-	inSwitch        bool
-	inFunction      bool
-	declarationList []*ast.VariableDeclaration
-	importEntries   []*ast.ImportDeclaration
-	exportEntries   []*ast.ExportDeclaration
+	outer             *_scope
+	allowIn           bool
+	allowLet          bool
+	allowImportExport bool
+	inIteration       bool
+	inSwitch          bool
+	inFunction        bool
+	declarationList   []*ast.VariableDeclaration
+	importEntries     []*ast.ImportDeclaration
+	exportEntries     []*ast.ExportDeclaration
 
 	labels []unistring.String
 }

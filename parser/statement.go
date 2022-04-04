@@ -42,6 +42,8 @@ func (self *_parser) parseStatement() ast.Statement {
 		return &ast.BadStatement{From: self.idx, To: self.idx + 1}
 	}
 
+	allowImportExport := self.scope.allowImportExport
+	self.scope.allowImportExport = false
 	switch self.token {
 	case token.SEMICOLON:
 		return self.parseEmptyStatement()
@@ -86,7 +88,7 @@ func (self *_parser) parseStatement() ast.Statement {
 	case token.TRY:
 		return self.parseTryStatement()
 	case token.EXPORT:
-		if self.scope.outer != nil {
+		if !allowImportExport {
 			self.next()
 			self.error(self.idx, "export only allowed in global scope")
 			return &ast.BadStatement{From: self.idx, To: self.idx + 1}
@@ -103,7 +105,7 @@ func (self *_parser) parseStatement() ast.Statement {
 			return exp
 		}
 	case token.IMPORT:
-		if self.scope.outer != nil {
+		if !allowImportExport {
 			self.next()
 			self.error(self.idx, "import only allowed in global scope")
 			return &ast.BadStatement{From: self.idx, To: self.idx + 1}
@@ -667,6 +669,7 @@ func (self *_parser) parseIfStatement() ast.Statement {
 func (self *_parser) parseSourceElements() (body []ast.Statement) {
 	for self.token != token.EOF {
 		self.scope.allowLet = true
+		self.scope.allowImportExport = true
 		body = append(body, self.parseStatement())
 	}
 
@@ -848,6 +851,7 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 	case token.MULTIPLY: // FIXME: should also parse NamedExports if '{'
 		exportFromClause := self.parseExportFromClause()
 		fromClause := self.parseFromClause()
+		self.semicolon()
 		return &ast.ExportDeclaration{
 			ExportFromClause: exportFromClause,
 			FromClause:       fromClause,
@@ -855,6 +859,7 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 	case token.LEFT_BRACE:
 		namedExports := self.parseNamedExports()
 		fromClause := self.parseFromClause()
+		self.semicolon()
 		return &ast.ExportDeclaration{
 			NamedExports: namedExports,
 			FromClause:   fromClause,
@@ -865,15 +870,28 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 		return &ast.ExportDeclaration{LexicalDeclaration: self.parseLexicalDeclaration(self.token)}
 	case token.FUNCTION: // FIXME: What about function* and async?
 		// TODO implement
-		self.next()
-		self.error(self.idx, "unsupported")
-	case token.DEFAULT: // FIXME: current implementation of HoistableDeclaration only implements function?
-		self.next()
 		functionDeclaration := self.parseFunction(false)
+		self.semicolon()
 		return &ast.ExportDeclaration{
 			HoistableDeclaration: &ast.HoistableDeclaration{
 				FunctionDeclaration: functionDeclaration,
 			},
+		}
+	case token.DEFAULT: // FIXME: current implementation of HoistableDeclaration only implements function?
+		self.next()
+		switch self.token {
+		case token.FUNCTION:
+			functionDeclaration := self.parseFunction(false)
+			return &ast.ExportDeclaration{
+				HoistableDeclaration: &ast.HoistableDeclaration{
+					FunctionDeclaration: functionDeclaration,
+				},
+			}
+			// TODO classes
+		default:
+			return &ast.ExportDeclaration{
+				AssignExpression: self.parseAssignmentExpression(),
+			}
 		}
 	default:
 		namedExports := self.parseNamedExports()
@@ -1007,7 +1025,7 @@ func (self *_parser) parseExportsList() (exportsList []*ast.ExportSpecifier) { /
 		return
 	}
 
-	for {
+	for self.token != token.RIGHT_BRACE {
 		exportsList = append(exportsList, self.parseExportSpecifier())
 		if self.token != token.COMMA {
 			break
@@ -1027,13 +1045,11 @@ func (self *_parser) parseExportSpecifier() *ast.ExportSpecifier {
 		return &ast.ExportSpecifier{IdentifierName: identifier.Name}
 	}
 
-	as := self.parseIdentifier()
-	// We reach this point only if the next token is an identifier.
-	// Let's now verify if it's "as".
-	if as.Name != "as" { // FIXME: The specification says 'as' is a keyword in this context
+	if self.literal != "as" {
 		// FAIL
-		self.error(as.Idx, "Expected 'as' keyword, found '%s' instead", as.Name)
+		self.error(self.idx, "Expected 'as' keyword, found '%s' instead", self.literal)
 	}
+	self.next()
 
 	alias := self.parseIdentifier()
 
@@ -1064,6 +1080,9 @@ func (self *_parser) parseImportClause() *ast.ImportClause { // FIXME: return ty
 
 			if self.token == token.MULTIPLY {
 				importClause.NameSpaceImport = self.parseNameSpaceImport()
+			} else if self.token == token.RIGHT_BRACE {
+				self.next()
+				return &importClause
 			} else {
 				importClause.NamedImports = self.parseNamedImports()
 			}
@@ -1093,11 +1112,11 @@ func (self *_parser) parseImportedDefaultBinding() *ast.Identifier {
 // FIXME: return type?
 func (self *_parser) parseNameSpaceImport() *ast.NameSpaceImport {
 	self.expect(token.MULTIPLY) // *
-	identifier := self.parseIdentifier()
-	if identifier.Name != "as" {
-		self.error(self.idx, "expected 'as' identifier, found '%s' instead", identifier.Name)
-		return nil
+	if self.literal != "as" {
+		// FAIL
+		self.error(self.idx, "Expected 'as' keyword, found '%s' instead", self.literal)
 	}
+	self.next()
 
 	return &ast.NameSpaceImport{ImportedBinding: self.parseImportedBinding().Name}
 }

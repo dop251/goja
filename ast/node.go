@@ -473,6 +473,7 @@ type (
 		idx0               file.Idx
 		idx1               file.Idx
 		Variable           *VariableStatement
+		AssignExpression   Expression
 		LexicalDeclaration *LexicalDeclaration
 		// ClassDeclaration
 		NamedExports         *NamedExports

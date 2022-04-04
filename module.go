@@ -275,6 +275,7 @@ func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
 
 func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 	var result []exportEntry
+	// spew.Dump(declarations)
 	for _, exportDeclaration := range declarations {
 		if exportDeclaration.ExportFromClause != nil {
 			exportFromClause := exportDeclaration.ExportFromClause
@@ -339,9 +340,13 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 		} else if fromClause := exportDeclaration.FromClause; fromClause != nil {
 			if namedExports := exportDeclaration.NamedExports; namedExports != nil {
 				for _, spec := range namedExports.ExportsList {
+					alias := spec.IdentifierName.String()
+					if spec.Alias.String() != "" { // TODO fix
+						alias = spec.Alias.String()
+					}
 					result = append(result, exportEntry{
-						localName:     spec.IdentifierName.String(),
-						exportName:    spec.Alias.String(),
+						importName:    spec.IdentifierName.String(),
+						exportName:    alias,
 						moduleRequest: fromClause.ModuleSpecifier.String(),
 					})
 				}
@@ -351,17 +356,27 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 			}
 		} else if namedExports := exportDeclaration.NamedExports; namedExports != nil {
 			for _, spec := range namedExports.ExportsList {
+				alias := spec.IdentifierName.String()
+				if spec.Alias.String() != "" { // TODO fix
+					alias = spec.Alias.String()
+				}
 				result = append(result, exportEntry{
 					localName:  spec.IdentifierName.String(),
-					exportName: spec.Alias.String(),
+					exportName: alias,
 				})
 			}
+		} else if exportDeclaration.AssignExpression != nil {
+			result = append(result, exportEntry{
+				exportName: "default",
+				localName:  "default",
+			})
 		} else {
 			fmt.Printf("unimplemented %+v\n", exportDeclaration)
 			panic("wat")
 
 		}
 	}
+	// spew.Dump(result)
 	return result
 }
 
@@ -434,7 +449,8 @@ func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, erro
 			}
 		}
 	}
-	return &SourceTextModuleRecord{
+
+	s := &SourceTextModuleRecord{
 		// realm isn't implement
 		// environment is undefined
 		// namespace is undefined
@@ -450,7 +466,23 @@ func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, erro
 		localExportEntries:    localExportEntries,
 		indirectExportEntries: indirectExportEntries,
 		starExportEntries:     starExportEntries,
-	}, nil
+	}
+
+	s.rt = rt
+	names := s.getExportedNamesWithotStars() // we use this as the other one loops but wee need to early errors here
+	sort.Strings(names)
+	for i := 1; i < len(names); i++ {
+		if names[i] == names[i-1] {
+			return nil, &CompilerSyntaxError{
+				CompilerError: CompilerError{
+					Message: fmt.Sprintf("Duplicate export name %s", names[i]),
+				},
+			}
+		}
+		// TODO other checks
+	}
+
+	return s, nil
 }
 
 func (module *SourceTextModuleRecord) ExecuteModule() error {
@@ -458,6 +490,17 @@ func (module *SourceTextModuleRecord) ExecuteModule() error {
 
 	_, err := module.rt.RunProgram(module.compiler.p)
 	return err
+}
+
+func (module *SourceTextModuleRecord) getExportedNamesWithotStars() []string {
+	exportedNames := make([]string, 0, len(module.localExportEntries)+len(module.indirectExportEntries))
+	for _, e := range module.localExportEntries {
+		exportedNames = append(exportedNames, e.exportName)
+	}
+	for _, e := range module.indirectExportEntries {
+		exportedNames = append(exportedNames, e.exportName)
+	}
+	return exportedNames
 }
 
 func (module *SourceTextModuleRecord) GetExportedNames(exportStarSet ...*SourceTextModuleRecord) []string {
@@ -578,6 +621,9 @@ type ResolvedBinding struct {
 }
 
 func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolveset ...ResolveSetElement) (*ResolvedBinding, bool) {
+	if exportName == "" {
+		panic("wat")
+	}
 	for _, r := range resolveset {
 		if r.Module == module && exportName == r.ExportName { // TODO better
 			return nil, false

@@ -316,6 +316,8 @@ func init() {
 		// BigInt
 		"test/built-ins/TypedArrayConstructors/BigUint64Array/",
 		"test/built-ins/TypedArrayConstructors/BigInt64Array/",
+		// module namespace TODO remove
+		"test/language/module-code/namespace/",
 	)
 }
 
@@ -720,7 +722,6 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 			cache[fname] = cacheElement{err: err}
 			return nil, err
 		}
-		p.rt = vm
 		p.compiler = newCompiler()
 		p.compiler.hostResolveImportedModule = hostResolveImportedModule
 		cache[fname] = cacheElement{m: p}
@@ -734,12 +735,12 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 	}
 	p := m.(*SourceTextModuleRecord)
 
-	early = false
 	err = p.Link()
 	if err != nil {
 		return
 	}
 
+	early = false
 	err = p.Evaluate()
 	return
 }
@@ -822,6 +823,7 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/language/expressions")
 		ctx.runTC39Tests("test/language/arguments-object")
 		ctx.runTC39Tests("test/language/asi")
+		ctx.runTC39Tests("test/language/block-scope")
 		ctx.runTC39Tests("test/language/directive-prologue")
 		ctx.runTC39Tests("test/language/function-code")
 		ctx.runTC39Tests("test/language/eval-code")

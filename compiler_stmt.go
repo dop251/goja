@@ -767,12 +767,6 @@ func (c *compiler) emitVarAssign(name unistring.String, offset int, init compile
 }
 
 func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
-	/* TODO fix
-	if !c.scope.module {
-		c.throwSyntaxError(int(expr.Idx0()), "export not allowed in non module code")
-	}
-	*/
-
 	if expr.Variable != nil {
 		c.compileVariableStatement(expr.Variable)
 	} else if expr.LexicalDeclaration != nil {
@@ -785,29 +779,25 @@ func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
 }
 
 func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
-	/* TODO fix
-	if !c.scope.module {
-		c.throwSyntaxError(int(expr.Idx0()), "import not allowed in non module code")
-	}
-	*/
 	if expr.FromClause == nil {
 		return // TODO is this right?
 	}
 	// TODO fix, maybe cache this?!? have the current module as a field?
 	module, err := c.hostResolveImportedModule(nil, expr.FromClause.ModuleSpecifier.String())
+	_ = module // TODO fix
 	if err != nil {
 		// TODO this should in practice never happen
 		c.throwSyntaxError(int(expr.Idx0()), err.Error())
 	}
 	if expr.ImportClause != nil {
 		if namespace := expr.ImportClause.NameSpaceImport; namespace != nil {
-			/*
-				r := &compiledLiteral{
-					val: getModuleNamespace(module),
-				}
-				r.init(c, expr.Idx0())
-				c.emitVarAssign(namespace.ImportedBinding, int(expr.Idx)-1, r)
-			*/
+			r := &compiledLiteral{
+				// TODO export namespace
+				val: stringValueFromRaw("namespace thing"),
+				// val: module.Namespace()),
+			}
+			r.init(c, expr.Idx0())
+			c.emitVarAssign(namespace.ImportedBinding, int(expr.Idx)-1, r)
 		}
 		if named := expr.ImportClause.NamedImports; named != nil {
 			for _, name := range named.ImportsList {
@@ -820,7 +810,7 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 					c.throwSyntaxError(int(expr.Idx0()), "import of %s was not expoted from module %s", name.IdentifierName.String(), expr.FromClause.ModuleSpecifier.String())
 				}
 				r := &compiledLiteral{
-					val: Undefined(), // TODO FIX
+					val: stringValueFromRaw("to do fix this"), // TODO FIX
 				}
 				r.init(c, expr.Idx0())
 				// This should probably be the idx of the name?
@@ -829,7 +819,7 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 		}
 
 		if def := expr.ImportClause.ImportedDefaultBinding; def != nil {
-
+			fmt.Println("heres", def)
 			value, ambiguous := module.ResolveExport("default")
 			if ambiguous { // also ambiguous
 				c.throwSyntaxError(int(expr.Idx0()), "ambiguous import of %s", "default")
@@ -837,12 +827,17 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 			if value == nil {
 				c.throwSyntaxError(int(expr.Idx0()), "import of \"default\" was not exported from module %s", expr.FromClause.ModuleSpecifier.String())
 			}
+			name := unistring.String(def.Name.String())
+			fmt.Println("value", value, name)
+			c.scope.bindName(name)
+			a, b := c.scope.lookupName(name)
+			fmt.Println("lookup", a, b)
 			r := &compiledLiteral{
-				val: Undefined(), // TODO FIX
+				val: stringValueFromRaw("pe"), // TODO FIX
 				// val: value,
 			}
 			r.init(c, def.Idx0())
-			c.emitVarAssign(def.Name, int(def.Idx1())-1, r)
+			r.emitGetter(true)
 		}
 	}
 }
