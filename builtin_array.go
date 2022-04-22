@@ -397,9 +397,12 @@ func (r *Runtime) arrayproto_splice(call FunctionCall) Value {
 	default:
 		actualDeleteCount = min(max(call.Argument(1).ToInteger(), 0), length-actualStart)
 	}
-	a := arraySpeciesCreate(o, actualDeleteCount)
 	itemCount := max(int64(len(call.Arguments)-2), 0)
 	newLength := length - actualDeleteCount + itemCount
+	if newLength >= maxInt {
+		panic(r.NewTypeError("Invalid array length"))
+	}
+	a := arraySpeciesCreate(o, actualDeleteCount)
 	if src := r.checkStdArrayObj(o); src != nil {
 		if dst := r.checkStdArrayObjWithProto(a); dst != nil {
 			values := make([]Value, actualDeleteCount)
@@ -488,31 +491,36 @@ func (r *Runtime) arrayproto_unshift(call FunctionCall) Value {
 	length := toLength(o.self.getStr("length", nil))
 	argCount := int64(len(call.Arguments))
 	newLen := intToValue(length + argCount)
-	newSize := length + argCount
-	if arr := r.checkStdArrayObjWithProto(o); arr != nil && newSize < math.MaxUint32 {
-		if int64(cap(arr.values)) >= newSize {
-			arr.values = arr.values[:newSize]
-			copy(arr.values[argCount:], arr.values[:length])
-		} else {
-			values := make([]Value, newSize)
-			copy(values[argCount:], arr.values)
-			arr.values = values
+	if argCount > 0 {
+		newSize := length + argCount
+		if newSize >= maxInt {
+			panic(r.NewTypeError("Invalid array length"))
 		}
-		copy(arr.values, call.Arguments)
-		arr.objCount = int(arr.length)
-	} else {
-		for k := length - 1; k >= 0; k-- {
-			from := valueInt(k)
-			to := valueInt(k + argCount)
-			if o.self.hasPropertyIdx(from) {
-				o.self.setOwnIdx(to, nilSafe(o.self.getIdx(from, nil)), true)
+		if arr := r.checkStdArrayObjWithProto(o); arr != nil && newSize < math.MaxUint32 {
+			if int64(cap(arr.values)) >= newSize {
+				arr.values = arr.values[:newSize]
+				copy(arr.values[argCount:], arr.values[:length])
 			} else {
-				o.self.deleteIdx(to, true)
+				values := make([]Value, newSize)
+				copy(values[argCount:], arr.values)
+				arr.values = values
 			}
-		}
+			copy(arr.values, call.Arguments)
+			arr.objCount = int(arr.length)
+		} else {
+			for k := length - 1; k >= 0; k-- {
+				from := valueInt(k)
+				to := valueInt(k + argCount)
+				if o.self.hasPropertyIdx(from) {
+					o.self.setOwnIdx(to, nilSafe(o.self.getIdx(from, nil)), true)
+				} else {
+					o.self.deleteIdx(to, true)
+				}
+			}
 
-		for k, arg := range call.Arguments {
-			o.self.setOwnIdx(valueInt(int64(k)), arg, true)
+			for k, arg := range call.Arguments {
+				o.self.setOwnIdx(valueInt(int64(k)), arg, true)
+			}
 		}
 	}
 
@@ -882,15 +890,22 @@ func (r *Runtime) arrayproto_reduceRight(call FunctionCall) Value {
 func arrayproto_reverse_generic_step(o *Object, lower, upper int64) {
 	lowerP := valueInt(lower)
 	upperP := valueInt(upper)
-	lowerValue := o.self.getIdx(lowerP, nil)
-	upperValue := o.self.getIdx(upperP, nil)
-	if lowerValue != nil && upperValue != nil {
+	var lowerValue, upperValue Value
+	lowerExists := o.self.hasPropertyIdx(lowerP)
+	if lowerExists {
+		lowerValue = nilSafe(o.self.getIdx(lowerP, nil))
+	}
+	upperExists := o.self.hasPropertyIdx(upperP)
+	if upperExists {
+		upperValue = nilSafe(o.self.getIdx(upperP, nil))
+	}
+	if lowerExists && upperExists {
 		o.self.setOwnIdx(lowerP, upperValue, true)
 		o.self.setOwnIdx(upperP, lowerValue, true)
-	} else if lowerValue == nil && upperValue != nil {
+	} else if !lowerExists && upperExists {
 		o.self.setOwnIdx(lowerP, upperValue, true)
 		o.self.deleteIdx(upperP, true)
-	} else if lowerValue != nil && upperValue == nil {
+	} else if lowerExists && !upperExists {
 		o.self.deleteIdx(lowerP, true)
 		o.self.setOwnIdx(upperP, lowerValue, true)
 	}
