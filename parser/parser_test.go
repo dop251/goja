@@ -197,6 +197,9 @@ func TestParserErr(t *testing.T) {
 
 		test("\n/* Some multiline\ncomment */\n)", "(anonymous): Line 4:1 Unexpected token )")
 
+		test("+1 ** 2", "(anonymous): Line 1:4 Unexpected token **")
+		test("typeof 1 ** 2", "(anonymous): Line 1:10 Unexpected token **")
+
 		// TODO
 		//{ set 1 }
 		//{ get 2 }

@@ -307,9 +307,6 @@ func init() {
 		"test/built-ins/GeneratorFunction/",
 		"test/built-ins/Function/prototype/toString/generator-",
 
-		// **
-		"test/language/expressions/exponentiation",
-
 		// BigInt
 		"test/built-ins/TypedArrayConstructors/BigUint64Array/",
 		"test/built-ins/TypedArrayConstructors/BigInt64Array/",

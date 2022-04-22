@@ -994,6 +994,16 @@ end:
 	vm.pc++
 }
 
+type _exp struct{}
+
+var exp _exp
+
+func (_exp) exec(vm *vm) {
+	vm.sp--
+	vm.stack[vm.sp-1] = pow(vm.stack[vm.sp-1], vm.stack[vm.sp])
+	vm.pc++
+}
+
 type _div struct{}
 
 var div _div
