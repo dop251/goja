@@ -954,19 +954,64 @@ func (self *_parser) parseLogicalAndExpression() ast.Expression {
 	return left
 }
 
+func isLogicalAndExpr(expr ast.Expression) bool {
+	if bexp, ok := expr.(*ast.BinaryExpression); ok && bexp.Operator == token.LOGICAL_AND {
+		return true
+	}
+	return false
+}
+
 func (self *_parser) parseLogicalOrExpression() ast.Expression {
+	var idx file.Idx
+	parenthesis := self.token == token.LEFT_PARENTHESIS
 	left := self.parseLogicalAndExpression()
 
-	for self.token == token.LOGICAL_OR {
-		tkn := self.token
-		self.next()
-		left = &ast.BinaryExpression{
-			Operator: tkn,
-			Left:     left,
-			Right:    self.parseLogicalAndExpression(),
+	if self.token == token.LOGICAL_OR || !parenthesis && isLogicalAndExpr(left) {
+		for {
+			switch self.token {
+			case token.LOGICAL_OR:
+				self.next()
+				left = &ast.BinaryExpression{
+					Operator: token.LOGICAL_OR,
+					Left:     left,
+					Right:    self.parseLogicalAndExpression(),
+				}
+			case token.COALESCE:
+				idx = self.idx
+				goto mixed
+			default:
+				return left
+			}
+		}
+	} else {
+		for {
+			switch self.token {
+			case token.COALESCE:
+				idx = self.idx
+				self.next()
+
+				parenthesis := self.token == token.LEFT_PARENTHESIS
+				right := self.parseLogicalAndExpression()
+				if !parenthesis && isLogicalAndExpr(right) {
+					goto mixed
+				}
+
+				left = &ast.BinaryExpression{
+					Operator: token.COALESCE,
+					Left:     left,
+					Right:    right,
+				}
+			case token.LOGICAL_OR:
+				idx = self.idx
+				goto mixed
+			default:
+				return left
+			}
 		}
 	}
 
+mixed:
+	self.error(idx, "Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 	return left
 }
 

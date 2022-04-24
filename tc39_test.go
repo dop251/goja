@@ -233,7 +233,6 @@ var (
 		"import-assertions",
 		"dynamic-import",
 		"logical-assignment-operators",
-		"coalesce-expression",
 		"import.meta",
 		"Atomics",
 		"Atomics.waitAsync",

@@ -163,6 +163,11 @@ type compiledLogicalOr struct {
 	left, right compiledExpr
 }
 
+type compiledCoalesce struct {
+	baseCompiledExpr
+	left, right compiledExpr
+}
+
 type compiledLogicalAnd struct {
 	baseCompiledExpr
 	left, right compiledExpr
@@ -1630,9 +1635,49 @@ func (e *compiledLogicalOr) emitGetter(putOnStack bool) {
 	j := len(e.c.p.code)
 	e.addSrcMap()
 	e.c.emit(nil)
-	e.c.emit(pop)
 	e.c.emitExpr(e.right, true)
 	e.c.p.code[j] = jeq1(len(e.c.p.code) - j)
+	if !putOnStack {
+		e.c.emit(pop)
+	}
+}
+
+func (e *compiledCoalesce) constant() bool {
+	if e.left.constant() {
+		if v, ex := e.c.evalConst(e.left); ex == nil {
+			if v != _null && v != _undefined {
+				return true
+			}
+			return e.right.constant()
+		} else {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (e *compiledCoalesce) emitGetter(putOnStack bool) {
+	if e.left.constant() {
+		if v, ex := e.c.evalConst(e.left); ex == nil {
+			if v == _undefined || v == _null {
+				e.c.emitExpr(e.right, putOnStack)
+			} else {
+				if putOnStack {
+					e.c.emit(loadVal(e.c.p.defineLiteralValue(v)))
+				}
+			}
+		} else {
+			e.c.emitThrow(ex.val)
+		}
+		return
+	}
+	e.c.emitExpr(e.left, true)
+	j := len(e.c.p.code)
+	e.addSrcMap()
+	e.c.emit(nil)
+	e.c.emitExpr(e.right, true)
+	e.c.p.code[j] = jcoalesc(len(e.c.p.code) - j)
 	if !putOnStack {
 		e.c.emit(pop)
 	}
@@ -1672,7 +1717,6 @@ func (e *compiledLogicalAnd) emitGetter(putOnStack bool) {
 	j = len(e.c.p.code)
 	e.addSrcMap()
 	e.c.emit(nil)
-	e.c.emit(pop)
 	e.c.emitExpr(e.right, true)
 	e.c.p.code[j] = jneq1(len(e.c.p.code) - j)
 	if !putOnStack {
@@ -1748,6 +1792,8 @@ func (c *compiler) compileBinaryExpression(v *ast.BinaryExpression) compiledExpr
 	switch v.Operator {
 	case token.LOGICAL_OR:
 		return c.compileLogicalOr(v.Left, v.Right, v.Idx0())
+	case token.COALESCE:
+		return c.compileCoalesce(v.Left, v.Right, v.Idx0())
 	case token.LOGICAL_AND:
 		return c.compileLogicalAnd(v.Left, v.Right, v.Idx0())
 	}
@@ -1763,6 +1809,15 @@ func (c *compiler) compileBinaryExpression(v *ast.BinaryExpression) compiledExpr
 
 func (c *compiler) compileLogicalOr(left, right ast.Expression, idx file.Idx) compiledExpr {
 	r := &compiledLogicalOr{
+		left:  c.compileExpression(left),
+		right: c.compileExpression(right),
+	}
+	r.init(c, idx)
+	return r
+}
+
+func (c *compiler) compileCoalesce(left, right ast.Expression, idx file.Idx) compiledExpr {
+	r := &compiledCoalesce{
 		left:  c.compileExpression(left),
 		right: c.compileExpression(right),
 	}

@@ -413,6 +413,9 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 				if self.chr == '.' && !isDecimalDigit(self._peek()) {
 					self.read()
 					tkn = token.QUESTION_DOT
+				} else if self.chr == '?' {
+					self.read()
+					tkn = token.COALESCE
 				} else {
 					tkn = token.QUESTION_MARK
 				}

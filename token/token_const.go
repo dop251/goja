@@ -40,6 +40,7 @@ const (
 
 	LOGICAL_AND // &&
 	LOGICAL_OR  // ||
+	COALESCE    // ??
 	INCREMENT   // ++
 	DECREMENT   // --
 
@@ -155,6 +156,7 @@ var token2string = [...]string{
 	UNSIGNED_SHIFT_RIGHT_ASSIGN: ">>>=",
 	LOGICAL_AND:                 "&&",
 	LOGICAL_OR:                  "||",
+	COALESCE:                    "??",
 	INCREMENT:                   "++",
 	DECREMENT:                   "--",
 	EQUAL:                       "==",
