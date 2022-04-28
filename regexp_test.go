@@ -137,6 +137,14 @@ func TestRegexpReplaceGlobal(t *testing.T) {
 	testScript(SCRIPT, asciiString("QBZPbage\ny_cynprubyqre"), t)
 }
 
+func TestRegexpReplaceAll(t *testing.T) {
+	const SCRIPT = `
+	"QBZPbage\ny_cynprubyqre".replaceAll(/^\s*|\s*$/g, '')
+	`
+
+	testScript(SCRIPT, asciiString("QBZPbage\ny_cynprubyqre"), t)
+}
+
 func TestRegexpNumCaptures(t *testing.T) {
 	const SCRIPT = `
 	"Fubpxjnir Synfu 9.0  e115".replace(/([a-zA-Z]|\s)+/, '')

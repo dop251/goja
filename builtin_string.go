@@ -682,7 +682,7 @@ func (r *Runtime) stringproto_replaceAll(call FunctionCall) Value {
 	searchValue := call.Argument(0)
 	replaceValue := call.Argument(1)
 	if searchValue != _undefined && searchValue != _null {
-		if replacer := toMethod(r.getV(searchValue, SymReplace)); replacer != nil {
+		if replacer := toMethod(r.getV(searchValue, SymReplaceAll)); replacer != nil {
 			return replacer(FunctionCall{
 				This:      searchValue,
 				Arguments: []Value{call.This, replaceValue},
@@ -693,10 +693,11 @@ func (r *Runtime) stringproto_replaceAll(call FunctionCall) Value {
 	s := call.This.toString()
 	var found [][]int
 	searchStr := searchValue.toString()
+	searchLen := searchStr.length()
 	pos := s.index(searchStr, 0)
 	for pos != -1 {
-		found = append(found, []int{pos, pos + searchStr.length()})
-		pos = s.index(searchStr, pos)
+		found = append(found, []int{pos, pos + searchLen})
+		pos = s.index(searchStr, pos + searchLen)
 	}
 
 	str, rcall := getReplaceValue(replaceValue)
