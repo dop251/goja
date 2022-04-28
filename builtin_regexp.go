@@ -1200,6 +1200,36 @@ func (r *Runtime) regexpproto_stdReplacer(call FunctionCall) Value {
 	return stringReplace(s, found, replaceStr, rcall)
 }
 
+func (r *Runtime) regexpproto_stdReplacerAll(call FunctionCall) Value {
+	rxObj := r.toObject(call.This)
+	s := call.Argument(0).toString()
+	replaceStr, rcall := getReplaceValue(call.Argument(1))
+
+	rx := r.checkStdRegexp(rxObj)
+	if rx == nil {
+		return r.regexpproto_stdReplacerGeneric(rxObj, s, replaceStr, rcall)
+	}
+
+	var index int64
+	find := 1
+	if rx.pattern.global {
+		find = -1
+		rx.setOwnStr("lastIndex", intToValue(0), true)
+	} else {
+		r.typeErrorResult(true, "replaceAll must be called with a global RegExp")
+	}
+	found := rx.pattern.findAllSubmatchIndex(s, toIntStrict(index), find, rx.pattern.sticky)
+	if len(found) > 0 {
+		if !rx.updateLastIndex(index, found[0], found[len(found)-1]) {
+			found = nil
+		}
+	} else {
+		rx.updateLastIndex(index, nil, nil)
+	}
+
+	return stringReplace(s, found, replaceStr, rcall)
+}
+
 func (r *Runtime) regExpStringIteratorProto_next(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	if iter, ok := thisObj.self.(*regExpStringIterObject); ok {
@@ -1268,6 +1298,7 @@ func (r *Runtime) initRegExp() {
 	o._putSym(SymSearch, valueProp(r.newNativeFunc(r.regexpproto_stdSearch, nil, "[Symbol.search]", nil, 1), true, false, true))
 	o._putSym(SymSplit, valueProp(r.newNativeFunc(r.regexpproto_stdSplitter, nil, "[Symbol.split]", nil, 2), true, false, true))
 	o._putSym(SymReplace, valueProp(r.newNativeFunc(r.regexpproto_stdReplacer, nil, "[Symbol.replace]", nil, 2), true, false, true))
+	o._putSym(SymReplaceAll, valueProp(r.newNativeFunc(r.regexpproto_stdReplacerAll, nil, "[Symbol.replaceAll]", nil, 2), true, false, true))
 	o.guard("exec", "global", "multiline", "ignoreCase", "unicode", "sticky")
 
 	r.global.RegExp = r.newNativeFunc(r.builtin_RegExp, r.builtin_newRegExp, "RegExp", r.global.RegExpPrototype, 2)
