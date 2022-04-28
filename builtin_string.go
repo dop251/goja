@@ -697,7 +697,7 @@ func (r *Runtime) stringproto_replaceAll(call FunctionCall) Value {
 	pos := s.index(searchStr, 0)
 	for pos != -1 {
 		found = append(found, []int{pos, pos + searchLen})
-		pos = s.index(searchStr, pos + searchLen)
+		pos = s.index(searchStr, pos+searchLen)
 	}
 
 	str, rcall := getReplaceValue(replaceValue)
