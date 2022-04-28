@@ -217,7 +217,6 @@ var (
 		"class-fields-private-in",
 		"super",
 		"generators",
-		"String.prototype.replaceAll",
 		"String.prototype.at",
 		"resizable-arraybuffer",
 		"array-find-from-last",

@@ -677,6 +677,32 @@ func (r *Runtime) stringproto_replace(call FunctionCall) Value {
 	return stringReplace(s, found, str, rcall)
 }
 
+func (r *Runtime) stringproto_replaceAll(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
+	searchValue := call.Argument(0)
+	replaceValue := call.Argument(1)
+	if searchValue != _undefined && searchValue != _null {
+		if replacer := toMethod(r.getV(searchValue, SymReplace)); replacer != nil {
+			return replacer(FunctionCall{
+				This:      searchValue,
+				Arguments: []Value{call.This, replaceValue},
+			})
+		}
+	}
+
+	s := call.This.toString()
+	var found [][]int
+	searchStr := searchValue.toString()
+	pos := s.index(searchStr, 0)
+	for pos != -1 {
+		found = append(found, []int{pos, pos + searchStr.length()})
+		pos = s.index(searchStr, pos)
+	}
+
+	str, rcall := getReplaceValue(replaceValue)
+	return stringReplace(s, found, str, rcall)
+}
+
 func (r *Runtime) stringproto_search(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	regexp := call.Argument(0)
@@ -963,6 +989,7 @@ func (r *Runtime) initString() {
 	o._putProp("padStart", r.newNativeFunc(r.stringproto_padStart, nil, "padStart", nil, 1), true, false, true)
 	o._putProp("repeat", r.newNativeFunc(r.stringproto_repeat, nil, "repeat", nil, 1), true, false, true)
 	o._putProp("replace", r.newNativeFunc(r.stringproto_replace, nil, "replace", nil, 2), true, false, true)
+	o._putProp("replaceAll", r.newNativeFunc(r.stringproto_replaceAll, nil, "replaceAll", nil, 2), true, false, true)
 	o._putProp("search", r.newNativeFunc(r.stringproto_search, nil, "search", nil, 1), true, false, true)
 	o._putProp("slice", r.newNativeFunc(r.stringproto_slice, nil, "slice", nil, 2), true, false, true)
 	o._putProp("split", r.newNativeFunc(r.stringproto_split, nil, "split", nil, 2), true, false, true)
