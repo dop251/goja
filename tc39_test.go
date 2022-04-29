@@ -204,7 +204,7 @@ var (
 
 		// Left-hand side as a CoverParenthesizedExpression
 		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
-		
+
 		// at
 		"test/built-ins/String/prototype/at/returns-code-unit.js": true,
 	}
