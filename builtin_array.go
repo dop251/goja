@@ -536,7 +536,11 @@ func (r *Runtime) arrayproto_at(call FunctionCall) Value {
 		return _undefined
 	}
 	if idx < 0 {
-		idx = length - idx
+		if idx * -1 > length {
+			return _undefined
+		} else {
+			idx = length + idx
+		}
 	}
 	i := valueInt(idx)
 	if o.self.hasPropertyIdx(i) {

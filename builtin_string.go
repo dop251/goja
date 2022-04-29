@@ -161,11 +161,16 @@ func (r *Runtime) stringproto_at(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
 	pos := call.Argument(0).ToInteger()
-	if pos >= int64(s.length()) {
+	length := int64(s.length())
+	if pos >= length {
 		return _undefined
 	}
 	if pos < 0 {
-		return newStringValue(string(s.charAt(toIntStrict(int64(s.length()) + pos))))
+		if pos * -1 > length {
+			return _undefined
+		} else {
+			pos = length + pos
+		}
 	}
 	return newStringValue(string(s.charAt(toIntStrict(pos))))
 }
