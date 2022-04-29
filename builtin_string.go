@@ -166,7 +166,7 @@ func (r *Runtime) stringproto_at(call FunctionCall) Value {
 		return _undefined
 	}
 	if pos < 0 {
-		if pos * -1 > length {
+		if pos*-1 > length {
 			return _undefined
 		} else {
 			pos = length + pos

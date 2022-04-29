@@ -536,7 +536,7 @@ func (r *Runtime) arrayproto_at(call FunctionCall) Value {
 		return _undefined
 	}
 	if idx < 0 {
-		if idx * -1 > length {
+		if idx*-1 > length {
 			return _undefined
 		} else {
 			idx = length + idx
