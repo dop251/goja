@@ -532,7 +532,6 @@ func (r *Runtime) arrayproto_at(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	idx := call.Argument(0).ToInteger()
 	length := toLength(o.self.getStr("length", nil))
-
 	if idx < 0 {
 		idx = length + idx
 	}
