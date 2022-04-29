@@ -648,9 +648,9 @@ func (r *Runtime) typedArrayProto_at(call FunctionCall) Value {
 		if idx < 0 {
 			idx = length - idx
 		}
-		idx = ta.offset + idx
+		i := ta.offset + int(idx)
 		if ta.viewedArrayBuf.ensureNotDetached(false) {
-			return ta.typedArray.getRaw(idx)
+			return ta.typedArray.get(i)
 		}
 		return _undefined
 	}
