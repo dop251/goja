@@ -528,6 +528,22 @@ func (r *Runtime) arrayproto_unshift(call FunctionCall) Value {
 	return newLen
 }
 
+func (r *Runtime) arrayproto_at(call FunctionCall) Value {
+	o := call.This.ToObject(r)
+	idx := call.Argument(0).ToInteger()
+	length := toLength(o.self.getStr("length", nil))
+	if idx >= length {
+		return _undefined
+	}
+	if idx < 0 {
+		idx = length - idx
+	}
+	if o.self.hasPropertyIdx(idx) {
+		return o.self.getIdx(idx, nil)
+	}
+	return _undefined
+}
+
 func (r *Runtime) arrayproto_indexOf(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	length := toLength(o.self.getStr("length", nil))
@@ -1335,6 +1351,7 @@ func (r *Runtime) createArrayProto(val *Object) objectImpl {
 	}
 	o.init()
 
+	o._putProp("at", r.newNativeFunc(r.arrayproto_at, nil, "at", nil, 1), true, false, true)
 	o._putProp("constructor", r.global.Array, true, false, true)
 	o._putProp("concat", r.newNativeFunc(r.arrayproto_concat, nil, "concat", nil, 1), true, false, true)
 	o._putProp("copyWithin", r.newNativeFunc(r.arrayproto_copyWithin, nil, "copyWithin", nil, 2), true, false, true)

@@ -157,6 +157,19 @@ func (r *Runtime) string_raw(call FunctionCall) Value {
 	}
 }
 
+func (r *Runtime) stringproto_at(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
+	s := call.This.toString()
+	pos := call.Argument(0).ToInteger()
+	if pos >= int64(s.length()) {
+		return _undefined
+	}
+	if pos < 0 {
+		return newStringValue(string(s.charAt(toIntStrict(int64(s.length()) + pos))))
+	}
+	return newStringValue(string(s.charAt(toIntStrict(pos))))
+}
+
 func (r *Runtime) stringproto_charAt(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
@@ -947,6 +960,7 @@ func (r *Runtime) initString() {
 	r.global.StringPrototype = r.builtin_newString([]Value{stringEmpty}, r.global.ObjectPrototype)
 
 	o := r.global.StringPrototype.self
+	o._putProp("at", r.newNativeFunc(r.stringproto_at, nil, "at", nil, 1), true, false, true)
 	o._putProp("charAt", r.newNativeFunc(r.stringproto_charAt, nil, "charAt", nil, 1), true, false, true)
 	o._putProp("charCodeAt", r.newNativeFunc(r.stringproto_charCodeAt, nil, "charCodeAt", nil, 1), true, false, true)
 	o._putProp("codePointAt", r.newNativeFunc(r.stringproto_codePointAt, nil, "codePointAt", nil, 1), true, false, true)
