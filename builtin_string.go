@@ -160,35 +160,35 @@ func (r *Runtime) string_raw(call FunctionCall) Value {
 func (r *Runtime) stringproto_at(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
-	pos := int(call.Argument(0).ToInteger())
-	length := s.length()
+	pos := call.Argument(0).ToInteger()
+	length := int64(s.length())
 	if pos < 0 {
 		pos = length + pos
 	}
 	if pos >= length || pos < 0 {
 		return _undefined
 	}
-	return s.substring(pos, pos+1)
+	return s.substring(int(pos), int(pos+1))
 }
 
 func (r *Runtime) stringproto_charAt(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
-	pos := int(call.Argument(0).ToInteger())
-	if pos < 0 || pos >= s.length() {
+	pos := call.Argument(0).ToInteger()
+	if pos < 0 || pos >= int64(s.length()) {
 		return stringEmpty
 	}
-	return s.substring(pos, pos+1)
+	return s.substring(int(pos), int(pos+1))
 }
 
 func (r *Runtime) stringproto_charCodeAt(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
-	pos := int(call.Argument(0).ToInteger())
-	if pos < 0 || pos >= s.length() {
+	pos := call.Argument(0).ToInteger()
+	if pos < 0 || pos >= int64(s.length()) {
 		return _NaN
 	}
-	return intToValue(int64(s.charAt(toIntStrict(int64(pos))) & 0xFFFF))
+	return intToValue(int64(s.charAt(toIntStrict(pos)) & 0xFFFF))
 }
 
 func (r *Runtime) stringproto_codePointAt(call FunctionCall) Value {
