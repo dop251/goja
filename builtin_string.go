@@ -162,15 +162,11 @@ func (r *Runtime) stringproto_at(call FunctionCall) Value {
 	s := call.This.toString()
 	pos := call.Argument(0).ToInteger()
 	length := int64(s.length())
-	if pos >= length {
-		return _undefined
-	}
 	if pos < 0 {
-		if pos*-1 > length {
-			return _undefined
-		} else {
-			pos = length + pos
-		}
+		pos = length + pos
+	}
+	if pos >= length || pos < 0 {
+		return _undefined
 	}
 	return newStringValue(string(s.charAt(toIntStrict(pos))))
 }

@@ -532,15 +532,12 @@ func (r *Runtime) arrayproto_at(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	idx := call.Argument(0).ToInteger()
 	length := toLength(o.self.getStr("length", nil))
-	if idx >= length {
-		return _undefined
-	}
+
 	if idx < 0 {
-		if idx*-1 > length {
-			return _undefined
-		} else {
-			idx = length + idx
-		}
+		idx = length + idx
+	}
+	if idx >= length || idx < 0 {
+		return _undefined
 	}
 	i := valueInt(idx)
 	if o.self.hasPropertyIdx(i) {

@@ -642,15 +642,11 @@ func (r *Runtime) typedArrayProto_at(call FunctionCall) Value {
 		ta.viewedArrayBuf.ensureNotDetached(true)
 		idx := call.Argument(0).ToInteger()
 		length := int64(ta.length)
-		if idx >= length {
-			return _undefined
-		}
 		if idx < 0 {
-			if idx*-1 > length {
-				return _undefined
-			} else {
-				idx = length + idx
-			}
+			idx = length + idx
+		}
+		if idx >= length || idx < 0 {
+			return _undefined
 		}
 		if ta.viewedArrayBuf.ensureNotDetached(false) {
 			return ta.typedArray.get(ta.offset + int(idx))
