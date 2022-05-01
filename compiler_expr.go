@@ -2015,6 +2015,8 @@ func (c *compiler) emitCallee(callee compiledExpr) (calleeName unistring.String)
 		c.endOptChain()
 	case *compiledOptional:
 		c.emitCallee(callee.expr)
+		c.block.conts = append(c.block.conts, len(c.p.code))
+		c.emit(nil)
 	default:
 		c.emit(loadUndef)
 		callee.emitGetter(true)
@@ -2457,6 +2459,9 @@ func (c *compiler) endOptChain() {
 	lbl := len(c.p.code)
 	for _, item := range c.block.breaks {
 		c.p.code[item] = jopt(lbl - item)
+	}
+	for _, item := range c.block.conts {
+		c.p.code[item] = joptc(lbl - item)
 	}
 	c.block = c.block.outer
 }
