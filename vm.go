@@ -3376,6 +3376,19 @@ func (j jopt) exec(vm *vm) {
 	}
 }
 
+type joptc int32
+
+func (j joptc) exec(vm *vm) {
+	switch vm.stack[vm.sp-1].(type) {
+	case valueNull, valueUndefined, memberUnresolved:
+		vm.sp--
+		vm.stack[vm.sp-1] = _undefined
+		vm.pc += int(j)
+	default:
+		vm.pc++
+	}
+}
+
 type jcoalesc int32
 
 func (j jcoalesc) exec(vm *vm) {
