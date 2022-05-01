@@ -601,6 +601,11 @@ func stringReplace(s valueString, found [][]int, newstring valueString, rcall fu
 		return s
 	}
 
+	// shortcut
+	if s.length() == 0 && len(found) == 1 {
+		return newstring
+	}
+
 	var str string
 	var isASCII bool
 	if astr, ok := s.(asciiString); ok {
@@ -683,7 +688,7 @@ func (r *Runtime) stringproto_replace(call FunctionCall) Value {
 	var found [][]int
 	searchStr := searchValue.toString()
 	if s.length() == 0 && searchStr.length() == 0 {
-		found = [][]int{0, 0}
+		found = append(found, []int{0, 0})
 	} else {
 		pos := s.index(searchStr, 0)
 		if pos != -1 {
@@ -713,7 +718,7 @@ func (r *Runtime) stringproto_replaceAll(call FunctionCall) Value {
 	searchLen := searchStr.length()
 	var found [][]int
 	if s.length() == 0 && searchLen == 0 {
-		found = [][]int{0, 0}
+		found = append(found, []int{0, 0})
 	} else {
 		pos := s.index(searchStr, 0)
 		for pos != -1 {
