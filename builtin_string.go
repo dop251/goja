@@ -682,9 +682,13 @@ func (r *Runtime) stringproto_replace(call FunctionCall) Value {
 	s := call.This.toString()
 	var found [][]int
 	searchStr := searchValue.toString()
-	pos := s.index(searchStr, 0)
-	if pos != -1 {
-		found = append(found, []int{pos, pos + searchStr.length()})
+	if s.length() == 0 && searchStr.length() == 0 {
+		found = [][]int{0, 0}
+	} else {
+		pos := s.index(searchStr, 0)
+		if pos != -1 {
+			found = append(found, []int{pos, pos + searchStr.length()})
+		}
 	}
 
 	str, rcall := getReplaceValue(replaceValue)
@@ -705,13 +709,17 @@ func (r *Runtime) stringproto_replaceAll(call FunctionCall) Value {
 	}
 
 	s := call.This.toString()
-	var found [][]int
 	searchStr := searchValue.toString()
 	searchLen := searchStr.length()
-	pos := s.index(searchStr, 0)
-	for pos != -1 {
-		found = append(found, []int{pos, pos + searchLen})
-		pos = s.index(searchStr, pos+searchLen)
+	var found [][]int
+	if s.length() == 0 && searchLen == 0 {
+		found = [][]int{0, 0}
+	} else {
+		pos := s.index(searchStr, 0)
+		for pos != -1 {
+			found = append(found, []int{pos, pos + searchLen})
+			pos = s.index(searchStr, pos+searchLen)
+		}
 	}
 
 	str, rcall := getReplaceValue(replaceValue)

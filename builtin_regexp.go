@@ -1211,14 +1211,11 @@ func (r *Runtime) regexpproto_stdReplacerAll(call FunctionCall) Value {
 	}
 
 	var index int64
-	find := 1
-	if rx.pattern.global {
-		find = -1
-		rx.setOwnStr("lastIndex", intToValue(0), true)
-	} else {
+	if !rx.pattern.global {
 		r.typeErrorResult(true, "replaceAll must be called with a global RegExp")
 	}
-	found := rx.pattern.findAllSubmatchIndex(s, toIntStrict(index), find, rx.pattern.sticky)
+	rx.setOwnStr("lastIndex", intToValue(0), true)
+	found := rx.pattern.findAllSubmatchIndex(s, toIntStrict(index), -1, rx.pattern.sticky)
 	if len(found) > 0 {
 		if !rx.updateLastIndex(index, found[0], found[len(found)-1]) {
 			found = nil
