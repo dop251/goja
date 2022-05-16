@@ -2482,3 +2482,12 @@ func BenchmarkAsciiStringMapGet(b *testing.B) {
 		}
 	}
 }
+
+func TestErrorStrangeSymbols(t *testing.T) {
+	vm := New()
+	vm.Set("a", func() (Value, error) { return nil, errors.New("something %s %f") })
+	_, err := vm.RunString("a()")
+	if !strings.Contains(err.Error(), "something %s %f") {
+		t.Fatalf("Wrong value %q", err.Error())
+	}
+}

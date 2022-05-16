@@ -545,7 +545,7 @@ func (r *Runtime) NewTypeError(args ...interface{}) *Object {
 }
 
 func (r *Runtime) NewGoError(err error) *Object {
-	e := r.newError(r.global.GoError, err.Error()).(*Object)
+	e := r.builtin_new(r.global.GoError, []Value{newStringValue(err.Error())})
 	e.Set("value", err)
 	return e
 }
