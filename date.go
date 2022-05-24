@@ -32,7 +32,6 @@ type dateLayoutDesc struct {
 
 var (
 	dateLayoutsNumeric = []dateLayoutDesc{
-		{layout: "2006-01-02 15:04:05+00"},
 		{layout: "2006-01-02T15:04:05Z0700"},
 		{layout: "2006-01-02T15:04:05"},
 		{layout: "2006-01-02", dateOnly: true},
@@ -54,6 +53,16 @@ var (
 
 		{layout: "2006T15:04:05Z0700"},
 		{layout: "2006-01T15:04:05Z0700"},
+
+		{layout: "2006-01-02 15:04:05+00"},
+		{layout: "2006-01-02 15:04"},
+		{layout: "2006-01-02 15"},
+		{layout: "20060102T150405"},
+		{layout: "2006-01-02 15+04:05"},
+		{layout: "2006-01-02 15-0405"},
+		{layout: "2006-01-02 15Z"},
+		{layout: "02-01-2006"},
+		{layout: "02.01.2006 15:04:05"},
 	}
 
 	dateLayoutsAlpha = []dateLayoutDesc{
