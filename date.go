@@ -32,6 +32,7 @@ type dateLayoutDesc struct {
 
 var (
 	dateLayoutsNumeric = []dateLayoutDesc{
+		{layout: "2006-01-02 15:04:05+00"},
 		{layout: "2006-01-02T15:04:05Z0700"},
 		{layout: "2006-01-02T15:04:05"},
 		{layout: "2006-01-02", dateOnly: true},
