@@ -868,31 +868,34 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 		return &ast.ExportDeclaration{Variable: self.parseVariableStatement()}
 	case token.LET, token.CONST:
 		return &ast.ExportDeclaration{LexicalDeclaration: self.parseLexicalDeclaration(self.token)}
-	case token.FUNCTION: // FIXME: What about function* and async?
-		// TODO implement
-		functionDeclaration := self.parseFunction(false)
-		self.semicolon()
+	case token.FUNCTION:
 		return &ast.ExportDeclaration{
 			HoistableDeclaration: &ast.HoistableDeclaration{
-				FunctionDeclaration: functionDeclaration,
+				FunctionDeclaration: &ast.FunctionDeclaration{
+					Function: self.parseFunction(true),
+				},
 			},
 		}
-	case token.DEFAULT: // FIXME: current implementation of HoistableDeclaration only implements function?
+	case token.DEFAULT:
 		self.next()
+		var exp *ast.ExportDeclaration
 		switch self.token {
 		case token.FUNCTION:
-			functionDeclaration := self.parseFunction(false)
-			return &ast.ExportDeclaration{
+			exp = &ast.ExportDeclaration{
 				HoistableDeclaration: &ast.HoistableDeclaration{
-					FunctionDeclaration: functionDeclaration,
+					FunctionDeclaration: &ast.FunctionDeclaration{
+						Function: self.parseFunction(true),
+					},
 				},
 			}
-			// TODO classes
 		default:
-			return &ast.ExportDeclaration{
+			exp = &ast.ExportDeclaration{
 				AssignExpression: self.parseAssignmentExpression(),
+				IsDefault:        true,
 			}
 		}
+		self.semicolon()
+		return exp
 	default:
 		namedExports := self.parseNamedExports()
 		self.semicolon()

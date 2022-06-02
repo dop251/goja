@@ -7,6 +7,7 @@ import (
 
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/parser"
+	"github.com/dop251/goja/unistring"
 )
 
 // TODO most things here probably should be unexported and names should be revised before merged in master
@@ -20,6 +21,7 @@ type ModuleRecord interface {
 	Evaluate() error
 	Namespace() *Namespace
 	SetNamespace(*Namespace)
+	GetBindingValue(unistring.String, bool) Value
 }
 
 type CyclicModuleRecordStatus uint8
@@ -219,6 +221,9 @@ type SourceTextModuleRecord struct {
 	localExportEntries    []exportEntry
 	indirectExportEntries []exportEntry
 	starExportEntries     []exportEntry
+
+	// TODO figure out something less idiotic
+	exportGetters map[unistring.String]func() Value
 }
 
 type importEntry struct {
@@ -245,10 +250,14 @@ func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
 		moduleRequest := importDeclarion.FromClause.ModuleSpecifier.String()
 		if named := importClause.NamedImports; named != nil {
 			for _, el := range named.ImportsList {
+				localName := el.Alias.String()
+				if localName == "" {
+					localName = el.IdentifierName.String()
+				}
 				result = append(result, importEntry{
 					moduleRequest: moduleRequest,
 					importName:    el.IdentifierName.String(),
-					localName:     el.Alias.String(),
+					localName:     localName,
 					offset:        int(importDeclarion.Idx0()),
 				})
 			}
@@ -275,7 +284,6 @@ func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
 
 func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 	var result []exportEntry
-	// spew.Dump(declarations)
 	for _, exportDeclaration := range declarations {
 		if exportDeclaration.ExportFromClause != nil {
 			exportFromClause := exportDeclaration.ExportFromClause
@@ -300,7 +308,6 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 					})
 				}
 			} else {
-				fmt.Printf("unimplemented %+v\n", exportDeclaration.ExportFromClause)
 				panic("wat")
 			}
 		} else if variableDeclaration := exportDeclaration.Variable; variableDeclaration != nil {
@@ -330,12 +337,16 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 			}
 		} else if hoistable := exportDeclaration.HoistableDeclaration; hoistable != nil {
 			localName := "default"
-			if hoistable.FunctionDeclaration.Name != nil {
-				localName = string(hoistable.FunctionDeclaration.Name.Name.String())
+			exportName := "default"
+			if hoistable.FunctionDeclaration.Function.Name != nil {
+				localName = string(hoistable.FunctionDeclaration.Function.Name.Name.String())
+			}
+			if !exportDeclaration.IsDefault {
+				exportName = localName
 			}
 			result = append(result, exportEntry{
 				localName:  localName,
-				exportName: "default",
+				exportName: exportName,
 			})
 		} else if fromClause := exportDeclaration.FromClause; fromClause != nil {
 			if namedExports := exportDeclaration.NamedExports; namedExports != nil {
@@ -351,7 +362,6 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 					})
 				}
 			} else {
-				fmt.Printf("unimplemented %+v\n", exportDeclaration.ExportFromClause)
 				panic("wat")
 			}
 		} else if namedExports := exportDeclaration.NamedExports; namedExports != nil {
@@ -371,12 +381,9 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 				localName:  "default",
 			})
 		} else {
-			fmt.Printf("unimplemented %+v\n", exportDeclaration)
 			panic("wat")
-
 		}
 	}
-	// spew.Dump(result)
 	return result
 }
 
@@ -409,10 +416,10 @@ func findImportByLocalName(importEntries []importEntry, name string) (importEntr
 
 // This should probably be part of Parse
 // TODO arguments to this need fixing
-func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, error) {
+func (rt *Runtime) ParseModule(name, sourceText string) (*SourceTextModuleRecord, error) {
 	// TODO asserts
 	opts := append(rt.parserOptions, parser.IsModule)
-	body, err := Parse("module", sourceText, opts...)
+	body, err := Parse(name, sourceText, opts...)
 	_ = body
 	if err != nil {
 		return nil, err
@@ -466,6 +473,8 @@ func (rt *Runtime) ParseModule(sourceText string) (*SourceTextModuleRecord, erro
 		localExportEntries:    localExportEntries,
 		indirectExportEntries: indirectExportEntries,
 		starExportEntries:     starExportEntries,
+
+		exportGetters: make(map[unistring.String]func() Value),
 	}
 
 	s.rt = rt
@@ -534,6 +543,15 @@ func (module *SourceTextModuleRecord) GetExportedNames(exportStarSet ...*SourceT
 	}
 
 	return exportedNames
+}
+
+func (module *SourceTextModuleRecord) GetBindingValue(name unistring.String, _ bool) Value {
+	getter, ok := module.exportGetters[name]
+	if !ok {
+		panic(module.rt.newError(module.rt.global.ReferenceError,
+			"%s is not defined, this shoukldn't be possible due to how ESM works", name))
+	}
+	return getter()
 }
 
 func (module *SourceTextModuleRecord) InitializeEnvorinment() (err error) {

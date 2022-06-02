@@ -361,15 +361,12 @@ func (e *compiledIdentifierExpr) emitGetter(putOnStack bool) {
 func (e *compiledIdentifierExpr) emitGetterOrRef() {
 	e.addSrcMap()
 	if b, noDynamics := e.c.scope.lookupName(e.name); noDynamics {
-		fmt.Printf("dynamics %#v\n", b)
 		if b != nil {
 			b.emitGet()
 		} else {
 			panic("No dynamics and not found")
 		}
 	} else {
-		fmt.Println("no dynamics ", b)
-		fmt.Println(e.c.scope)
 		if b != nil {
 			b.emitGetVar(false)
 		} else {
@@ -1274,7 +1271,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 
 	strict := s.strict
 	p := e.c.p
-	// e.c.p.dumpCode()
+	// e.c.p.dumpCode(log.Default().Printf)
 	if enterFunc2Mark != -1 {
 		e.c.popScope()
 	}
@@ -1540,7 +1537,6 @@ func (e *compiledUnaryExpr) emitGetter(putOnStack bool) {
 		goto end
 	case token.TYPEOF:
 		if o, ok := e.operand.(compiledExprOrRef); ok {
-			fmt.Println("o", o)
 			o.emitGetterOrRef()
 		} else {
 			e.operand.emitGetter(true)
@@ -2108,7 +2104,7 @@ func (c *compiler) compileNumberLiteral(v *ast.NumberLiteral) compiledExpr {
 	case float64:
 		val = floatToValue(num)
 	default:
-		panic(fmt.Errorf("Unsupported number literal type: %T", v.Value))
+		panic(fmt.Errorf("unsupported number literal type: %T", v.Value))
 	}
 	r := &compiledLiteral{
 		val: val,

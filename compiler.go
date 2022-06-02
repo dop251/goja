@@ -79,6 +79,7 @@ type compiler struct {
 	enumGetExpr compiledEnumGetExpr
 	// TODO add a type and a set method
 	hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
+	module                    *SourceTextModuleRecord
 
 	evalVM *vm
 }
@@ -87,6 +88,7 @@ type binding struct {
 	scope        *scope
 	name         unistring.String
 	accessPoints map[*scope]*[]int
+	getIndirect  func() Value
 	isConst      bool
 	isStrict     bool
 	isArg        bool
@@ -126,7 +128,9 @@ func (b *binding) markAccessPoint() {
 
 func (b *binding) emitGet() {
 	b.markAccessPoint()
-	if b.isVar && !b.isArg {
+	if b.getIndirect != nil {
+		b.scope.c.emit(loadIndirect(b.getIndirect))
+	} else if b.isVar && !b.isArg {
 		b.scope.c.emit(loadStash(0))
 	} else {
 		b.scope.c.emit(loadStashLex(0))
@@ -265,7 +269,7 @@ type scope struct {
 	// 'this' is used and non-strict, so need to box it (functions only)
 	thisNeeded bool
 	// is module
-	module bool
+	// module *SourceTextModuleRecord
 }
 
 type block struct {
@@ -357,7 +361,6 @@ func (p *Program) defineLiteralValue(val Value) uint32 {
 		panic("wat")
 	}
 	for idx, v := range p.values {
-		fmt.Println(v)
 		if v.SameAs(val) {
 			return uint32(idx)
 		}
@@ -503,6 +506,7 @@ func (s *scope) finaliseVarAlloc(stackOffset int) (stashSize, stackSize int) {
 	stackIdx, stashIdx := 0, 0
 	allInStash := s.isDynamic()
 	for i, b := range s.bindings {
+		// fmt.Printf("Binding %+v\n", b)
 		if allInStash || b.inStash {
 			for scope, aps := range b.accessPoints {
 				var level uint32
@@ -522,6 +526,11 @@ func (s *scope) finaliseVarAlloc(stackOffset int) (stashSize, stackSize int) {
 					switch i := (*ap).(type) {
 					case loadStash:
 						*ap = loadStash(idx)
+					case export:
+						*ap = export{
+							idx:      idx,
+							callback: i.callback,
+						}
 					case storeStash:
 						*ap = storeStash(idx)
 					case storeStashP:
@@ -688,7 +697,11 @@ found:
 }
 
 func (c *compiler) compileModule(module *SourceTextModuleRecord) {
-	fmt.Println("start compileModule")
+	oldModule := c.module
+	c.module = module
+	defer func() {
+		c.module = oldModule
+	}()
 	in := module.body
 	c.p.src = in.File
 	strict := true
@@ -697,8 +710,6 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 
 	c.newScope()
 	scope := c.scope
-	scope.module = true
-	module.scope = scope
 	scope.dynamic = true
 	scope.eval = eval
 	if !strict && len(in.Body) > 0 {
@@ -712,7 +723,8 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		scope = c.scope
 		scope.function = true
 	}
-	// fmt.Println(scope)
+	// scope.module = module
+	module.scope = scope
 	// 15.2.1.17.4 step 9 start
 	for _, in := range module.importEntries {
 		importedModule, err := module.rt.hostResolveImportedModule(module, in.moduleRequest)
@@ -720,49 +732,19 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 			panic(fmt.Errorf("previously resolved module returned error %w", err))
 		}
 		if in.importName == "*" {
-			namespace := module.rt.getModuleNamespace(importedModule)
-			fmt.Println(in)
-			b := c.createImmutableBinding(unistring.NewFromString(in.localName), true)
-			_ = namespace
-			_ = b
-			// TODO fix
-			r := &compiledLiteral{
-				val: stringValueFromRaw("pe"), // TODO FIX
-				// val: value,
-			}
-			r.init(c, 0)
 		} else {
-			fmt.Println("name", in.importName)
 			resolution, ambiguous := importedModule.ResolveExport(in.importName)
 			if resolution == nil || ambiguous {
 				c.throwSyntaxError(in.offset, "ambiguous import of %s", in.importName)
 			}
 			if resolution.BindingName == "*namespace*" {
-				namespace := module.rt.getModuleNamespace(resolution.Module)
-				fmt.Println(in)
-				b := c.createImmutableBinding(unistring.NewFromString(in.localName), true)
-				_ = namespace
-				_ = b
-				r := &compiledIdentifierExpr{
-          name: unistring.String(in.localName),
-					// val: value,
-				}
-				r.init(c, 0)
-				// TODO fix
 			} else {
-				c.createImportBinding(in.localName, resolution.Module, resolution.BindingName)
-
-				r := &compiledIdentifierExpr{
-          name: unistring.String(in.localName),
-					// val: value,
-				}
-        fmt.Println("r:", r)
-				r.init(c, 0)
+				// c.createImportBinding(in.localName, resolution.Module, resolution.BindingName)
+				c.createImmutableBinding(unistring.String(in.localName), true)
 			}
 		}
 	}
 	// 15.2.1.17.4 step 9 end
-	// fmt.Println("end")
 	funcs := c.extractFunctions(in.Body)
 	c.createFunctionBindings(funcs)
 	numFuncs := len(scope.bindings)
@@ -802,8 +784,19 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 			c.emit(enter)
 		}
 	}
-	// fmt.Println("somepoint", enter)
 
+	for _, entry := range module.localExportEntries {
+		name := unistring.String(entry.localName)
+		b, ok := scope.boundNames[name]
+		if !ok {
+			c.throwSyntaxError(0, "this very bad - can't find exported binding for "+entry.localName)
+		}
+		b.inStash = true
+		b.markAccessPoint()
+		c.emit(export{callback: func(getter func() Value) {
+			module.exportGetters[name] = getter
+		}})
+	}
 	if len(scope.bindings) > 0 && !ownLexScope {
 		var lets, consts []unistring.String
 		for _, b := range c.scope.bindings[numFuncs+numVars:] {
@@ -820,23 +813,18 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 			consts: consts,
 		})
 	}
-	// fmt.Println("somepoint 2")
 	if !inGlobal || ownVarScope {
 		c.compileFunctions(funcs)
 	}
-	// fmt.Println("somepoint 3")
 	c.compileStatements(in.Body, true)
-	// fmt.Println("somepoint 4")
 	if enter != nil {
 		c.leaveScopeBlock(enter)
 		c.popScope()
 	}
 
-	// fmt.Println("somepoint 5")
 	c.p.code = append(c.p.code, halt)
 
 	scope.finaliseVarAlloc(0)
-	// fmt.Println("end 2")
 }
 
 func (c *compiler) compile(in *ast.Program, strict, eval, inGlobal bool) {
@@ -950,6 +938,11 @@ func (c *compiler) extractFunctions(list []ast.Statement) (funcs []*ast.Function
 			} else {
 				continue
 			}
+		case *ast.ExportDeclaration:
+			if st.HoistableDeclaration == nil || st.HoistableDeclaration.FunctionDeclaration == nil {
+				continue
+			}
+			decl = st.HoistableDeclaration.FunctionDeclaration
 		default:
 			continue
 		}
@@ -1064,10 +1057,9 @@ func (c *compiler) createVarBindings(v *ast.VariableDeclaration, inFunc bool) {
 }
 
 func (c *compiler) createImmutableBinding(name unistring.String, isStrict bool) *binding {
-	fmt.Println("immutable binding for ", name)
 	b, _ := c.scope.bindName(name)
-	fmt.Println(b)
 	b.isConst = true
+	b.isVar = true
 	b.isStrict = isStrict
 	return b
 }
@@ -1076,14 +1068,20 @@ func (c *compiler) createImportBinding(n string, m ModuleRecord, n2 string) *bin
 	// TODO Do something :shrug:
 	// TODO fix this for not source text module records
 
-	/*
-		binding, ok := s.scope.bindName(unistring.NewFromString(n2))
-		fmt.Println(n, n2, ok)
-	*/
 	name := unistring.NewFromString(n)
-	localBinding, _ := c.scope.bindName(name)
-	_ = localBinding
-	return nil
+
+	s := m.(*SourceTextModuleRecord)
+	exportedBinding, _ := s.scope.lookupName(unistring.NewFromString(n2))
+	_ = exportedBinding
+	// TODO use exportedBinding
+	// localBinding.emitInit()
+	// TODO this is likely wrong
+	c.scope.bindings = append(c.scope.bindings, exportedBinding)
+	if c.scope.boundNames == nil {
+		c.scope.boundNames = make(map[unistring.String]*binding)
+	}
+	c.scope.boundNames[name] = exportedBinding
+	return exportedBinding
 }
 
 func (c *compiler) createLexicalIdBinding(name unistring.String, isConst bool, offset int) *binding {
@@ -1193,6 +1191,8 @@ func (c *compiler) compileStandaloneFunctionDecl(v *ast.FunctionDeclaration) {
 }
 
 func (c *compiler) emit(instructions ...instruction) {
+	// fmt.Printf("emit instructions %s\n", spew.Sdump(instructions))
+	// fmt.Printf("on instructions %s\n", spew.Sdump(c.p.code))
 	c.p.code = append(c.p.code, instructions...)
 }
 

@@ -480,6 +480,7 @@ type (
 		ExportFromClause     *ExportFromClause
 		FromClause           *FromClause
 		HoistableDeclaration *HoistableDeclaration
+		IsDefault            bool
 	}
 
 	FromClause struct {
@@ -501,7 +502,7 @@ type (
 	}
 
 	HoistableDeclaration struct {
-		FunctionDeclaration *FunctionLiteral
+		FunctionDeclaration *FunctionDeclaration
 		// GeneratorDeclaration
 		// AsyncFunc and AsyncGenerator
 	}

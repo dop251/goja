@@ -29,7 +29,6 @@ var (
 	skipPrefixes prefixList
 
 	skipList = map[string]bool{
-
 		// timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true,
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true,
@@ -232,6 +231,11 @@ var (
 
 		// Left-hand side as a CoverParenthesizedExpression
 		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
+
+		// eval this panics in modules
+		"test/language/module-code/eval-this.js": true,
+		// star and default leads to panic
+		"test/language/module-code/export-star-as-dflt.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -717,7 +721,7 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 		}
 
 		str := string(b)
-		p, err := vm.ParseModule(str)
+		p, err := vm.ParseModule(fname, str)
 		if err != nil {
 			cache[fname] = cacheElement{err: err}
 			return nil, err

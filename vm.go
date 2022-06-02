@@ -407,6 +407,7 @@ func (vm *vm) run() {
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
 			break
 		}
+		// fmt.Printf("Executing %#v\n", vm.prg.code[vm.pc])
 		vm.prg.code[vm.pc].exec(vm)
 		ticks++
 		if ticks > 10000 {
@@ -568,8 +569,7 @@ func (vm *vm) peek() Value {
 }
 
 func (vm *vm) saveCtx(ctx *context) {
-	ctx.prg, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args, ctx.funcName =
-		vm.prg, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args, vm.funcName
+	ctx.prg, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args, ctx.funcName = vm.prg, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args, vm.funcName
 }
 
 func (vm *vm) pushCtx() {
@@ -586,8 +586,7 @@ func (vm *vm) pushCtx() {
 }
 
 func (vm *vm) restoreCtx(ctx *context) {
-	vm.prg, vm.funcName, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args =
-		ctx.prg, ctx.funcName, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args
+	vm.prg, vm.funcName, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args = ctx.prg, ctx.funcName, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args
 }
 
 func (vm *vm) popCtx() {
@@ -853,6 +852,25 @@ type initStack1 int
 func (s initStack1) exec(vm *vm) {
 	vm.initStack1(int(s))
 	vm.sp--
+}
+
+type export struct {
+	idx      uint32
+	callback func(func() Value)
+}
+
+func (e export) exec(vm *vm) {
+	// from loadStash
+	level := int(e.idx >> 24)
+	idx := uint32(e.idx & 0x00FFFFFF)
+	stash := vm.stash
+	for i := 0; i < level; i++ {
+		stash = stash.outer
+	}
+	e.callback(func() Value {
+		return stash.getByIdx(idx)
+	})
+	vm.pc++
 }
 
 type storeStackP int
@@ -2051,6 +2069,14 @@ type setGlobalStrict unistring.String
 
 func (s setGlobalStrict) exec(vm *vm) {
 	vm.r.setGlobal(unistring.String(s), vm.peek(), true)
+	vm.pc++
+}
+
+// Load a var indirectly from another module
+type loadIndirect func() Value
+
+func (g loadIndirect) exec(vm *vm) {
+	vm.push(nilSafe(g()))
 	vm.pc++
 }
 

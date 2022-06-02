@@ -10,8 +10,6 @@ import (
 )
 
 func (c *compiler) compileStatement(v ast.Statement, needResult bool) {
-	// log.Printf("compileStatement(): %T", v)
-
 	switch v := v.(type) {
 	case *ast.BlockStatement:
 		c.compileBlockStatement(v, needResult)
@@ -767,13 +765,22 @@ func (c *compiler) emitVarAssign(name unistring.String, offset int, init compile
 }
 
 func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
+	// module := c.module // the compiler.module might be different at execution of this
 	if expr.Variable != nil {
 		c.compileVariableStatement(expr.Variable)
 	} else if expr.LexicalDeclaration != nil {
 		c.compileLexicalDeclaration(expr.LexicalDeclaration)
 	} else if expr.HoistableDeclaration != nil {
-		// TODO this is not enough I think
-		c.compileFunctionLiteral(expr.HoistableDeclaration.FunctionDeclaration, false)
+		h := expr.HoistableDeclaration
+		if h.FunctionDeclaration != nil {
+			/*
+				b, _ := c.scope.lookupName(h.FunctionDeclaration.Function.Name.Name)
+				b.markAccessPoint()
+				c.emit(exportPrevious{callback: func(getter func() Value) {
+					module.exportGetters[h.FunctionDeclaration.Function.Name.Name] = getter
+				}})
+			*/
+		}
 	}
 	// TODO
 }
@@ -791,13 +798,6 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 	}
 	if expr.ImportClause != nil {
 		if namespace := expr.ImportClause.NameSpaceImport; namespace != nil {
-			r := &compiledLiteral{
-				// TODO export namespace
-				val: stringValueFromRaw("namespace thing"),
-				// val: module.Namespace()),
-			}
-			r.init(c, expr.Idx0())
-			c.emitVarAssign(namespace.ImportedBinding, int(expr.Idx)-1, r)
 		}
 		if named := expr.ImportClause.NamedImports; named != nil {
 			for _, name := range named.ImportsList {
@@ -809,35 +809,24 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 				if value == nil {
 					c.throwSyntaxError(int(expr.Idx0()), "import of %s was not expoted from module %s", name.IdentifierName.String(), expr.FromClause.ModuleSpecifier.String())
 				}
-				r := &compiledLiteral{
-					val: stringValueFromRaw("to do fix this"), // TODO FIX
+
+				n := name.Alias
+				if n.String() == "" {
+					n = name.IdentifierName
 				}
-				r.init(c, expr.Idx0())
-				// This should probably be the idx of the name?
-				c.emitVarAssign(name.Alias, int(expr.Idx1())-1, r)
+				localB, _ := c.scope.lookupName(n)
+				if localB == nil {
+					c.throwSyntaxError(int(expr.Idx0()), "couldn't lookup  %s", n)
+				}
+				identifier := name.IdentifierName // this
+				localB.getIndirect = func() Value {
+					return module.GetBindingValue(identifier, true)
+				}
+
 			}
 		}
 
 		if def := expr.ImportClause.ImportedDefaultBinding; def != nil {
-			fmt.Println("heres", def)
-			value, ambiguous := module.ResolveExport("default")
-			if ambiguous { // also ambiguous
-				c.throwSyntaxError(int(expr.Idx0()), "ambiguous import of %s", "default")
-			}
-			if value == nil {
-				c.throwSyntaxError(int(expr.Idx0()), "import of \"default\" was not exported from module %s", expr.FromClause.ModuleSpecifier.String())
-			}
-			name := unistring.String(def.Name.String())
-			fmt.Println("value", value, name)
-			c.scope.bindName(name)
-			a, b := c.scope.lookupName(name)
-			fmt.Println("lookup", a, b)
-			r := &compiledLiteral{
-				val: stringValueFromRaw("pe"), // TODO FIX
-				// val: value,
-			}
-			r.init(c, def.Idx0())
-			r.emitGetter(true)
 		}
 	}
 }
