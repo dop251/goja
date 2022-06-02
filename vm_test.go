@@ -63,6 +63,33 @@ func TestEvalVar(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestResolveMixedStack1(t *testing.T) {
+	const SCRIPT = `
+	function test(arg) {
+		var a = 1;
+		var scope = {};
+		(function() {return arg})(); // move arguments to stash
+		with (scope) {
+			a++; // resolveMixedStack1 here
+			return a + arg;
+		}
+	}
+	test(40);
+	`
+
+	testScript(SCRIPT, valueInt(42), t)
+}
+
+func TestNewArrayFromIterClosed(t *testing.T) {
+	const SCRIPT = `
+	const [a, ...other] = [];
+	assert.sameValue(a, undefined);
+	assert(Array.isArray(other));
+	assert.sameValue(other.length, 0);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func BenchmarkVmNOP2(b *testing.B) {
 	prg := []func(*vm){
 		//loadVal(0).exec,

@@ -21,8 +21,9 @@ jobs:
       - name: Run go vet
         run: go vet ./...
       - name: Run staticcheck
-        uses: dominikh/staticcheck-action@v1.0.0
+        uses: dominikh/staticcheck-action@v1.1.0
         with:
+          version: "2022.1"
           install-go: false
           cache-key: ${{ matrix.go-version }}
         if: ${{ matrix.go-version == '1.x' }}

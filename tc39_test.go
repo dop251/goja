@@ -148,31 +148,6 @@ var (
 		"test/annexB/built-ins/RegExp/RegExp-leading-escape-BMP.js":  true,
 		"test/annexB/built-ins/RegExp/RegExp-trailing-escape-BMP.js": true,
 
-		// x ** y
-		"test/built-ins/Array/prototype/pop/clamps-to-integer-limit.js":                                        true,
-		"test/built-ins/Array/prototype/pop/length-near-integer-limit.js":                                      true,
-		"test/built-ins/Array/prototype/push/clamps-to-integer-limit.js":                                       true,
-		"test/built-ins/Array/prototype/push/length-near-integer-limit.js":                                     true,
-		"test/built-ins/Array/prototype/push/throws-if-integer-limit-exceeded.js":                              true,
-		"test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-object.js":                 true,
-		"test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-proxy.js":                  true,
-		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit.js":                               true,
-		"test/built-ins/Array/prototype/splice/clamps-length-to-integer-limit.js":                              true,
-		"test/built-ins/Array/prototype/splice/length-and-deleteCount-exceeding-integer-limit.js":              true,
-		"test/built-ins/Array/prototype/splice/length-exceeding-integer-limit-shrink-array.js":                 true,
-		"test/built-ins/Array/prototype/splice/length-near-integer-limit-grow-array.js":                        true,
-		"test/built-ins/Array/prototype/splice/throws-if-integer-limit-exceeded.js":                            true,
-		"test/built-ins/Array/prototype/unshift/clamps-to-integer-limit.js":                                    true,
-		"test/built-ins/Array/prototype/unshift/length-near-integer-limit.js":                                  true,
-		"test/built-ins/Array/prototype/unshift/throws-if-integer-limit-exceeded.js":                           true,
-		"test/built-ins/String/prototype/split/separator-undef-limit-custom.js":                                true,
-		"test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js":               true,
-		"test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js":                 true,
-		"test/built-ins/String/prototype/split/separator-undef-limit-zero.js":                                  true,
-		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-exponetiation-expression.js": true,
-		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-math.js":                     true,
-		"test/built-ins/RegExp/prototype/exec/failure-lastindex-set.js":                                        true,
-
 		// generators
 		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js":                                       true,
 		"test/language/statements/switch/scope-lex-generator.js":                                                     true,
@@ -250,11 +225,8 @@ var (
 		"super",
 		"generators",
 		"String.prototype.replaceAll",
-		"String.prototype.at",
 		"resizable-arraybuffer",
 		"array-find-from-last",
-		"Array.prototype.at",
-		"TypedArray.prototype.at",
 		"regexp-named-groups",
 		"regexp-dotall",
 		"regexp-unicode-property-escapes",
@@ -265,7 +237,6 @@ var (
 		"import-assertions",
 		"dynamic-import",
 		"logical-assignment-operators",
-		"coalesce-expression",
 		"import.meta",
 		"Atomics",
 		"Atomics.waitAsync",
@@ -313,9 +284,6 @@ func init() {
 		"test/language/eval-code/direct/gen-",
 		"test/built-ins/GeneratorFunction/",
 		"test/built-ins/Function/prototype/toString/generator-",
-
-		// **
-		"test/language/expressions/exponentiation",
 
 		// BigInt
 		"test/built-ins/TypedArrayConstructors/BigUint64Array/",

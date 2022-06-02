@@ -1626,6 +1626,10 @@ Note that the underlying type is not lost, calling Export() returns the original
 reflect based types.
 */
 func (r *Runtime) ToValue(i interface{}) Value {
+	return r.toValue(i, reflect.Value{})
+}
+
+func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 	switch i := i.(type) {
 	case nil:
 		return _null
@@ -1741,7 +1745,18 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		return obj
 	}
 
-	origValue := reflect.ValueOf(i)
+	if !origValue.IsValid() {
+		origValue = reflect.ValueOf(i)
+	} else {
+		// If origValue was a result of an Index(), or Field(), or such, its Kind may be Interface:
+		// 	a := []interface{}{(*S)(nil)}
+		//	a0 := reflect.ValueOf(a).Index(0) // a0.Kind() is reflect.Interface
+		//	a1 := reflect.ValueOf(a[0]) // a1.Kind() is reflect.Ptr
+		// Need to "dereference" it to make it consistent with plain value being passed.
+		for origValue.Kind() == reflect.Interface {
+			origValue = origValue.Elem()
+		}
+	}
 	value := origValue
 	for value.Kind() == reflect.Ptr {
 		value = reflect.Indirect(value)
@@ -1846,7 +1861,6 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 			in = make([]reflect.Value, l)
 		}
 
-		callSlice := false
 		for i, a := range call.Arguments {
 			var t reflect.Type
 
@@ -1863,19 +1877,6 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 				t = typ.In(n)
 			}
 
-			// if this is a variadic Go function, and the caller has supplied
-			// exactly the number of JavaScript arguments required, and this
-			// is the last JavaScript argument, try treating it as the
-			// actual set of variadic Go arguments. if that succeeds, break
-			// out of the loop.
-			if typ.IsVariadic() && len(call.Arguments) == nargs && i == nargs-1 {
-				v := reflect.New(typ.In(n)).Elem()
-				if err := r.toReflectValue(a, v, &objectExportCtx{}); err == nil {
-					in[i] = v
-					callSlice = true
-					break
-				}
-			}
 			v := reflect.New(t).Elem()
 			err := r.toReflectValue(a, v, &objectExportCtx{})
 			if err != nil {
@@ -1884,13 +1885,7 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 			in[i] = v
 		}
 
-		var out []reflect.Value
-		if callSlice {
-			out = value.CallSlice(in)
-		} else {
-			out = value.Call(in)
-		}
-
+		out := value.Call(in)
 		if len(out) == 0 {
 			return _undefined
 		}
@@ -2194,8 +2189,8 @@ func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.
 //
 // Array is treated as iterable (i.e. overwriting Symbol.iterator affects the result).
 //
-// If an object has a 'length' property it is treated as array-like. The resulting slice will contain
-// obj[0], ... obj[length-1].
+// If an object has a 'length' property and is not a function it is treated as array-like. The resulting slice
+// will contain obj[0], ... obj[length-1].
 //
 // For any other Object an error is returned.
 //
