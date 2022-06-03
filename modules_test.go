@@ -51,6 +51,13 @@ globalThis.s = b()
 `,
 			b: `export default function() {globalThis.p(); return 5 };`,
 		},
+		"default loop": {
+			a: `import b from "a.js";
+export default function() {return 5;};
+globalThis.s = b()
+`,
+			b: ``,
+		},
 	}
 	for name, cases := range testCases {
 		a, b := cases.a, cases.b
