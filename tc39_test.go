@@ -127,6 +127,23 @@ var (
 		"test/language/expressions/optional-chaining/member-expression.js":                             true,
 		"test/language/expressions/optional-chaining/call-expression.js":                               true,
 
+		"test/language/module-code/eval-export-dflt-cls-anon.js":            true,
+		"test/language/module-code/eval-export-dflt-cls-anon-semi.js":       true,
+		"test/language/module-code/eval-export-dflt-cls-named.js":           true,
+		"test/language/module-code/eval-export-dflt-cls-named-semi.js":      true,
+		"test/language/module-code/eval-export-dflt-cls-named-semi-meth.js": true,
+		"test/language/module-code/eval-export-dflt-expr-cls-named.js":      true,
+		"test/language/module-code/eval-export-dflt-expr-cls-name-meth.js":  true,
+		"test/language/module-code/instn-named-bndng-cls.js":                true,
+		"test/language/module-code/instn-local-bndng-export-cls.js":         true,
+		"test/language/module-code/instn-local-bndng-cls.js":                true,
+		"test/language/module-code/eval-gtbndng-local-bndng-cls.js":         true,
+		"test/language/module-code/instn-iee-bndng-cls.js":                  true,
+		"test/language/module-code/eval-export-dflt-expr-cls-anon.js":       true,
+		"test/language/module-code/eval-export-dflt-cls-name-meth.js":       true,
+		"test/language/module-code/eval-export-cls-semi.js":                 true,
+		"test/language/module-code/instn-named-bndng-dflt-cls.js":           true,
+
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
 		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
