@@ -336,10 +336,12 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 
 			}
 		} else if hoistable := exportDeclaration.HoistableDeclaration; hoistable != nil {
-			localName := "default"
+			localName := "*default*"
 			exportName := "default"
-			if hoistable.FunctionDeclaration.Function.Name != nil {
-				localName = string(hoistable.FunctionDeclaration.Function.Name.Name.String())
+			if hoistable.FunctionDeclaration != nil {
+				if hoistable.FunctionDeclaration.Function.Name != nil {
+					localName = string(hoistable.FunctionDeclaration.Function.Name.Name.String())
+				}
 			}
 			if !exportDeclaration.IsDefault {
 				exportName = localName

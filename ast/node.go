@@ -503,6 +503,7 @@ type (
 
 	HoistableDeclaration struct {
 		FunctionDeclaration *FunctionDeclaration
+		FunctionLiteral     *FunctionLiteral
 		// GeneratorDeclaration
 		// AsyncFunc and AsyncGenerator
 	}

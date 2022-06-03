@@ -792,12 +792,16 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		name := unistring.String(entry.localName)
 		b, ok := scope.boundNames[name]
 		if !ok {
-			c.throwSyntaxError(0, "this very bad - can't find exported binding for "+entry.localName)
+			// TODO fix this somehow - this is as *default* doesn't get bound before it's used
+			b, _ = scope.bindName(name)
 		}
+
 		b.inStash = true
 		b.markAccessPoint()
+
+		exportName := unistring.String(entry.exportName)
 		c.emit(export{callback: func(getter func() Value) {
-			module.exportGetters[name] = getter
+			module.exportGetters[exportName] = getter
 		}})
 	}
 	if len(scope.bindings) > 0 && !ownLexScope {

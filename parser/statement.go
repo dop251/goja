@@ -879,21 +879,20 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 	case token.DEFAULT:
 		self.next()
 		var exp *ast.ExportDeclaration
+
 		switch self.token {
 		case token.FUNCTION:
 			exp = &ast.ExportDeclaration{
 				HoistableDeclaration: &ast.HoistableDeclaration{
-					FunctionDeclaration: &ast.FunctionDeclaration{
-						Function: self.parseFunction(true),
-					},
+					FunctionLiteral: self.parseFunction(false),
 				},
 			}
 		default:
 			exp = &ast.ExportDeclaration{
 				AssignExpression: self.parseAssignmentExpression(),
-				IsDefault:        true,
 			}
 		}
+		exp.IsDefault = true
 		self.semicolon()
 		return exp
 	default:

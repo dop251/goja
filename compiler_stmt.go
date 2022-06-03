@@ -773,13 +773,34 @@ func (c *compiler) emitVarAssign(name unistring.String, offset int, init compile
 
 func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
 	// module := c.module // the compiler.module might be different at execution of this
+	// fmt.Printf("Export %#v\n", expr)
 	if expr.Variable != nil {
 		c.compileVariableStatement(expr.Variable)
 	} else if expr.LexicalDeclaration != nil {
 		c.compileLexicalDeclaration(expr.LexicalDeclaration)
 	} else if expr.HoistableDeclaration != nil {
 		h := expr.HoistableDeclaration
-		if h.FunctionDeclaration != nil {
+		if h.FunctionLiteral != nil {
+			if !expr.IsDefault {
+				panic("non default function literal export")
+			}
+			// TODO fix this - this was the easiest way to bound the default to something
+			c.compileLexicalDeclaration(&ast.LexicalDeclaration{
+				Idx:   h.FunctionLiteral.Idx0(),
+				Token: token.CONST,
+				List: []*ast.Binding{
+					{
+						Target: &ast.Identifier{
+							Name: unistring.String("*default*"),
+							Idx:  h.FunctionLiteral.Idx0(),
+						},
+						Initializer: h.FunctionLiteral,
+					},
+				},
+			})
+			// r.emitGetter(true)
+			// r.markAccessPoint()
+
 			/*
 				b, _ := c.scope.lookupName(h.FunctionDeclaration.Function.Name.Name)
 				b.markAccessPoint()
@@ -829,11 +850,27 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 				localB.getIndirect = func() Value {
 					return module.GetBindingValue(identifier, true)
 				}
-
 			}
 		}
 
 		if def := expr.ImportClause.ImportedDefaultBinding; def != nil {
+			value, ambiguous := module.ResolveExport("default")
+
+			if ambiguous { // also ambiguous
+				c.throwSyntaxError(int(expr.Idx0()), "ambiguous import of default")
+			}
+			if value == nil {
+				c.throwSyntaxError(int(expr.Idx0()), "import of default was not exported from module %s", expr.FromClause.ModuleSpecifier.String())
+			}
+
+			localB, _ := c.scope.lookupName(def.Name)
+			if localB == nil {
+				c.throwSyntaxError(int(expr.Idx0()), "couldn't lookup  %s", def.Name)
+			}
+			localB.getIndirect = func() Value {
+				// TODO this should be just "default", this also likely doesn't work for export aliasing
+				return module.GetBindingValue(unistring.String("default"), true)
+			}
 		}
 	}
 }
