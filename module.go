@@ -10,6 +10,8 @@ import (
 	"github.com/dop251/goja/unistring"
 )
 
+type HostResolveImportedModuleFunc func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
+
 // TODO most things here probably should be unexported and names should be revised before merged in master
 // Record should probably be dropped from everywhere
 
@@ -18,7 +20,7 @@ type ModuleRecord interface {
 	GetExportedNames(resolveset ...*SourceTextModuleRecord) []string // TODO maybe this parameter is wrong
 	ResolveExport(exportName string, resolveset ...ResolveSetElement) (*ResolvedBinding, bool)
 	Link() error
-	Evaluate() error
+	Evaluate(rt *Runtime) error
 	Namespace() *Namespace
 	SetNamespace(*Namespace)
 	GetBindingValue(unistring.String, bool) Value
@@ -47,7 +49,7 @@ type CyclicModuleRecord interface {
 	SetDFSAncestorIndex(uint)
 	RequestedModules() []string
 	InitializeEnvorinment() error
-	ExecuteModule() error
+	ExecuteModule(*Runtime) error
 }
 
 func (c *compiler) CyclicModuleRecordConcreteLink(module CyclicModuleRecord) error {
@@ -152,7 +154,7 @@ func (rt *Runtime) innerModuleEvaluation(m ModuleRecord, stack *[]CyclicModuleRe
 	var c CyclicModuleRecord
 	var ok bool
 	if c, ok = m.(CyclicModuleRecord); !ok {
-		return index, m.Evaluate()
+		return index, m.Evaluate(rt)
 	}
 	if status := c.Status(); status == Evaluated { // TODO switch
 		return index, c.EvaluationError()
@@ -187,7 +189,7 @@ func (rt *Runtime) innerModuleEvaluation(m ModuleRecord, stack *[]CyclicModuleRe
 			}
 		}
 	}
-	err = c.ExecuteModule()
+	err = c.ExecuteModule(rt)
 	if err != nil {
 		return 0, err
 	}
@@ -212,7 +214,6 @@ var _ CyclicModuleRecord = &SourceTextModuleRecord{}
 type SourceTextModuleRecord struct {
 	cyclicModuleStub
 	scope    *scope
-	rt       *Runtime  // TODO this is not great as it means the whole thing needs to be reparsed for each runtime
 	compiler *compiler // TODO remove this
 	body     *ast.Program
 	// context
@@ -223,7 +224,8 @@ type SourceTextModuleRecord struct {
 	starExportEntries     []exportEntry
 
 	// TODO figure out something less idiotic
-	exportGetters map[unistring.String]func() Value
+	exportGetters             map[unistring.String]func() Value
+	hostResolveImportedModule HostResolveImportedModuleFunc
 }
 
 type importEntry struct {
@@ -418,9 +420,9 @@ func findImportByLocalName(importEntries []importEntry, name string) (importEntr
 
 // This should probably be part of Parse
 // TODO arguments to this need fixing
-func (rt *Runtime) ParseModule(name, sourceText string) (*SourceTextModuleRecord, error) {
+func ParseModule(name, sourceText string, resolveModule HostResolveImportedModuleFunc, opts ...parser.Option) (*SourceTextModuleRecord, error) {
 	// TODO asserts
-	opts := append(rt.parserOptions, parser.IsModule)
+	opts = append(opts, parser.IsModule)
 	body, err := Parse(name, sourceText, opts...)
 	_ = body
 	if err != nil {
@@ -476,10 +478,10 @@ func (rt *Runtime) ParseModule(name, sourceText string) (*SourceTextModuleRecord
 		indirectExportEntries: indirectExportEntries,
 		starExportEntries:     starExportEntries,
 
-		exportGetters: make(map[unistring.String]func() Value),
+		exportGetters:             make(map[unistring.String]func() Value),
+		hostResolveImportedModule: resolveModule,
 	}
 
-	s.rt = rt
 	names := s.getExportedNamesWithotStars() // we use this as the other one loops but wee need to early errors here
 	sort.Strings(names)
 	for i := 1; i < len(names); i++ {
@@ -496,10 +498,10 @@ func (rt *Runtime) ParseModule(name, sourceText string) (*SourceTextModuleRecord
 	return s, nil
 }
 
-func (module *SourceTextModuleRecord) ExecuteModule() error {
+func (module *SourceTextModuleRecord) ExecuteModule(rt *Runtime) error {
 	// TODO copy runtime.RunProgram here with some changes so that it doesn't touch the global ?
 
-	_, err := module.rt.RunProgram(module.compiler.p)
+	_, err := rt.RunProgram(module.compiler.p)
 	return err
 }
 
@@ -530,7 +532,7 @@ func (module *SourceTextModuleRecord) GetExportedNames(exportStarSet ...*SourceT
 		exportedNames = append(exportedNames, e.exportName)
 	}
 	for _, e := range module.starExportEntries {
-		requestedModule, err := module.rt.hostResolveImportedModule(module, e.moduleRequest)
+		requestedModule, err := module.hostResolveImportedModule(module, e.moduleRequest)
 		if err != nil {
 			panic(err)
 		}
@@ -550,8 +552,8 @@ func (module *SourceTextModuleRecord) GetExportedNames(exportStarSet ...*SourceT
 func (module *SourceTextModuleRecord) GetBindingValue(name unistring.String, _ bool) Value {
 	getter, ok := module.exportGetters[name]
 	if !ok {
-		panic(module.rt.newError(module.rt.global.ReferenceError,
-			"%s is not defined, this shoukldn't be possible due to how ESM works", name))
+		return nil
+		// panic(name + " is not defined, this shoukldn't be possible due to how ESM works")
 	}
 	return getter()
 }
@@ -662,7 +664,7 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 
 	for _, e := range module.indirectExportEntries {
 		if exportName == e.exportName {
-			importedModule, err := module.rt.hostResolveImportedModule(module, e.moduleRequest)
+			importedModule, err := module.hostResolveImportedModule(module, e.moduleRequest)
 			if err != nil {
 				panic(err) // TODO return err
 			}
@@ -685,7 +687,7 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 	var starResolution *ResolvedBinding
 
 	for _, e := range module.starExportEntries {
-		importedModule, err := module.rt.hostResolveImportedModule(module, e.moduleRequest)
+		importedModule, err := module.hostResolveImportedModule(module, e.moduleRequest)
 		if err != nil {
 			panic(err) // TODO return err
 		}
@@ -704,8 +706,8 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 	return starResolution, false
 }
 
-func (module *SourceTextModuleRecord) Evaluate() error {
-	return module.rt.CyclicModuleRecordEvaluate(module)
+func (module *SourceTextModuleRecord) Evaluate(rt *Runtime) error {
+	return rt.CyclicModuleRecordEvaluate(module)
 }
 
 func (module *SourceTextModuleRecord) Link() error {

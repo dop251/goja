@@ -730,7 +730,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 	module.scope = scope
 	// 15.2.1.17.4 step 9 start
 	for _, in := range module.importEntries {
-		importedModule, err := module.rt.hostResolveImportedModule(module, in.moduleRequest)
+		importedModule, err := module.hostResolveImportedModule(module, in.moduleRequest)
 		if err != nil {
 			panic(fmt.Errorf("previously resolved module returned error %w", err))
 		}

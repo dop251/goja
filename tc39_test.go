@@ -706,7 +706,7 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 		}
 
 		str := string(b)
-		p, err := vm.ParseModule(fname, str)
+		p, err := ParseModule(fname, str, hostResolveImportedModule)
 		if err != nil {
 			cache[fname] = cacheElement{err: err}
 			return nil, err
@@ -730,7 +730,7 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 	}
 
 	early = false
-	err = p.Evaluate()
+	err = p.Evaluate(vm)
 	return
 }
 

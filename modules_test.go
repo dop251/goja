@@ -82,7 +82,7 @@ globalThis.s = b()
 				default:
 					panic(specifier)
 				}
-				p, err := vm.ParseModule(specifier, src)
+				p, err := ParseModule(specifier, src, hostResolveImportedModule)
 				if err != nil {
 					cache[specifier] = cacheElement{err: err}
 					return nil, err
@@ -109,7 +109,7 @@ globalThis.s = b()
 				t.Fatalf("got error %s", err)
 			}
 
-			err = p.Evaluate()
+			err = p.Evaluate(vm)
 			if err != nil {
 				t.Fatalf("got error %s", err)
 			}
