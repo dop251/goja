@@ -1081,26 +1081,6 @@ func (c *compiler) createImmutableBinding(name unistring.String, isStrict bool) 
 	return b
 }
 
-func (c *compiler) createImportBinding(n string, m ModuleRecord, n2 string) *binding {
-	// TODO Do something :shrug:
-	// TODO fix this for not source text module records
-
-	name := unistring.NewFromString(n)
-
-	s := m.(*SourceTextModuleRecord)
-	exportedBinding, _ := s.scope.lookupName(unistring.NewFromString(n2))
-	_ = exportedBinding
-	// TODO use exportedBinding
-	// localBinding.emitInit()
-	// TODO this is likely wrong
-	c.scope.bindings = append(c.scope.bindings, exportedBinding)
-	if c.scope.boundNames == nil {
-		c.scope.boundNames = make(map[unistring.String]*binding)
-	}
-	c.scope.boundNames[name] = exportedBinding
-	return exportedBinding
-}
-
 func (c *compiler) createLexicalIdBinding(name unistring.String, isConst bool, offset int) *binding {
 	if name == "let" {
 		c.throwSyntaxError(offset, "let is disallowed as a lexically bound name")

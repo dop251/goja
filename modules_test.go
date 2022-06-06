@@ -91,6 +91,9 @@ globalThis.s = b()
 			}
 
 			m, err := hostResolveImportedModule(nil, "a.js")
+			if err != nil {
+				t.Fatalf("got error %s", err)
+			}
 			p := m.(*SourceTextModuleRecord)
 
 			err = p.Link()

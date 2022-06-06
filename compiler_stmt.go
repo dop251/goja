@@ -826,6 +826,7 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 	}
 	if expr.ImportClause != nil {
 		if namespace := expr.ImportClause.NameSpaceImport; namespace != nil {
+			c.throwSyntaxError(int(expr.Idx0()), "namespace imports not implemented")
 		}
 		if named := expr.ImportClause.NamedImports; named != nil {
 			for _, name := range named.ImportsList {

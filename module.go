@@ -20,9 +20,11 @@ type ModuleRecord interface {
 	GetExportedNames(resolveset ...*SourceTextModuleRecord) []string // TODO maybe this parameter is wrong
 	ResolveExport(exportName string, resolveset ...ResolveSetElement) (*ResolvedBinding, bool)
 	Link() error
-	Evaluate(rt *Runtime) (ModuleInstance, error)
-	Namespace() *Namespace
-	SetNamespace(*Namespace)
+	Evaluate(*Runtime) (ModuleInstance, error)
+	/*
+		Namespace() *Namespace
+		SetNamespace(*Namespace)
+	*/
 }
 
 type CyclicModuleRecordStatus uint8
@@ -125,9 +127,8 @@ func (c *compiler) innerModuleLinking(m ModuleRecord, stack *[]CyclicModuleRecor
 		for i := len(*stack) - 1; i >= 0; i-- {
 			requiredModule := (*stack)[i]
 			// TODO assert
-			requiredC := requiredModule.(CyclicModuleRecord)
-			requiredC.SetStatus(Linked)
-			if requiredC == module {
+			requiredModule.SetStatus(Linked)
+			if requiredModule == module {
 				break
 			}
 		}
@@ -135,13 +136,13 @@ func (c *compiler) innerModuleLinking(m ModuleRecord, stack *[]CyclicModuleRecor
 	return index, nil
 }
 
-func (rt *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, name string) (mi ModuleInstance, err error) {
+func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, name string) (mi ModuleInstance, err error) {
 	// TODO asserts
-	if rt.modules == nil {
-		rt.modules = make(map[ModuleRecord]ModuleInstance)
+	if r.modules == nil {
+		r.modules = make(map[ModuleRecord]ModuleInstance)
 	}
 	stackInstance := []CyclicModuleInstance{}
-	if mi, _, err = rt.innerModuleEvaluation(c, &stackInstance, 0, name); err != nil {
+	if mi, _, err = r.innerModuleEvaluation(c, &stackInstance, 0, name); err != nil {
 		/*
 			for _, m := range stack {
 				// TODO asserts
@@ -157,7 +158,7 @@ func (rt *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, name string)
 	return mi, nil
 }
 
-func (rt *Runtime) innerModuleEvaluation(
+func (r *Runtime) innerModuleEvaluation(
 	m ModuleRecord, stack *[]CyclicModuleInstance, index uint,
 	name string,
 ) (mi ModuleInstance, idx uint, err error) {
@@ -168,16 +169,16 @@ func (rt *Runtime) innerModuleEvaluation(
 	var ok bool
 	var c CyclicModuleInstance
 	if cr, ok = m.(CyclicModuleRecord); !ok {
-		mi, err = m.Evaluate(rt)
-		rt.modules[m] = mi
+		mi, err = m.Evaluate(r)
+		r.modules[m] = mi
 		return mi, index, err
 	} else {
-		mi, ok = rt.modules[m]
+		mi, ok = r.modules[m]
 		if ok {
 			return mi, index, nil
 		}
 		c = cr.Instanciate()
-		rt.modules[m] = c
+		r.modules[m] = c
 	}
 	if status := c.Status(); status == Evaluated { // TODO switch
 		return nil, index, c.EvaluationError()
@@ -194,11 +195,11 @@ func (rt *Runtime) innerModuleEvaluation(
 	*stack = append(*stack, c)
 	var requiredModule ModuleRecord
 	for _, required := range c.RequestedModules() {
-		requiredModule, err = rt.hostResolveImportedModule(c, required)
+		requiredModule, err = r.hostResolveImportedModule(c, required)
 		if err != nil {
 			return nil, 0, err
 		}
-		mi, index, err = rt.innerModuleEvaluation(requiredModule, stack, index, required)
+		mi, index, err = r.innerModuleEvaluation(requiredModule, stack, index, required)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -211,7 +212,7 @@ func (rt *Runtime) innerModuleEvaluation(
 			}
 		}
 	}
-	_, err = c.ExecuteModule(rt)
+	_, err = c.ExecuteModule(r)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -221,9 +222,8 @@ func (rt *Runtime) innerModuleEvaluation(
 		for i := len(*stack) - 1; i >= 0; i-- {
 			requiredModule := (*stack)[i]
 			// TODO assert
-			requiredC := requiredModule.(CyclicModuleInstance)
-			requiredC.SetStatus(Evaluated)
-			if requiredC == c {
+			requiredModule.SetStatus(Evaluated)
+			if requiredModule == c {
 				break
 			}
 		}
@@ -278,8 +278,7 @@ func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String, b bool
 
 type SourceTextModuleRecord struct {
 	cyclicModuleStub
-	name     string // TODO remove this :crossed_fingers:
-	scope    *scope
+	name     string    // TODO remove this :crossed_fingers:
 	compiler *compiler // TODO remove this
 	body     *ast.Program
 	// context
@@ -634,6 +633,7 @@ func (module *SourceTextModuleRecord) InitializeEnvorinment() (err error) {
 	return
 }
 
+/*
 func (rt *Runtime) getModuleNamespace(module ModuleRecord) *Namespace {
 	if c, ok := module.(CyclicModuleRecord); ok && c.Status() == Unlinked {
 		panic("oops") // TODO beter oops
@@ -668,6 +668,7 @@ func (rt *Runtime) moduleNamespaceCreate(module ModuleRecord, exports []string) 
 	}
 }
 
+*/
 type ResolveSetElement struct {
 	Module     ModuleRecord
 	ExportName string
@@ -764,7 +765,7 @@ func (module *SourceTextModuleRecord) Link() error {
 }
 
 type cyclicModuleStub struct {
-	namespace        *Namespace
+	// namespace        *Namespace
 	status           CyclicModuleRecordStatus
 	dfsIndex         uint
 	ancestorDfsIndex uint
@@ -812,6 +813,7 @@ func (c *cyclicModuleStub) RequestedModules() []string {
 	return c.requestedModules
 }
 
+/*
 func (c *cyclicModuleStub) Namespace() *Namespace {
 	return c.namespace
 }
@@ -819,3 +821,4 @@ func (c *cyclicModuleStub) Namespace() *Namespace {
 func (c *cyclicModuleStub) SetNamespace(namespace *Namespace) {
 	c.namespace = namespace
 }
+*/
