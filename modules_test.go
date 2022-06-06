@@ -2,7 +2,6 @@ package goja
 
 import (
 	"fmt"
-	"sync"
 	"testing"
 )
 
@@ -99,11 +98,10 @@ globalThis.s = b()
 				t.Fatalf("got error %s", err)
 			}
 
-			wg := sync.WaitGroup{}
 			for i := 0; i < 10; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				i := i
+				t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+					t.Parallel()
 					var err error
 					vm := New()
 					vm.Set("p", vm.ToValue(func() {
@@ -125,9 +123,8 @@ globalThis.s = b()
 					if v == nil || v.ToNumber().ToInteger() != 5 {
 						t.Fatalf("expected 5 got %s", v)
 					}
-				}()
+				})
 			}
-			wg.Wait()
 		})
 	}
 }
