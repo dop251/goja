@@ -712,7 +712,6 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 			return nil, err
 		}
 		p.compiler = newCompiler()
-		p.compiler.hostResolveImportedModule = hostResolveImportedModule
 		cache[fname] = cacheElement{m: p}
 		return p, nil
 	}
@@ -730,7 +729,7 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 	}
 
 	early = false
-	err = p.Evaluate(vm)
+	_, err = m.Evaluate(vm)
 	return
 }
 

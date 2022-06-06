@@ -854,7 +854,7 @@ func (s initStack1) exec(vm *vm) {
 
 type export struct {
 	idx      uint32
-	callback func(func() Value)
+	callback func(*vm, func() Value)
 }
 
 func (e export) exec(vm *vm) {
@@ -865,7 +865,7 @@ func (e export) exec(vm *vm) {
 	for i := 0; i < level; i++ {
 		stash = stash.outer
 	}
-	e.callback(func() Value {
+	e.callback(vm, func() Value {
 		return stash.getByIdx(idx)
 	})
 	vm.pc++
@@ -2085,10 +2085,10 @@ func (s setGlobalStrict) exec(vm *vm) {
 }
 
 // Load a var indirectly from another module
-type loadIndirect func() Value
+type loadIndirect func(vm *vm) Value
 
 func (g loadIndirect) exec(vm *vm) {
-	vm.push(nilSafe(g()))
+	vm.push(nilSafe(g(vm)))
 	vm.pc++
 }
 

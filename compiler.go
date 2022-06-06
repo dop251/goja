@@ -88,7 +88,7 @@ type binding struct {
 	scope        *scope
 	name         unistring.String
 	accessPoints map[*scope]*[]int
-	getIndirect  func() Value
+	getIndirect  func(vm *vm) Value
 	isConst      bool
 	isStrict     bool
 	isArg        bool
@@ -702,8 +702,11 @@ found:
 func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 	oldModule := c.module
 	c.module = module
+	oldResolve := c.hostResolveImportedModule
+	c.hostResolveImportedModule = module.hostResolveImportedModule
 	defer func() {
 		c.module = oldModule
+		c.hostResolveImportedModule = oldResolve
 	}()
 	in := module.body
 	c.p.src = in.File
@@ -727,10 +730,10 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		scope.function = true
 	}
 	// scope.module = module
-	module.scope = scope
+	// module.scope = scope
 	// 15.2.1.17.4 step 9 start
 	for _, in := range module.importEntries {
-		importedModule, err := module.hostResolveImportedModule(module, in.moduleRequest)
+		importedModule, err := c.hostResolveImportedModule(module, in.moduleRequest)
 		if err != nil {
 			panic(fmt.Errorf("previously resolved module returned error %w", err))
 		}
@@ -800,8 +803,9 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		b.markAccessPoint()
 
 		exportName := unistring.String(entry.exportName)
-		c.emit(export{callback: func(getter func() Value) {
-			module.exportGetters[exportName] = getter
+		c.emit(export{callback: func(vm *vm, getter func() Value) {
+			m := vm.r.modules[module.name].(*SourceTextModuleInstance)
+			m.exportGetters[exportName] = getter
 		}})
 	}
 	if len(scope.bindings) > 0 && !ownLexScope {

@@ -2,10 +2,12 @@ package goja
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 )
 
 func TestSimpleModule(t *testing.T) {
+	t.Parallel()
 	type cacheElement struct {
 		m   ModuleRecord
 		err error
@@ -62,10 +64,7 @@ globalThis.s = b()
 	for name, cases := range testCases {
 		a, b := cases.a, cases.b
 		t.Run(name, func(t *testing.T) {
-			vm := New()
-			vm.Set("p", vm.ToValue(func() {
-				// fmt.Println("p called")
-			}))
+			t.Parallel()
 			cache := make(map[string]cacheElement)
 			var hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
 			hostResolveImportedModule = func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error) {
@@ -88,20 +87,11 @@ globalThis.s = b()
 					return nil, err
 				}
 				p.compiler = newCompiler()
-				p.compiler.hostResolveImportedModule = hostResolveImportedModule
 				cache[specifier] = cacheElement{m: p}
 				return p, nil
 			}
 
-			vm.hostResolveImportedModule = hostResolveImportedModule
-			vm.Set("l", func() {
-				fmt.Println("l called")
-				fmt.Printf("iter stack ; %+v", vm.vm.iterStack)
-			})
-			m, err := vm.hostResolveImportedModule(nil, "a.js")
-			if err != nil {
-				t.Fatalf("got error %s", err)
-			}
+			m, err := hostResolveImportedModule(nil, "a.js")
 			p := m.(*SourceTextModuleRecord)
 
 			err = p.Link()
@@ -109,14 +99,35 @@ globalThis.s = b()
 				t.Fatalf("got error %s", err)
 			}
 
-			err = p.Evaluate(vm)
-			if err != nil {
-				t.Fatalf("got error %s", err)
+			wg := sync.WaitGroup{}
+			for i := 0; i < 10; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					var err error
+					vm := New()
+					vm.Set("p", vm.ToValue(func() {
+						// fmt.Println("p called")
+					}))
+					vm.hostResolveImportedModule = hostResolveImportedModule
+					vm.Set("l", func() {
+						fmt.Println("l called")
+						fmt.Printf("iter stack ; %+v", vm.vm.iterStack)
+					})
+					if err != nil {
+						t.Fatalf("got error %s", err)
+					}
+					_, err = m.Evaluate(vm)
+					if err != nil {
+						t.Fatalf("got error %s", err)
+					}
+					v := vm.Get("s")
+					if v == nil || v.ToNumber().ToInteger() != 5 {
+						t.Fatalf("expected 5 got %s", v)
+					}
+				}()
 			}
-			v := vm.Get("s")
-			if v == nil || v.ToNumber().ToInteger() != 5 {
-				t.Fatalf("expected 5 got %s", v)
-			}
+			wg.Wait()
 		})
 	}
 }

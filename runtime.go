@@ -183,6 +183,8 @@ type Runtime struct {
 	hash  *maphash.Hash
 	idSeq uint64
 
+	modules map[string]ModuleInstance
+
 	jobQueue []func()
 
 	promiseRejectionTracker PromiseRejectionTracker
