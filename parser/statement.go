@@ -900,8 +900,6 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 		self.semicolon()
 		return &ast.ExportDeclaration{NamedExports: namedExports}
 	}
-
-	return nil
 }
 
 func (self *_parser) parseImportDeclaration() *ast.ImportDeclaration {
