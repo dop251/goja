@@ -489,6 +489,10 @@ func ParseModule(name, sourceText string, resolveModule HostResolveImportedModul
 	if err != nil {
 		return nil, err
 	}
+	return ModuleFromAST(name, body, resolveModule)
+}
+
+func ModuleFromAST(name string, body *ast.Program, resolveModule HostResolveImportedModuleFunc) (*SourceTextModuleRecord, error) {
 	requestedModules := requestedModulesFromAst(body.ImportEntries, body.ExportEntries)
 	importEntries := importEntriesFromAst(body.ImportEntries)
 	// 6. Let importedBoundNames be ImportedLocalNames(importEntries).
