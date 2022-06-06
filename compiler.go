@@ -804,8 +804,14 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 
 		exportName := unistring.String(entry.exportName)
 		c.emit(export{callback: func(vm *vm, getter func() Value) {
-			m := vm.r.modules[module.name].(*SourceTextModuleInstance)
-			m.exportGetters[exportName] = getter
+			m := vm.r.modules[module]
+
+			if s, ok := m.(*SourceTextModuleInstance); !ok {
+				fmt.Println(vm.r.modules, module.name)
+				vm.r.throwReferenceError(exportName) // TODO fix
+			} else {
+				s.exportGetters[exportName] = getter
+			}
 		}})
 	}
 	if len(scope.bindings) > 0 && !ownLexScope {

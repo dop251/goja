@@ -138,10 +138,10 @@ func (c *compiler) innerModuleLinking(m ModuleRecord, stack *[]CyclicModuleRecor
 func (rt *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, name string) (mi ModuleInstance, err error) {
 	// TODO asserts
 	if rt.modules == nil {
-		rt.modules = make(map[string]ModuleInstance)
+		rt.modules = make(map[ModuleRecord]ModuleInstance)
 	}
 	stackInstance := []CyclicModuleInstance{}
-	if mi, _, err = rt.innerModuleEvaluation(c, &stackInstance, 0, name, make(map[ModuleRecord]CyclicModuleInstance)); err != nil {
+	if mi, _, err = rt.innerModuleEvaluation(c, &stackInstance, 0, name); err != nil {
 		/*
 			for _, m := range stack {
 				// TODO asserts
@@ -159,23 +159,26 @@ func (rt *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, name string)
 
 func (rt *Runtime) innerModuleEvaluation(
 	m ModuleRecord, stack *[]CyclicModuleInstance, index uint,
-	name string, instances map[ModuleRecord]CyclicModuleInstance, // TODO remove thsi?!?
+	name string,
 ) (mi ModuleInstance, idx uint, err error) {
 	if len(*stack) > 100000 {
 		panic("too deep dependancy stack of 100000")
 	}
 	var cr CyclicModuleRecord
 	var ok bool
+	var c CyclicModuleInstance
 	if cr, ok = m.(CyclicModuleRecord); !ok {
 		mi, err = m.Evaluate(rt)
+		rt.modules[m] = mi
 		return mi, index, err
-	}
-	c, ok := instances[cr]
-	if !ok {
+	} else {
+		mi, ok = rt.modules[m]
+		if ok {
+			return mi, index, nil
+		}
 		c = cr.Instanciate()
-		instances[cr] = c
+		rt.modules[m] = c
 	}
-	rt.modules[name] = c
 	if status := c.Status(); status == Evaluated { // TODO switch
 		return nil, index, c.EvaluationError()
 	} else if status == Evaluating {
@@ -195,7 +198,7 @@ func (rt *Runtime) innerModuleEvaluation(
 		if err != nil {
 			return nil, 0, err
 		}
-		mi, index, err = rt.innerModuleEvaluation(requiredModule, stack, index, required, instances)
+		mi, index, err = rt.innerModuleEvaluation(requiredModule, stack, index, required)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -267,7 +270,7 @@ func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime) (ModuleInstance, e
 func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String, b bool) Value {
 	getter, ok := s.exportGetters[name]
 	if !ok {
-		// return nil
+		return nil
 		// panic(name + " is not defined, this shoukldn't be possible due to how ESM works")
 	}
 	return getter()
