@@ -263,7 +263,7 @@ type SourceTextModuleInstance struct {
 }
 
 func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime) (ModuleInstance, error) {
-	_, err := rt.RunProgram(s.moduleRecord.compiler.p)
+	_, err := rt.RunProgram(s.moduleRecord.p)
 	return s, err
 }
 
@@ -278,9 +278,9 @@ func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String, b bool
 
 type SourceTextModuleRecord struct {
 	cyclicModuleStub
-	name     string    // TODO remove this :crossed_fingers:
-	compiler *compiler // TODO remove this
-	body     *ast.Program
+	name string // TODO remove this :crossed_fingers:
+	body *ast.Program
+	p    *Program
 	// context
 	// importmeta
 	importEntries         []importEntry
@@ -568,7 +568,7 @@ func ModuleFromAST(name string, body *ast.Program, resolveModule HostResolveImpo
 func (module *SourceTextModuleRecord) ExecuteModule(rt *Runtime) (Value, error) {
 	// TODO copy runtime.RunProgram here with some changes so that it doesn't touch the global ?
 
-	return rt.RunProgram(module.compiler.p)
+	return rt.RunProgram(module.p)
 }
 
 func (module *SourceTextModuleRecord) getExportedNamesWithotStars() []string {
@@ -616,7 +616,7 @@ func (module *SourceTextModuleRecord) GetExportedNames(exportStarSet ...*SourceT
 }
 
 func (module *SourceTextModuleRecord) InitializeEnvorinment() (err error) {
-	// c := newCompiler()
+	c := newCompiler()
 	defer func() {
 		if x := recover(); x != nil {
 			switch x1 := x.(type) {
@@ -628,8 +628,8 @@ func (module *SourceTextModuleRecord) InitializeEnvorinment() (err error) {
 		}
 	}()
 
-	module.compiler.compileModule(module)
-	// p = c.p
+	c.compileModule(module)
+	module.p = c.p
 	return
 }
 

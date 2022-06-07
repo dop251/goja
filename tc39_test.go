@@ -711,7 +711,6 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 			cache[fname] = cacheElement{err: err}
 			return nil, err
 		}
-		p.compiler = newCompiler()
 		cache[fname] = cacheElement{m: p}
 		return p, nil
 	}

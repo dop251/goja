@@ -85,7 +85,6 @@ globalThis.s = b()
 					cache[specifier] = cacheElement{err: err}
 					return nil, err
 				}
-				p.compiler = newCompiler()
 				cache[specifier] = cacheElement{m: p}
 				return p, nil
 			}
