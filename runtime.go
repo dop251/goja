@@ -188,8 +188,6 @@ type Runtime struct {
 	jobQueue []func()
 
 	promiseRejectionTracker PromiseRejectionTracker
-	// TODO add a type and a set method
-	hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
 }
 
 type StackFrame struct {

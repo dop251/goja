@@ -109,7 +109,6 @@ globalThis.s = b()
 					vm.Set("p", vm.ToValue(func() {
 						// fmt.Println("p called")
 					}))
-					vm.hostResolveImportedModule = hostResolveImportedModule
 					vm.Set("l", func() {
 						fmt.Println("l called")
 						fmt.Printf("iter stack ; %+v", vm.vm.iterStack)

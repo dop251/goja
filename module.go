@@ -136,13 +136,14 @@ func (c *compiler) innerModuleLinking(m ModuleRecord, stack *[]CyclicModuleRecor
 	return index, nil
 }
 
-func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, name string) (mi ModuleInstance, err error) {
+func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, name string, resolve HostResolveImportedModuleFunc,
+) (mi ModuleInstance, err error) {
 	// TODO asserts
 	if r.modules == nil {
 		r.modules = make(map[ModuleRecord]ModuleInstance)
 	}
 	stackInstance := []CyclicModuleInstance{}
-	if mi, _, err = r.innerModuleEvaluation(c, &stackInstance, 0, name); err != nil {
+	if mi, _, err = r.innerModuleEvaluation(c, &stackInstance, 0, name, resolve); err != nil {
 		/*
 			for _, m := range stack {
 				// TODO asserts
@@ -160,7 +161,7 @@ func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, name string) 
 
 func (r *Runtime) innerModuleEvaluation(
 	m ModuleRecord, stack *[]CyclicModuleInstance, index uint,
-	name string,
+	name string, resolve HostResolveImportedModuleFunc,
 ) (mi ModuleInstance, idx uint, err error) {
 	if len(*stack) > 100000 {
 		panic("too deep dependancy stack of 100000")
@@ -195,11 +196,11 @@ func (r *Runtime) innerModuleEvaluation(
 	*stack = append(*stack, c)
 	var requiredModule ModuleRecord
 	for _, required := range c.RequestedModules() {
-		requiredModule, err = r.hostResolveImportedModule(c, required)
+		requiredModule, err = resolve(c, required)
 		if err != nil {
 			return nil, 0, err
 		}
-		mi, index, err = r.innerModuleEvaluation(requiredModule, stack, index, required)
+		mi, index, err = r.innerModuleEvaluation(requiredModule, stack, index, required, resolve)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -755,7 +756,7 @@ func (module *SourceTextModuleRecord) Instanciate() CyclicModuleInstance {
 }
 
 func (module *SourceTextModuleRecord) Evaluate(rt *Runtime) (ModuleInstance, error) {
-	return rt.CyclicModuleRecordEvaluate(module, module.name)
+	return rt.CyclicModuleRecordEvaluate(module, module.name, module.hostResolveImportedModule)
 }
 
 func (module *SourceTextModuleRecord) Link() error {

@@ -715,8 +715,7 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 		return p, nil
 	}
 
-	vm.hostResolveImportedModule = hostResolveImportedModule
-	m, err := vm.hostResolveImportedModule(nil, path.Base(name))
+	m, err := hostResolveImportedModule(nil, path.Base(name))
 	if err != nil {
 		return
 	}
