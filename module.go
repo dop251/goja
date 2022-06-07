@@ -178,6 +178,7 @@ func (r *Runtime) innerModuleEvaluation(
 		if ok {
 			return mi, index, nil
 		}
+		mi = c
 		c = cr.Instanciate()
 		r.modules[m] = c
 	}
@@ -200,11 +201,12 @@ func (r *Runtime) innerModuleEvaluation(
 		if err != nil {
 			return nil, 0, err
 		}
-		mi, index, err = r.innerModuleEvaluation(requiredModule, stack, index, required, resolve)
+		var requiredInstance ModuleInstance
+		requiredInstance, index, err = r.innerModuleEvaluation(requiredModule, stack, index, required, resolve)
 		if err != nil {
 			return nil, 0, err
 		}
-		if requiredC, ok := mi.(CyclicModuleInstance); ok {
+		if requiredC, ok := requiredInstance.(CyclicModuleInstance); ok {
 			// TODO some asserts
 			if requiredC.Status() == Evaluating {
 				if ancestorIndex := c.DFSAncestorIndex(); requiredC.DFSAncestorIndex() > ancestorIndex {
@@ -213,7 +215,7 @@ func (r *Runtime) innerModuleEvaluation(
 			}
 		}
 	}
-	_, err = c.ExecuteModule(r)
+	mi, err = c.ExecuteModule(r)
 	if err != nil {
 		return nil, 0, err
 	}
