@@ -2375,6 +2375,15 @@ func TestErrorStack(t *testing.T) {
 	testScript(SCRIPT, _undefined, t)
 }
 
+func TestErrorFormatSymbols(t *testing.T) {
+	vm := New()
+	vm.Set("a", func() (Value, error) { return nil, errors.New("something %s %f") })
+	_, err := vm.RunString("a()")
+	if !strings.Contains(err.Error(), "something %s %f") {
+		t.Fatalf("Wrong value %q", err.Error())
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

@@ -197,6 +197,9 @@ func TestParserErr(t *testing.T) {
 
 		test("\n/* Some multiline\ncomment */\n)", "(anonymous): Line 4:1 Unexpected token )")
 
+		test("+1 ** 2", "(anonymous): Line 1:4 Unexpected token **")
+		test("typeof 1 ** 2", "(anonymous): Line 1:10 Unexpected token **")
+
 		// TODO
 		//{ set 1 }
 		//{ get 2 }
@@ -497,6 +500,12 @@ func TestParserErr(t *testing.T) {
 		test("`", "(anonymous): Line 1:2 Unexpected end of input")
 		test(" `", "(anonymous): Line 1:3 Unexpected end of input")
 		test("` ", "(anonymous): Line 1:3 Unexpected end of input")
+		test(`var{..(`, "(anonymous): Line 1:7 Unexpected token ILLEGAL")
+		test(`var{get..(`, "(anonymous): Line 1:10 Unexpected token ILLEGAL")
+		test(`var{set..(`, "(anonymous): Line 1:10 Unexpected token ILLEGAL")
+		test(`(0 ?? 0 || true)`, "(anonymous): Line 1:9 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
+		test(`(a || b ?? c)`, "(anonymous): Line 1:9 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
+		test(`2 ?? 2 && 3 + 3`, "(anonymous): Line 1:3 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 	})
 }
 
@@ -896,6 +905,12 @@ func TestParser(t *testing.T) {
 		test(`ref = (a, b = 39,) => {
 		};`, nil)
 		test(`(a,) => {}`, nil)
+
+		test(`2 ?? (2 && 3) + 3`, nil)
+		test(`(2 ?? 2) && 3 + 3`, nil)
+		program = test(`a ?? b ?? c`, nil)
+		is(len(program.Body), 1)
+		is(program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression).Right.(*ast.Identifier).Name, "c")
 	})
 }
 

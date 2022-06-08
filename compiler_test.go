@@ -4716,6 +4716,19 @@ func TestAssignBeforeInit(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestOptChainCallee(t *testing.T) {
+	const SCRIPT = `
+	var a;
+	assert.sameValue(a?.(true), undefined);
+	a = null;
+	assert.sameValue(a?.(), undefined);
+	var o = {n: null};
+	assert.sameValue(o.m?.(true), undefined);
+	assert.sameValue(o.n?.(true), undefined);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")
