@@ -139,7 +139,9 @@ func (b *binding) emitGet() {
 
 func (b *binding) emitGetAt(pos int) {
 	b.markAccessPointAt(pos)
-	if b.isVar && !b.isArg {
+	if b.getIndirect != nil {
+		b.scope.c.p.code[pos] = loadIndirect(b.getIndirect)
+	} else if b.isVar && !b.isArg {
 		b.scope.c.p.code[pos] = loadStash(0)
 	} else {
 		b.scope.c.p.code[pos] = loadStashLex(0)
@@ -193,7 +195,9 @@ func (b *binding) emitInit() {
 
 func (b *binding) emitGetVar(callee bool) {
 	b.markAccessPoint()
-	if b.isVar && !b.isArg {
+	if b.getIndirect != nil {
+		b.scope.c.emit(loadIndirect(b.getIndirect))
+	} else if b.isVar && !b.isArg {
 		b.scope.c.emit(&loadMixed{name: b.name, callee: callee})
 	} else {
 		b.scope.c.emit(&loadMixedLex{name: b.name, callee: callee})
@@ -748,6 +752,11 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 				// c.createImportBinding(in.localName, resolution.Module, resolution.BindingName)
 				c.createImmutableBinding(unistring.String(in.localName), true)
 			}
+		}
+	}
+	for _, exp := range in.Body {
+		if imp, ok := exp.(*ast.ImportDeclaration); ok {
+			c.compileImportDeclaration(imp)
 		}
 	}
 	// 15.2.1.17.4 step 9 end
