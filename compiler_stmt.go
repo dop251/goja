@@ -818,7 +818,7 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 		return // TODO is this right?
 	}
 	// TODO fix, maybe cache this?!? have the current module as a field?
-	module, err := c.hostResolveImportedModule(nil, expr.FromClause.ModuleSpecifier.String())
+	module, err := c.hostResolveImportedModule(c.module, expr.FromClause.ModuleSpecifier.String())
 	_ = module // TODO fix
 	if err != nil {
 		// TODO this should in practice never happen
