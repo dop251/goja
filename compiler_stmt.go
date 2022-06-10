@@ -791,7 +791,7 @@ func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
 				List: []*ast.Binding{
 					{
 						Target: &ast.Identifier{
-							Name: unistring.String("*default*"),
+							Name: unistring.String("default"),
 							Idx:  h.FunctionLiteral.Idx0(),
 						},
 						Initializer: h.FunctionLiteral,

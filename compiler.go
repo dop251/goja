@@ -804,7 +804,6 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		name := unistring.String(entry.localName)
 		b, ok := scope.boundNames[name]
 		if !ok {
-			// TODO fix this somehow - this is as *default* doesn't get bound before it's used
 			b, _ = scope.bindName(name)
 		}
 
