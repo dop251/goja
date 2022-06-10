@@ -197,7 +197,7 @@ func (r *Runtime) innerModuleEvaluation(
 	*stack = append(*stack, c)
 	var requiredModule ModuleRecord
 	for _, required := range c.RequestedModules() {
-		requiredModule, err = resolve(c, required)
+		requiredModule, err = resolve(m, required)
 		if err != nil {
 			return nil, 0, err
 		}
