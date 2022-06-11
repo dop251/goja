@@ -65,6 +65,13 @@ globalThis.s = b()
 `,
 			b: `export default () => {globalThis.p(); return 5 };`,
 		},
+		"default export with as": {
+			a: `import b from "dep.js";
+globalThis.s = b()
+`,
+			b: `function f() {return 5;};
+      export { f as default };`,
+		},
 	}
 	for name, cases := range testCases {
 		a, b := cases.a, cases.b
