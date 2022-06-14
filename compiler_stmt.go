@@ -865,7 +865,11 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 				// moduleName := expr.FromClause.ModuleSpecifier.String()
 				localB.getIndirect = func(vm *vm) Value {
 					m := vm.r.modules[module]
-					return m.GetBindingValue(identifier, true)
+					v, ok := m.GetBindingValue(identifier, true)
+					if !ok {
+						vm.r.throwReferenceError(identifier)
+					}
+					return v
 				}
 			}
 		}
@@ -885,10 +889,15 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 				c.throwSyntaxError(int(expr.Idx0()), "couldn't lookup  %s", def.Name)
 			}
 			// moduleName := expr.FromClause.ModuleSpecifier.String()
+			identifier := unistring.String("default")
 			localB.getIndirect = func(vm *vm) Value {
 				// TODO this should be just "default", this also likely doesn't work for export aliasing
 				m := vm.r.modules[module]
-				return m.GetBindingValue(unistring.String("default"), true)
+				v, ok := m.GetBindingValue(identifier, true)
+				if !ok {
+					vm.r.throwReferenceError(identifier)
+				}
+				return v
 			}
 		}
 	}

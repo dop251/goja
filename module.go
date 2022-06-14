@@ -237,7 +237,7 @@ func (r *Runtime) innerModuleEvaluation(
 type (
 	ModuleInstance interface {
 		// Evaluate(rt *Runtime) (ModuleInstance, error)
-		GetBindingValue(unistring.String, bool) Value
+		GetBindingValue(unistring.String, bool) (Value, bool)
 	}
 	CyclicModuleInstance interface {
 		ModuleInstance
@@ -270,13 +270,13 @@ func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime) (ModuleInstance, e
 	return s, err
 }
 
-func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String, b bool) Value {
+func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String, b bool) (Value, bool) {
 	getter, ok := s.exportGetters[name]
 	if !ok {
-		return nil
+		return nil, false
 		// panic(name + " is not defined, this shoukldn't be possible due to how ESM works")
 	}
-	return getter()
+	return getter(), true
 }
 
 type SourceTextModuleRecord struct {
