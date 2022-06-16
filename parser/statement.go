@@ -1132,11 +1132,7 @@ func (self *_parser) parseNamedImports() *ast.NamedImports {
 }
 
 func (self *_parser) parseImportsList() (importsList []*ast.ImportSpecifier) {
-	if self.token == token.RIGHT_BRACE {
-		return
-	}
-
-	for {
+	for self.token != token.RIGHT_BRACE {
 		importsList = append(importsList, self.parseImportSpecifier())
 		if self.token != token.COMMA {
 			break
