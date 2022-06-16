@@ -884,14 +884,15 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 				HoistableDeclaration: &ast.HoistableDeclaration{
 					FunctionLiteral: self.parseFunction(false),
 				},
+				IsDefault: true,
 			}
 		default:
 			exp = &ast.ExportDeclaration{
 				AssignExpression: self.parseAssignmentExpression(),
+				IsDefault:        true,
 			}
+			self.semicolon()
 		}
-		exp.IsDefault = true
-		self.semicolon()
 		return exp
 	default:
 		namedExports := self.parseNamedExports()
