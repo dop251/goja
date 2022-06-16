@@ -65,13 +65,14 @@ func (c *compiler) CyclicModuleRecordConcreteLink(module CyclicModuleRecord) err
 	if _, err := c.innerModuleLinking(module, &stack, 0); err != nil {
 		fmt.Println(err)
 		for _, m := range stack {
-			if m.Status() != Linking {
-				return fmt.Errorf("bad status %+v on link", m.Status())
-			}
+			/*
+				if m.Status() != Linking {
+					return fmt.Errorf("bad status %+v on link", m.Status())
+				}
+			*/
 			m.SetStatus(Unlinked)
 
 			// TODO reset the rest
-
 		}
 		module.SetStatus(Unlinked)
 		return err
