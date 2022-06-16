@@ -851,6 +851,7 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 	case token.MULTIPLY: // FIXME: should also parse NamedExports if '{'
 		exportFromClause := self.parseExportFromClause()
 		fromClause := self.parseFromClause()
+		self.semicolon()
 		return &ast.ExportDeclaration{
 			ExportFromClause: exportFromClause,
 			FromClause:       fromClause,
@@ -858,6 +859,7 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 	case token.LEFT_BRACE:
 		namedExports := self.parseNamedExports()
 		fromClause := self.parseFromClause()
+		self.semicolon()
 		return &ast.ExportDeclaration{
 			NamedExports: namedExports,
 			FromClause:   fromClause,
@@ -962,8 +964,6 @@ func (self *_parser) parseFromClause() *ast.FromClause {
 		return &ast.FromClause{
 			ModuleSpecifier: self.parseModuleSpecifier(),
 		}
-	} else {
-		self.semicolon()
 	}
 	return nil
 
