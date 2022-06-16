@@ -871,6 +871,38 @@ func (e export) exec(vm *vm) {
 	vm.pc++
 }
 
+type exportLex struct {
+	idx      uint32
+	callback func(*vm, func() Value)
+}
+
+func (e exportLex) exec(vm *vm) {
+	// from loadStashLex
+	level := int(e.idx >> 24)
+	idx := uint32(e.idx & 0x00FFFFFF)
+	stash := vm.stash
+	for i := 0; i < level; i++ {
+		stash = stash.outer
+	}
+	e.callback(vm, func() Value {
+		v := stash.getByIdx(idx)
+		if v == nil {
+			panic(errAccessBeforeInit)
+		}
+		return v
+	})
+	vm.pc++
+}
+
+type exportIndirect struct {
+	callback func(*vm)
+}
+
+func (e exportIndirect) exec(vm *vm) {
+	e.callback(vm)
+	vm.pc++
+}
+
 type storeStackP int
 
 func (s storeStackP) exec(vm *vm) {

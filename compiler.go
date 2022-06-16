@@ -513,7 +513,6 @@ func (s *scope) finaliseVarAlloc(stackOffset int) (stashSize, stackSize int) {
 	stackIdx, stashIdx := 0, 0
 	allInStash := s.isDynamic()
 	for i, b := range s.bindings {
-		// fmt.Printf("Binding %+v\n", b)
 		if allInStash || b.inStash {
 			for scope, aps := range b.accessPoints {
 				var level uint32
@@ -535,6 +534,11 @@ func (s *scope) finaliseVarAlloc(stackOffset int) (stashSize, stackSize int) {
 						*ap = loadStash(idx)
 					case export:
 						*ap = export{
+							idx:      idx,
+							callback: i.callback,
+						}
+					case exportLex:
+						*ap = exportLex{
 							idx:      idx,
 							callback: i.callback,
 						}
@@ -827,14 +831,42 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		b.markAccessPoint()
 
 		exportName := unistring.String(entry.exportName)
-		c.emit(export{callback: func(vm *vm, getter func() Value) {
+		callback := func(vm *vm, getter func() Value) {
 			m := vm.r.modules[module]
 
 			if s, ok := m.(*SourceTextModuleInstance); !ok {
-				fmt.Println(vm.r.modules, module.name)
 				vm.r.throwReferenceError(exportName) // TODO fix
 			} else {
 				s.exportGetters[exportName] = getter
+			}
+		}
+		if entry.lex {
+			c.emit(exportLex{callback: callback})
+		} else {
+			c.emit(export{callback: callback})
+		}
+	}
+	for _, entry := range module.indirectExportEntries {
+		otherModule, err := c.hostResolveImportedModule(c.module, entry.moduleRequest)
+		if err != nil {
+			panic(err) // this should not be possible
+		}
+		exportName := unistring.String(entry.exportName)
+		importName := unistring.String(entry.importName)
+		c.emit(exportIndirect{callback: func(vm *vm) {
+			m := vm.r.modules[module]
+			m2 := vm.r.modules[otherModule]
+
+			if s, ok := m.(*SourceTextModuleInstance); !ok {
+				vm.r.throwReferenceError(exportName) // TODO fix
+			} else {
+				s.exportGetters[exportName] = func() Value {
+					v, ok := m2.GetBindingValue(importName, true)
+					if !ok {
+						vm.r.throwReferenceError(exportName) // TODO fix
+					}
+					return v
+				}
 			}
 		}})
 	}

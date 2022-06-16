@@ -274,7 +274,6 @@ func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String, b bool
 	getter, ok := s.exportGetters[name]
 	if !ok {
 		return nil, false
-		// panic(name + " is not defined, this shoukldn't be possible due to how ESM works")
 	}
 	return getter(), true
 }
@@ -306,6 +305,9 @@ type exportEntry struct {
 	moduleRequest string
 	importName    string
 	localName     string
+
+	// no standard
+	lex bool
 }
 
 func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
@@ -387,6 +389,7 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 				result = append(result, exportEntry{
 					localName:  id.Name.String(),
 					exportName: id.Name.String(),
+					lex:        false,
 				})
 
 			}
@@ -400,6 +403,7 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 				result = append(result, exportEntry{
 					localName:  id.Name.String(),
 					exportName: id.Name.String(),
+					lex:        true,
 				})
 
 			}
@@ -417,6 +421,7 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 			result = append(result, exportEntry{
 				localName:  localName,
 				exportName: exportName,
+				lex:        true,
 			})
 		} else if fromClause := exportDeclaration.FromClause; fromClause != nil {
 			if namedExports := exportDeclaration.NamedExports; namedExports != nil {
@@ -449,6 +454,7 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 			result = append(result, exportEntry{
 				exportName: "default",
 				localName:  "default",
+				lex:        true,
 			})
 		} else {
 			panic("wat")

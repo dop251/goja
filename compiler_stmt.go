@@ -823,6 +823,42 @@ func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
 				},
 			},
 		})
+	} else if expr.ExportFromClause != nil {
+		from := expr.ExportFromClause
+		module, err := c.hostResolveImportedModule(c.module, expr.FromClause.ModuleSpecifier.String())
+		if err != nil {
+			// TODO this should in practice never happen
+			c.throwSyntaxError(int(expr.Idx0()), err.Error())
+		}
+		if from.NamedExports == nil { // star export -nothing to do
+			return
+		}
+		for _, name := range from.NamedExports.ExportsList {
+			value, ambiguous := module.ResolveExport(name.IdentifierName.String())
+
+			if ambiguous || value == nil { // also ambiguous
+				continue // ambiguous import already reports
+			}
+
+			n := name.Alias
+			if n.String() == "" {
+				n = name.IdentifierName
+			}
+			localB, _ := c.scope.lookupName(n)
+			if localB == nil {
+				c.throwSyntaxError(int(expr.Idx0()), "couldn't lookup  %s", n)
+			}
+			identifier := name.IdentifierName // this
+			// moduleName := expr.FromClause.ModuleSpecifier.String()
+			localB.getIndirect = func(vm *vm) Value {
+				m := vm.r.modules[module]
+				v, ok := m.GetBindingValue(identifier, true)
+				if !ok {
+					vm.r.throwReferenceError(identifier)
+				}
+				return v
+			}
+		}
 	}
 	// TODO
 }
@@ -831,9 +867,7 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 	if expr.FromClause == nil {
 		return // TODO is this right?
 	}
-	// TODO fix, maybe cache this?!? have the current module as a field?
 	module, err := c.hostResolveImportedModule(c.module, expr.FromClause.ModuleSpecifier.String())
-	_ = module // TODO fix
 	if err != nil {
 		// TODO this should in practice never happen
 		c.throwSyntaxError(int(expr.Idx0()), err.Error())
