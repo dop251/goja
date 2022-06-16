@@ -804,6 +804,10 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		name := unistring.String(entry.localName)
 		b, ok := scope.boundNames[name]
 		if !ok {
+			if entry.localName != "default" {
+				// TODO fix index
+				c.throwSyntaxError(0, "exporting unknown binding: %q", name)
+			}
 			b, _ = scope.bindName(name)
 		}
 
