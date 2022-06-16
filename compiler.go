@@ -979,7 +979,7 @@ func (c *compiler) extractFunctions(list []ast.Statement) (funcs []*ast.Function
 func (c *compiler) createFunctionBindings(funcs []*ast.FunctionDeclaration) {
 	s := c.scope
 	if s.outer != nil {
-		unique := !s.function && !s.variable && s.strict
+		unique := (!s.function && !s.variable && s.strict) || (c.module != nil && s.outer.outer == nil)
 		for _, decl := range funcs {
 			s.bindNameLexical(decl.Function.Name.Name, unique, int(decl.Function.Name.Idx1())-1)
 		}
