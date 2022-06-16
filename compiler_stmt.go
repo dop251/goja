@@ -888,6 +888,7 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 				if n.String() == "" {
 					n = name.IdentifierName
 				}
+				c.checkIdentifierLName(n, int(expr.Idx))
 				localB, _ := c.scope.lookupName(n)
 				if localB == nil {
 					c.throwSyntaxError(int(expr.Idx0()), "couldn't lookup  %s", n)
