@@ -745,7 +745,8 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		} else {
 			resolution, ambiguous := importedModule.ResolveExport(in.importName)
 			if resolution == nil || ambiguous {
-				c.throwSyntaxError(in.offset, "ambiguous import of %s", in.importName)
+				c.compileAmbiguousImport(unistring.String(in.importName))
+				continue
 			}
 			if resolution.BindingName == "*namespace*" {
 			} else {
@@ -940,6 +941,10 @@ func (c *compiler) compile(in *ast.Program, strict, eval, inGlobal bool) {
 	c.p.code = append(c.p.code, halt)
 
 	scope.finaliseVarAlloc(0)
+}
+
+func (c *compiler) compileAmbiguousImport(name unistring.String) {
+	c.emit(ambiguousImport(name))
 }
 
 func (c *compiler) compileDeclList(v []*ast.VariableDeclaration, inFunc bool) {

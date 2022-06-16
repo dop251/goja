@@ -846,11 +846,8 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 			for _, name := range named.ImportsList {
 				value, ambiguous := module.ResolveExport(name.IdentifierName.String())
 
-				if ambiguous { // also ambiguous
-					c.throwSyntaxError(int(expr.Idx0()), "ambiguous import of %s", name.IdentifierName.String())
-				}
-				if value == nil {
-					c.throwSyntaxError(int(expr.Idx0()), "import of %s was not expoted from module %s", name.IdentifierName.String(), expr.FromClause.ModuleSpecifier.String())
+				if ambiguous || value == nil { // also ambiguous
+					continue // ambiguous import already reports
 				}
 
 				n := name.Alias

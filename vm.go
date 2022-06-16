@@ -3115,6 +3115,12 @@ func (n *newArrowFunc) exec(vm *vm) {
 	vm.pc++
 }
 
+type ambiguousImport unistring.String
+
+func (a ambiguousImport) exec(vm *vm) {
+	panic(vm.r.newError(vm.r.global.SyntaxError, "Ambiguous import for name %s", a))
+}
+
 func (vm *vm) alreadyDeclared(name unistring.String) Value {
 	return vm.r.newError(vm.r.global.SyntaxError, "Identifier '%s' has already been declared", name)
 }
