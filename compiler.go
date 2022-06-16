@@ -733,6 +733,17 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		scope = c.scope
 		scope.function = true
 	}
+	for _, in := range module.indirectExportEntries {
+		importedModule, err := c.hostResolveImportedModule(module, in.moduleRequest)
+		if err != nil {
+			panic(fmt.Errorf("previously resolved module returned error %w", err))
+		}
+		resolution, ambiguous := importedModule.ResolveExport(in.importName)
+		if resolution == nil || ambiguous {
+			c.compileAmbiguousImport(unistring.String(in.importName))
+		}
+
+	}
 	// scope.module = module
 	// module.scope = scope
 	// 15.2.1.17.4 step 9 start
