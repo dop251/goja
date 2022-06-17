@@ -173,6 +173,8 @@ var (
 		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-generator-function-declaration.js": true,
 		"test/built-ins/TypedArrayConstructors/ctors/object-arg/as-generator-iterable-returns.js":                    true,
 		"test/built-ins/Object/seal/seal-generatorfunction.js":                                                       true,
+		"test/language/module-code/instn-local-bndng-gen.js":                                                         true,
+		"test/language/module-code/instn-local-bndng-export-gen.js":                                                  true,
 
 		// async
 		"test/language/eval-code/direct/async-func-decl-a-preceding-parameter-is-named-arguments-declare-arguments-and-assign.js": true,
