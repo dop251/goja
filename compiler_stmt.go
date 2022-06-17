@@ -909,11 +909,8 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 		if def := expr.ImportClause.ImportedDefaultBinding; def != nil {
 			value, ambiguous := module.ResolveExport("default")
 
-			if ambiguous { // also ambiguous
-				c.throwSyntaxError(int(expr.Idx0()), "ambiguous import of default")
-			}
-			if value == nil {
-				c.throwSyntaxError(int(expr.Idx0()), "import of default was not exported from module %s", expr.FromClause.ModuleSpecifier.String())
+			if ambiguous || value == nil { // also ambiguous
+				return // already handled
 			}
 
 			localB, _ := c.scope.lookupName(def.Name)
