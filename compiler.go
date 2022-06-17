@@ -1016,10 +1016,12 @@ func (c *compiler) extractFunctions(list []ast.Statement) (funcs []*ast.Function
 				continue
 			}
 		case *ast.ExportDeclaration:
-			if st.HoistableDeclaration == nil || st.HoistableDeclaration.FunctionDeclaration == nil {
+			if st.HoistableDeclaration == nil {
 				continue
 			}
-			decl = st.HoistableDeclaration.FunctionDeclaration
+			if st.HoistableDeclaration.FunctionDeclaration != nil {
+				decl = st.HoistableDeclaration.FunctionDeclaration
+			}
 		default:
 			continue
 		}
@@ -1034,6 +1036,9 @@ func (c *compiler) createFunctionBindings(funcs []*ast.FunctionDeclaration) {
 		unique := (!s.function && !s.variable && s.strict) || (c.module != nil && s.outer.outer == nil)
 		for _, decl := range funcs {
 			s.bindNameLexical(decl.Function.Name.Name, unique, int(decl.Function.Name.Idx1())-1)
+			if decl.IsDefault && decl.Function.Name.Name != "default" {
+				s.bindNameLexical("default", unique, int(decl.Function.Name.Idx1())-1)
+			}
 		}
 	} else {
 		for _, decl := range funcs {

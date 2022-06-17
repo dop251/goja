@@ -779,36 +779,7 @@ func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
 	} else if expr.LexicalDeclaration != nil {
 		c.compileLexicalDeclaration(expr.LexicalDeclaration)
 	} else if expr.HoistableDeclaration != nil {
-		h := expr.HoistableDeclaration
-		if h.FunctionLiteral != nil {
-			if !expr.IsDefault {
-				panic("non default function literal export")
-			}
-			// TODO fix this - this was the easiest way to bound the default to something
-			c.compileLexicalDeclaration(&ast.LexicalDeclaration{
-				Idx:   h.FunctionLiteral.Idx0(),
-				Token: token.CONST,
-				List: []*ast.Binding{
-					{
-						Target: &ast.Identifier{
-							Name: unistring.String("default"),
-							Idx:  h.FunctionLiteral.Idx0(),
-						},
-						Initializer: h.FunctionLiteral,
-					},
-				},
-			})
-			// r.emitGetter(true)
-			// r.markAccessPoint()
-
-			/*
-				b, _ := c.scope.lookupName(h.FunctionDeclaration.Function.Name.Name)
-				b.markAccessPoint()
-				c.emit(exportPrevious{callback: func(getter func() Value) {
-					module.exportGetters[h.FunctionDeclaration.Function.Name.Name] = getter
-				}})
-			*/
-		}
+		// already done
 	} else if assign := expr.AssignExpression; assign != nil {
 		c.compileLexicalDeclaration(&ast.LexicalDeclaration{
 			Idx:   assign.Idx0(),

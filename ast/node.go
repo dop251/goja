@@ -440,7 +440,8 @@ type (
 	}
 
 	FunctionDeclaration struct {
-		Function *FunctionLiteral
+		Function  *FunctionLiteral
+		IsDefault bool // TODO figure out how to not have to that
 	}
 
 	ImportDeclaration struct {
@@ -503,7 +504,6 @@ type (
 
 	HoistableDeclaration struct {
 		FunctionDeclaration *FunctionDeclaration
-		FunctionLiteral     *FunctionLiteral
 		// GeneratorDeclaration
 		// AsyncFunc and AsyncGenerator
 	}

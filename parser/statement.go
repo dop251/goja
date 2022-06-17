@@ -882,9 +882,16 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 
 		switch self.token {
 		case token.FUNCTION:
+			f := self.parseFunction(false)
+			if f.Name == nil {
+				f.Name = &ast.Identifier{Name: unistring.String("default"), Idx: f.Idx0()}
+			}
 			exp = &ast.ExportDeclaration{
 				HoistableDeclaration: &ast.HoistableDeclaration{
-					FunctionLiteral: self.parseFunction(false),
+					FunctionDeclaration: &ast.FunctionDeclaration{
+						Function:  f,
+						IsDefault: true,
+					},
 				},
 				IsDefault: true,
 			}
