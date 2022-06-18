@@ -311,8 +311,9 @@ type exportEntry struct {
 	lex bool
 }
 
-func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
+func importEntriesFromAst(declarations []*ast.ImportDeclaration) ([]importEntry, error) {
 	var result []importEntry
+	names := make(map[string]struct{}, len(declarations))
 	for _, importDeclarion := range declarations {
 		importClause := importDeclarion.ImportClause
 		if importDeclarion.FromClause == nil {
@@ -325,6 +326,10 @@ func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
 				if localName == "" {
 					localName = el.IdentifierName.String()
 				}
+				if _, ok := names[localName]; ok {
+					return nil, fmt.Errorf("duplicate bounded name %s", localName)
+				}
+				names[localName] = struct{}{}
 				result = append(result, importEntry{
 					moduleRequest: moduleRequest,
 					importName:    el.IdentifierName.String(),
@@ -334,14 +339,24 @@ func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
 			}
 		}
 		if def := importClause.ImportedDefaultBinding; def != nil {
+			localName := def.Name.String()
+			if _, ok := names[localName]; ok {
+				return nil, fmt.Errorf("duplicate bounded name %s", localName)
+			}
+			names[localName] = struct{}{}
 			result = append(result, importEntry{
 				moduleRequest: moduleRequest,
 				importName:    "default",
-				localName:     def.Name.String(),
+				localName:     localName,
 				offset:        int(importDeclarion.Idx0()),
 			})
 		}
 		if namespace := importClause.NameSpaceImport; namespace != nil {
+			localName := namespace.ImportedBinding.String()
+			if _, ok := names[localName]; ok {
+				return nil, fmt.Errorf("duplicate bounded name %s", localName)
+			}
+			names[localName] = struct{}{}
 			result = append(result, importEntry{
 				moduleRequest: moduleRequest,
 				importName:    "*",
@@ -350,7 +365,7 @@ func importEntriesFromAst(declarations []*ast.ImportDeclaration) []importEntry {
 			})
 		}
 	}
-	return result
+	return result, nil
 }
 
 func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
@@ -506,7 +521,13 @@ func ParseModule(name, sourceText string, resolveModule HostResolveImportedModul
 
 func ModuleFromAST(name string, body *ast.Program, resolveModule HostResolveImportedModuleFunc) (*SourceTextModuleRecord, error) {
 	requestedModules := requestedModulesFromAst(body.ImportEntries, body.ExportEntries)
-	importEntries := importEntriesFromAst(body.ImportEntries)
+	importEntries, err := importEntriesFromAst(body.ImportEntries)
+	if err != nil {
+		// TODO create a separate error type
+		return nil, &CompilerSyntaxError{CompilerError: CompilerError{
+			Message: err.Error(),
+		}}
+	}
 	// 6. Let importedBoundNames be ImportedLocalNames(importEntries).
 	// ^ is skipped as we don't need it.
 
