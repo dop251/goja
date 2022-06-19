@@ -63,7 +63,6 @@ func (c *compiler) CyclicModuleRecordConcreteLink(module CyclicModuleRecord) err
 
 	stack := []CyclicModuleRecord{}
 	if _, err := c.innerModuleLinking(module, &stack, 0); err != nil {
-		fmt.Println(err)
 		for _, m := range stack {
 			/*
 				if m.Status() != Linking {
