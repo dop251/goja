@@ -405,7 +405,8 @@ func (vm *vm) run() {
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
 			break
 		}
-		// fmt.Printf("Executing %#v\n", vm.prg.code[vm.pc])
+		// inst := vm.prg.code[vm.pc]
+		// fmt.Printf("Executing %T %#v\n", inst, inst)
 		vm.prg.code[vm.pc].exec(vm)
 		ticks++
 		if ticks > 10000 {
@@ -850,6 +851,16 @@ type initStack1 int
 func (s initStack1) exec(vm *vm) {
 	vm.initStack1(int(s))
 	vm.sp--
+}
+
+type importNamespace struct {
+	module ModuleRecord
+}
+
+func (i importNamespace) exec(vm *vm) {
+	namespace := vm.r.createNamespaceObject(i.module)
+	vm.push(namespace.val)
+	vm.pc++
 }
 
 type export struct {

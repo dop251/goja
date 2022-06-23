@@ -52,7 +52,7 @@ func (c *compiler) compileStatement(v ast.Statement, needResult bool) {
 		c.compileWithStatement(v, needResult)
 	case *ast.DebuggerStatement:
 	case *ast.ImportDeclaration:
-		c.compileImportDeclaration(v)
+		// c.compileImportDeclaration(v)
 	case *ast.ExportDeclaration:
 		c.compileExportDeclaration(v)
 	default:
@@ -845,7 +845,16 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 	}
 	if expr.ImportClause != nil {
 		if namespace := expr.ImportClause.NameSpaceImport; namespace != nil {
-			c.throwSyntaxError(int(expr.Idx0()), "namespace imports not implemented")
+			idx := expr.Idx // TODO fix
+			c.emitLexicalAssign(
+				namespace.ImportedBinding,
+				int(idx),
+				c.compileEmitterExpr(func() {
+					c.emit(importNamespace{
+						module: module,
+					})
+				}, idx),
+			)
 		}
 		if named := expr.ImportClause.NamedImports; named != nil {
 			for _, name := range named.ImportsList {

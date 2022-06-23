@@ -738,13 +738,9 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		scope.function = true
 	}
 	for _, in := range module.indirectExportEntries {
-		importedModule, err := c.hostResolveImportedModule(module, in.moduleRequest)
-		if err != nil {
-			panic(fmt.Errorf("previously resolved module returned error %w", err))
-		}
-		resolution, ambiguous := importedModule.ResolveExport(in.importName)
-		if resolution == nil || ambiguous {
-			c.compileAmbiguousImport(unistring.String(in.importName))
+		v, ambiguous := module.ResolveExport(in.exportName)
+		if v == nil || ambiguous {
+			c.compileAmbiguousImport(unistring.NewFromString(in.importName))
 		}
 
 	}
@@ -757,22 +753,16 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 			panic(fmt.Errorf("previously resolved module returned error %w", err))
 		}
 		if in.importName == "*" {
+			b := c.createImmutableBinding(unistring.NewFromString(in.localName), true)
+			b.inStash = true
 		} else {
 			resolution, ambiguous := importedModule.ResolveExport(in.importName)
 			if resolution == nil || ambiguous {
-				c.compileAmbiguousImport(unistring.String(in.importName))
+				c.compileAmbiguousImport(unistring.NewFromString(in.importName))
 				continue
 			}
-			if resolution.BindingName == "*namespace*" {
-			} else {
-				// c.createImportBinding(in.localName, resolution.Module, resolution.BindingName)
-				c.createImmutableBinding(unistring.String(in.localName), true)
-			}
-		}
-	}
-	for _, exp := range in.Body {
-		if imp, ok := exp.(*ast.ImportDeclaration); ok {
-			c.compileImportDeclaration(imp)
+			b := c.createImmutableBinding(unistring.NewFromString(in.localName), true)
+			b.inStash = true
 		}
 	}
 	// 15.2.1.17.4 step 9 end
@@ -816,8 +806,13 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		}
 	}
 
+	for _, exp := range in.Body {
+		if imp, ok := exp.(*ast.ImportDeclaration); ok {
+			c.compileImportDeclaration(imp)
+		}
+	}
 	for _, entry := range module.localExportEntries {
-		name := unistring.String(entry.localName)
+		name := unistring.NewFromString(entry.localName)
 		b, ok := scope.boundNames[name]
 		if !ok {
 			if entry.localName != "default" {
@@ -830,7 +825,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		b.inStash = true
 		b.markAccessPoint()
 
-		exportName := unistring.String(entry.exportName)
+		exportName := unistring.NewFromString(entry.exportName)
 		callback := func(vm *vm, getter func() Value) {
 			m := vm.r.modules[module]
 
@@ -851,8 +846,8 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		if err != nil {
 			panic(err) // this should not be possible
 		}
-		exportName := unistring.String(entry.exportName)
-		importName := unistring.String(entry.importName)
+		exportName := unistring.NewFromString(entry.exportName)
+		importName := unistring.NewFromString(entry.importName)
 		c.emit(exportIndirect{callback: func(vm *vm) {
 			m := vm.r.modules[module]
 			m2 := vm.r.modules[otherModule]

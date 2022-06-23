@@ -478,18 +478,20 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 	return result
 }
 
-func requestedModulesFromAst(imports []*ast.ImportDeclaration, exports []*ast.ExportDeclaration) []string {
+func requestedModulesFromAst(statements []ast.Statement) []string {
 	var result []string
-	for _, imp := range imports {
-		if imp.FromClause != nil {
-			result = append(result, imp.FromClause.ModuleSpecifier.String())
-		} else {
-			result = append(result, imp.ModuleSpecifier.String())
-		}
-	}
-	for _, exp := range exports {
-		if exp.FromClause != nil {
-			result = append(result, exp.FromClause.ModuleSpecifier.String())
+	for _, st := range statements {
+		switch imp := st.(type) {
+		case *ast.ImportDeclaration:
+			if imp.FromClause != nil {
+				result = append(result, imp.FromClause.ModuleSpecifier.String())
+			} else {
+				result = append(result, imp.ModuleSpecifier.String())
+			}
+		case *ast.ExportDeclaration:
+			if imp.FromClause != nil {
+				result = append(result, imp.FromClause.ModuleSpecifier.String())
+			}
 		}
 	}
 	return result
@@ -519,7 +521,7 @@ func ParseModule(name, sourceText string, resolveModule HostResolveImportedModul
 }
 
 func ModuleFromAST(name string, body *ast.Program, resolveModule HostResolveImportedModuleFunc) (*SourceTextModuleRecord, error) {
-	requestedModules := requestedModulesFromAst(body.ImportEntries, body.ExportEntries)
+	requestedModules := requestedModulesFromAst(body.Body)
 	importEntries, err := importEntriesFromAst(body.ImportEntries)
 	if err != nil {
 		// TODO create a separate error type
@@ -852,3 +854,46 @@ func (c *cyclicModuleStub) SetNamespace(namespace *Namespace) {
 	c.namespace = namespace
 }
 */
+type namespaceObject struct {
+	baseObject
+	m  ModuleRecord
+	mi ModuleInstance
+}
+
+func (r *Runtime) createNamespaceObject(m ModuleRecord) *namespaceObject {
+	o := &Object{runtime: r}
+	no := &namespaceObject{}
+	no.val = o
+	o.self = no
+	no.extensible = true
+	no.init()
+
+	for _, exportName := range m.GetExportedNames() {
+		v, ambiguous := m.ResolveExport(exportName)
+		if ambiguous || v == nil {
+			continue
+		}
+		mi := r.modules[v.Module]
+
+		b, ok := mi.GetBindingValue(unistring.NewFromString(exportName), true)
+		if !ok {
+			r.throwReferenceError(unistring.NewFromString(exportName))
+		}
+
+		no.baseObject.setOwnStr(unistring.NewFromString(exportName), b, true)
+	}
+	no.extensible = false
+	return no
+}
+
+func (no *namespaceObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
+	no.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
+	return false
+}
+
+func (no *namespaceObject) deleteStr(name unistring.String, throw bool) bool {
+	if _, exists := no.values[name]; exists {
+		no.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
+	}
+	return false
+}
