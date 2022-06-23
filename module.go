@@ -238,6 +238,7 @@ type (
 	ModuleInstance interface {
 		// Evaluate(rt *Runtime) (ModuleInstance, error)
 		GetBindingValue(unistring.String, bool) (Value, bool)
+		Namespace(*Runtime) *namespaceObject // export the type
 	}
 	CyclicModuleInstance interface {
 		ModuleInstance
@@ -263,6 +264,7 @@ type SourceTextModuleInstance struct {
 	moduleRecord *SourceTextModuleRecord
 	// TODO figure out omething less idiotic
 	exportGetters map[unistring.String]func() Value
+	namespace     *namespaceObject
 }
 
 func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime) (ModuleInstance, error) {
@@ -276,6 +278,13 @@ func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String, b bool
 		return nil, false
 	}
 	return getter(), true
+}
+
+func (s *SourceTextModuleInstance) Namespace(rt *Runtime) *namespaceObject {
+	if s.namespace == nil {
+		s.namespace = rt.createNamespaceObject(s.moduleRecord) // TODO just use the instance :shrug:
+	}
+	return s.namespace
 }
 
 type SourceTextModuleRecord struct {
@@ -715,6 +724,7 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 	if exportName == "" {
 		panic("wat")
 	}
+	// fmt.Println("in", exportName, resolveset)
 	for _, r := range resolveset {
 		if r.Module == module && exportName == r.ExportName { // TODO better
 			return nil, false
@@ -761,6 +771,7 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 			panic(err) // TODO return err
 		}
 		resolution, ambiguous := importedModule.ResolveExport(exportName, resolveset...)
+		// fmt.Println(resolution, ambiguous, importedModule)
 		if ambiguous {
 			return nil, true
 		}
@@ -856,34 +867,63 @@ func (c *cyclicModuleStub) SetNamespace(namespace *Namespace) {
 */
 type namespaceObject struct {
 	baseObject
-	m  ModuleRecord
-	mi ModuleInstance
+	m       ModuleRecord
+	exports map[unistring.String]struct{}
 }
 
 func (r *Runtime) createNamespaceObject(m ModuleRecord) *namespaceObject {
 	o := &Object{runtime: r}
-	no := &namespaceObject{}
+	no := &namespaceObject{m: m}
 	no.val = o
 	o.self = no
-	no.extensible = true
 	no.init()
+	no.exports = make(map[unistring.String]struct{})
 
 	for _, exportName := range m.GetExportedNames() {
-		v, ambiguous := m.ResolveExport(exportName)
+		v, ambiguous := no.m.ResolveExport(exportName)
 		if ambiguous || v == nil {
 			continue
 		}
-		mi := r.modules[v.Module]
-
-		b, ok := mi.GetBindingValue(unistring.NewFromString(exportName), true)
-		if !ok {
-			r.throwReferenceError(unistring.NewFromString(exportName))
-		}
-
-		no.baseObject.setOwnStr(unistring.NewFromString(exportName), b, true)
+		no.exports[unistring.NewFromString(exportName)] = struct{}{}
 	}
-	no.extensible = false
 	return no
+}
+
+func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
+	// fmt.Println(exportName)
+	if _, ok := no.exports[name]; !ok {
+		return _undefined
+	}
+	v, ambiguous := no.m.ResolveExport(name.String())
+	if ambiguous || v == nil {
+		no.val.runtime.throwReferenceError((name))
+	}
+	mi := no.val.runtime.modules[v.Module]
+	// fmt.Println(v.Module)
+	// fmt.Println(v.BindingName)
+
+	b, ok := mi.GetBindingValue(unistring.NewFromString(v.BindingName), true)
+	if !ok {
+		no.val.runtime.throwReferenceError(unistring.NewFromString(v.BindingName))
+	}
+
+	return b
+}
+
+func (no *namespaceObject) hasPropertyStr(name unistring.String) bool {
+	_, ok := no.exports[name]
+	return ok
+}
+
+func (o *namespaceObject) getStr(name unistring.String, receiver Value) Value {
+	prop := o.getOwnPropStr(name)
+	if prop, ok := prop.(*valueProperty); ok {
+		if receiver == nil {
+			return prop.get(o.val)
+		}
+		return prop.get(receiver)
+	}
+	return prop
 }
 
 func (no *namespaceObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
@@ -892,7 +932,7 @@ func (no *namespaceObject) setOwnStr(name unistring.String, val Value, throw boo
 }
 
 func (no *namespaceObject) deleteStr(name unistring.String, throw bool) bool {
-	if _, exists := no.values[name]; exists {
+	if _, exists := no.exports[name]; exists {
 		no.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
 	}
 	return false

@@ -825,7 +825,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		b.inStash = true
 		b.markAccessPoint()
 
-		exportName := unistring.NewFromString(entry.exportName)
+		exportName := unistring.NewFromString(entry.localName)
 		callback := func(vm *vm, getter func() Value) {
 			m := vm.r.modules[module]
 
@@ -846,11 +846,21 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		if err != nil {
 			panic(err) // this should not be possible
 		}
+		if entry.importName == "*" {
+			continue
+		}
+		b, ambiguous := otherModule.ResolveExport(entry.importName)
+		if ambiguous || b == nil {
+			// fmt.Printf("entry %#v , module: %#v\n", entry, otherModule)
+			c.compileAmbiguousImport(unistring.NewFromString(entry.importName))
+			continue
+		}
+
 		exportName := unistring.NewFromString(entry.exportName)
-		importName := unistring.NewFromString(entry.importName)
+		importName := unistring.NewFromString(b.BindingName)
 		c.emit(exportIndirect{callback: func(vm *vm) {
 			m := vm.r.modules[module]
-			m2 := vm.r.modules[otherModule]
+			m2 := vm.r.modules[b.Module]
 
 			if s, ok := m.(*SourceTextModuleInstance); !ok {
 				vm.r.throwReferenceError(exportName) // TODO fix

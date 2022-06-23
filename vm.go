@@ -858,7 +858,8 @@ type importNamespace struct {
 }
 
 func (i importNamespace) exec(vm *vm) {
-	namespace := vm.r.createNamespaceObject(i.module)
+	mi := vm.r.modules[i.module]
+	namespace := mi.Namespace(vm.r)
 	vm.push(namespace.val)
 	vm.pc++
 }

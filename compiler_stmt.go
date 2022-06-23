@@ -863,20 +863,34 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 				if ambiguous || value == nil { // also ambiguous
 					continue // ambiguous import already reports
 				}
-
 				n := name.Alias
 				if n.String() == "" {
 					n = name.IdentifierName
 				}
+				if value.BindingName == "*namespace*" {
+					idx := expr.Idx // TODO fix
+					c.emitLexicalAssign(
+						n,
+						int(idx),
+						c.compileEmitterExpr(func() {
+							c.emit(importNamespace{
+								module: value.Module,
+							})
+						}, idx),
+					)
+					continue
+				}
+
 				c.checkIdentifierLName(n, int(expr.Idx))
 				localB, _ := c.scope.lookupName(n)
 				if localB == nil {
 					c.throwSyntaxError(int(expr.Idx0()), "couldn't lookup  %s", n)
 				}
-				identifier := name.IdentifierName // this
+				identifier := unistring.NewFromString(value.BindingName)
 				// moduleName := expr.FromClause.ModuleSpecifier.String()
+
 				localB.getIndirect = func(vm *vm) Value {
-					m := vm.r.modules[module]
+					m := vm.r.modules[value.Module]
 					v, ok := m.GetBindingValue(identifier, true)
 					if !ok {
 						vm.r.throwReferenceError(identifier)
@@ -898,10 +912,10 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 				c.throwSyntaxError(int(expr.Idx0()), "couldn't lookup  %s", def.Name)
 			}
 			// moduleName := expr.FromClause.ModuleSpecifier.String()
-			identifier := unistring.String("default")
+			identifier := unistring.NewFromString(value.BindingName)
 			localB.getIndirect = func(vm *vm) Value {
 				// TODO this should be just "default", this also likely doesn't work for export aliasing
-				m := vm.r.modules[module]
+				m := vm.r.modules[value.Module]
 				v, ok := m.GetBindingValue(identifier, true)
 				if !ok {
 					vm.r.throwReferenceError(identifier)
