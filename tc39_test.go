@@ -175,6 +175,7 @@ var (
 		"test/built-ins/Object/seal/seal-generatorfunction.js":                                                       true,
 		"test/language/module-code/instn-local-bndng-gen.js":                                                         true,
 		"test/language/module-code/instn-local-bndng-export-gen.js":                                                  true,
+		"test/language/module-code/instn-star-props-nrml.js":                                                         true,
 
 		// async
 		"test/language/eval-code/direct/async-func-decl-a-preceding-parameter-is-named-arguments-declare-arguments-and-assign.js": true,
