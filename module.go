@@ -889,8 +889,15 @@ func (r *Runtime) createNamespaceObject(m ModuleRecord) *namespaceObject {
 	return no
 }
 
+func (no *namespaceObject) stringKeys(all bool, accum []Value) []Value {
+	for name := range no.exports {
+		_ = no.getOwnPropStr(name)
+		accum = append(accum, stringValueFromRaw(name))
+	}
+	return accum
+}
+
 func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
-	// fmt.Println(exportName)
 	if _, ok := no.exports[name]; !ok {
 		return _undefined
 	}
