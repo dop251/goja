@@ -482,7 +482,12 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 					t.Skip("Test threw IgnorableTestError")
 				}
 			}
-			t.Fatalf("%s: %v", name, err)
+			var exc = new(Exception)
+			if errors.As(err, &exc) {
+				t.Fatalf("%s: %v", name, exc.String())
+			} else {
+				t.Fatalf("%s: %v", name, err)
+			}
 		} else {
 			if (meta.Negative.Phase == "early" || meta.Negative.Phase == "parse") && !early || meta.Negative.Phase == "runtime" && early {
 				t.Fatalf("%s: error %v happened at the wrong phase (expected %s)", name, err, meta.Negative.Phase)
