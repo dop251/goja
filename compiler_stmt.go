@@ -911,16 +911,29 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 			if localB == nil {
 				c.throwSyntaxError(int(expr.Idx0()), "couldn't lookup  %s", def.Name)
 			}
-			// moduleName := expr.FromClause.ModuleSpecifier.String()
-			identifier := unistring.NewFromString(value.BindingName)
-			localB.getIndirect = func(vm *vm) Value {
-				// TODO this should be just "default", this also likely doesn't work for export aliasing
-				m := vm.r.modules[value.Module]
-				v, ok := m.GetBindingValue(identifier, true)
-				if !ok {
-					vm.r.throwReferenceError(identifier)
+			if value.BindingName == "*namespace*" {
+				idx := expr.Idx // TODO fix
+				c.emitLexicalAssign(
+					def.Name,
+					int(idx),
+					c.compileEmitterExpr(func() {
+						c.emit(importNamespace{
+							module: value.Module,
+						})
+					}, idx),
+				)
+			} else {
+				// moduleName := expr.FromClause.ModuleSpecifier.String()
+				identifier := unistring.NewFromString(value.BindingName)
+				localB.getIndirect = func(vm *vm) Value {
+					// TODO this should be just "default", this also likely doesn't work for export aliasing
+					m := vm.r.modules[value.Module]
+					v, ok := m.GetBindingValue(identifier, true)
+					if !ok {
+						vm.r.throwReferenceError(identifier)
+					}
+					return v
 				}
-				return v
 			}
 		}
 	}

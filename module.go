@@ -899,6 +899,9 @@ func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 		no.val.runtime.throwReferenceError((name))
 	}
 	mi := no.val.runtime.modules[v.Module]
+	if v.BindingName == "*namespace*" {
+		return mi.Namespace(no.val.runtime).val
+	}
 	// fmt.Println(v.Module)
 	// fmt.Println(v.BindingName)
 
