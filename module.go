@@ -875,6 +875,11 @@ func (r *Runtime) createNamespaceObject(m ModuleRecord) *namespaceObject {
 	o := &Object{runtime: r}
 	no := &namespaceObject{m: m}
 	no.val = o
+	no.extensible = true
+	no.defineOwnPropertySym(SymToStringTag, PropertyDescriptor{
+		Value: newStringValue("Module"),
+	}, true)
+	no.extensible = false
 	o.self = no
 	no.init()
 	no.exports = make(map[unistring.String]struct{})
