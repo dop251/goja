@@ -904,7 +904,7 @@ func (no *namespaceObject) stringKeys(all bool, accum []Value) []Value {
 
 func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 	if _, ok := no.exports[name]; !ok {
-		return _undefined
+		return nil
 	}
 	v, ambiguous := no.m.ResolveExport(name.String())
 	if ambiguous || v == nil {
@@ -914,9 +914,6 @@ func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 	if v.BindingName == "*namespace*" {
 		return mi.Namespace(no.val.runtime).val
 	}
-	// fmt.Println(v.Module)
-	// fmt.Println(v.BindingName)
-
 	b, ok := mi.GetBindingValue(unistring.NewFromString(v.BindingName), true)
 	if !ok {
 		no.val.runtime.throwReferenceError(unistring.NewFromString(v.BindingName))
@@ -925,8 +922,9 @@ func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 	return b
 }
 
-func (no *namespaceObject) hasPropertyStr(name unistring.String) bool {
+func (no *namespaceObject) hasOwnPropertyStr(name unistring.String) bool {
 	_, ok := no.exports[name]
+	no.getOwnPropStr(name)
 	return ok
 }
 
