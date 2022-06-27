@@ -272,8 +272,6 @@ type scope struct {
 	argsNeeded bool
 	// 'this' is used and non-strict, so need to box it (functions only)
 	thisNeeded bool
-	// is module
-	// module *SourceTextModuleRecord
 }
 
 type block struct {

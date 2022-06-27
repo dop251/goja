@@ -1341,8 +1341,14 @@ func (e *compiledThisExpr) emitGetter(putOnStack bool) {
 		}
 
 		if scope != nil {
-			scope.thisNeeded = true
-			e.c.emit(loadStack(0))
+			if e.c.module != nil && scope.outer != nil && scope.outer.outer == nil { // modules don't have this defined
+				// TODO maybe just add isTopLevel and rewrite the rest of the code
+				e.c.emit(_loadUndef{})
+			} else {
+
+				scope.thisNeeded = true
+				e.c.emit(loadStack(0))
+			}
 		} else {
 			e.c.emit(loadGlobalObject)
 		}

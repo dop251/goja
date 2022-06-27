@@ -226,11 +226,6 @@ var (
 
 		// Left-hand side as a CoverParenthesizedExpression
 		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
-
-		// eval this panics in modules
-		"test/language/module-code/eval-this.js": true,
-		// star and default leads to panic
-		"test/language/module-code/export-star-as-dflt.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -308,8 +303,6 @@ func init() {
 		// BigInt
 		"test/built-ins/TypedArrayConstructors/BigUint64Array/",
 		"test/built-ins/TypedArrayConstructors/BigInt64Array/",
-		// module namespace TODO remove
-		"test/language/module-code/namespace/",
 	)
 }
 
