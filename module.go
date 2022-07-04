@@ -899,6 +899,10 @@ func (no *namespaceObject) stringKeys(all bool, accum []Value) []Value {
 		_ = no.getOwnPropStr(name)
 		accum = append(accum, stringValueFromRaw(name))
 	}
+	// TODO optimize thsi
+	sort.Slice(accum, func(i, j int) bool {
+		return accum[i].String() < accum[j].String()
+	})
 	return accum
 }
 
@@ -912,14 +916,24 @@ func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 	}
 	mi := no.val.runtime.modules[v.Module]
 	if v.BindingName == "*namespace*" {
-		return mi.Namespace(no.val.runtime).val
+		return &valueProperty{
+			value:        mi.Namespace(no.val.runtime).val,
+			writable:     true,
+			configurable: false,
+			enumerable:   true,
+		}
 	}
 	b, ok := mi.GetBindingValue(unistring.NewFromString(v.BindingName), true)
 	if !ok {
 		no.val.runtime.throwReferenceError(unistring.NewFromString(v.BindingName))
 	}
 
-	return b
+	return &valueProperty{
+		value:        b,
+		writable:     true,
+		configurable: false,
+		enumerable:   true,
+	}
 }
 
 func (no *namespaceObject) hasOwnPropertyStr(name unistring.String) bool {
