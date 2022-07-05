@@ -272,3 +272,23 @@ func TestGoMapReflectUnicode(t *testing.T) {
 		t.Fatalf("Unexpected value: %v", res)
 	}
 }
+
+func TestGoMapReflectStruct(t *testing.T) {
+	type S struct {
+		Test int
+	}
+
+	m := map[string]S{
+		"1": {Test: 1},
+	}
+
+	vm := New()
+	vm.Set("m", m)
+	res, err := vm.RunString("m[1].Test = 2; m[1].Test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Export() != int64(1) {
+		t.Fatal(res)
+	}
+}
