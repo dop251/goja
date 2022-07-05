@@ -485,7 +485,13 @@ func (o *objectGoReflect) exportType() reflect.Type {
 
 func (o *objectGoReflect) equal(other objectImpl) bool {
 	if other, ok := other.(*objectGoReflect); ok {
-		return o.value == other.value
+		k1, k2 := o.value.Kind(), other.value.Kind()
+		if k1 == k2 {
+			if isContainer(k1) {
+				return o.value == other.value
+			}
+			return o.value.Interface() == other.value.Interface()
+		}
 	}
 	return false
 }
