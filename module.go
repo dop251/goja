@@ -988,11 +988,11 @@ func (no *namespaceObject) hasOwnPropertyStr(name unistring.String) bool {
 	return ok
 }
 
-func (o *namespaceObject) getStr(name unistring.String, receiver Value) Value {
-	prop := o.getOwnPropStr(name)
+func (no *namespaceObject) getStr(name unistring.String, receiver Value) Value {
+	prop := no.getOwnPropStr(name)
 	if prop, ok := prop.(*valueProperty); ok {
 		if receiver == nil {
-			return prop.get(o.val)
+			return prop.get(no.val)
 		}
 		return prop.get(receiver)
 	}
