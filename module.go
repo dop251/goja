@@ -137,14 +137,14 @@ func (c *compiler) innerModuleLinking(m ModuleRecord, stack *[]CyclicModuleRecor
 	return index, nil
 }
 
-func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, name string, resolve HostResolveImportedModuleFunc,
+func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostResolveImportedModuleFunc,
 ) (mi ModuleInstance, err error) {
 	// TODO asserts
 	if r.modules == nil {
 		r.modules = make(map[ModuleRecord]ModuleInstance)
 	}
 	stackInstance := []CyclicModuleInstance{}
-	if mi, _, err = r.innerModuleEvaluation(c, &stackInstance, 0, name, resolve); err != nil {
+	if mi, _, err = r.innerModuleEvaluation(c, &stackInstance, 0, resolve); err != nil {
 		/*
 			for _, m := range stack {
 				// TODO asserts
@@ -162,7 +162,7 @@ func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, name string, 
 
 func (r *Runtime) innerModuleEvaluation(
 	m ModuleRecord, stack *[]CyclicModuleInstance, index uint,
-	name string, resolve HostResolveImportedModuleFunc,
+	resolve HostResolveImportedModuleFunc,
 ) (mi ModuleInstance, idx uint, err error) {
 	if len(*stack) > 100000 {
 		panic("too deep dependancy stack of 100000")
@@ -203,7 +203,7 @@ func (r *Runtime) innerModuleEvaluation(
 			return nil, 0, err
 		}
 		var requiredInstance ModuleInstance
-		requiredInstance, index, err = r.innerModuleEvaluation(requiredModule, stack, index, required, resolve)
+		requiredInstance, index, err = r.innerModuleEvaluation(requiredModule, stack, index, resolve)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -237,7 +237,6 @@ func (r *Runtime) innerModuleEvaluation(
 
 type (
 	ModuleInstance interface {
-		// Evaluate(rt *Runtime) (ModuleInstance, error)
 		GetBindingValue(unistring.String, bool) (Value, bool)
 		Namespace(*Runtime) *namespaceObject // export the type
 	}
@@ -571,7 +570,6 @@ func ModuleFromAST(name string, body *ast.Program, resolveModule HostResolveImpo
 	}
 
 	s := &SourceTextModuleRecord{
-		name: name,
 		// realm isn't implement
 		// environment is undefined
 		// namespace is undefined
@@ -675,42 +673,6 @@ func (module *SourceTextModuleRecord) InitializeEnvorinment() (err error) {
 	return
 }
 
-/*
-func (rt *Runtime) getModuleNamespace(module ModuleRecord) *Namespace {
-	if c, ok := module.(CyclicModuleRecord); ok && c.Status() == Unlinked {
-		panic("oops") // TODO beter oops
-	}
-	namespace := module.Namespace()
-	if namespace == nil {
-		exportedNames := module.GetExportedNames()
-		var unambiguousNames []string
-		for _, name := range exportedNames {
-			_, ok := module.ResolveExport(name)
-			if ok {
-				unambiguousNames = append(unambiguousNames, name)
-			}
-		}
-		namespace := rt.moduleNamespaceCreate(module, unambiguousNames)
-		module.SetNamespace(namespace)
-	}
-	return namespace
-}
-
-// TODO this probably should really be goja.Object
-type Namespace struct {
-	module  ModuleRecord
-	exports []string
-}
-
-func (rt *Runtime) moduleNamespaceCreate(module ModuleRecord, exports []string) *Namespace {
-	sort.Strings(exports)
-	return &Namespace{
-		module:  module,
-		exports: exports,
-	}
-}
-
-*/
 type ResolveSetElement struct {
 	Module     ModuleRecord
 	ExportName string
@@ -797,7 +759,7 @@ func (module *SourceTextModuleRecord) Instanciate() CyclicModuleInstance {
 }
 
 func (module *SourceTextModuleRecord) Evaluate(rt *Runtime) (ModuleInstance, error) {
-	return rt.CyclicModuleRecordEvaluate(module, module.name, module.hostResolveImportedModule)
+	return rt.CyclicModuleRecordEvaluate(module, module.hostResolveImportedModule)
 }
 
 func (module *SourceTextModuleRecord) Link() error {
@@ -807,7 +769,6 @@ func (module *SourceTextModuleRecord) Link() error {
 }
 
 type cyclicModuleStub struct {
-	// namespace        *Namespace
 	status           CyclicModuleRecordStatus
 	dfsIndex         uint
 	ancestorDfsIndex uint
@@ -855,15 +816,6 @@ func (c *cyclicModuleStub) RequestedModules() []string {
 	return c.requestedModules
 }
 
-/*
-func (c *cyclicModuleStub) Namespace() *Namespace {
-	return c.namespace
-}
-
-func (c *cyclicModuleStub) SetNamespace(namespace *Namespace) {
-	c.namespace = namespace
-}
-*/
 type namespaceObject struct {
 	baseObject
 	m            ModuleRecord
@@ -921,9 +873,7 @@ func (no *namespaceObject) iterateStringKeys() iterNextFunc {
 }
 
 func (no *namespaceObject) iterateKeys() iterNextFunc {
-	return (&namespacePropIter{
-		no: no,
-	}).next
+	return no.iterateStringKeys()
 }
 
 func (i *namespacePropIter) next() (propIterItem, iterNextFunc) {
@@ -953,12 +903,6 @@ func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 			writable:     true,
 			configurable: false,
 			enumerable:   true,
-			/*
-				accessor:     true,
-				getterFunc: propGetter(no.val, no.val.runtime.ToValue(func() Value {
-					return
-				}), no.val.runtime),
-			*/
 		}
 	}
 
@@ -967,16 +911,12 @@ func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 		no.val.runtime.throwReferenceError(unistring.NewFromString(v.BindingName))
 	}
 	if b == nil {
+		// TODO figure this out - this is needed as otherwise valueproperty is thought to not have a value
+		// which isn't really correct in a particular test around isFrozen
 		b = _null
 	}
 	return &valueProperty{
-		value: b,
-		/*
-			accessor: true,
-			getterFunc: no.val.runtime.newNativeFunc(func(FunctionCall) Value {
-				return b
-			}, nil, "", nil, 0),
-		*/
+		value:        b,
 		writable:     true,
 		configurable: false,
 		enumerable:   true,
