@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"sort"
@@ -724,7 +725,6 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 	if exportName == "" {
 		panic("wat")
 	}
-	// fmt.Println("in", exportName, resolveset)
 	for _, r := range resolveset {
 		if r.Module == module && exportName == r.ExportName { // TODO better
 			return nil, false
@@ -771,7 +771,6 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 			panic(err) // TODO return err
 		}
 		resolution, ambiguous := importedModule.ResolveExport(exportName, resolveset...)
-		// fmt.Println(resolution, ambiguous, importedModule)
 		if ambiguous {
 			return nil, true
 		}
@@ -867,8 +866,9 @@ func (c *cyclicModuleStub) SetNamespace(namespace *Namespace) {
 */
 type namespaceObject struct {
 	baseObject
-	m       ModuleRecord
-	exports map[unistring.String]struct{}
+	m            ModuleRecord
+	exports      map[unistring.String]struct{}
+	exportsNames []unistring.String
 }
 
 func (r *Runtime) createNamespaceObject(m ModuleRecord) *namespaceObject {
@@ -890,13 +890,16 @@ func (r *Runtime) createNamespaceObject(m ModuleRecord) *namespaceObject {
 			continue
 		}
 		no.exports[unistring.NewFromString(exportName)] = struct{}{}
+		no.exportsNames = append(no.exportsNames, unistring.NewFromString(exportName))
 	}
 	return no
 }
 
 func (no *namespaceObject) stringKeys(all bool, accum []Value) []Value {
 	for name := range no.exports {
-		_ = no.getOwnPropStr(name)
+		if !all { //  TODO this seems off
+			_ = no.getOwnPropStr(name)
+		}
 		accum = append(accum, stringValueFromRaw(name))
 	}
 	// TODO optimize thsi
@@ -904,6 +907,35 @@ func (no *namespaceObject) stringKeys(all bool, accum []Value) []Value {
 		return accum[i].String() < accum[j].String()
 	})
 	return accum
+}
+
+type namespacePropIter struct {
+	no  *namespaceObject
+	idx int
+}
+
+func (no *namespaceObject) iterateStringKeys() iterNextFunc {
+	return (&namespacePropIter{
+		no: no,
+	}).next
+}
+
+func (no *namespaceObject) iterateKeys() iterNextFunc {
+	return (&namespacePropIter{
+		no: no,
+	}).next
+}
+
+func (i *namespacePropIter) next() (propIterItem, iterNextFunc) {
+	for i.idx < len(i.no.exportsNames) {
+		name := i.no.exportsNames[i.idx]
+		i.idx++
+		prop := i.no.getOwnPropStr(name)
+		if prop != nil {
+			return propIterItem{name: stringValueFromRaw(name), value: prop}, i.next
+		}
+	}
+	return propIterItem{}, nil
 }
 
 func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
@@ -921,15 +953,27 @@ func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 			writable:     true,
 			configurable: false,
 			enumerable:   true,
+			/*
+				accessor:     true,
+				getterFunc: propGetter(no.val, no.val.runtime.ToValue(func() Value {
+					return
+				}), no.val.runtime),
+			*/
 		}
 	}
+
 	b, ok := mi.GetBindingValue(unistring.NewFromString(v.BindingName), true)
 	if !ok {
 		no.val.runtime.throwReferenceError(unistring.NewFromString(v.BindingName))
 	}
-
 	return &valueProperty{
-		value:        b,
+		value: b,
+		/*
+			accessor: true,
+			getterFunc: no.val.runtime.newNativeFunc(func(FunctionCall) Value {
+				return b
+			}, nil, "", nil, 0),
+		*/
 		writable:     true,
 		configurable: false,
 		enumerable:   true,
@@ -938,7 +982,6 @@ func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 
 func (no *namespaceObject) hasOwnPropertyStr(name unistring.String) bool {
 	_, ok := no.exports[name]
-	no.getOwnPropStr(name)
 	return ok
 }
 
@@ -961,6 +1004,41 @@ func (no *namespaceObject) setOwnStr(name unistring.String, val Value, throw boo
 func (no *namespaceObject) deleteStr(name unistring.String, throw bool) bool {
 	if _, exists := no.exports[name]; exists {
 		no.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
+		return false
 	}
-	return false
+	return true
+}
+
+func (no *namespaceObject) defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool {
+	returnFalse := func() bool {
+		var buf bytes.Buffer
+		for _, stack := range no.val.runtime.CaptureCallStack(0, nil) {
+			stack.Write(&buf)
+			buf.WriteRune('\n')
+		}
+		if throw {
+			no.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
+		}
+		return false
+	}
+	if !no.hasOwnPropertyStr(name) {
+		return returnFalse()
+	}
+	if desc.Empty() {
+		return true
+	}
+	if desc.Writable == FLAG_FALSE {
+		return returnFalse()
+	}
+	if desc.Configurable == FLAG_TRUE {
+		return returnFalse()
+	}
+	if desc.Enumerable == FLAG_FALSE {
+		return returnFalse()
+	}
+	if desc.Value != nil && desc.Value != no.getOwnPropStr(name) {
+		return returnFalse()
+	}
+	// TODO more checks
+	return true
 }

@@ -824,6 +824,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		b.markAccessPoint()
 
 		exportName := unistring.NewFromString(entry.localName)
+		lex := entry.lex || !scope.boundNames[exportName].isVar
 		callback := func(vm *vm, getter func() Value) {
 			m := vm.r.modules[module]
 
@@ -833,7 +834,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 				s.exportGetters[exportName] = getter
 			}
 		}
-		if entry.lex {
+		if lex {
 			c.emit(exportLex{callback: callback})
 		} else {
 			c.emit(export{callback: callback})
@@ -849,7 +850,6 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		}
 		b, ambiguous := otherModule.ResolveExport(entry.importName)
 		if ambiguous || b == nil {
-			// fmt.Printf("entry %#v , module: %#v\n", entry, otherModule)
 			c.compileAmbiguousImport(unistring.NewFromString(entry.importName))
 			continue
 		}
