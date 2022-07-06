@@ -483,7 +483,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 					t.Skip("Test threw IgnorableTestError")
 				}
 			}
-			var exc = new(Exception)
+			exc := new(Exception)
 			if errors.As(err, &exc) {
 				t.Fatalf("%s: %v", name, exc.String())
 			} else {
@@ -519,14 +519,12 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 			}
 
 			if errType != meta.Negative.Type {
-				fmt.Println(err)
 				vm.vm.prg.dumpCode(t.Logf)
 				t.Fatalf("%s: unexpected error type (%s), expected (%s)", name, errType, meta.Negative.Type)
 			}
 		}
 	} else {
 		if meta.Negative.Type != "" {
-			t.Fatalf("%s: Expected error: %v", name, err)
 			vm.vm.prg.dumpCode(t.Logf)
 			t.Fatalf("%s: Expected error: %v", name, err)
 		}
