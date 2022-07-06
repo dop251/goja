@@ -1848,10 +1848,6 @@ func (e *compiledObjectLiteral) emitGetter(putOnStack bool) {
 		switch prop := prop.(type) {
 		case *ast.PropertyKeyed:
 			keyExpr := e.c.compileExpression(prop.Key)
-			if keyExpr == nil {
-				// TODO
-				return
-			}
 			computed := false
 			var key unistring.String
 			switch keyExpr := keyExpr.(type) {
