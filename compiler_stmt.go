@@ -53,6 +53,7 @@ func (c *compiler) compileStatement(v ast.Statement, needResult bool) {
 	case *ast.DebuggerStatement:
 	case *ast.ImportDeclaration:
 		// c.compileImportDeclaration(v)
+		// TODO explain this maybe do something in here as well ?
 	case *ast.ExportDeclaration:
 		c.compileExportDeclaration(v)
 	default:

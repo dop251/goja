@@ -76,9 +76,8 @@ type compiler struct {
 	scope *scope
 	block *block
 
-	enumGetExpr compiledEnumGetExpr
-	// TODO add a type and a set method
-	hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
+	enumGetExpr               compiledEnumGetExpr
+	hostResolveImportedModule HostResolveImportedModuleFunc
 	module                    *SourceTextModuleRecord
 
 	evalVM *vm
@@ -359,9 +358,6 @@ func newCompiler() *compiler {
 }
 
 func (p *Program) defineLiteralValue(val Value) uint32 {
-	if val == nil {
-		panic("wat")
-	}
 	for idx, v := range p.values {
 		if v.SameAs(val) {
 			return uint32(idx)
@@ -751,16 +747,14 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 			panic(fmt.Errorf("previously resolved module returned error %w", err))
 		}
 		if in.importName == "*" {
-			b := c.createImmutableBinding(unistring.NewFromString(in.localName), true)
-			b.inStash = true
+			c.createImmutableBinding(unistring.NewFromString(in.localName), true)
 		} else {
 			resolution, ambiguous := importedModule.ResolveExport(in.importName)
 			if resolution == nil || ambiguous {
 				c.compileAmbiguousImport(unistring.NewFromString(in.importName))
 				continue
 			}
-			b := c.createImmutableBinding(unistring.NewFromString(in.localName), true)
-			b.inStash = true
+			c.createImmutableBinding(unistring.NewFromString(in.localName), true)
 		}
 	}
 	// 15.2.1.17.4 step 9 end
@@ -843,7 +837,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 	for _, entry := range module.indirectExportEntries {
 		otherModule, err := c.hostResolveImportedModule(c.module, entry.moduleRequest)
 		if err != nil {
-			panic(err) // this should not be possible
+			panic(fmt.Errorf("previously resolved module returned error %w", err))
 		}
 		if entry.importName == "*" {
 			continue
@@ -1141,11 +1135,12 @@ func (c *compiler) createVarBindings(v *ast.VariableDeclaration, inFunc bool) {
 	}
 }
 
-func (c *compiler) createImmutableBinding(name unistring.String, isStrict bool) *binding {
+func (c *compiler) createImmutableBinding(name unistring.String, isConst bool) *binding {
 	b, _ := c.scope.bindName(name)
-	b.isConst = true
-	b.isVar = true
-	b.isStrict = isStrict
+	b.inStash = true
+	b.isConst = isConst
+	// b.isVar = true // TODO figure out if this needs to be true at some point
+	// b.isStrict = isStrict
 	return b
 }
 
@@ -1256,8 +1251,6 @@ func (c *compiler) compileStandaloneFunctionDecl(v *ast.FunctionDeclaration) {
 }
 
 func (c *compiler) emit(instructions ...instruction) {
-	// fmt.Printf("emit instructions %s\n", spew.Sdump(instructions))
-	// fmt.Printf("on instructions %s\n", spew.Sdump(c.p.code))
 	c.p.code = append(c.p.code, instructions...)
 }
 
