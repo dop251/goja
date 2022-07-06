@@ -121,7 +121,6 @@ const (
 	// ES6 Modules
 	EXPORT
 	IMPORT
-	lastKeyword
 )
 
 var token2string = [...]string{
@@ -301,12 +300,6 @@ var keywordTable = map[string]_keyword{
 	"instanceof": {
 		token: INSTANCEOF,
 	},
-	"import": {
-		token: IMPORT,
-	},
-	"export": {
-		token: EXPORT,
-	},
 	"const": {
 		token: CONST,
 	},
@@ -318,9 +311,15 @@ var keywordTable = map[string]_keyword{
 		token:         KEYWORD,
 		futureKeyword: true,
 	},
+	"import": {
+		token: IMPORT,
+	},
 	"extends": {
 		token:         KEYWORD,
 		futureKeyword: true,
+	},
+	"export": {
+		token: EXPORT,
 	},
 	"super": {
 		token:         KEYWORD,
