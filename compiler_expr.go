@@ -1266,7 +1266,7 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 
 	strict := s.strict
 	p := e.c.p
-	// e.c.p.dumpCode(log.Default().Printf)
+	// e.c.p.dumpCode()
 	if enterFunc2Mark != -1 {
 		e.c.popScope()
 	}
@@ -2147,7 +2147,7 @@ func (c *compiler) compileNumberLiteral(v *ast.NumberLiteral) compiledExpr {
 	case float64:
 		val = floatToValue(num)
 	default:
-		panic(fmt.Errorf("unsupported number literal type: %T", v.Value))
+		panic(fmt.Errorf("Unsupported number literal type: %T", v.Value))
 	}
 	r := &compiledLiteral{
 		val: val,
