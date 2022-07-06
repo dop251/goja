@@ -289,7 +289,6 @@ func (s *SourceTextModuleInstance) Namespace(rt *Runtime) *namespaceObject {
 
 type SourceTextModuleRecord struct {
 	cyclicModuleStub
-	name string // TODO remove this :crossed_fingers:
 	body *ast.Program
 	p    *Program
 	// context
@@ -526,10 +525,10 @@ func ParseModule(name, sourceText string, resolveModule HostResolveImportedModul
 	if err != nil {
 		return nil, err
 	}
-	return ModuleFromAST(name, body, resolveModule)
+	return ModuleFromAST(body, resolveModule)
 }
 
-func ModuleFromAST(name string, body *ast.Program, resolveModule HostResolveImportedModuleFunc) (*SourceTextModuleRecord, error) {
+func ModuleFromAST(body *ast.Program, resolveModule HostResolveImportedModuleFunc) (*SourceTextModuleRecord, error) {
 	requestedModules := requestedModulesFromAst(body.Body)
 	importEntries, err := importEntriesFromAst(body.ImportEntries)
 	if err != nil {
