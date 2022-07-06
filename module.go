@@ -966,6 +966,9 @@ func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 	if !ok {
 		no.val.runtime.throwReferenceError(unistring.NewFromString(v.BindingName))
 	}
+	if b == nil {
+		b = _null
+	}
 	return &valueProperty{
 		value: b,
 		/*
