@@ -428,17 +428,17 @@ func TestParserErr(t *testing.T) {
 			test("abc.enum = 1", nil)
 			test("var enum;", "(anonymous): Line 1:5 Unexpected reserved word")
 
-			test("export", "(anonymous): Line 1:1 Unexpected reserved word")
+			test("export", "(anonymous): Line 1:7 export not supported in script")
 			test("abc.export = 1", nil)
-			test("var export;", "(anonymous): Line 1:5 Unexpected reserved word")
+			test("var export;", "(anonymous): Line 1:5 Unexpected token export")
 
 			test("extends", "(anonymous): Line 1:1 Unexpected reserved word")
 			test("abc.extends = 1", nil)
 			test("var extends;", "(anonymous): Line 1:5 Unexpected reserved word")
 
-			test("import", "(anonymous): Line 1:1 Unexpected reserved word")
+			test("import", "(anonymous): Line 1:7 import not supported in script")
 			test("abc.import = 1", nil)
-			test("var import;", "(anonymous): Line 1:5 Unexpected reserved word")
+			test("var import;", "(anonymous): Line 1:5 Unexpected token import")
 
 			test("super", "(anonymous): Line 1:1 Unexpected reserved word")
 			test("abc.super = 1", nil)
@@ -453,7 +453,7 @@ func TestParserErr(t *testing.T) {
 			test("{a: 1,}", "(anonymous): Line 1:7 Unexpected token }")
 			test("{a: 1, b: 2}", "(anonymous): Line 1:9 Unexpected token :")
 			test("{a: 1, b: 2,}", "(anonymous): Line 1:9 Unexpected token :")
-			test(`let f = () => new import('');`, "(anonymous): Line 1:19 Unexpected reserved word")
+			test(`let f = () => new import('');`, "(anonymous): Line 1:19 Unexpected token import")
 
 		}
 
