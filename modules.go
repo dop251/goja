@@ -18,7 +18,7 @@ type HostResolveImportedModuleFunc func(referencingScriptOrModule interface{}, s
 
 // ModuleRecord is the common interface for module record as defined in the EcmaScript specification
 type ModuleRecord interface {
-	GetExportedNames(resolveset ...*SourceTextModuleRecord) []string // TODO maybe this parameter is wrong
+	GetExportedNames(resolveset ...ModuleRecord) []string // TODO maybe this parameter is wrong
 	ResolveExport(exportName string, resolveset ...ResolveSetElement) (*ResolvedBinding, bool)
 	Link() error
 	Evaluate(*Runtime) (ModuleInstance, error)
@@ -621,7 +621,7 @@ func (module *SourceTextModuleRecord) getExportedNamesWithotStars() []string {
 	return exportedNames
 }
 
-func (module *SourceTextModuleRecord) GetExportedNames(exportStarSet ...*SourceTextModuleRecord) []string {
+func (module *SourceTextModuleRecord) GetExportedNames(exportStarSet ...ModuleRecord) []string {
 	for _, el := range exportStarSet {
 		if el == module { // better check
 			// TODO assert
