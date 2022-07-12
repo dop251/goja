@@ -566,8 +566,7 @@ func (vm *vm) peek() Value {
 }
 
 func (vm *vm) saveCtx(ctx *context) {
-	ctx.prg, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args, ctx.funcName =
-		vm.prg, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args, vm.funcName
+	ctx.prg, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args, ctx.funcName = vm.prg, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args, vm.funcName
 }
 
 func (vm *vm) pushCtx() {
@@ -584,8 +583,7 @@ func (vm *vm) pushCtx() {
 }
 
 func (vm *vm) restoreCtx(ctx *context) {
-	vm.prg, vm.funcName, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args =
-		ctx.prg, ctx.funcName, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args
+	vm.prg, vm.funcName, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args = ctx.prg, ctx.funcName, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args
 }
 
 func (vm *vm) popCtx() {
@@ -858,9 +856,7 @@ type importNamespace struct {
 }
 
 func (i importNamespace) exec(vm *vm) {
-	mi := vm.r.modules[i.module]
-	namespace := mi.Namespace(vm.r)
-	vm.push(namespace.val)
+	vm.push(vm.r.NamespaceObjectFor(i.module))
 	vm.pc++
 }
 

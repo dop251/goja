@@ -18,14 +18,11 @@ type HostResolveImportedModuleFunc func(referencingScriptOrModule interface{}, s
 
 // ModuleRecord is the common interface for module record as defined in the EcmaScript specification
 type ModuleRecord interface {
+	// TODO move to ModuleInstance
 	GetExportedNames(resolveset ...ModuleRecord) []string // TODO maybe this parameter is wrong
 	ResolveExport(exportName string, resolveset ...ResolveSetElement) (*ResolvedBinding, bool)
 	Link() error
 	Evaluate(*Runtime) (ModuleInstance, error)
-	/*
-		Namespace() *Namespace
-		SetNamespace(*Namespace)
-	*/
 }
 
 type CyclicModuleRecordStatus uint8
@@ -39,63 +36,65 @@ const (
 )
 
 type CyclicModuleRecord interface {
-	// TODO this probably shouldn't really be an interface ... or at least the current one is quite bad and big
 	ModuleRecord
-	Status() CyclicModuleRecordStatus
-	SetStatus(CyclicModuleRecordStatus)
-	EvaluationError() error
-	SetEvaluationError(error)
-	DFSIndex() uint
-	SetDFSIndex(uint)
-	DFSAncestorIndex() uint
-	SetDFSAncestorIndex(uint)
 	RequestedModules() []string
-	InitializeEnvorinment() error
-	ExecuteModule(*Runtime) (Value, error)
-	Instanciate() CyclicModuleInstance
+	InitializeEnvironment() error
+	Instanciate() CyclicModuleInstance // TODO maybe should be taking the runtime
 }
 
 type LinkedSourceModuleRecord struct{}
 
 func (c *compiler) CyclicModuleRecordConcreteLink(module CyclicModuleRecord) error {
-	if module.Status() == Linking || module.Status() == Evaluating {
-		return fmt.Errorf("bad status %+v on link", module.Status())
-	}
-
 	stack := []CyclicModuleRecord{}
-	if _, err := c.innerModuleLinking(module, &stack, 0); err != nil {
-		for _, m := range stack {
-			/*
-				if m.Status() != Linking {
-					return fmt.Errorf("bad status %+v on link", m.Status())
-				}
-			*/
-			m.SetStatus(Unlinked)
-
-			// TODO reset the rest
-		}
-		module.SetStatus(Unlinked)
+	if _, err := c.innerModuleLinking(newLinkState(), module, &stack, 0); err != nil {
 		return err
-
 	}
 	return nil
 }
 
-func (c *compiler) innerModuleLinking(m ModuleRecord, stack *[]CyclicModuleRecord, index uint) (uint, error) {
+type linkState struct {
+	status           map[ModuleRecord]CyclicModuleRecordStatus
+	dfsIndex         map[ModuleRecord]uint
+	dfsAncestorIndex map[ModuleRecord]uint
+}
+
+func newLinkState() *linkState {
+	return &linkState{
+		status:           make(map[ModuleRecord]CyclicModuleRecordStatus),
+		dfsIndex:         make(map[ModuleRecord]uint),
+		dfsAncestorIndex: make(map[ModuleRecord]uint),
+	}
+}
+
+type evaluationState struct {
+	status           map[ModuleInstance]CyclicModuleRecordStatus
+	dfsIndex         map[ModuleInstance]uint
+	dfsAncestorIndex map[ModuleInstance]uint
+}
+
+func newEvaluationState() *evaluationState {
+	return &evaluationState{
+		status:           make(map[ModuleInstance]CyclicModuleRecordStatus),
+		dfsIndex:         make(map[ModuleInstance]uint),
+		dfsAncestorIndex: make(map[ModuleInstance]uint),
+	}
+}
+
+func (c *compiler) innerModuleLinking(state *linkState, m ModuleRecord, stack *[]CyclicModuleRecord, index uint) (uint, error) {
 	var module CyclicModuleRecord
 	var ok bool
 	if module, ok = m.(CyclicModuleRecord); !ok {
 		err := m.Link() // TODO fix
 		return index, err
 	}
-	if status := module.Status(); status == Linking || status == Linked || status == Evaluated {
+	if status := state.status[module]; status == Linking || status == Linked || status == Evaluated {
 		return index, nil
 	} else if status != Unlinked {
 		return 0, errors.New("bad status on link") // TODO fix
 	}
-	module.SetStatus(Linking)
-	module.SetDFSIndex(index)
-	module.SetDFSAncestorIndex(index)
+	state.status[module] = Linking
+	state.dfsIndex[module] = index
+	state.dfsAncestorIndex[module] = index
 	index++
 	*stack = append(*stack, module)
 	var err error
@@ -105,30 +104,26 @@ func (c *compiler) innerModuleLinking(m ModuleRecord, stack *[]CyclicModuleRecor
 		if err != nil {
 			return 0, err
 		}
-		index, err = c.innerModuleLinking(requiredModule, stack, index)
+		index, err = c.innerModuleLinking(state, requiredModule, stack, index)
 		if err != nil {
 			return 0, err
 		}
 		if requiredC, ok := requiredModule.(CyclicModuleRecord); ok {
-			// TODO some asserts
-			if requiredC.Status() == Linking {
-				if ancestorIndex := module.DFSAncestorIndex(); requiredC.DFSAncestorIndex() > ancestorIndex {
-					requiredC.SetDFSAncestorIndex(ancestorIndex)
+			if state.status[requiredC] == Linking {
+				if ancestorIndex := state.dfsAncestorIndex[module]; state.dfsAncestorIndex[requiredC] > ancestorIndex {
+					state.dfsAncestorIndex[requiredC] = ancestorIndex
 				}
 			}
 		}
 	}
-	err = module.InitializeEnvorinment()
+	err = module.InitializeEnvironment()
 	if err != nil {
 		return 0, err
 	}
-	// TODO more asserts
-
-	if module.DFSAncestorIndex() == module.DFSIndex() {
+	if state.dfsAncestorIndex[module] == state.dfsIndex[module] {
 		for i := len(*stack) - 1; i >= 0; i-- {
 			requiredModule := (*stack)[i]
-			// TODO assert
-			requiredModule.SetStatus(Linked)
+			state.status[requiredModule] = Linked
 			if requiredModule == module {
 				break
 			}
@@ -139,28 +134,19 @@ func (c *compiler) innerModuleLinking(m ModuleRecord, stack *[]CyclicModuleRecor
 
 func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostResolveImportedModuleFunc,
 ) (mi ModuleInstance, err error) {
-	// TODO asserts
 	if r.modules == nil {
 		r.modules = make(map[ModuleRecord]ModuleInstance)
 	}
 	stackInstance := []CyclicModuleInstance{}
-	if mi, _, err = r.innerModuleEvaluation(c, &stackInstance, 0, resolve); err != nil {
-		/*
-			for _, m := range stack {
-				// TODO asserts
-				m.SetStatus(Evaluated)
-				m.SetEvaluationError(err)
-			}
-		*/
-		// TODO asserts
+	if mi, _, err = r.innerModuleEvaluation(newEvaluationState(), c, &stackInstance, 0, resolve); err != nil {
 		return nil, err
 	}
 
-	// TODO asserts
 	return mi, nil
 }
 
 func (r *Runtime) innerModuleEvaluation(
+	state *evaluationState,
 	m ModuleRecord, stack *[]CyclicModuleInstance, index uint,
 	resolve HostResolveImportedModuleFunc,
 ) (mi ModuleInstance, idx uint, err error) {
@@ -179,20 +165,18 @@ func (r *Runtime) innerModuleEvaluation(
 		if ok {
 			return mi, index, nil
 		}
-		mi = c
 		c = cr.Instanciate()
+		mi = c
 		r.modules[m] = c
 	}
-	if status := c.Status(); status == Evaluated { // TODO switch
-		return nil, index, c.EvaluationError()
+	if status := state.status[mi]; status == Evaluated {
+		return nil, index, nil
 	} else if status == Evaluating {
 		return nil, index, nil
-	} else if status != Linked {
-		return nil, 0, errors.New("module isn't linked when it's being evaluated")
 	}
-	c.SetStatus(Evaluating)
-	c.SetDFSIndex(index)
-	c.SetDFSAncestorIndex(index)
+	state.status[mi] = Evaluating
+	state.dfsIndex[mi] = index
+	state.dfsAncestorIndex[mi] = index
 	index++
 
 	*stack = append(*stack, c)
@@ -203,15 +187,14 @@ func (r *Runtime) innerModuleEvaluation(
 			return nil, 0, err
 		}
 		var requiredInstance ModuleInstance
-		requiredInstance, index, err = r.innerModuleEvaluation(requiredModule, stack, index, resolve)
+		requiredInstance, index, err = r.innerModuleEvaluation(state, requiredModule, stack, index, resolve)
 		if err != nil {
 			return nil, 0, err
 		}
 		if requiredC, ok := requiredInstance.(CyclicModuleInstance); ok {
-			// TODO some asserts
-			if requiredC.Status() == Evaluating {
-				if ancestorIndex := c.DFSAncestorIndex(); requiredC.DFSAncestorIndex() > ancestorIndex {
-					requiredC.SetDFSAncestorIndex(ancestorIndex)
+			if state.status[requiredC] == Evaluating {
+				if ancestorIndex := state.dfsAncestorIndex[c]; state.dfsAncestorIndex[requiredC] > ancestorIndex {
+					state.dfsAncestorIndex[requiredC] = ancestorIndex
 				}
 			}
 		}
@@ -220,14 +203,13 @@ func (r *Runtime) innerModuleEvaluation(
 	if err != nil {
 		return nil, 0, err
 	}
-	// TODO asserts
 
-	if c.DFSAncestorIndex() == c.DFSIndex() {
+	if state.dfsAncestorIndex[c] == state.dfsIndex[c] {
 		for i := len(*stack) - 1; i >= 0; i-- {
-			requiredModule := (*stack)[i]
+			requiredModuleInstance := (*stack)[i]
 			// TODO assert
-			requiredModule.SetStatus(Evaluated)
-			if requiredModule == c {
+			state.status[requiredModuleInstance] = Evaluated
+			if requiredModuleInstance == c {
 				break
 			}
 		}
@@ -237,19 +219,11 @@ func (r *Runtime) innerModuleEvaluation(
 
 type (
 	ModuleInstance interface {
+		// TODO the second argument is pointless in this case
 		GetBindingValue(unistring.String, bool) (Value, bool)
-		Namespace(*Runtime) *namespaceObject // export the type
 	}
 	CyclicModuleInstance interface {
 		ModuleInstance
-		Status() CyclicModuleRecordStatus
-		SetStatus(CyclicModuleRecordStatus)
-		EvaluationError() error
-		SetEvaluationError(error)
-		DFSIndex() uint
-		SetDFSIndex(uint)
-		DFSAncestorIndex() uint
-		SetDFSAncestorIndex(uint)
 		RequestedModules() []string
 		ExecuteModule(*Runtime) (ModuleInstance, error)
 	}
@@ -264,7 +238,6 @@ type SourceTextModuleInstance struct {
 	moduleRecord *SourceTextModuleRecord
 	// TODO figure out omething less idiotic
 	exportGetters map[unistring.String]func() Value
-	namespace     *namespaceObject
 }
 
 func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime) (ModuleInstance, error) {
@@ -278,13 +251,6 @@ func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String, b bool
 		return nil, false
 	}
 	return getter(), true
-}
-
-func (s *SourceTextModuleInstance) Namespace(rt *Runtime) *namespaceObject {
-	if s.namespace == nil {
-		s.namespace = rt.createNamespaceObject(s.moduleRecord) // TODO just use the instance :shrug:
-	}
-	return s.namespace
 }
 
 type SourceTextModuleRecord struct {
@@ -573,7 +539,6 @@ func ModuleFromAST(body *ast.Program, resolveModule HostResolveImportedModuleFun
 		// environment is undefined
 		// namespace is undefined
 		cyclicModuleStub: cyclicModuleStub{
-			status:           Unlinked,
 			requestedModules: requestedModules,
 		},
 		// hostDefined TODO
@@ -602,12 +567,6 @@ func ModuleFromAST(body *ast.Program, resolveModule HostResolveImportedModuleFun
 	}
 
 	return s, nil
-}
-
-func (module *SourceTextModuleRecord) ExecuteModule(rt *Runtime) (Value, error) {
-	// TODO copy runtime.RunProgram here with some changes so that it doesn't touch the global ?
-
-	return rt.RunProgram(module.p)
 }
 
 func (module *SourceTextModuleRecord) getExportedNamesWithotStars() []string {
@@ -654,7 +613,7 @@ func (module *SourceTextModuleRecord) GetExportedNames(exportStarSet ...ModuleRe
 	return exportedNames
 }
 
-func (module *SourceTextModuleRecord) InitializeEnvorinment() (err error) {
+func (module *SourceTextModuleRecord) InitializeEnvironment() (err error) {
 	c := newCompiler()
 	defer func() {
 		if x := recover(); x != nil {
@@ -682,7 +641,14 @@ type ResolvedBinding struct {
 	BindingName string
 }
 
+// GetModuleInstance returns an instance of an already instanciated module.
+// If the ModuleRecord was not instanciated at this time it will return nil
+func (r *Runtime) GetModuleInstance(m ModuleRecord) ModuleInstance {
+	return r.modules[m]
+}
+
 func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolveset ...ResolveSetElement) (*ResolvedBinding, bool) {
+	// TODO this whole algorithm can likely be used for not source module records a well
 	if exportName == "" {
 		panic("wat")
 	}
@@ -749,7 +715,6 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 func (module *SourceTextModuleRecord) Instanciate() CyclicModuleInstance {
 	return &SourceTextModuleInstance{
 		cyclicModuleStub: cyclicModuleStub{
-			status:           module.status,
 			requestedModules: module.requestedModules,
 		},
 		moduleRecord:  module,
@@ -768,43 +733,7 @@ func (module *SourceTextModuleRecord) Link() error {
 }
 
 type cyclicModuleStub struct {
-	status           CyclicModuleRecordStatus
-	dfsIndex         uint
-	ancestorDfsIndex uint
-	evaluationError  error
 	requestedModules []string
-}
-
-func (c *cyclicModuleStub) SetStatus(status CyclicModuleRecordStatus) {
-	c.status = status
-}
-
-func (c *cyclicModuleStub) Status() CyclicModuleRecordStatus {
-	return c.status
-}
-
-func (c *cyclicModuleStub) SetDFSIndex(index uint) {
-	c.dfsIndex = index
-}
-
-func (c *cyclicModuleStub) DFSIndex() uint {
-	return c.dfsIndex
-}
-
-func (c *cyclicModuleStub) SetDFSAncestorIndex(index uint) {
-	c.ancestorDfsIndex = index
-}
-
-func (c *cyclicModuleStub) DFSAncestorIndex() uint {
-	return c.ancestorDfsIndex
-}
-
-func (c *cyclicModuleStub) SetEvaluationError(err error) {
-	c.evaluationError = err
-}
-
-func (c *cyclicModuleStub) EvaluationError() error {
-	return c.evaluationError
 }
 
 func (c *cyclicModuleStub) SetRequestedModules(modules []string) {
@@ -820,6 +749,18 @@ type namespaceObject struct {
 	m            ModuleRecord
 	exports      map[unistring.String]struct{}
 	exportsNames []unistring.String
+}
+
+func (r *Runtime) NamespaceObjectFor(m ModuleRecord) *Object {
+	if r.moduleNamespaces == nil {
+		r.moduleNamespaces = make(map[ModuleRecord]*namespaceObject)
+	}
+	if o, ok := r.moduleNamespaces[m]; ok {
+		return o.val
+	}
+	o := r.createNamespaceObject(m)
+	r.moduleNamespaces[m] = o
+	return o.val
 }
 
 func (r *Runtime) createNamespaceObject(m ModuleRecord) *namespaceObject {
@@ -895,16 +836,16 @@ func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 	if ambiguous || v == nil {
 		no.val.runtime.throwReferenceError((name))
 	}
-	mi := no.val.runtime.modules[v.Module]
 	if v.BindingName == "*namespace*" {
 		return &valueProperty{
-			value:        mi.Namespace(no.val.runtime).val,
+			value:        no.val.runtime.NamespaceObjectFor(v.Module),
 			writable:     true,
 			configurable: false,
 			enumerable:   true,
 		}
 	}
 
+	mi := no.val.runtime.modules[v.Module]
 	b, ok := mi.GetBindingValue(unistring.NewFromString(v.BindingName), true)
 	if !ok {
 		no.val.runtime.throwReferenceError(unistring.NewFromString(v.BindingName))

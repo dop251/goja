@@ -183,7 +183,8 @@ type Runtime struct {
 	hash  *maphash.Hash
 	idSeq uint64
 
-	modules map[ModuleRecord]ModuleInstance
+	modules          map[ModuleRecord]ModuleInstance
+	moduleNamespaces map[ModuleRecord]*namespaceObject
 
 	jobQueue []func()
 
