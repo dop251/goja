@@ -34,11 +34,11 @@ func load(vm *goja.Runtime, call goja.FunctionCall) goja.Value {
 	if err != nil {
 		panic(vm.ToValue(fmt.Sprintf("Could not read %s: %v", p, err)))
 	}
-	v, err := vm.RunScript(p, string(b))
+	response, err := vm.RunScript(p, string(b))
 	if err != nil {
 		panic(err)
 	}
-	return v
+	return response.Result
 }
 
 func newRandSource() goja.RandSource {

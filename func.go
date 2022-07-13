@@ -180,10 +180,10 @@ func (f *baseJsFuncObject) _call(call FunctionCall, newTarget, this Value) Value
 	pc := vm.pc
 	if pc != -1 {
 		vm.pc++ // fake "return address" so that captureStack() records the correct call location
-		vm.pushCtx()
+		vm.pushCtx(nil, 0)
 		vm.callStack = append(vm.callStack, context{pc: -1}) // extra frame so that run() halts after ret
 	} else {
-		vm.pushCtx()
+		vm.pushCtx(nil, 0)
 	}
 	vm.args = len(call.Arguments)
 	vm.prg = f.prg

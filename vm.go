@@ -167,12 +167,13 @@ type vm struct {
 	stack        valueStack
 	sp, sb, args int
 
-	stash     *stash
-	callStack []context
-	iterStack []iterStackItem
-	refStack  []ref
-	newTarget Value
-	result    Value
+	stash       *stash
+	callStack   []context
+	iterStack   []iterStackItem
+	refStack    []ref
+	newTarget   Value
+	result      Value
+	consoleLogs []string
 
 	maxCallStackSize int
 
@@ -467,7 +468,7 @@ func (vm *vm) captureStack(stack []StackFrame, ctxOffset int) []StackFrame {
 
 func (vm *vm) try(f func()) (ex *Exception) {
 	var ctx context
-	vm.saveCtx(&ctx)
+	vm.saveCtx(&ctx, nil, 0)
 
 	ctxOffset := len(vm.callStack)
 	sp := vm.sp
@@ -565,12 +566,25 @@ func (vm *vm) peek() Value {
 	return vm.stack[vm.sp-1]
 }
 
-func (vm *vm) saveCtx(ctx *context) {
+func (vm *vm) saveCtx(ctx *context, f *nativeFuncObject, n int) {
 	ctx.prg, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args, ctx.funcName =
 		vm.prg, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args, vm.funcName
+
+	if ctx.funcName == "log" && f != nil { // Need the instance of 'f' to actually execute it and push its evaluated expression to the logs object
+		ret := f.f(FunctionCall{
+			Arguments: vm.stack[vm.sp-n : vm.sp],
+			This:      vm.stack[vm.sp-n-2],
+		})
+
+		vm.consoleLogs = append(vm.consoleLogs, ret.String())
+	}
 }
 
-func (vm *vm) pushCtx() {
+/**
+Update : modified to pass native function object whenever applicable so that this gets exposed to the
+saveCtx method which processes logs from the log method
+*/
+func (vm *vm) pushCtx(f *nativeFuncObject, n int) {
 	if len(vm.callStack) > vm.maxCallStackSize {
 		ex := &StackOverflowError{}
 		ex.stack = vm.captureStack(nil, 0)
@@ -580,7 +594,7 @@ func (vm *vm) pushCtx() {
 	}
 	vm.callStack = append(vm.callStack, context{})
 	ctx := &vm.callStack[len(vm.callStack)-1]
-	vm.saveCtx(ctx)
+	vm.saveCtx(ctx, f, n)
 }
 
 func (vm *vm) restoreCtx(ctx *context) {
@@ -2679,7 +2693,7 @@ repeat:
 	switch f := obj.self.(type) {
 	case *methodFuncObject:
 		vm.pc++
-		vm.pushCtx()
+		vm.pushCtx(nil, n)
 		vm.args = n
 		vm.prg = f.prg
 		vm.stash = f.stash
@@ -2688,7 +2702,7 @@ repeat:
 		return
 	case *funcObject:
 		vm.pc++
-		vm.pushCtx()
+		vm.pushCtx(nil, n)
 		vm.args = n
 		vm.prg = f.prg
 		vm.stash = f.stash
@@ -2697,7 +2711,7 @@ repeat:
 		return
 	case *arrowFuncObject:
 		vm.pc++
-		vm.pushCtx()
+		vm.pushCtx(nil, n)
 		vm.args = n
 		vm.prg = f.prg
 		vm.stash = f.stash
@@ -2710,7 +2724,7 @@ repeat:
 	case *boundFuncObject:
 		vm._nativeCall(&f.nativeFuncObject, n)
 	case *proxyObject:
-		vm.pushCtx()
+		vm.pushCtx(nil, n)
 		vm.prg = nil
 		vm.funcName = "proxy"
 		ret := f.apply(FunctionCall{This: vm.stack[vm.sp-n-2], Arguments: vm.stack[vm.sp-n : vm.sp]})
@@ -2731,7 +2745,7 @@ repeat:
 
 func (vm *vm) _nativeCall(f *nativeFuncObject, n int) {
 	if f.f != nil {
-		vm.pushCtx()
+		vm.pushCtx(f, n)
 		vm.prg = nil
 		vm.funcName = nilSafe(f.getStr("name", nil)).string()
 		ret := f.f(FunctionCall{

@@ -44,6 +44,15 @@ const (
 	iterationKindKeyValue
 )
 
+const (
+	log = "var log = (val) => { return val.toString() }"
+)
+
+func getPreLoadedFunctions() []string {
+	functions := []string{log}
+	return functions
+}
+
 type global struct {
 	stash    stash
 	varNames map[unistring.String]struct{}
@@ -891,7 +900,7 @@ func (r *Runtime) eval(srcVal valueString, direct, strict bool, this Value) Valu
 		panic(err)
 	}
 
-	vm.pushCtx()
+	vm.pushCtx(nil, 0)
 	vm.prg = p
 	vm.pc = 0
 	vm.args = 0
@@ -1346,23 +1355,23 @@ func (r *Runtime) compile(name, src string, strict, eval, inGlobal bool) (p *Pro
 }
 
 // RunString executes the given string in the global context.
-func (r *Runtime) RunString(str string) (Value, error) {
+func (r *Runtime) RunString(str string) (JSEvalResponse, error) {
 	return r.RunScript("", str)
 }
 
 // RunScript executes the given string in the global context.
-func (r *Runtime) RunScript(name, src string) (Value, error) {
+func (r *Runtime) RunScript(name, src string) (JSEvalResponse, error) {
 	p, err := r.compile(name, src, false, false, true)
 
 	if err != nil {
-		return nil, err
+		return JSEvalResponse{Result: nil, ConsoleLogs: r.vm.consoleLogs}, err
 	}
 
 	return r.RunProgram(p)
 }
 
 // RunProgram executes a pre-compiled (see Compile()) code in the global context.
-func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
+func (r *Runtime) RunProgram(p *Program) (jsEvalResponse JSEvalResponse, err error) {
 	defer func() {
 		if x := recover(); x != nil {
 			if ex, ok := x.(*uncatchableException); ok {
@@ -1376,7 +1385,7 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	recursive := false
 	if len(vm.callStack) > 0 {
 		recursive = true
-		vm.pushCtx()
+		vm.pushCtx(nil, 0)
 		vm.stash = &r.global.stash
 		vm.sb = vm.sp - 1
 	}
@@ -1385,7 +1394,8 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	vm.result = _undefined
 	ex := vm.runTry()
 	if ex == nil {
-		result = r.vm.result
+		jsEvalResponse.Result = r.vm.result
+		jsEvalResponse.ConsoleLogs = r.vm.consoleLogs
 	} else {
 		err = ex
 	}
@@ -1400,6 +1410,15 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 		r.leave()
 	}
 	return
+}
+
+func (r *Runtime) loadUtilityMethods() error {
+	for _, f := range getPreLoadedFunctions() {
+		if _, e := r.RunString(f); e != nil {
+			return errors.New(fmt.Sprintf("Preloading js methods failed with error:  %s", e.Error()))
+		}
+	}
+	return nil
 }
 
 // CaptureCallStack appends the current call stack frames to the stack slice (which may be nil) up to the specified depth.

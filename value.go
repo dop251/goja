@@ -133,6 +133,11 @@ type valueProperty struct {
 	setterFunc   *Object
 }
 
+type JSEvalResponse struct {
+	Result      Value
+	ConsoleLogs []string
+}
+
 var (
 	errAccessBeforeInit = referenceError("Cannot access a variable before initialization")
 	errAssignToConst    = typeError("Assignment to constant variable.")
