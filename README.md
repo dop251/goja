@@ -146,7 +146,7 @@ v, err := vm.RunString("2 + 2")
 if err != nil {
     panic(err)
 }
-if num := v.Export().(int64); num != 4 {
+if num := v.Result.Export().(int64); num != 4 {
     panic(num)
 }
 ```
@@ -232,7 +232,7 @@ type S struct {
 }
 vm.Set("s", S{Field: 42})
 res, _ := vm.RunString(`s.field`) // without the mapper it would have been s.Field
-fmt.Println(res.Export())
+fmt.Println(res.Result.Export())
 // Output: 42
 ```
 
@@ -270,6 +270,30 @@ if jserr, ok := err.(*Exception); ok {
     }
 } else {
     panic("wrong type")
+}
+```
+
+-------------
+
+Run JavaScript and get the logs returned from the custom `log` method
+
+```go
+vm := goja.New()
+script := `log("Hello world"); 2+2`
+prog, err := goja.Compile("", script, true)
+if err != nil {
+    panic(err)
+}
+response, err := vm.RunProgram(prog)
+if err != nil {
+    panic(err)
+}
+if num := response.Result.Export().(int64); num != 4 {
+    panic(num)
+}
+
+if logs := response.ConsoleLogs; logs[0] != "Hello world" {
+    panic(logs)
 }
 ```
 
