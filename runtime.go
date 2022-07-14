@@ -1426,7 +1426,7 @@ func (r *Runtime) CaptureCallStack(depth int, stack []StackFrame) []StackFrame {
 }
 
 // Interrupt a running JavaScript. The corresponding Go call will return an *InterruptedError containing v.
-// If the interrupt propagates until the stack is empty the currentlyt queued promise resolve/reject jobs will be cleared
+// If the interrupt propagates until the stack is empty the currently queued promise resolve/reject jobs will be cleared
 // without being executed. This is the same time they would be executed otherwise.
 // Note, it only works while in JavaScript code, it does not interrupt native Go functions (which includes all built-ins).
 // If the runtime is currently not running, it will be immediately interrupted on the next Run*() call.
