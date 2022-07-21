@@ -1,6 +1,6 @@
 module github.com/dop251/goja
 
-go 1.14
+go 1.16
 
 require (
 	github.com/dlclark/regexp2 v1.4.1-0.20201116162257-a2a8dda75c91
