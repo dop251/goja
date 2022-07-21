@@ -875,19 +875,50 @@ func (e *compiledSuperBracketExpr) deleteExpr() compiledExpr {
 	return e.c.superDeleteError(e.offset)
 }
 
+func (c *compiler) checkConstantString(expr compiledExpr) (unistring.String, bool) {
+	if expr.constant() {
+		if val, ex := c.evalConst(expr); ex == nil {
+			if s, ok := val.(valueString); ok {
+				return s.string(), true
+			}
+		}
+	}
+	return "", false
+}
+
 func (c *compiler) compileBracketExpression(v *ast.BracketExpression) compiledExpr {
 	if sup, ok := v.Left.(*ast.SuperExpression); ok {
 		c.checkSuperBase(sup.Idx)
+		member := c.compileExpression(v.Member)
+		if name, ok := c.checkConstantString(member); ok {
+			r := &compiledSuperDotExpr{
+				name: name,
+			}
+			r.init(c, v.LeftBracket)
+			return r
+		}
+
 		r := &compiledSuperBracketExpr{
-			member: c.compileExpression(v.Member),
+			member: member,
+		}
+		r.init(c, v.LeftBracket)
+		return r
+	}
+
+	left := c.compileExpression(v.Left)
+	member := c.compileExpression(v.Member)
+	if name, ok := c.checkConstantString(member); ok {
+		r := &compiledDotExpr{
+			left: left,
+			name: name,
 		}
 		r.init(c, v.LeftBracket)
 		return r
 	}
 
 	r := &compiledBracketExpr{
-		left:   c.compileExpression(v.Left),
-		member: c.compileExpression(v.Member),
+		left:   left,
+		member: member,
 	}
 	r.init(c, v.LeftBracket)
 	return r

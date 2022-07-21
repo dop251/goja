@@ -5470,6 +5470,13 @@ func TestPrivateIn(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestDeletePropOfNonObject(t *testing.T) {
+	const SCRIPT = `
+	delete 'Test262'[100] && delete 'Test262'.a && delete 'Test262'['@'];
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")

@@ -1691,7 +1691,7 @@ func (_deleteElemStrict) exec(vm *vm) {
 type deleteProp unistring.String
 
 func (d deleteProp) exec(vm *vm) {
-	obj := vm.r.toObject(vm.stack[vm.sp-1])
+	obj := vm.stack[vm.sp-1].ToObject(vm.r)
 	if obj.self.deleteStr(unistring.String(d), false) {
 		vm.stack[vm.sp-1] = valueTrue
 	} else {
@@ -1703,7 +1703,7 @@ func (d deleteProp) exec(vm *vm) {
 type deletePropStrict unistring.String
 
 func (d deletePropStrict) exec(vm *vm) {
-	obj := vm.r.toObject(vm.stack[vm.sp-1])
+	obj := vm.stack[vm.sp-1].ToObject(vm.r)
 	obj.self.deleteStr(unistring.String(d), true)
 	vm.stack[vm.sp-1] = valueTrue
 	vm.pc++
