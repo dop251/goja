@@ -192,7 +192,7 @@ fib(35);
 	}
 
 	c := newCompiler()
-	c.compile(prg, false, false, true)
+	c.compile(prg, false, true, nil)
 	c.p.dumpCode(b.Logf)
 
 	r := &Runtime{}

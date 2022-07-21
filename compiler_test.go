@@ -2062,7 +2062,7 @@ func TestObjectLiteral(t *testing.T) {
 	var getterCalled = false;
 	var setterCalled = false;
 
-	var o = {get x() {getterCalled = true}, set x() {setterCalled = true}};
+	var o = {get x() {getterCalled = true}, set x(_) {setterCalled = true}};
 
 	o.x;
 	o.x = 42;
@@ -4727,6 +4727,747 @@ func TestOptChainCallee(t *testing.T) {
 	assert.sameValue(o.n?.(true), undefined);
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestObjectLiteralSuper(t *testing.T) {
+	const SCRIPT = `
+	const proto = {
+		m() {
+			return 40;
+		}
+	}
+	const o = {
+		m() {
+			return super.m() + 2;
+		}
+	}
+	o.__proto__ = proto;
+	o.m();
+	`
+	testScript(SCRIPT, intToValue(42), t)
+}
+
+func TestClassCaptureThisInFieldInit(t *testing.T) {
+	const SCRIPT = `
+	let capture;
+
+	class C {
+		a = () => this
+	}
+
+	let c = new C();
+	c.a() === c;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassUseThisInFieldInit(t *testing.T) {
+	const SCRIPT = `
+	let capture;
+
+	class C {
+		a = this
+	}
+
+	let c = new C();
+	c.a === c;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassCaptureThisInStaticFieldInit(t *testing.T) {
+	const SCRIPT = `
+	let capture;
+
+	class C {
+		static a = (capture = () => this, 0)
+	}
+
+	let c = new C();
+	capture() === C;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassDynCaptureThisInStaticFieldInit(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		static a = eval("this")
+	}
+
+	C.a === C;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestCompileClass(t *testing.T) {
+	const SCRIPT = `
+	class C extends Error {
+		a = true;
+		b = 1;
+		["b".toUpperCase()] = 2
+		static A = Math.random() < 1
+		constructor(message = "My Error") {
+			super(message);
+		}
+		static M() {
+		}
+		static M1() {
+		}
+		m() {
+			//return C.a;
+		}
+		m1() {
+			return true;
+		}
+		static {
+			this.supername = super.name;
+		}
+	}
+	let c = new C();
+	c.a === true && c.b === 1 && c.B === 2 && c.m1() && C.A && C.supername === "Error";
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestSuperInEval(t *testing.T) {
+	const SCRIPT = `
+	class C extends Error {
+		constructor() {
+			eval("super()");
+		}
+		m() {
+			return eval("super.name");
+		}
+	}
+	let c = new C();
+	c.m() === "Error";
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestSuperRefDot(t *testing.T) {
+	const SCRIPT = `
+	let thisGet, thisSet;
+	class P {
+		_p = 0
+	    get p() {
+			thisGet = this;
+	        return this._p;
+	    }
+		set p(v) {
+			thisSet = this;
+			this._p = v;
+		}
+	}
+
+	class C extends P {
+	    g() {
+	        return super.p;
+	    }
+		s(v) {
+			super.p = v;
+		}
+
+		inc() {
+			super.p++;
+		}
+		incR() {
+			return super.p++;
+		}
+
+		inc1() {
+			++super.p;
+		}
+
+		inc1R() {
+			return ++super.p;
+		}
+		unary() {
+			return +super.p;
+		}
+		pattern() {
+			[super.p] = [9];
+		}
+	}
+
+	let o = new C();
+	assert.sameValue(o.g(), 0, "get value");
+	assert.sameValue(thisGet, o, "get this");
+	o.s(1);
+	assert.sameValue(o._p, 1, "set value");
+	assert.sameValue(thisSet, o, "set this");
+
+	thisGet = undefined;
+	thisSet = undefined;
+	o.inc();
+	assert.sameValue(o._p, 2, "inc value");
+	assert.sameValue(thisGet, o, "inc thisGet");
+	assert.sameValue(thisSet, o, "inc thisSet");
+
+	thisGet = undefined;
+	thisSet = undefined;
+	assert.sameValue(o.incR(), 2, "incR result");
+	assert.sameValue(o._p, 3, "incR value");
+	assert.sameValue(thisGet, o, "incR thisGet");
+	assert.sameValue(thisSet, o, "incR thisSet");
+
+	thisGet = undefined;
+	thisSet = undefined;
+	o.inc1();
+	assert.sameValue(o._p, 4, "inc1 value");
+	assert.sameValue(thisGet, o, "inc1 thisGet");
+	assert.sameValue(thisSet, o, "inc1 thisSet");
+
+	thisGet = undefined;
+	thisSet = undefined;
+	assert.sameValue(o.inc1R(), 5, "inc1R result");
+	assert.sameValue(o._p, 5, "inc1R value");
+	assert.sameValue(thisGet, o, "inc1R thisGet");
+	assert.sameValue(thisSet, o, "inc1R thisSet");
+
+	assert.sameValue(o.unary(), 5, "unary");
+
+	o.pattern();
+	assert.sameValue(o._p, 9, "pattern");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestPrivateRefDot(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		#p = 0;
+	    g() {
+	        return this.#p;
+	    }
+		s(v) {
+			this.#p = v;
+		}
+
+		inc() {
+			this.#p++;
+		}
+		incR() {
+			return this.#p++;
+		}
+
+		inc1() {
+			++this.#p;
+		}
+
+		inc1R() {
+			return ++this.#p;
+		}
+		pattern() {
+			[this.#p] = [9];
+		}
+	}
+
+	let o = new C();
+	assert.sameValue(o.g(), 0, "get value");
+	o.s(1);
+	assert.sameValue(o.g(), 1, "set value");
+
+	o.inc();
+	assert.sameValue(o.g(), 2, "inc value");
+
+	assert.sameValue(o.incR(), 2, "incR result");
+	assert.sameValue(o.g(), 3, "incR value");
+
+	o.inc1();
+	assert.sameValue(o.g(), 4, "inc1 value");
+
+	assert.sameValue(o.inc1R(), 5, "inc1R result");
+	assert.sameValue(o.g(), 5, "inc1R value");
+
+	o.pattern();
+	assert.sameValue(o.g(), 9, "pattern");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestPrivateRefDotEval(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		#p = 0;
+	    g() {
+	        return eval("this.#p");
+	    }
+		s(v) {
+			eval("this.#p = v");
+		}
+
+		incR() {
+			return eval("this.#p++");
+		}
+
+		inc1R() {
+			return eval("++this.#p");
+		}
+
+		pattern() {
+			eval("[this.#p] = [9]");
+		}
+	}
+
+	let o = new C();
+	assert.sameValue(o.g(), 0, "get value");
+	o.s(1);
+	assert.sameValue(o.g(), 1, "set value");
+
+	assert.sameValue(o.incR(), 1, "incR result");
+	assert.sameValue(o.g(), 2, "incR value");
+
+	assert.sameValue(o.inc1R(), 3, "inc1R result");
+	assert.sameValue(o.g(), 3, "inc1R value");
+
+	o.pattern();
+	assert.sameValue(o.g(), 9, "pattern");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestSuperRefDotCallee(t *testing.T) {
+	const SCRIPT = `
+	class P {
+	    get p() {
+	        return function() {
+	            return this;
+	        };
+	    }
+	}
+
+	class C extends P {
+	    m() {
+	        return super.p();
+	    }
+	}
+
+	let o = new C();
+	o.m() === o;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestSuperRefBracket(t *testing.T) {
+	const SCRIPT = `
+	let PROP = "p";
+	let thisGet, thisSet;
+	class P {
+		_p = 0
+	    get p() {
+			thisGet = this;
+	        return this._p;
+	    }
+		set p(v) {
+			thisSet = this;
+			this._p = v;
+		}
+	}
+
+	class C extends P {
+	    g() {
+	        return super[PROP];
+	    }
+		s(v) {
+			super[PROP] = v;
+		}
+
+		inc() {
+			super[PROP]++;
+		}
+		incR() {
+			return super[PROP]++;
+		}
+
+		inc1() {
+			++super[PROP];
+		}
+
+		inc1R() {
+			return ++super[PROP];
+		}
+		pattern() {
+			[super[PROP]] = [9];
+		}
+	}
+
+	let o = new C();
+	assert.sameValue(o.g(), 0, "get value");
+	assert.sameValue(thisGet, o, "get this");
+	o.s(1);
+	assert.sameValue(o._p, 1, "set value");
+	assert.sameValue(thisSet, o, "set this");
+
+	thisGet = undefined;
+	thisSet = undefined;
+	o.inc();
+	assert.sameValue(o._p, 2, "inc value");
+	assert.sameValue(thisGet, o, "inc thisGet");
+	assert.sameValue(thisSet, o, "inc thisSet");
+
+	thisGet = undefined;
+	thisSet = undefined;
+	assert.sameValue(o.incR(), 2, "incR result");
+	assert.sameValue(o._p, 3, "incR value");
+	assert.sameValue(thisGet, o, "incR thisGet");
+	assert.sameValue(thisSet, o, "incR thisSet");
+
+	thisGet = undefined;
+	thisSet = undefined;
+	o.inc1();
+	assert.sameValue(o._p, 4, "inc1 value");
+	assert.sameValue(thisGet, o, "inc1 thisGet");
+	assert.sameValue(thisSet, o, "inc1 thisSet");
+
+	thisGet = undefined;
+	thisSet = undefined;
+	assert.sameValue(o.inc1R(), 5, "inc1R result");
+	assert.sameValue(o._p, 5, "inc1R value");
+	assert.sameValue(thisGet, o, "inc1R thisGet");
+	assert.sameValue(thisSet, o, "inc1R thisSet");
+
+	o.pattern();
+	assert.sameValue(o._p, 9, "pattern");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestSuperRefBracketEvalOrder(t *testing.T) {
+	const SCRIPT = `
+	let keyCallCount = 0;
+
+	function key() {
+		keyCallCount++;
+		C.prototype.__proto__ = null;
+	    return "k";
+	}
+
+	class C {
+	    constructor() {
+	        super[key()]++;
+	    }
+	}
+
+	assert.throws(TypeError, () => new C());
+	assert.sameValue(keyCallCount, 1);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestSuperRefBracketCallee(t *testing.T) {
+	const SCRIPT = `
+	let PROP = "p";
+	class P {
+	    get p() {
+	        return function() {
+	            return this;
+	        };
+	    }
+	}
+
+	class C extends P {
+	    m() {
+	        return super[PROP]();
+	    }
+	}
+
+	let o = new C();
+	o.m() === o;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestSuperBaseInCtor(t *testing.T) {
+	const SCRIPT = `
+	let result;
+	class Derived extends Object {
+	    constructor() {
+	        super();
+	        result = super.constructor === Object;
+	    }
+	}
+	new Derived();
+	result;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassNamedEval(t *testing.T) {
+	const SCRIPT = `
+	const C = class {
+	}
+
+	C.name === "C";
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassNonDerived(t *testing.T) {
+	const SCRIPT = `
+	function initF() {
+	}
+	class C {
+	    f = initF()
+	}
+	let c = new C();
+	`
+
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestClassExpr(t *testing.T) {
+	const SCRIPT = `
+	typeof Object.getOwnPropertyDescriptor(class {get f() {}}.prototype, "f").get === "function";
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassSuperInHeritage(t *testing.T) {
+	const SCRIPT = `
+	class P {
+	    a() {
+	        return Error;
+	    }
+	}
+
+	class C extends P {
+	    m() {
+	        class Inner extends super.a() {
+	        }
+	        return new Inner();
+	    }
+	}
+
+	new C().m() instanceof Error;
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassSuperInHeritageExpr(t *testing.T) {
+	const SCRIPT = `
+	class P {
+	    a() {
+	        return Error;
+	    }
+	}
+
+	class C extends P {
+	    m() {
+			function f(cls) {
+				return new cls();
+			}
+	        return f(class Inner extends super.a() {
+	        })
+	    }
+	}
+
+	new C().m() instanceof Error;
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassReferToBinding(t *testing.T) {
+	const SCRIPT = `
+	const CC = class C {
+		static T = 40
+	    f = C.T + 2
+	}
+	let c = new CC();
+	c.f;
+	`
+
+	testScript(SCRIPT, intToValue(42), t)
+}
+
+func TestClassReferToBindingInStaticDecl(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		static T = C.name
+	}
+	C.T;
+	`
+
+	testScript(SCRIPT, asciiString("C"), t)
+}
+
+func TestClassReferToBindingInStaticEval(t *testing.T) {
+	const SCRIPT = `
+	const CC = class C {
+		static T = eval("C.name")
+	}
+	CC.T;
+	`
+
+	testScript(SCRIPT, asciiString("C"), t)
+}
+
+func TestClassReferToBindingFromHeritage(t *testing.T) {
+	const SCRIPT = `
+	assert.throws(ReferenceError, () => {
+		class C extends C {
+		}
+	});
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestClassCaptureSuperCallInArrowFunc(t *testing.T) {
+	const SCRIPT = `
+	let f;
+	class C extends class {} {
+		constructor() {
+			f = () => super();
+			f();
+		}
+	}
+	let c = new C();
+	`
+
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestClassCaptureSuperCallInNestedArrowFunc(t *testing.T) {
+	const SCRIPT = `
+	let f;
+	class P {
+	}
+	class C extends P {
+		constructor() {
+			f = () => () => super();
+			f()();
+		}
+	}
+	new C() instanceof P;
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestThisInEval(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue(eval("this"), this, "global");
+
+	let o = {
+		f() {
+			return eval("this");
+		}
+	}
+	assert.sameValue(o.f(), o, "obj literal");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestStaticAsBindingTarget(t *testing.T) {
+	const SCRIPT = `
+	let [static] = [];
+	`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestEvalInStaticFieldInit(t *testing.T) {
+	const SCRIPT = `
+	var C = class {
+		static f = 'test';
+		static g = this.f + '262';
+		static h = eval('this.g') + 'test';
+	}
+	C.f === "test" && C.g === "test262" && C.h === "test262test";
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassPrivateElemInEval(t *testing.T) {
+	const SCRIPT = `
+	let f1, f2;
+
+	class C extends (f1 = o => eval("o.#a"), Object) {
+	    static #a = 42;
+	    static {
+	        f2 = o => eval("o.#a");
+			assert.sameValue(C.#a, 42);
+			assert.sameValue((() => C.#a)(), 42);
+	    }
+	}
+
+	assert.throws(SyntaxError, () => f1(C));
+	assert.sameValue(f2(C), 42);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestClassPrivateElemInIndirectEval(t *testing.T) {
+	const SCRIPT = `
+	let f1, f2;
+
+	class C extends (f1 = o => (0, eval)("o.#a"), Object) {
+	    static #a = 42;
+	    static {
+	        f2 = o => (0, eval)("o.#a");
+			assert.throws(SyntaxError, () => (0, eval)("C.#a"));
+	    }
+	}
+
+	assert.throws(SyntaxError, () => f1(C));
+	assert.throws(SyntaxError, () => f2(C));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestClassPrivateElemInFunction(t *testing.T) {
+	const SCRIPT = `
+	assert.throws(SyntaxError, () => {
+		class C {
+		    static #a = 42;
+		    static {
+		        Function("o", "return o.#a");
+		    }
+		}
+	});
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestClassPrivateElementsDecl(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		#a = 42;
+		get #b() {}
+		set #b(_) {}
+		get c() {
+			return this.#a;
+		}
+		#m() {
+			return this.#a;
+		}
+		static getter(inst) {
+			return inst.#m();
+		}
+	}
+	let c = new C();
+	c.c + C.getter(c);
+	`
+	testScript(SCRIPT, intToValue(84), t)
+}
+
+func TestPrivateIn(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		#a = 42;
+		static check(inst) {
+			return #a in inst;
+		}
+	}
+	let c = new C();
+	C.check(c);
+	`
+	testScript(SCRIPT, valueTrue, t)
 }
 
 /*

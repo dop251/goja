@@ -200,7 +200,7 @@ Second line \
 			token.VAR, "var", 1,
 			token.IF, "if", 5,
 			token.VAR, "var", 8,
-			token.KEYWORD, "class", 12,
+			token.CLASS, "class", 12,
 			token.EOF, "", 17,
 		)
 
