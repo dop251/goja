@@ -474,7 +474,12 @@ func (r *Runtime) typeErrorResult(throw bool, args ...interface{}) {
 }
 
 func (r *Runtime) newError(typ *Object, format string, args ...interface{}) Value {
-	msg := fmt.Sprintf(format, args...)
+	var msg string
+	if len(args) > 0 {
+		msg = fmt.Sprintf(format, args...)
+	} else {
+		msg = format
+	}
 	return r.builtin_new(typ, []Value{newStringValue(msg)})
 }
 
@@ -568,6 +573,21 @@ func (r *Runtime) newFunc(name unistring.String, length int, strict bool) (f *fu
 	return
 }
 
+func (r *Runtime) newClassFunc(name unistring.String, length int, proto *Object, derived bool) (f *classFuncObject) {
+	v := &Object{runtime: r}
+
+	f = &classFuncObject{}
+	f.class = classFunction
+	f.val = v
+	f.extensible = true
+	f.strict = true
+	f.derived = derived
+	v.self = f
+	f.prototype = proto
+	f.init(name, intToValue(int64(length)))
+	return
+}
+
 func (r *Runtime) newMethod(name unistring.String, length int, strict bool) (f *methodFuncObject) {
 	v := &Object{runtime: r}
 
@@ -592,14 +612,7 @@ func (r *Runtime) newArrowFunc(name unistring.String, length int, strict bool) (
 	f.strict = strict
 
 	vm := r.vm
-	var this Value
-	if vm.sb >= 0 {
-		this = vm.stack[vm.sb]
-	} else {
-		this = vm.r.globalObject
-	}
 
-	f.this = this
 	f.newTarget = vm.newTarget
 	v.self = f
 	f.prototype = r.global.FunctionPrototype
@@ -672,6 +685,18 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 }
 
 func (r *Runtime) newNativeConstructOnly(v *Object, ctor func(args []Value, newTarget *Object) *Object, defaultProto *Object, name unistring.String, length int64) *nativeFuncObject {
+	return r.newNativeFuncAndConstruct(v, func(call FunctionCall) Value {
+		return ctor(call.Arguments, nil)
+	},
+		func(args []Value, newTarget *Object) *Object {
+			if newTarget == nil {
+				newTarget = v
+			}
+			return ctor(args, newTarget)
+		}, defaultProto, name, intToValue(length))
+}
+
+func (r *Runtime) newNativeFuncAndConstruct(v *Object, call func(call FunctionCall) Value, ctor func(args []Value, newTarget *Object) *Object, defaultProto *Object, name unistring.String, l Value) *nativeFuncObject {
 	if v == nil {
 		v = &Object{runtime: r}
 	}
@@ -685,18 +710,11 @@ func (r *Runtime) newNativeConstructOnly(v *Object, ctor func(args []Value, newT
 				prototype:  r.global.FunctionPrototype,
 			},
 		},
-		f: func(call FunctionCall) Value {
-			return ctor(call.Arguments, nil)
-		},
-		construct: func(args []Value, newTarget *Object) *Object {
-			if newTarget == nil {
-				newTarget = v
-			}
-			return ctor(args, newTarget)
-		},
+		f:         call,
+		construct: ctor,
 	}
 	v.self = f
-	f.init(name, intToValue(length))
+	f.init(name, l)
 	if defaultProto != nil {
 		f._putProp("prototype", defaultProto, false, false, false)
 	}
@@ -873,38 +891,45 @@ func (r *Runtime) builtin_thrower(call FunctionCall) Value {
 	return nil
 }
 
-func (r *Runtime) eval(srcVal valueString, direct, strict bool, this Value) Value {
+func (r *Runtime) eval(srcVal valueString, direct, strict bool) Value {
 	src := escapeInvalidUtf16(srcVal)
 	vm := r.vm
 	inGlobal := true
 	if direct {
 		for s := vm.stash; s != nil; s = s.outer {
-			if s.variable {
+			if s.isVariable() {
 				inGlobal = false
 				break
 			}
 		}
 	}
-	p, err := r.compile("<eval>", src, strict, true, inGlobal)
+	vm.pushCtx()
+	funcObj := _undefined
+	if !direct {
+		vm.stash = &r.global.stash
+		vm.privEnv = nil
+	} else {
+		if sb := vm.sb; sb > 0 {
+			funcObj = vm.stack[sb-1]
+		}
+	}
+	p, err := r.compile("<eval>", src, strict, inGlobal, r.vm)
 	if err != nil {
 		panic(err)
 	}
 
-	vm.pushCtx()
 	vm.prg = p
 	vm.pc = 0
 	vm.args = 0
 	vm.result = _undefined
-	if !direct {
-		vm.stash = &r.global.stash
-	}
+	vm.push(funcObj)
 	vm.sb = vm.sp
-	vm.push(this)
+	vm.push(nil) // this
 	vm.run()
 	retval := vm.result
 	vm.popCtx()
 	vm.halt = false
-	vm.sp -= 1
+	vm.sp -= 2
 	return retval
 }
 
@@ -913,7 +938,7 @@ func (r *Runtime) builtin_eval(call FunctionCall) Value {
 		return _undefined
 	}
 	if str, ok := call.Arguments[0].(valueString); ok {
-		return r.eval(str, false, false, r.globalObject)
+		return r.eval(str, false, false)
 	}
 	return call.Arguments[0]
 }
@@ -1255,14 +1280,14 @@ func New() *Runtime {
 // method. This representation is not linked to a runtime in any way and can be run in multiple runtimes (possibly
 // at the same time).
 func Compile(name, src string, strict bool) (*Program, error) {
-	return compile(name, src, strict, false, true)
+	return compile(name, src, strict, true, nil)
 }
 
 // CompileAST creates an internal representation of the JavaScript code that can be later run using the Runtime.RunProgram()
 // method. This representation is not linked to a runtime in any way and can be run in multiple runtimes (possibly
 // at the same time).
 func CompileAST(prg *js_ast.Program, strict bool) (*Program, error) {
-	return compileAST(prg, strict, false, true)
+	return compileAST(prg, strict, true, nil)
 }
 
 // MustCompile is like Compile but panics if the code cannot be compiled.
@@ -1298,16 +1323,16 @@ func Parse(name, src string, options ...parser.Option) (prg *js_ast.Program, err
 	return
 }
 
-func compile(name, src string, strict, eval, inGlobal bool, parserOptions ...parser.Option) (p *Program, err error) {
+func compile(name, src string, strict, inGlobal bool, evalVm *vm, parserOptions ...parser.Option) (p *Program, err error) {
 	prg, err := Parse(name, src, parserOptions...)
 	if err != nil {
 		return
 	}
 
-	return compileAST(prg, strict, eval, inGlobal)
+	return compileAST(prg, strict, inGlobal, evalVm)
 }
 
-func compileAST(prg *js_ast.Program, strict, eval, inGlobal bool) (p *Program, err error) {
+func compileAST(prg *js_ast.Program, strict, inGlobal bool, evalVm *vm) (p *Program, err error) {
 	c := newCompiler()
 
 	defer func() {
@@ -1322,13 +1347,13 @@ func compileAST(prg *js_ast.Program, strict, eval, inGlobal bool) (p *Program, e
 		}
 	}()
 
-	c.compile(prg, strict, eval, inGlobal)
+	c.compile(prg, strict, inGlobal, evalVm)
 	p = c.p
 	return
 }
 
-func (r *Runtime) compile(name, src string, strict, eval, inGlobal bool) (p *Program, err error) {
-	p, err = compile(name, src, strict, eval, inGlobal, r.parserOptions...)
+func (r *Runtime) compile(name, src string, strict, inGlobal bool, evalVm *vm) (p *Program, err error) {
+	p, err = compile(name, src, strict, inGlobal, evalVm, r.parserOptions...)
 	if err != nil {
 		switch x1 := err.(type) {
 		case *CompilerSyntaxError:
@@ -1351,7 +1376,7 @@ func (r *Runtime) RunString(str string) (Value, error) {
 
 // RunScript executes the given string in the global context.
 func (r *Runtime) RunScript(name, src string) (Value, error) {
-	p, err := r.compile(name, src, false, false, true)
+	p, err := r.compile(name, src, false, true, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1365,6 +1390,9 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 		if x := recover(); x != nil {
 			if ex, ok := x.(*uncatchableException); ok {
 				err = ex.err
+				if len(r.vm.callStack) == 0 {
+					r.leaveAbrupt()
+				}
 			} else {
 				panic(x)
 			}
@@ -1421,6 +1449,8 @@ func (r *Runtime) CaptureCallStack(depth int, stack []StackFrame) []StackFrame {
 }
 
 // Interrupt a running JavaScript. The corresponding Go call will return an *InterruptedError containing v.
+// If the interrupt propagates until the stack is empty the currently queued promise resolve/reject jobs will be cleared
+// without being executed. This is the same time they would be executed otherwise.
 // Note, it only works while in JavaScript code, it does not interrupt native Go functions (which includes all built-ins).
 // If the runtime is currently not running, it will be immediately interrupted on the next Run*() call.
 // To avoid that use ClearInterrupt()
@@ -1442,19 +1472,10 @@ func (r *Runtime) ClearInterrupt() {
 ToValue converts a Go value into a JavaScript value of a most appropriate type. Structural types (such as structs, maps
 and slices) are wrapped so that changes are reflected on the original value which can be retrieved using Value.Export().
 
-WARNING! There are two very important caveats to bear in mind when modifying wrapped Go structs, maps and
-slices.
+WARNING! These wrapped Go values do not behave in the same way as native ECMAScript values. If you plan to modify
+them in ECMAScript, bear in mind the following caveats:
 
-1. If a slice is passed by value (not as a pointer), resizing the slice does not reflect on the original
-value. Moreover, extending the slice may result in the underlying array being re-allocated and copied.
-For example:
-
- a := []interface{}{1}
- vm.Set("a", a)
- vm.RunString(`a.push(2); a[0] = 0;`)
- fmt.Println(a[0]) // prints "1"
-
-2. If a regular JavaScript Object is assigned as an element of a wrapped Go struct, map or array, it is
+1. If a regular JavaScript Object is assigned as an element of a wrapped Go struct, map or array, it is
 Export()'ed and therefore copied. This may result in an unexpected behaviour in JavaScript:
 
  m := map[string]interface{}{}
@@ -1466,7 +1487,74 @@ Export()'ed and therefore copied. This may result in an unexpected behaviour in 
  `)
  fmt.Println(m["obj"].(map[string]interface{})["test"]) // prints "false"
 
-Non-addressable structs, slices and arrays get copied (as if they were passed as a function parameter, by value).
+2. Be careful with nested non-pointer compound types (structs, slices and arrays) if you modify them in
+ECMAScript. Better avoid it at all if possible. One of the fundamental differences between ECMAScript and Go is in
+the former all Objects are references whereas in Go you can have a literal struct or array. Consider the following
+example:
+
+ type S struct {
+     Field int
+ }
+
+ a := []S{{1}, {2}} // slice of literal structs
+ vm.Set("a", &a)
+ vm.RunString(`
+     let tmp = {Field: 1};
+     a[0] = tmp;
+     a[1] = tmp;
+     tmp.Field = 2;
+ `)
+
+In ECMAScript one would expect a[0].Field and a[1].Field to be equal to 2, but this is really not possible
+(or at least non-trivial without some complex reference tracking).
+
+To cover the most common use cases and to avoid excessive memory allocation, the following 'copy-on-change' mechanism
+is implemented (for both arrays and structs):
+
+* When a nested compound value is accessed, the returned ES value becomes a reference to the literal value.
+This ensures that things like 'a[0].Field = 1' work as expected and simple access to 'a[0].Field' does not result
+in copying of a[0].
+
+* The original container ('a' in our case) keeps track of the returned reference value and if a[0] is reassigned
+(e.g. by direct assignment, deletion or shrinking the array) the old a[0] is copied and the earlier returned value
+becomes a reference to the copy:
+
+ let tmp = a[0];                      // no copy, tmp is a reference to a[0]
+ tmp.Field = 1;                       // a[0].Field === 1 after this
+ a[0] = {Field: 2};                   // tmp is now a reference to a copy of the old value (with Field === 1)
+ a[0].Field === 2 && tmp.Field === 1; // true
+
+* Array value swaps caused by in-place sort (using Array.prototype.sort()) do not count as re-assignments, instead
+the references are adjusted to point to the new indices.
+
+* Assignment to an inner compound value always does a copy (and sometimes type conversion):
+
+ a[1] = tmp;    // a[1] is now a copy of tmp
+ tmp.Field = 3; // does not affect a[1].Field
+
+3. Non-addressable structs, slices and arrays get copied. This sometimes may lead to a confusion as assigning to
+inner fields does not appear to work:
+
+ a1 := []interface{}{S{1}, S{2}}
+ vm.Set("a1", &a1)
+ vm.RunString(`
+    a1[0].Field === 1; // true
+    a1[0].Field = 2;
+    a1[0].Field === 2; // FALSE, because what it really did was copy a1[0] set its Field to 2 and immediately drop it
+ `)
+
+An alternative would be making a1[0].Field a non-writable property which would probably be more in line with
+ECMAScript, however it would require to manually copy the value if it does need to be modified which may be
+impractical.
+
+Note, the same applies to slices. If a slice is passed by value (not as a pointer), resizing the slice does not reflect on the original
+value. Moreover, extending the slice may result in the underlying array being re-allocated and copied.
+For example:
+
+ a := []interface{}{1}
+ vm.Set("a", a)
+ vm.RunString(`a.push(2); a[0] = 0;`)
+ fmt.Println(a[0]) // prints "1"
 
 Notes on individual types:
 
@@ -1627,10 +1715,6 @@ Note that the underlying type is not lost, calling Export() returns the original
 reflect based types.
 */
 func (r *Runtime) ToValue(i interface{}) Value {
-	return r.toValue(i, reflect.Value{})
-}
-
-func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 	switch i := i.(type) {
 	case nil:
 		return _null
@@ -1720,44 +1804,18 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 		if i == nil {
 			return _null
 		}
-		obj := &Object{runtime: r}
-		a := &objectGoSlice{
-			baseObject: baseObject{
-				val: obj,
-			},
-			data: &i,
-		}
-		obj.self = a
-		a.init()
-		return obj
+		return r.newObjectGoSlice(&i).val
 	case *[]interface{}:
 		if i == nil {
 			return _null
 		}
-		obj := &Object{runtime: r}
-		a := &objectGoSlice{
-			baseObject: baseObject{
-				val: obj,
-			},
-			data: i,
-		}
-		obj.self = a
-		a.init()
-		return obj
+		return r.newObjectGoSlice(i).val
 	}
 
-	if !origValue.IsValid() {
-		origValue = reflect.ValueOf(i)
-	} else {
-		// If origValue was a result of an Index(), or Field(), or such, its Kind may be Interface:
-		// 	a := []interface{}{(*S)(nil)}
-		//	a0 := reflect.ValueOf(a).Index(0) // a0.Kind() is reflect.Interface
-		//	a1 := reflect.ValueOf(a[0]) // a1.Kind() is reflect.Ptr
-		// Need to "dereference" it to make it consistent with plain value being passed.
-		for origValue.Kind() == reflect.Interface {
-			origValue = origValue.Elem()
-		}
-	}
+	return r.reflectValueToValue(reflect.ValueOf(i))
+}
+
+func (r *Runtime) reflectValueToValue(origValue reflect.Value) Value {
 	value := origValue
 	for value.Kind() == reflect.Ptr {
 		value = reflect.Indirect(value)
@@ -1822,7 +1880,7 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 		obj.self = a
 		return obj
 	case reflect.Func:
-		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
+		name := unistring.NewFromString(runtime.FuncForPC(value.Pointer()).Name())
 		return r.newNativeFunc(r.wrapReflectFunc(value), nil, name, nil, value.Type().NumIn())
 	}
 
@@ -2299,6 +2357,9 @@ func AssertFunction(v Value) (Callable, bool) {
 					if x := recover(); x != nil {
 						if ex, ok := x.(*uncatchableException); ok {
 							err = ex.err
+							if len(obj.runtime.vm.callStack) == 0 {
+								obj.runtime.leaveAbrupt()
+							}
 						} else {
 							panic(x)
 						}
@@ -2583,7 +2644,7 @@ func (r *Runtime) getHash() *maphash.Hash {
 	return r.hash
 }
 
-// called when the top level function returns (i.e. control is passed outside the Runtime).
+// called when the top level function returns normally (i.e. control is passed outside the Runtime).
 func (r *Runtime) leave() {
 	for {
 		jobs := r.jobQueue
@@ -2595,6 +2656,12 @@ func (r *Runtime) leave() {
 			job()
 		}
 	}
+}
+
+// called when the top level function returns (i.e. control is passed outside the Runtime) but it was due to an interrupt
+func (r *Runtime) leaveAbrupt() {
+	r.jobQueue = nil
+	r.ClearInterrupt()
 }
 
 func nilSafe(v Value) Value {

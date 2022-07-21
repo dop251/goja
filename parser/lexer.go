@@ -428,6 +428,16 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 				}
 			case '`':
 				tkn = token.BACKTICK
+			case '#':
+				var err string
+				literal, parsedLiteral, _, err = self.scanIdentifier()
+				if err != "" || literal == "" {
+					tkn = token.ILLEGAL
+					break
+				}
+				self.insertSemicolon = true
+				tkn = token.PRIVATE_IDENTIFIER
+				return
 			default:
 				self.errorUnexpected(idx, chr)
 				tkn = token.ILLEGAL

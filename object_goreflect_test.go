@@ -61,6 +61,22 @@ func TestGoReflectSet(t *testing.T) {
 	if o.Y != "2P" {
 		t.Fatalf("Unexpected Y: %s", o.Y)
 	}
+
+	r.Set("o", o)
+	_, err = r.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res, ok := r.Get("o").Export().(O); ok {
+		if res.X != 6 {
+			t.Fatalf("Unexpected res.X: %d", res.X)
+		}
+
+		if res.Y != "2PP" {
+			t.Fatalf("Unexpected res.Y: %s", res.Y)
+		}
+	}
 }
 
 func TestGoReflectEnumerate(t *testing.T) {
@@ -1182,5 +1198,49 @@ func TestGoReflectPreserveType(t *testing.T) {
 	`)
 	if e != nil {
 		t.Fatal(e)
+	}
+}
+
+func TestGoReflectCopyOnWrite(t *testing.T) {
+	type Inner struct {
+		Field int
+	}
+	type S struct {
+		I Inner
+	}
+	var s S
+	s.I.Field = 1
+
+	vm := New()
+	vm.Set("s", &s)
+	_, err := vm.RunString(`
+		if (s.I.Field !== 1) {
+			throw new Error("s.I.Field: " + s.I.Field);
+		}
+
+		let tmp = s.I; // tmp becomes a reference to s.I
+		if (tmp.Field !== 1) {
+			throw new Error("tmp.Field: " + tmp.Field);
+		}
+
+		s.I.Field = 2;
+		if (s.I.Field !== 2) {
+			throw new Error("s.I.Field (1): " + s.I.Field);
+		}
+		if (tmp.Field !== 2) {
+			throw new Error("tmp.Field (1): " + tmp.Field);
+		}
+
+		s.I = {Field: 3}; // at this point tmp is changed to a copy
+		if (s.I.Field !== 3) {
+			throw new Error("s.I.Field (2): " + s.I.Field);
+		}
+		if (tmp.Field !== 2) {
+			throw new Error("tmp.Field (2): " + tmp.Field);
+		}
+	`)
+
+	if err != nil {
+		t.Fatal(err)
 	}
 }

@@ -79,6 +79,10 @@ func (self *_parser) parseStatement() ast.Statement {
 		return &ast.FunctionDeclaration{
 			Function: self.parseFunction(true),
 		}
+	case token.CLASS:
+		return &ast.ClassDeclaration{
+			Class: self.parseClass(true),
+		}
 	case token.SWITCH:
 		return self.parseSwitchStatement()
 	case token.RETURN:
@@ -251,6 +255,138 @@ func (self *_parser) parseArrowFunctionBody() (ast.ConciseBody, []*ast.VariableD
 	return &ast.ExpressionBody{
 		Expression: self.parseAssignmentExpression(),
 	}, nil
+}
+
+func (self *_parser) parseClass(declaration bool) *ast.ClassLiteral {
+	if !self.scope.allowLet && self.token == token.CLASS {
+		self.errorUnexpectedToken(token.CLASS)
+	}
+
+	node := &ast.ClassLiteral{
+		Class: self.expect(token.CLASS),
+	}
+
+	var name *ast.Identifier
+	if self.token == token.IDENTIFIER {
+		name = self.parseIdentifier()
+	} else if declaration {
+		// Use expect error handling
+		self.expect(token.IDENTIFIER)
+	}
+
+	node.Name = name
+
+	if self.token != token.LEFT_BRACE {
+		self.expect(token.EXTENDS)
+		node.SuperClass = self.parseLeftHandSideExpressionAllowCall()
+	}
+
+	self.expect(token.LEFT_BRACE)
+
+	for self.token != token.RIGHT_BRACE && self.token != token.EOF {
+		if self.token == token.SEMICOLON {
+			self.next()
+			continue
+		}
+		start := self.idx
+		static := false
+		if self.token == token.STATIC {
+			switch self.peek() {
+			case token.ASSIGN, token.SEMICOLON, token.RIGHT_BRACE, token.LEFT_PARENTHESIS:
+				// treat as identifier
+			default:
+				self.next()
+				if self.token == token.LEFT_BRACE {
+					b := &ast.ClassStaticBlock{
+						Static: start,
+					}
+					b.Block, b.DeclarationList = self.parseFunctionBlock()
+					b.Source = self.slice(b.Block.LeftBrace, b.Block.Idx1())
+					node.Body = append(node.Body, b)
+					continue
+				}
+				static = true
+			}
+		}
+
+		var kind ast.PropertyKind
+		methodBodyStart := self.idx
+		if self.literal == "get" || self.literal == "set" {
+			if self.peek() != token.LEFT_PARENTHESIS {
+				if self.literal == "get" {
+					kind = ast.PropertyKindGet
+				} else {
+					kind = ast.PropertyKindSet
+				}
+				self.next()
+			}
+		}
+
+		_, keyName, value, _ := self.parseObjectPropertyKey()
+		if value == nil {
+			continue
+		}
+		_, private := value.(*ast.PrivateIdentifier)
+
+		if static && !private && keyName == "prototype" {
+			self.error(value.Idx0(), "Classes may not have a static property named 'prototype'")
+		}
+
+		if kind == "" && self.token == token.LEFT_PARENTHESIS {
+			kind = ast.PropertyKindMethod
+		}
+
+		if kind != "" {
+			// method
+			if keyName == "constructor" {
+				if !static && kind != ast.PropertyKindMethod {
+					self.error(value.Idx0(), "Class constructor may not be an accessor")
+				} else if private {
+					self.error(value.Idx0(), "Class constructor may not be a private method")
+				}
+			}
+			md := &ast.MethodDefinition{
+				Idx:    start,
+				Key:    value,
+				Kind:   kind,
+				Static: static,
+				Body:   self.parseMethodDefinition(methodBodyStart, kind),
+			}
+			node.Body = append(node.Body, md)
+		} else {
+			// field
+			isCtor := keyName == "constructor"
+			if !isCtor {
+				if name, ok := value.(*ast.PrivateIdentifier); ok {
+					isCtor = name.Name == "constructor"
+				}
+			}
+			if isCtor {
+				self.error(value.Idx0(), "Classes may not have a field named 'constructor'")
+			}
+			var initializer ast.Expression
+			if self.token == token.ASSIGN {
+				self.next()
+				initializer = self.parseExpression()
+			}
+
+			if !self.implicitSemicolon && self.token != token.SEMICOLON && self.token != token.RIGHT_BRACE {
+				self.errorUnexpectedToken(self.token)
+				break
+			}
+			node.Body = append(node.Body, &ast.FieldDefinition{
+				Idx:         start,
+				Key:         value,
+				Static:      static,
+				Initializer: initializer,
+			})
+		}
+	}
+
+	node.RightBrace = self.expect(token.RIGHT_BRACE)
+	node.Source = self.slice(node.Class, node.RightBrace+1)
+
+	return node
 }
 
 func (self *_parser) parseDebuggerStatement() ast.Statement {
@@ -528,7 +664,7 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 			}
 			if forIn || forOf {
 				switch e := expr.(type) {
-				case *ast.Identifier, *ast.DotExpression, *ast.BracketExpression, *ast.Binding:
+				case *ast.Identifier, *ast.DotExpression, *ast.PrivateDotExpression, *ast.BracketExpression, *ast.Binding:
 					// These are all acceptable
 				case *ast.ObjectLiteral:
 					expr = self.reinterpretAsObjectAssignmentPattern(e)

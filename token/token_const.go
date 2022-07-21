@@ -75,6 +75,8 @@ const (
 	ELLIPSIS          // ...
 	BACKTICK          // `
 
+	PRIVATE_IDENTIFIER
+
 	// tokens below (and only them) are syntactically valid identifiers
 
 	IDENTIFIER
@@ -104,14 +106,18 @@ const (
 	BREAK
 	CATCH
 	THROW
+	CLASS
+	SUPER
 
 	RETURN
 	TYPEOF
 	DELETE
 	SWITCH
+	STATIC
 
 	DEFAULT
 	FINALLY
+	EXTENDS
 
 	FUNCTION
 	CONTINUE
@@ -133,6 +139,7 @@ var token2string = [...]string{
 	NULL:                        "NULL",
 	NUMBER:                      "NUMBER",
 	IDENTIFIER:                  "IDENTIFIER",
+	PRIVATE_IDENTIFIER:          "PRIVATE_IDENTIFIER",
 	PLUS:                        "+",
 	MINUS:                       "-",
 	EXPONENT:                    "**",
@@ -207,12 +214,16 @@ var token2string = [...]string{
 	BREAK:                       "break",
 	CATCH:                       "catch",
 	THROW:                       "throw",
+	CLASS:                       "class",
+	SUPER:                       "super",
 	RETURN:                      "return",
 	TYPEOF:                      "typeof",
 	DELETE:                      "delete",
 	SWITCH:                      "switch",
+	STATIC:                      "static",
 	DEFAULT:                     "default",
 	FINALLY:                     "finally",
+	EXTENDS:                     "extends",
 	FUNCTION:                    "function",
 	CONTINUE:                    "continue",
 	DEBUGGER:                    "debugger",
@@ -304,8 +315,7 @@ var keywordTable = map[string]_keyword{
 		token: CONST,
 	},
 	"class": {
-		token:         KEYWORD,
-		futureKeyword: true,
+		token: CLASS,
 	},
 	"enum": {
 		token:         KEYWORD,
@@ -315,15 +325,13 @@ var keywordTable = map[string]_keyword{
 		token: IMPORT,
 	},
 	"extends": {
-		token:         KEYWORD,
-		futureKeyword: true,
+		token: EXTENDS,
 	},
 	"export": {
 		token: EXPORT,
 	},
 	"super": {
-		token:         KEYWORD,
-		futureKeyword: true,
+		token: SUPER,
 	},
 	"implements": {
 		token:         KEYWORD,
@@ -360,8 +368,7 @@ var keywordTable = map[string]_keyword{
 		strict:        true,
 	},
 	"static": {
-		token:         KEYWORD,
-		futureKeyword: true,
-		strict:        true,
+		token:  STATIC,
+		strict: true,
 	},
 }

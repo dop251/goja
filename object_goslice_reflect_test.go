@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -437,6 +438,50 @@ func TestGoSliceReflectExportAfterGrow(t *testing.T) {
 	} else {
 		t.Fatalf("Wrong type: %T", exp)
 	}
+}
+
+func TestGoSliceReflectSort(t *testing.T) {
+	vm := New()
+	type Thing struct{ Name string }
+	vm.Set("v", []*Thing{
+		{Name: "log"},
+		{Name: "etc"},
+		{Name: "test"},
+		{Name: "bin"},
+	})
+	ret, err := vm.RunString(`
+//v.sort((a, b) => a.Name.localeCompare(b.Name)).map((x) => x.Name);
+	const tmp = v[0];
+	v[0] = v[1];
+	v[1] = tmp;
+	v[0].Name + v[1].Name;
+`)
+	if err != nil {
+		panic(err)
+	}
+	t.Log(ret.Export())
+}
+
+func TestGoSliceReflect111(t *testing.T) {
+	vm := New()
+	vm.Set("v", []int32{
+		1, 2,
+	})
+	ret, err := vm.RunString(`
+//v.sort((a, b) => a.Name.localeCompare(b.Name)).map((x) => x.Name);
+	const tmp = v[0];
+	v[0] = v[1];
+	v[1] = tmp;
+	"" + v[0] + v[1];
+`)
+	if err != nil {
+		panic(err)
+	}
+	t.Log(ret.Export())
+	a := []int{1, 2}
+	a0 := reflect.ValueOf(a).Index(0)
+	a0.Set(reflect.ValueOf(0))
+	t.Log(a[0])
 }
 
 func BenchmarkGoSliceReflectSet(b *testing.B) {

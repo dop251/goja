@@ -242,3 +242,19 @@ func TestGoSliceLengthProperty(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestGoSliceSort(t *testing.T) {
+	vm := New()
+	s := []interface{}{4, 2, 3}
+	vm.Set("s", &s)
+	_, err := vm.RunString(`s.sort()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s) != 3 {
+		t.Fatalf("len: %d", len(s))
+	}
+	if s[0] != 2 || s[1] != 3 || s[2] != 4 {
+		t.Fatalf("val: %v", s)
+	}
+}
