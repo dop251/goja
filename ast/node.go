@@ -587,15 +587,17 @@ type (
 		Idx         file.Idx
 		Key         Expression
 		Initializer Expression
+		Computed    bool
 		Static      bool
 	}
 
 	MethodDefinition struct {
-		Idx    file.Idx
-		Key    Expression
-		Kind   PropertyKind // "method", "get" or "set"
-		Body   *FunctionLiteral
-		Static bool
+		Idx      file.Idx
+		Key      Expression
+		Kind     PropertyKind // "method", "get" or "set"
+		Body     *FunctionLiteral
+		Computed bool
+		Static   bool
 	}
 
 	ClassStaticBlock struct {

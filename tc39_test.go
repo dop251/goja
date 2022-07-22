@@ -86,6 +86,10 @@ var (
 		// The resulting RegExp will work exactly the same, but it causes these two tests to fail.
 		"test/annexB/built-ins/RegExp/RegExp-leading-escape-BMP.js":  true,
 		"test/annexB/built-ins/RegExp/RegExp-trailing-escape-BMP.js": true,
+		"test/language/literals/regexp/S7.8.5_A1.4_T2.js":            true,
+		"test/language/literals/regexp/S7.8.5_A1.1_T2.js":            true,
+		"test/language/literals/regexp/S7.8.5_A2.1_T2.js":            true,
+		"test/language/literals/regexp/S7.8.5_A2.4_T2.js":            true,
 
 		// generators
 		"test/language/module-code/instn-local-bndng-gen.js":                               true,
@@ -129,6 +133,13 @@ var (
 		"test/language/expressions/in/private-field-rhs-yield-present.js":                                                             true,
 		"test/language/expressions/class/elements/private-static-generator-method-name.js":                                            true,
 		"test/language/expressions/class/elements/private-static-async-generator-method-name.js":                                      true,
+		"test/language/computed-property-names/class/static/generator-prototype.js":                                                   true,
+		"test/language/computed-property-names/class/method/constructor-can-be-generator.js":                                          true,
+		"test/language/computed-property-names/class/static/generator-constructor.js":                                                 true,
+		"test/language/computed-property-names/class/method/generator.js":                                                             true,
+		"test/language/computed-property-names/object/method/generator.js":                                                            true,
+		"test/language/destructuring/binding/syntax/destructuring-object-parameters-function-arguments-length.js":                     true,
+		"test/language/destructuring/binding/syntax/destructuring-array-parameters-function-arguments-length.js":                      true,
 
 		// async
 		"test/language/eval-code/direct/async-func-decl-a-preceding-parameter-is-named-arguments-declare-arguments-and-assign.js":      true,
@@ -192,6 +203,8 @@ var (
 
 		// legacy number literals
 		"test/language/literals/numeric/non-octal-decimal-integer.js": true,
+		"test/language/literals/string/S7.8.4_A4.3_T2.js":             true,
+		"test/language/literals/string/S7.8.4_A4.3_T1.js":             true,
 
 		// integer separators
 		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-integer-separators.js":                  true,
@@ -207,6 +220,12 @@ var (
 		// BigInt
 		"test/built-ins/Object/seal/seal-biguint64array.js": true,
 		"test/built-ins/Object/seal/seal-bigint64array.js":  true,
+
+		// Regexp
+		"test/language/literals/regexp/invalid-range-negative-lookbehind.js":    true,
+		"test/language/literals/regexp/invalid-range-lookbehind.js":             true,
+		"test/language/literals/regexp/invalid-optional-negative-lookbehind.js": true,
+		"test/language/literals/regexp/invalid-optional-lookbehind.js":          true,
 
 		// FIXME bugs
 
@@ -252,6 +271,7 @@ var (
 		"top-level-await",
 		"decorators",
 		"regexp-v-flag",
+		"hashbang",
 	}
 )
 
@@ -323,6 +343,18 @@ func init() {
 		// BigInt
 		"test/built-ins/TypedArrayConstructors/BigUint64Array/",
 		"test/built-ins/TypedArrayConstructors/BigInt64Array/",
+
+		// restricted unicode regexp syntax
+		"test/language/literals/regexp/u-",
+
+		// legacy octal escape in strings in strict mode
+		"test/language/literals/string/legacy-octal-",
+		"test/language/literals/string/legacy-non-octal-",
+
+		// modules
+		"test/language/export/",
+		"test/language/import/",
+		"test/language/module-code/",
 	)
 }
 
@@ -824,28 +856,7 @@ func TestTC39(t *testing.T) {
 	t.Run("tc39", func(t *testing.T) {
 		ctx.t = t
 		// ctx.runTC39File("test/language/types/number/8.5.1.js", t)
-		// ctx.runTC39Tests("test/language")
-		ctx.runTC39Tests("test/language/expressions")
-		ctx.runTC39Tests("test/language/arguments-object")
-		ctx.runTC39Tests("test/language/asi")
-		ctx.runTC39Tests("test/language/block-scope")
-		ctx.runTC39Tests("test/language/directive-prologue")
-		ctx.runTC39Tests("test/language/function-code")
-		ctx.runTC39Tests("test/language/eval-code")
-		ctx.runTC39Tests("test/language/global-code")
-		ctx.runTC39Tests("test/language/identifier-resolution")
-		ctx.runTC39Tests("test/language/identifiers")
-		// ctx.runTC39Tests("test/language/literals") // legacy octal escape in strings in strict mode and regexp
-		ctx.runTC39Tests("test/language/literals/numeric")
-		ctx.runTC39Tests("test/language/punctuators")
-		ctx.runTC39Tests("test/language/reserved-words")
-		ctx.runTC39Tests("test/language/source-text")
-		ctx.runTC39Tests("test/language/statements")
-		ctx.runTC39Tests("test/language/types")
-		ctx.runTC39Tests("test/language/white-space")
-		ctx.runTC39Tests("test/language/module-code")
-		ctx.runTC39Tests("test/language/export")
-		ctx.runTC39Tests("test/language/import")
+		ctx.runTC39Tests("test/language")
 		ctx.runTC39Tests("test/built-ins")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimLeft")

@@ -69,7 +69,7 @@ func (self *_parser) parseStatement() ast.Statement {
 		return self.parseVariableStatement()
 	case token.LET:
 		tok := self.peek()
-		if tok == token.LEFT_BRACKET || self.scope.allowLet && (tok == token.IDENTIFIER || tok == token.LET || tok == token.LEFT_BRACE) {
+		if tok == token.LEFT_BRACKET || self.scope.allowLet && (token.IsId(tok) || tok == token.LEFT_BRACE) {
 			return self.parseLexicalDeclaration(self.token)
 		}
 		self.insertSemicolon = true
@@ -220,6 +220,7 @@ func (self *_parser) parseFunction(declaration bool) *ast.FunctionLiteral {
 		Function: self.expect(token.FUNCTION),
 	}
 
+	self.tokenToBindingId()
 	var name *ast.Identifier
 	if self.token == token.IDENTIFIER {
 		name = self.parseIdentifier()
@@ -266,6 +267,7 @@ func (self *_parser) parseClass(declaration bool) *ast.ClassLiteral {
 		Class: self.expect(token.CLASS),
 	}
 
+	self.tokenToBindingId()
 	var name *ast.Identifier
 	if self.token == token.IDENTIFIER {
 		name = self.parseIdentifier()
@@ -322,10 +324,11 @@ func (self *_parser) parseClass(declaration bool) *ast.ClassLiteral {
 			}
 		}
 
-		_, keyName, value, _ := self.parseObjectPropertyKey()
+		_, keyName, value, tkn := self.parseObjectPropertyKey()
 		if value == nil {
 			continue
 		}
+		computed := tkn == token.ILLEGAL
 		_, private := value.(*ast.PrivateIdentifier)
 
 		if static && !private && keyName == "prototype" {
@@ -339,23 +342,24 @@ func (self *_parser) parseClass(declaration bool) *ast.ClassLiteral {
 		if kind != "" {
 			// method
 			if keyName == "constructor" {
-				if !static && kind != ast.PropertyKindMethod {
+				if !computed && !static && kind != ast.PropertyKindMethod {
 					self.error(value.Idx0(), "Class constructor may not be an accessor")
 				} else if private {
 					self.error(value.Idx0(), "Class constructor may not be a private method")
 				}
 			}
 			md := &ast.MethodDefinition{
-				Idx:    start,
-				Key:    value,
-				Kind:   kind,
-				Static: static,
-				Body:   self.parseMethodDefinition(methodBodyStart, kind),
+				Idx:      start,
+				Key:      value,
+				Kind:     kind,
+				Body:     self.parseMethodDefinition(methodBodyStart, kind),
+				Static:   static,
+				Computed: computed,
 			}
 			node.Body = append(node.Body, md)
 		} else {
 			// field
-			isCtor := keyName == "constructor"
+			isCtor := !computed && keyName == "constructor"
 			if !isCtor {
 				if name, ok := value.(*ast.PrivateIdentifier); ok {
 					isCtor = name.Name == "constructor"
@@ -377,8 +381,9 @@ func (self *_parser) parseClass(declaration bool) *ast.ClassLiteral {
 			node.Body = append(node.Body, &ast.FieldDefinition{
 				Idx:         start,
 				Key:         value,
-				Static:      static,
 				Initializer: initializer,
+				Static:      static,
+				Computed:    computed,
 			})
 		}
 	}
@@ -909,6 +914,7 @@ func (self *_parser) parseBreakStatement() ast.Statement {
 		}
 	}
 
+	self.tokenToBindingId()
 	if self.token == token.IDENTIFIER {
 		identifier := self.parseIdentifier()
 		if !self.scope.hasLabel(identifier.Name) {
@@ -950,6 +956,7 @@ func (self *_parser) parseContinueStatement() ast.Statement {
 		}
 	}
 
+	self.tokenToBindingId()
 	if self.token == token.IDENTIFIER {
 		identifier := self.parseIdentifier()
 		if !self.scope.hasLabel(identifier.Name) {

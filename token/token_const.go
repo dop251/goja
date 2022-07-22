@@ -90,7 +90,6 @@ const (
 	DO
 
 	VAR
-	LET
 	FOR
 	NEW
 	TRY
@@ -113,7 +112,6 @@ const (
 	TYPEOF
 	DELETE
 	SWITCH
-	STATIC
 
 	DEFAULT
 	FINALLY
@@ -127,6 +125,12 @@ const (
 	// ES6 Modules
 	EXPORT
 	IMPORT
+
+	ESCAPED_RESERVED_WORD
+	// Non-reserved keywords below
+
+	LET
+	STATIC
 )
 
 var token2string = [...]string{
@@ -333,21 +337,22 @@ var keywordTable = map[string]_keyword{
 	"super": {
 		token: SUPER,
 	},
-	"implements": {
-		token:         KEYWORD,
-		futureKeyword: true,
-		strict:        true,
-	},
-	"interface": {
-		token:         KEYWORD,
-		futureKeyword: true,
-		strict:        true,
-	},
+	/*
+		"implements": {
+			token:         KEYWORD,
+			futureKeyword: true,
+			strict:        true,
+		},
+		"interface": {
+			token:         KEYWORD,
+			futureKeyword: true,
+			strict:        true,
+		},*/
 	"let": {
 		token:  LET,
 		strict: true,
 	},
-	"package": {
+	/*"package": {
 		token:         KEYWORD,
 		futureKeyword: true,
 		strict:        true,
@@ -366,9 +371,24 @@ var keywordTable = map[string]_keyword{
 		token:         KEYWORD,
 		futureKeyword: true,
 		strict:        true,
-	},
+	},*/
 	"static": {
 		token:  STATIC,
 		strict: true,
+	},
+	"await": {
+		token: KEYWORD,
+	},
+	"yield": {
+		token: KEYWORD,
+	},
+	"false": {
+		token: BOOLEAN,
+	},
+	"true": {
+		token: BOOLEAN,
+	},
+	"null": {
+		token: NULL,
 	},
 }
