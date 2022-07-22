@@ -25,14 +25,6 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 	switch self.token {
 	case token.IDENTIFIER:
 		self.next()
-		if len(literal) > 1 {
-			tkn, strict := token.IsKeyword(literal)
-			if tkn == token.KEYWORD {
-				if !strict {
-					self.error(idx, "Unexpected reserved word")
-				}
-			}
-		}
 		return &ast.Identifier{
 			Name: parsedLiteral,
 			Idx:  idx,
@@ -99,6 +91,14 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 		return self.parseFunction(false)
 	case token.CLASS:
 		return self.parseClass(false)
+	}
+
+	if isBindingId(self.token, parsedLiteral) {
+		self.next()
+		return &ast.Identifier{
+			Name: parsedLiteral,
+			Idx:  idx,
+		}
 	}
 
 	self.errorUnexpectedToken(self.token)
@@ -253,15 +253,30 @@ func (self *_parser) parseRegExpLiteral() *ast.RegExpLiteral {
 	}
 }
 
-func (self *_parser) tokenToId() {
-	switch self.token {
-	case token.LET, token.STATIC:
+func isBindingId(tok token.Token, parsedLiteral unistring.String) bool {
+	if tok == token.IDENTIFIER {
+		return true
+	}
+	if token.IsId(tok) {
+		switch parsedLiteral {
+		case "yield", "await":
+			return true
+		}
+		if token.IsUnreservedWord(tok) {
+			return true
+		}
+	}
+	return false
+}
+
+func (self *_parser) tokenToBindingId() {
+	if isBindingId(self.token, self.parsedLiteral) {
 		self.token = token.IDENTIFIER
 	}
 }
 
 func (self *_parser) parseBindingTarget() (target ast.BindingTarget) {
-	self.tokenToId()
+	self.tokenToBindingId()
 	switch self.token {
 	case token.IDENTIFIER:
 		target = &ast.Identifier{
@@ -332,7 +347,7 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String, ast.Exp
 	var value ast.Expression
 	self.next()
 	switch tkn {
-	case token.IDENTIFIER:
+	case token.IDENTIFIER, token.STRING, token.KEYWORD, token.ESCAPED_RESERVED_WORD:
 		value = &ast.StringLiteral{
 			Idx:     idx,
 			Literal: literal,
@@ -349,12 +364,6 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String, ast.Exp
 				Value:   num,
 			}
 		}
-	case token.STRING, token.KEYWORD:
-		value = &ast.StringLiteral{
-			Idx:     idx,
-			Literal: literal,
-			Value:   parsedLiteral,
-		}
 	case token.PRIVATE_IDENTIFIER:
 		value = &ast.PrivateIdentifier{
 			Identifier: ast.Identifier{
@@ -370,7 +379,6 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String, ast.Exp
 				Literal: literal,
 				Value:   unistring.String(literal),
 			}
-			tkn = token.KEYWORD
 		} else {
 			self.errorUnexpectedToken(tkn)
 		}
@@ -390,7 +398,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 	if value == nil {
 		return nil
 	}
-	if tkn == token.IDENTIFIER || tkn == token.STRING || tkn == token.KEYWORD || tkn == token.ILLEGAL {
+	if token.IsId(tkn) || tkn == token.STRING || tkn == token.ILLEGAL {
 		switch {
 		case self.token == token.LEFT_PARENTHESIS:
 			parameterList := self.parseFunctionParameterList()
@@ -408,7 +416,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 				Value: node,
 			}
 		case self.token == token.COMMA || self.token == token.RIGHT_BRACE || self.token == token.ASSIGN: // shorthand property
-			if tkn == token.IDENTIFIER || tkn == token.KEYWORD && literal == "let" {
+			if isBindingId(tkn, parsedLiteral) {
 				var initializer ast.Expression
 				if self.token == token.ASSIGN {
 					// allow the initializer syntax here in case the object literal
@@ -423,6 +431,8 @@ func (self *_parser) parseObjectProperty() ast.Property {
 					},
 					Initializer: initializer,
 				}
+			} else {
+				self.errorUnexpectedToken(self.token)
 			}
 		case (literal == "get" || literal == "set") && self.token != token.COLON:
 			_, _, keyValue, _ := self.parseObjectPropertyKey()
@@ -627,11 +637,6 @@ func (self *_parser) parseDotMember(left ast.Expression) ast.Expression {
 		self.nextStatement()
 		return &ast.BadExpression{From: period, To: self.idx}
 	}
-
-	/*if leftStr, ok := left.(*ast.StringLiteral); ok && leftStr.Value == "new" {
-		self.error(left.Idx0(), "Keyword must not contain escaped characters")
-		return &ast.BadExpression{From: period, To: self.idx}
-	}*/
 
 	self.next()
 
@@ -1135,7 +1140,7 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 		self.mark(&state)
 		parenthesis = true
 	} else {
-		self.tokenToId()
+		self.tokenToBindingId()
 	}
 	left := self.parseConditionalExpression()
 	var operator token.Token
@@ -1231,7 +1236,6 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 }
 
 func (self *_parser) parseExpression() ast.Expression {
-	self.tokenToId()
 	left := self.parseAssignmentExpression()
 
 	if self.token == token.COMMA {

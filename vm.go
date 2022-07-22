@@ -1973,7 +1973,7 @@ func (s *defineGetterKeyed) exec(vm *vm) {
 		Enumerable:   ToFlag(s.enumerable),
 	}
 
-	obj.self.defineOwnPropertyStr(s.key, descr, false)
+	obj.self.defineOwnPropertyStr(s.key, descr, true)
 
 	vm.sp--
 	vm.pc++
@@ -1999,7 +1999,7 @@ func (s *defineSetterKeyed) exec(vm *vm) {
 		Enumerable:   ToFlag(s.enumerable),
 	}
 
-	obj.self.defineOwnPropertyStr(s.key, descr, false)
+	obj.self.defineOwnPropertyStr(s.key, descr, true)
 
 	vm.sp--
 	vm.pc++
@@ -2025,7 +2025,7 @@ func (s *defineGetter) exec(vm *vm) {
 		Enumerable:   ToFlag(s.enumerable),
 	}
 
-	obj.defineOwnProperty(propName, descr, false)
+	obj.defineOwnProperty(propName, descr, true)
 
 	vm.sp -= 2
 	vm.pc++
@@ -2052,7 +2052,7 @@ func (s *defineSetter) exec(vm *vm) {
 		Enumerable:   FLAG_TRUE,
 	}
 
-	obj.defineOwnProperty(propName, descr, false)
+	obj.defineOwnProperty(propName, descr, true)
 
 	vm.sp -= 2
 	vm.pc++
@@ -3599,6 +3599,9 @@ func getFuncObject(v Value) *Object {
 		}
 		return o
 	}
+	if v == _undefined {
+		return nil
+	}
 	panic(typeError("Value is not an Object"))
 }
 
@@ -4276,8 +4279,9 @@ func (s superCall) exec(vm *vm) {
 	case *classFuncObject:
 		cls = fn
 	case *arrowFuncObject:
-		cls = fn.funcObj.self.(*classFuncObject)
-	default:
+		cls, _ = fn.funcObj.self.(*classFuncObject)
+	}
+	if cls == nil {
 		panic(vm.r.NewTypeError("wrong callee type for super()"))
 	}
 	sp := vm.sp - int(s)

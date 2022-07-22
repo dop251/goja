@@ -1831,7 +1831,7 @@ func (e *compiledClassLiteral) emitGetter(putOnStack bool) {
 		case *ast.MethodDefinition:
 			if !elt.Static {
 				if id, ok := elt.Key.(*ast.StringLiteral); ok {
-					if id.Value == "constructor" {
+					if !elt.Computed && id.Value == "constructor" {
 						if ctorMethod != nil {
 							e.c.throwSyntaxError(int(id.Idx)-1, "A class may only have one constructor")
 						}

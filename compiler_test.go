@@ -5477,6 +5477,31 @@ func TestDeletePropOfNonObject(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestKeywordsAsLabels(t *testing.T) {
+	const SCRIPT = `
+	let: for (let i = 0; i < 2; i++) {
+		if (i === 0) continue let;
+		break let;
+	}
+
+	\u006Cet: for (let i = 0; i < 2; i++) {
+		if (i === 0) continue \u006Cet;
+		break \u006Cet;
+	}
+
+	yield: for (let i = 0; i < 2; i++) {
+		if (i === 0) continue yield;
+		break yield;
+	}
+
+	yi\u0065ld: for (let i = 0; i < 2; i++) {
+		if (i === 0) continue yi\u0065ld;
+		break yi\u0065ld;
+	}
+`
+	testScript(SCRIPT, _undefined, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")
