@@ -48,6 +48,7 @@ type Object struct {
 	self    objectImpl
 
 	weakRefs map[weakMap]Value
+	share    bool
 }
 
 type iterNextFunc func() (propIterItem, iterNextFunc)

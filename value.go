@@ -937,6 +937,11 @@ func (o *Object) ClassName() string {
 	return o.self.className()
 }
 
+// Share This object is shared between runtimes
+func (o *Object) Share() {
+	o.share = true
+}
+
 func (o valueUnresolved) throw() {
 	o.r.throwReferenceError(o.ref)
 }

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/dop251/goja/file"
 	"go/ast"
 	"hash/maphash"
 	"math"
@@ -14,6 +13,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/dop251/goja/file"
 
 	"golang.org/x/text/collate"
 
@@ -1719,7 +1720,7 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		if i == nil || i.runtime == nil {
 			return _null
 		}
-		if i.runtime != r {
+		if i.runtime != r && !i.share {
 			panic(r.NewTypeError("Illegal runtime transition of an Object"))
 		}
 		return i
