@@ -927,7 +927,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		c.newBlockScope()
 		scope = c.scope
 		scope.funcType = funcRegular
-		// scope.function = true // TODO check if needed
+		scope.variable = true
 	}
 	for _, in := range module.indirectExportEntries {
 		v, ambiguous := module.ResolveExport(in.exportName)
@@ -1423,6 +1423,18 @@ func (c *compiler) compileLexicalDeclarations(list []ast.Statement, scopeDeclare
 				scopeDeclared = true
 			}
 			c.createLexicalBindings(exp.LexicalDeclaration)
+		} else if exp, ok := st.(*ast.ExportDeclaration); ok && exp.ClassDeclaration != nil {
+			// TODO refactor
+			if !scopeDeclared {
+				c.newBlockScope()
+				scopeDeclared = true
+			}
+			cls := exp.ClassDeclaration
+			if exp.IsDefault {
+				c.createLexicalIdBinding("default", false, int(exp.Idx0())-1)
+			} else {
+				c.createLexicalIdBinding(cls.Class.Name.Name, false, int(cls.Class.Name.Idx)-1)
+			}
 		}
 	}
 	return scopeDeclared

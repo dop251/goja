@@ -791,6 +791,13 @@ func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
 		c.compileVariableStatement(expr.Variable)
 	} else if expr.LexicalDeclaration != nil {
 		c.compileLexicalDeclaration(expr.LexicalDeclaration)
+	} else if expr.ClassDeclaration != nil {
+		cls := expr.ClassDeclaration
+		if expr.IsDefault {
+			c.emitLexicalAssign("default", int(cls.Class.Class)-1, c.compileClassLiteral(cls.Class, false))
+		} else {
+			c.compileClassDeclaration(cls)
+		}
 	} else if expr.HoistableDeclaration != nil {
 		// already done
 	} else if assign := expr.AssignExpression; assign != nil {
@@ -844,7 +851,6 @@ func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
 			}
 		}
 	}
-	// TODO
 }
 
 func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {

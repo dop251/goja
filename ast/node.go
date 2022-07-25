@@ -496,12 +496,12 @@ type (
 	}
 
 	ExportDeclaration struct {
-		idx0               file.Idx
-		idx1               file.Idx
-		Variable           *VariableStatement
-		AssignExpression   Expression
-		LexicalDeclaration *LexicalDeclaration
-		// ClassDeclaration
+		idx0                 file.Idx
+		idx1                 file.Idx
+		Variable             *VariableStatement
+		AssignExpression     Expression
+		LexicalDeclaration   *LexicalDeclaration
+		ClassDeclaration     *ClassDeclaration
 		NamedExports         *NamedExports
 		ExportFromClause     *ExportFromClause
 		FromClause           *FromClause

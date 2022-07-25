@@ -445,6 +445,21 @@ func exportEntriesFromAst(declarations []*ast.ExportDeclaration) []exportEntry {
 				localName:  "default",
 				lex:        true,
 			})
+		} else if exportDeclaration.ClassDeclaration != nil {
+			cls := exportDeclaration.ClassDeclaration.Class
+			if exportDeclaration.IsDefault {
+				result = append(result, exportEntry{
+					exportName: "default",
+					localName:  "default",
+					lex:        true,
+				})
+			} else {
+				result = append(result, exportEntry{
+					exportName: cls.Name.Name.String(),
+					localName:  cls.Name.Name.String(),
+					lex:        true,
+				})
+			}
 		} else {
 			panic("wat")
 		}

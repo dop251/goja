@@ -1019,6 +1019,15 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 				},
 			},
 		}
+	case token.CLASS:
+		decl := &ast.ExportDeclaration{
+			ClassDeclaration: &ast.ClassDeclaration{
+				Class: self.parseClass(true),
+			},
+		}
+		self.insertSemicolon = true
+		return decl
+
 	case token.DEFAULT:
 		self.next()
 		var exp *ast.ExportDeclaration
@@ -1038,6 +1047,16 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 				},
 				IsDefault: true,
 			}
+		case token.CLASS:
+			decl := &ast.ExportDeclaration{
+				ClassDeclaration: &ast.ClassDeclaration{
+					Class: self.parseClass(false),
+				},
+				IsDefault: true,
+			}
+			self.insertSemicolon = true
+			return decl
+
 		default:
 			exp = &ast.ExportDeclaration{
 				AssignExpression: self.parseAssignmentExpression(),
