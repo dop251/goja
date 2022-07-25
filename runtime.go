@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/dop251/goja/file"
 	"go/ast"
 	"hash/maphash"
 	"math"
@@ -14,6 +13,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/dop251/goja/file"
 
 	"golang.org/x/text/collate"
 
@@ -1720,7 +1721,12 @@ func (r *Runtime) ToValue(i interface{}) Value {
 			return _null
 		}
 		if i.runtime != r {
-			panic(r.NewTypeError("Illegal runtime transition of an Object"))
+			switch i.self.(type) {
+			case *dynamicObject:
+			case *dynamicArray:
+			default:
+				panic(r.NewTypeError("Illegal runtime transition of an Object"))
+			}
 		}
 		return i
 	case valueContainer:
