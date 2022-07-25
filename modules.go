@@ -245,7 +245,11 @@ func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime) (ModuleInstance, e
 }
 
 func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String) Value {
-	return s.exportGetters[name]()
+	getter, ok := s.exportGetters[name]
+	if !ok { // let's not panic in case somebody asks for a binding that isn't exported
+		return nil
+	}
+	return getter()
 }
 
 type SourceTextModuleRecord struct {
