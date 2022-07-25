@@ -828,7 +828,7 @@ func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
 			value, ambiguous := module.ResolveExport(name.IdentifierName.String())
 
 			if ambiguous || value == nil { // also ambiguous
-				continue // ambiguous import already reports
+				continue // ambiguous import already reported
 			}
 
 			n := name.Alias
@@ -839,15 +839,10 @@ func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
 			if localB == nil {
 				c.throwSyntaxError(int(expr.Idx0()), "couldn't lookup  %s", n)
 			}
-			identifier := name.IdentifierName // this
-			// moduleName := expr.FromClause.ModuleSpecifier.String()
+			identifier := name.IdentifierName // name will be reused in the for loop
 			localB.getIndirect = func(vm *vm) Value {
 				m := vm.r.modules[module]
-				v, ok := m.GetBindingValue(identifier, true)
-				if !ok {
-					vm.r.throwReferenceError(identifier)
-				}
-				return v
+				return m.GetBindingValue(identifier)
 			}
 		}
 	}
@@ -906,15 +901,9 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 					c.throwSyntaxError(int(expr.Idx0()), "couldn't lookup  %s", n)
 				}
 				identifier := unistring.NewFromString(value.BindingName)
-				// moduleName := expr.FromClause.ModuleSpecifier.String()
-
 				localB.getIndirect = func(vm *vm) Value {
 					m := vm.r.modules[value.Module]
-					v, ok := m.GetBindingValue(identifier, true)
-					if !ok {
-						vm.r.throwReferenceError(identifier)
-					}
-					return v
+					return m.GetBindingValue(identifier)
 				}
 			}
 		}
@@ -942,16 +931,10 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 					}, idx),
 				)
 			} else {
-				// moduleName := expr.FromClause.ModuleSpecifier.String()
 				identifier := unistring.NewFromString(value.BindingName)
 				localB.getIndirect = func(vm *vm) Value {
-					// TODO this should be just "default", this also likely doesn't work for export aliasing
 					m := vm.r.modules[value.Module]
-					v, ok := m.GetBindingValue(identifier, true)
-					if !ok {
-						vm.r.throwReferenceError(identifier)
-					}
-					return v
+					return m.GetBindingValue(identifier)
 				}
 			}
 		}

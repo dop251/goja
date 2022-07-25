@@ -157,11 +157,11 @@ type simpleModuleInstanceImpl struct {
 	rt *goja.Runtime
 }
 
-func (si *simpleModuleInstanceImpl) GetBindingValue(exportName unistring.String, b bool) (goja.Value, bool) {
+func (si *simpleModuleInstanceImpl) GetBindingValue(exportName unistring.String) goja.Value {
 	if exportName.String() == "coolStuff" {
-		return si.rt.ToValue(5), true
+		return si.rt.ToValue(5)
 	}
-	return nil, false
+	return nil
 }
 
 // START of cyclic module implementation
@@ -230,10 +230,10 @@ func (si *cyclicModuleInstanceImpl) ExecuteModule(rt *goja.Runtime) (goja.Module
 	return nil, nil
 }
 
-func (si *cyclicModuleInstanceImpl) GetBindingValue(exportName unistring.String, _ bool) (goja.Value, bool) {
+func (si *cyclicModuleInstanceImpl) GetBindingValue(exportName unistring.String) goja.Value {
 	b, ambigious := si.module.ResolveExport(exportName.String())
 	if ambigious || b == nil {
 		panic("fix this")
 	}
-	return si.rt.GetModuleInstance(b.Module).GetBindingValue(exportName, true)
+	return si.rt.GetModuleInstance(b.Module).GetBindingValue(exportName)
 }

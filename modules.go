@@ -219,8 +219,7 @@ func (r *Runtime) innerModuleEvaluation(
 
 type (
 	ModuleInstance interface {
-		// TODO the second argument is pointless in this case
-		GetBindingValue(unistring.String, bool) (Value, bool)
+		GetBindingValue(unistring.String) Value
 	}
 	CyclicModuleInstance interface {
 		ModuleInstance
@@ -245,12 +244,8 @@ func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime) (ModuleInstance, e
 	return s, err
 }
 
-func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String, b bool) (Value, bool) {
-	getter, ok := s.exportGetters[name]
-	if !ok {
-		return nil, false
-	}
-	return getter(), true
+func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String) Value {
+	return s.exportGetters[name]()
 }
 
 type SourceTextModuleRecord struct {
@@ -861,10 +856,7 @@ func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 	}
 
 	mi := no.val.runtime.modules[v.Module]
-	b, ok := mi.GetBindingValue(unistring.NewFromString(v.BindingName), true)
-	if !ok {
-		no.val.runtime.throwReferenceError(unistring.NewFromString(v.BindingName))
-	}
+	b := mi.GetBindingValue(unistring.NewFromString(v.BindingName))
 	if b == nil {
 		// TODO figure this out - this is needed as otherwise valueproperty is thought to not have a value
 		// which isn't really correct in a particular test around isFrozen

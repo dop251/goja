@@ -1056,10 +1056,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 				vm.r.throwReferenceError(exportName) // TODO fix
 			} else {
 				s.exportGetters[exportName] = func() Value {
-					v, ok := m2.GetBindingValue(importName, true)
-					if !ok {
-						vm.r.throwReferenceError(exportName) // TODO fix
-					}
+					v := m2.GetBindingValue(importName)
 					return v
 				}
 			}
