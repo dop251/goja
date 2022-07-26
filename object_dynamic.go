@@ -99,8 +99,8 @@ type baseRWObject struct {
 
 type readonlyObject struct {
 	baseRWObject
-	d         ReadonlyObject
-	readyonly bool
+	d        ReadonlyObject
+	readonly bool
 }
 
 func (o *readonlyObject) getDynamicObject() (do DynamicObject, ok bool) {
@@ -115,8 +115,8 @@ type dynamicObject struct {
 
 type readonlyArray struct {
 	baseRWObject
-	a         ReadonlyArray
-	readyonly bool
+	a        ReadonlyArray
+	readonly bool
 }
 
 func (o *readonlyArray) getDynamicArray() (da DynamicArray, ok bool) {
@@ -153,8 +153,8 @@ makes it a lot more efficient.
 func (r *Runtime) NewReadonlyObject(d ReadonlyObject) *Object {
 	v := &Object{runtime: r}
 	o := &readonlyObject{
-		readyonly: true,
-		d:         d,
+		readonly: true,
+		d:        d,
 		baseRWObject: baseRWObject{
 			val:       v,
 			prototype: r.global.ObjectPrototype,
@@ -213,8 +213,8 @@ It is similar to NewReadonlyObject, the differences are:
 func (r *Runtime) NewReadonlyArray(a ReadonlyArray) *Object {
 	v := &Object{runtime: r}
 	o := &readonlyArray{
-		readyonly: true,
-		a:         a,
+		readonly: true,
+		a:        a,
 		baseRWObject: baseRWObject{
 			val:       v,
 			prototype: r.global.ArrayPrototype,
@@ -323,7 +323,7 @@ func (*baseRWObject) getOwnPropSym(*Symbol) Value {
 }
 
 func (o *readonlyObject) _set(prop string, v Value, throw bool) bool {
-	if o.readyonly {
+	if o.readonly {
 		return true
 	}
 	if do, ok := o.getDynamicObject(); ok {
@@ -502,7 +502,7 @@ func (o *baseRWObject) defineOwnPropertySym(name *Symbol, desc PropertyDescripto
 }
 
 func (o *readonlyObject) _delete(prop string, throw bool) bool {
-	if o.readyonly {
+	if o.readonly {
 		return true
 	}
 	if do, ok := o.getDynamicObject(); ok {
@@ -668,7 +668,7 @@ func (a *readonlyArray) sortGet(i int) Value {
 }
 
 func (a *readonlyArray) swap(i int, j int) {
-	if a.readyonly {
+	if a.readonly {
 		return
 	}
 	if da, ok := a.getDynamicArray(); ok {
@@ -718,7 +718,7 @@ func (a *readonlyArray) getOwnPropIdx(v valueInt) Value {
 }
 
 func (a *readonlyArray) _setLen(v Value, throw bool) bool {
-	if a.readyonly {
+	if a.readonly {
 		return true
 	}
 	if da, ok := a.getDynamicArray(); ok {
@@ -743,7 +743,7 @@ func (a *readonlyArray) setOwnStr(p unistring.String, v Value, throw bool) bool 
 }
 
 func (a *readonlyArray) _setIdx(idx int, v Value, throw bool) bool {
-	if a.readyonly {
+	if a.readonly {
 		return true
 	}
 	if da, ok := a.getDynamicArray(); ok {
