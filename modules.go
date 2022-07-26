@@ -44,7 +44,7 @@ type CyclicModuleRecord interface {
 
 type LinkedSourceModuleRecord struct{}
 
-func (c *compiler) CyclicModuleRecordConcreteLink(module CyclicModuleRecord) error {
+func (c *compiler) CyclicModuleRecordConcreteLink(module ModuleRecord) error {
 	stack := []CyclicModuleRecord{}
 	if _, err := c.innerModuleLinking(newLinkState(), module, &stack, 0); err != nil {
 		return err
@@ -132,7 +132,7 @@ func (c *compiler) innerModuleLinking(state *linkState, m ModuleRecord, stack *[
 	return index, nil
 }
 
-func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostResolveImportedModuleFunc,
+func (r *Runtime) CyclicModuleRecordEvaluate(c ModuleRecord, resolve HostResolveImportedModuleFunc,
 ) (mi ModuleInstance, err error) {
 	if r.modules == nil {
 		r.modules = make(map[ModuleRecord]ModuleInstance)
