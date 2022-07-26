@@ -177,7 +177,7 @@ func (s *cyclicModuleImpl) InitializeEnvironment() error {
 	return nil
 }
 
-func (s *cyclicModuleImpl) Instanciate() goja.CyclicModuleInstance {
+func (s *cyclicModuleImpl) Instantiate() goja.CyclicModuleInstance {
 	return &cyclicModuleInstanceImpl{module: s}
 }
 

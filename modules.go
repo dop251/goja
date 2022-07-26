@@ -39,7 +39,7 @@ type CyclicModuleRecord interface {
 	ModuleRecord
 	RequestedModules() []string
 	InitializeEnvironment() error
-	Instanciate() CyclicModuleInstance // TODO maybe should be taking the runtime
+	Instantiate() CyclicModuleInstance // TODO maybe should be taking the runtime
 }
 
 type LinkedSourceModuleRecord struct{}
@@ -165,7 +165,7 @@ func (r *Runtime) innerModuleEvaluation(
 		if ok {
 			return mi, index, nil
 		}
-		c = cr.Instanciate()
+		c = cr.Instantiate()
 		mi = c
 		r.modules[m] = c
 	}
@@ -726,7 +726,7 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 	return starResolution, false
 }
 
-func (module *SourceTextModuleRecord) Instanciate() CyclicModuleInstance {
+func (module *SourceTextModuleRecord) Instantiate() CyclicModuleInstance {
 	return &SourceTextModuleInstance{
 		cyclicModuleStub: cyclicModuleStub{
 			requestedModules: module.requestedModules,
