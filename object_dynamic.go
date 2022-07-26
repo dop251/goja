@@ -9,6 +9,24 @@ import (
 )
 
 /*
+ReadonlyObject is an interface representing a handler for a readonly Object. Such an object can be created
+using the Runtime.NewReadonlyObject() method.
+
+Note that Runtime.ToValue() does not have any special treatment for ReadonlyObject. The only way to create
+a readonly object is by using the Runtime.NewReadonlyObject() method. This is done deliberately to avoid
+silent code breaks when this interface changes.
+*/
+type ReadonlyObject interface {
+	// Get a property value for the key. May return nil if the property does not exist.
+	Get(key string) Value
+	// Has should return true if and only if the property exists.
+	Has(key string) bool
+	// Keys returns a list of all existing property keys. There are no checks for duplicates or to make sure
+	// that the order conforms to https://262.ecma-international.org/#sec-ordinaryownpropertykeys
+	Keys() []string
+}
+
+/*
 DynamicObject is an interface representing a handler for a dynamic Object. Such an object can be created
 using the Runtime.NewDynamicObject() method.
 
@@ -17,17 +35,34 @@ a dynamic object is by using the Runtime.NewDynamicObject() method. This is done
 silent code breaks when this interface changes.
 */
 type DynamicObject interface {
-	// Get a property value for the key. May return nil if the property does not exist.
-	Get(key string) Value
+	ReadonlyObject
 	// Set a property value for the key. Return true if success, false otherwise.
 	Set(key string, val Value) bool
-	// Has should return true if and only if the property exists.
-	Has(key string) bool
 	// Delete the property for the key. Returns true on success (note, that includes missing property).
 	Delete(key string) bool
-	// Keys returns a list of all existing property keys. There are no checks for duplicates or to make sure
-	// that the order conforms to https://262.ecma-international.org/#sec-ordinaryownpropertykeys
-	Keys() []string
+}
+
+/*
+ReadonlyArray is an interface representing a handler for a readonly array Object. Such an object can be created
+using the Runtime.NewReadonlyArray() method.
+
+Any integer property key or a string property key that can be parsed into an int value (including negative
+ones) is treated as an index and passed to the trap methods of the ReadonlyArray. Note this is different from
+the regular ECMAScript arrays which only support positive indexes up to 2^32-1.
+
+ReadonlyArray cannot be sparse, i.e. hasOwnProperty(num) will return true for num >= 0 && num < Len(). Deleting
+such a property is equivalent to setting it to undefined. Note that this creates a slight peculiarity because
+hasOwnProperty() will still return true, even after deletion.
+
+Note that Runtime.ToValue() does not have any special treatment for ReadonlyArray. The only way to create
+a readonly array is by using the Runtime.NewReadonlyArray() method. This is done deliberately to avoid
+silent code breaks when this interface changes.
+*/
+type ReadonlyArray interface {
+	// Len returns the current array length.
+	Len() int
+	// Get an item at index idx. Note that idx may be any integer, negative or beyond the current length.
+	Get(idx int) Value
 }
 
 /*
@@ -47,10 +82,7 @@ a dynamic array is by using the Runtime.NewDynamicArray() method. This is done d
 silent code breaks when this interface changes.
 */
 type DynamicArray interface {
-	// Len returns the current array length.
-	Len() int
-	// Get an item at index idx. Note that idx may be any integer, negative or beyond the current length.
-	Get(idx int) Value
+	ReadonlyArray
 	// Set an item at index idx. Note that idx may be any integer, negative or beyond the current length.
 	// The expected behaviour when it's beyond length is that the array's length is increased to accommodate
 	// the item. All elements in the 'new' section of the array should be zeroed.
@@ -60,19 +92,76 @@ type DynamicArray interface {
 	SetLen(int) bool
 }
 
-type baseDynamicObject struct {
+type baseRWObject struct {
 	val       *Object
 	prototype *Object
 }
 
+type readonlyObject struct {
+	baseRWObject
+	d         ReadonlyObject
+	readyonly bool
+}
+
+func (o *readonlyObject) getDynamicObject() (do DynamicObject, ok bool) {
+	do, ok = o.d.(DynamicObject)
+	return
+}
+
 type dynamicObject struct {
-	baseDynamicObject
+	readonlyObject
 	d DynamicObject
 }
 
+type readonlyArray struct {
+	baseRWObject
+	a         ReadonlyArray
+	readyonly bool
+}
+
+func (o *readonlyArray) getDynamicArray() (da DynamicArray, ok bool) {
+	da, ok = o.a.(DynamicArray)
+	return
+}
+
 type dynamicArray struct {
-	baseDynamicObject
+	readonlyArray
 	a DynamicArray
+}
+
+/*
+NewReadonlyObject creates an Object backed by the provided ReadonlyObject handler.
+
+All properties of this Object are Writable, Enumerable and Configurable data properties. Any attempt to define
+a property that does not conform to this will fail.
+
+The Object is always extensible and cannot be made non-extensible. Object.preventExtensions() will fail.
+
+The Object's prototype is initially set to Object.prototype, but can be changed using regular mechanisms
+(Object.SetPrototype() in Go or Object.setPrototypeOf() in JS).
+
+The Object cannot have own Symbol properties, however its prototype can. If you need an iterator support for
+example, you could create a regular object, set Symbol.iterator on that object and then use it as a
+prototype. See TestReadonlyObjectCustomProto for more details.
+
+Export() returns the original ReadonlyObject.
+
+This mechanism is similar to ECMAScript Proxy, however because all properties are enumerable and the object
+is always extensible there is no need for invariant checks which removes the need to have a target object and
+makes it a lot more efficient.
+*/
+func (r *Runtime) NewReadonlyObject(d ReadonlyObject) *Object {
+	v := &Object{runtime: r}
+	o := &readonlyObject{
+		readyonly: true,
+		d:         d,
+		baseRWObject: baseRWObject{
+			val:       v,
+			prototype: r.global.ObjectPrototype,
+		},
+	}
+	v.self = o
+	return v
 }
 
 /*
@@ -100,9 +189,35 @@ func (r *Runtime) NewDynamicObject(d DynamicObject) *Object {
 	v := &Object{runtime: r}
 	o := &dynamicObject{
 		d: d,
-		baseDynamicObject: baseDynamicObject{
+		readonlyObject: readonlyObject{baseRWObject: baseRWObject{
 			val:       v,
 			prototype: r.global.ObjectPrototype,
+		},
+			d: d,
+		},
+	}
+	v.self = o
+	return v
+}
+
+/*
+NewReadonlyArray creates an array Object backed by the provided ReadonlyArray handler.
+It is similar to NewReadonlyObject, the differences are:
+
+- the Object is an array (i.e. Array.isArray() will return true and it will have the length property).
+
+- the prototype will be initially set to Array.prototype.
+
+- the Object cannot have any own string properties except for the 'length'.
+*/
+func (r *Runtime) NewReadonlyArray(a ReadonlyArray) *Object {
+	v := &Object{runtime: r}
+	o := &readonlyArray{
+		readyonly: true,
+		a:         a,
+		baseRWObject: baseRWObject{
+			val:       v,
+			prototype: r.global.ArrayPrototype,
 		},
 	}
 	v.self = o
@@ -123,31 +238,33 @@ func (r *Runtime) NewDynamicArray(a DynamicArray) *Object {
 	v := &Object{runtime: r}
 	o := &dynamicArray{
 		a: a,
-		baseDynamicObject: baseDynamicObject{
+		readonlyArray: readonlyArray{baseRWObject: baseRWObject{
 			val:       v,
 			prototype: r.global.ArrayPrototype,
+		},
+			a: a,
 		},
 	}
 	v.self = o
 	return v
 }
 
-func (*dynamicObject) sortLen() int {
+func (*readonlyObject) sortLen() int {
 	return 0
 }
 
-func (*dynamicObject) sortGet(i int) Value {
+func (*readonlyObject) sortGet(i int) Value {
 	return nil
 }
 
-func (*dynamicObject) swap(i int, i2 int) {
+func (*readonlyObject) swap(i int, i2 int) {
 }
 
-func (*dynamicObject) className() string {
+func (*readonlyObject) className() string {
 	return classObject
 }
 
-func (o *baseDynamicObject) getParentStr(p unistring.String, receiver Value) Value {
+func (o *baseRWObject) getParentStr(p unistring.String, receiver Value) Value {
 	if proto := o.prototype; proto != nil {
 		if receiver == nil {
 			return proto.self.getStr(p, o.val)
@@ -157,7 +274,7 @@ func (o *baseDynamicObject) getParentStr(p unistring.String, receiver Value) Val
 	return nil
 }
 
-func (o *dynamicObject) getStr(p unistring.String, receiver Value) Value {
+func (o *readonlyObject) getStr(p unistring.String, receiver Value) Value {
 	prop := o.d.Get(p.String())
 	if prop == nil {
 		return o.getParentStr(p, receiver)
@@ -165,7 +282,7 @@ func (o *dynamicObject) getStr(p unistring.String, receiver Value) Value {
 	return prop
 }
 
-func (o *baseDynamicObject) getParentIdx(p valueInt, receiver Value) Value {
+func (o *baseRWObject) getParentIdx(p valueInt, receiver Value) Value {
 	if proto := o.prototype; proto != nil {
 		if receiver == nil {
 			return proto.self.getIdx(p, o.val)
@@ -175,7 +292,7 @@ func (o *baseDynamicObject) getParentIdx(p valueInt, receiver Value) Value {
 	return nil
 }
 
-func (o *dynamicObject) getIdx(p valueInt, receiver Value) Value {
+func (o *readonlyObject) getIdx(p valueInt, receiver Value) Value {
 	prop := o.d.Get(p.String())
 	if prop == nil {
 		return o.getParentIdx(p, receiver)
@@ -183,7 +300,7 @@ func (o *dynamicObject) getIdx(p valueInt, receiver Value) Value {
 	return prop
 }
 
-func (o *baseDynamicObject) getSym(p *Symbol, receiver Value) Value {
+func (o *baseRWObject) getSym(p *Symbol, receiver Value) Value {
 	if proto := o.prototype; proto != nil {
 		if receiver == nil {
 			return proto.self.getSym(p, o.val)
@@ -193,31 +310,37 @@ func (o *baseDynamicObject) getSym(p *Symbol, receiver Value) Value {
 	return nil
 }
 
-func (o *dynamicObject) getOwnPropStr(u unistring.String) Value {
+func (o *readonlyObject) getOwnPropStr(u unistring.String) Value {
 	return o.d.Get(u.String())
 }
 
-func (o *dynamicObject) getOwnPropIdx(v valueInt) Value {
+func (o *readonlyObject) getOwnPropIdx(v valueInt) Value {
 	return o.d.Get(v.String())
 }
 
-func (*baseDynamicObject) getOwnPropSym(*Symbol) Value {
+func (*baseRWObject) getOwnPropSym(*Symbol) Value {
 	return nil
 }
 
-func (o *dynamicObject) _set(prop string, v Value, throw bool) bool {
-	if o.d.Set(prop, v) {
+func (o *readonlyObject) _set(prop string, v Value, throw bool) bool {
+	if o.readyonly {
 		return true
 	}
-	o.val.runtime.typeErrorResult(throw, "'Set' on a dynamic object returned false")
-	return false
+	if do, ok := o.getDynamicObject(); ok {
+		if do.Set(prop, v) {
+			return true
+		}
+		o.val.runtime.typeErrorResult(throw, "'Set' on a readonly object returned false")
+		return false
+	}
+	return true
 }
 
-func (o *baseDynamicObject) _setSym(throw bool) {
-	o.val.runtime.typeErrorResult(throw, "Dynamic objects do not support Symbol properties")
+func (o *baseRWObject) _setSym(throw bool) {
+	o.val.runtime.typeErrorResult(throw, "Readonly objects do not support Symbol properties")
 }
 
-func (o *dynamicObject) setOwnStr(p unistring.String, v Value, throw bool) bool {
+func (o *readonlyObject) setOwnStr(p unistring.String, v Value, throw bool) bool {
 	prop := p.String()
 	if !o.d.Has(prop) {
 		if proto := o.prototype; proto != nil {
@@ -230,7 +353,7 @@ func (o *dynamicObject) setOwnStr(p unistring.String, v Value, throw bool) bool 
 	return o._set(prop, v, throw)
 }
 
-func (o *dynamicObject) setOwnIdx(p valueInt, v Value, throw bool) bool {
+func (o *readonlyObject) setOwnIdx(p valueInt, v Value, throw bool) bool {
 	prop := p.String()
 	if !o.d.Has(prop) {
 		if proto := o.prototype; proto != nil {
@@ -243,7 +366,7 @@ func (o *dynamicObject) setOwnIdx(p valueInt, v Value, throw bool) bool {
 	return o._set(prop, v, throw)
 }
 
-func (o *baseDynamicObject) setOwnSym(s *Symbol, v Value, throw bool) bool {
+func (o *baseRWObject) setOwnSym(s *Symbol, v Value, throw bool) bool {
 	if proto := o.prototype; proto != nil {
 		// we know it's foreign because prototype loops are not allowed
 		if res, handled := proto.self.setForeignSym(s, v, o.val, throw); handled {
@@ -254,7 +377,7 @@ func (o *baseDynamicObject) setOwnSym(s *Symbol, v Value, throw bool) bool {
 	return false
 }
 
-func (o *baseDynamicObject) setParentForeignStr(p unistring.String, v, receiver Value, throw bool) (res bool, handled bool) {
+func (o *baseRWObject) setParentForeignStr(p unistring.String, v, receiver Value, throw bool) (res bool, handled bool) {
 	if proto := o.prototype; proto != nil {
 		if receiver != proto {
 			return proto.self.setForeignStr(p, v, receiver, throw)
@@ -264,7 +387,7 @@ func (o *baseDynamicObject) setParentForeignStr(p unistring.String, v, receiver 
 	return false, false
 }
 
-func (o *dynamicObject) setForeignStr(p unistring.String, v, receiver Value, throw bool) (res bool, handled bool) {
+func (o *readonlyObject) setForeignStr(p unistring.String, v, receiver Value, throw bool) (res bool, handled bool) {
 	prop := p.String()
 	if !o.d.Has(prop) {
 		return o.setParentForeignStr(p, v, receiver, throw)
@@ -272,7 +395,7 @@ func (o *dynamicObject) setForeignStr(p unistring.String, v, receiver Value, thr
 	return false, false
 }
 
-func (o *baseDynamicObject) setParentForeignIdx(p valueInt, v, receiver Value, throw bool) (res bool, handled bool) {
+func (o *baseRWObject) setParentForeignIdx(p valueInt, v, receiver Value, throw bool) (res bool, handled bool) {
 	if proto := o.prototype; proto != nil {
 		if receiver != proto {
 			return proto.self.setForeignIdx(p, v, receiver, throw)
@@ -282,7 +405,7 @@ func (o *baseDynamicObject) setParentForeignIdx(p valueInt, v, receiver Value, t
 	return false, false
 }
 
-func (o *dynamicObject) setForeignIdx(p valueInt, v, receiver Value, throw bool) (res bool, handled bool) {
+func (o *readonlyObject) setForeignIdx(p valueInt, v, receiver Value, throw bool) (res bool, handled bool) {
 	prop := p.String()
 	if !o.d.Has(prop) {
 		return o.setParentForeignIdx(p, v, receiver, throw)
@@ -290,7 +413,7 @@ func (o *dynamicObject) setForeignIdx(p valueInt, v, receiver Value, throw bool)
 	return false, false
 }
 
-func (o *baseDynamicObject) setForeignSym(p *Symbol, v, receiver Value, throw bool) (res bool, handled bool) {
+func (o *baseRWObject) setForeignSym(p *Symbol, v, receiver Value, throw bool) (res bool, handled bool) {
 	if proto := o.prototype; proto != nil {
 		if receiver != proto {
 			return proto.self.setForeignSym(p, v, receiver, throw)
@@ -300,7 +423,7 @@ func (o *baseDynamicObject) setForeignSym(p *Symbol, v, receiver Value, throw bo
 	return false, false
 }
 
-func (o *dynamicObject) hasPropertyStr(u unistring.String) bool {
+func (o *readonlyObject) hasPropertyStr(u unistring.String) bool {
 	if o.hasOwnPropertyStr(u) {
 		return true
 	}
@@ -310,7 +433,7 @@ func (o *dynamicObject) hasPropertyStr(u unistring.String) bool {
 	return false
 }
 
-func (o *dynamicObject) hasPropertyIdx(idx valueInt) bool {
+func (o *readonlyObject) hasPropertyIdx(idx valueInt) bool {
 	if o.hasOwnPropertyIdx(idx) {
 		return true
 	}
@@ -320,133 +443,139 @@ func (o *dynamicObject) hasPropertyIdx(idx valueInt) bool {
 	return false
 }
 
-func (o *baseDynamicObject) hasPropertySym(s *Symbol) bool {
+func (o *baseRWObject) hasPropertySym(s *Symbol) bool {
 	if proto := o.prototype; proto != nil {
 		return proto.self.hasPropertySym(s)
 	}
 	return false
 }
 
-func (o *dynamicObject) hasOwnPropertyStr(u unistring.String) bool {
+func (o *readonlyObject) hasOwnPropertyStr(u unistring.String) bool {
 	return o.d.Has(u.String())
 }
 
-func (o *dynamicObject) hasOwnPropertyIdx(v valueInt) bool {
+func (o *readonlyObject) hasOwnPropertyIdx(v valueInt) bool {
 	return o.d.Has(v.String())
 }
 
-func (*baseDynamicObject) hasOwnPropertySym(_ *Symbol) bool {
+func (*baseRWObject) hasOwnPropertySym(_ *Symbol) bool {
 	return false
 }
 
-func (o *baseDynamicObject) checkDynamicObjectPropertyDescr(name fmt.Stringer, descr PropertyDescriptor, throw bool) bool {
+func (o *baseRWObject) checkReadonlyObjectPropertyDescr(name fmt.Stringer, descr PropertyDescriptor, throw bool) bool {
 	if descr.Getter != nil || descr.Setter != nil {
-		o.val.runtime.typeErrorResult(throw, "Dynamic objects do not support accessor properties")
+		o.val.runtime.typeErrorResult(throw, "Readonly objects do not support accessor properties")
 		return false
 	}
 	if descr.Writable == FLAG_FALSE {
-		o.val.runtime.typeErrorResult(throw, "Dynamic object field %q cannot be made read-only", name.String())
+		o.val.runtime.typeErrorResult(throw, "Readonly object field %q cannot be made read-only", name.String())
 		return false
 	}
 	if descr.Enumerable == FLAG_FALSE {
-		o.val.runtime.typeErrorResult(throw, "Dynamic object field %q cannot be made non-enumerable", name.String())
+		o.val.runtime.typeErrorResult(throw, "Readonly object field %q cannot be made non-enumerable", name.String())
 		return false
 	}
 	if descr.Configurable == FLAG_FALSE {
-		o.val.runtime.typeErrorResult(throw, "Dynamic object field %q cannot be made non-configurable", name.String())
+		o.val.runtime.typeErrorResult(throw, "Readonly object field %q cannot be made non-configurable", name.String())
 		return false
 	}
 	return true
 }
 
-func (o *dynamicObject) defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool {
-	if o.checkDynamicObjectPropertyDescr(name, desc, throw) {
+func (o *readonlyObject) defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool {
+	if o.checkReadonlyObjectPropertyDescr(name, desc, throw) {
 		return o._set(name.String(), desc.Value, throw)
 	}
 	return false
 }
 
-func (o *dynamicObject) defineOwnPropertyIdx(name valueInt, desc PropertyDescriptor, throw bool) bool {
-	if o.checkDynamicObjectPropertyDescr(name, desc, throw) {
+func (o *readonlyObject) defineOwnPropertyIdx(name valueInt, desc PropertyDescriptor, throw bool) bool {
+	if o.checkReadonlyObjectPropertyDescr(name, desc, throw) {
 		return o._set(name.String(), desc.Value, throw)
 	}
 	return false
 }
 
-func (o *baseDynamicObject) defineOwnPropertySym(name *Symbol, desc PropertyDescriptor, throw bool) bool {
+func (o *baseRWObject) defineOwnPropertySym(name *Symbol, desc PropertyDescriptor, throw bool) bool {
 	o._setSym(throw)
 	return false
 }
 
-func (o *dynamicObject) _delete(prop string, throw bool) bool {
-	if o.d.Delete(prop) {
+func (o *readonlyObject) _delete(prop string, throw bool) bool {
+	if o.readyonly {
 		return true
 	}
-	o.val.runtime.typeErrorResult(throw, "Could not delete property %q of a dynamic object", prop)
-	return false
-}
-
-func (o *dynamicObject) deleteStr(name unistring.String, throw bool) bool {
-	return o._delete(name.String(), throw)
-}
-
-func (o *dynamicObject) deleteIdx(idx valueInt, throw bool) bool {
-	return o._delete(idx.String(), throw)
-}
-
-func (*baseDynamicObject) deleteSym(_ *Symbol, _ bool) bool {
+	if do, ok := o.getDynamicObject(); ok {
+		if do.Delete(prop) {
+			return true
+		}
+		o.val.runtime.typeErrorResult(throw, "Could not delete property %q of a readonly object", prop)
+		return false
+	}
 	return true
 }
 
-func (o *baseDynamicObject) toPrimitiveNumber() Value {
+func (o *readonlyObject) deleteStr(name unistring.String, throw bool) bool {
+	return o._delete(name.String(), throw)
+}
+
+func (o *readonlyObject) deleteIdx(idx valueInt, throw bool) bool {
+	return o._delete(idx.String(), throw)
+}
+
+func (*baseRWObject) deleteSym(_ *Symbol, _ bool) bool {
+	return true
+}
+
+func (o *baseRWObject) toPrimitiveNumber() Value {
 	return o.val.genericToPrimitiveNumber()
 }
 
-func (o *baseDynamicObject) toPrimitiveString() Value {
+func (o *baseRWObject) toPrimitiveString() Value {
 	return o.val.genericToPrimitiveString()
 }
 
-func (o *baseDynamicObject) toPrimitive() Value {
+func (o *baseRWObject) toPrimitive() Value {
 	return o.val.genericToPrimitive()
 }
 
-func (o *baseDynamicObject) assertCallable() (call func(FunctionCall) Value, ok bool) {
+func (o *baseRWObject) assertCallable() (call func(FunctionCall) Value, ok bool) {
 	return nil, false
 }
 
-func (*baseDynamicObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
+func (*baseRWObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
 	return nil
 }
 
-func (o *baseDynamicObject) proto() *Object {
+func (o *baseRWObject) proto() *Object {
 	return o.prototype
 }
 
-func (o *baseDynamicObject) setProto(proto *Object, throw bool) bool {
+func (o *baseRWObject) setProto(proto *Object, throw bool) bool {
 	o.prototype = proto
 	return true
 }
 
-func (o *baseDynamicObject) hasInstance(v Value) bool {
-	panic(o.val.runtime.NewTypeError("Expecting a function in instanceof check, but got a dynamic object"))
+func (o *baseRWObject) hasInstance(v Value) bool {
+	panic(o.val.runtime.NewTypeError("Expecting a function in instanceof check, but got a readonly object"))
 }
 
-func (*baseDynamicObject) isExtensible() bool {
+func (*baseRWObject) isExtensible() bool {
 	return true
 }
 
-func (o *baseDynamicObject) preventExtensions(throw bool) bool {
-	o.val.runtime.typeErrorResult(throw, "Cannot make a dynamic object non-extensible")
+func (o *baseRWObject) preventExtensions(throw bool) bool {
+	o.val.runtime.typeErrorResult(throw, "Cannot make a readonly object non-extensible")
 	return false
 }
 
-type dynamicObjectPropIter struct {
-	o         *dynamicObject
+type readonlyObjectPropIter struct {
+	o         *readonlyObject
 	propNames []string
 	idx       int
 }
 
-func (i *dynamicObjectPropIter) next() (propIterItem, iterNextFunc) {
+func (i *readonlyObjectPropIter) next() (propIterItem, iterNextFunc) {
 	for i.idx < len(i.propNames) {
 		name := i.propNames[i.idx]
 		i.idx++
@@ -457,48 +586,48 @@ func (i *dynamicObjectPropIter) next() (propIterItem, iterNextFunc) {
 	return propIterItem{}, nil
 }
 
-func (o *dynamicObject) iterateStringKeys() iterNextFunc {
+func (o *readonlyObject) iterateStringKeys() iterNextFunc {
 	keys := o.d.Keys()
-	return (&dynamicObjectPropIter{
+	return (&readonlyObjectPropIter{
 		o:         o,
 		propNames: keys,
 	}).next
 }
 
-func (o *baseDynamicObject) iterateSymbols() iterNextFunc {
+func (o *baseRWObject) iterateSymbols() iterNextFunc {
 	return func() (propIterItem, iterNextFunc) {
 		return propIterItem{}, nil
 	}
 }
 
-func (o *dynamicObject) iterateKeys() iterNextFunc {
+func (o *readonlyObject) iterateKeys() iterNextFunc {
 	return o.iterateStringKeys()
 }
 
-func (o *dynamicObject) export(ctx *objectExportCtx) interface{} {
+func (o *readonlyObject) export(ctx *objectExportCtx) interface{} {
 	return o.d
 }
 
-func (o *dynamicObject) exportType() reflect.Type {
+func (o *readonlyObject) exportType() reflect.Type {
 	return reflect.TypeOf(o.d)
 }
 
-func (o *baseDynamicObject) exportToMap(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
+func (o *baseRWObject) exportToMap(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
 	return genericExportToMap(o.val, dst, typ, ctx)
 }
 
-func (o *baseDynamicObject) exportToArrayOrSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
+func (o *baseRWObject) exportToArrayOrSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
 	return genericExportToArrayOrSlice(o.val, dst, typ, ctx)
 }
 
-func (o *dynamicObject) equal(impl objectImpl) bool {
-	if other, ok := impl.(*dynamicObject); ok {
+func (o *readonlyObject) equal(impl objectImpl) bool {
+	if other, ok := impl.(*readonlyObject); ok {
 		return o.d == other.d
 	}
 	return false
 }
 
-func (o *dynamicObject) stringKeys(all bool, accum []Value) []Value {
+func (o *readonlyObject) stringKeys(all bool, accum []Value) []Value {
 	keys := o.d.Keys()
 	if l := len(accum) + len(keys); l > cap(accum) {
 		oldAccum := accum
@@ -511,45 +640,50 @@ func (o *dynamicObject) stringKeys(all bool, accum []Value) []Value {
 	return accum
 }
 
-func (*baseDynamicObject) symbols(all bool, accum []Value) []Value {
+func (*baseRWObject) symbols(all bool, accum []Value) []Value {
 	return accum
 }
 
-func (o *dynamicObject) keys(all bool, accum []Value) []Value {
+func (o *readonlyObject) keys(all bool, accum []Value) []Value {
 	return o.stringKeys(all, accum)
 }
 
-func (*baseDynamicObject) _putProp(name unistring.String, value Value, writable, enumerable, configurable bool) Value {
+func (*baseRWObject) _putProp(name unistring.String, value Value, writable, enumerable, configurable bool) Value {
 	return nil
 }
 
-func (*baseDynamicObject) _putSym(s *Symbol, prop Value) {
+func (*baseRWObject) _putSym(s *Symbol, prop Value) {
 }
 
-func (o *baseDynamicObject) getPrivateEnv(*privateEnvType, bool) *privateElements {
-	panic(o.val.runtime.NewTypeError("Dynamic objects cannot have private elements"))
+func (o *baseRWObject) getPrivateEnv(*privateEnvType, bool) *privateElements {
+	panic(o.val.runtime.NewTypeError("Readonly objects cannot have private elements"))
 }
 
-func (a *dynamicArray) sortLen() int {
+func (a *readonlyArray) sortLen() int {
 	return a.a.Len()
 }
 
-func (a *dynamicArray) sortGet(i int) Value {
+func (a *readonlyArray) sortGet(i int) Value {
 	return a.a.Get(i)
 }
 
-func (a *dynamicArray) swap(i int, j int) {
-	x := a.sortGet(i)
-	y := a.sortGet(j)
-	a.a.Set(int(i), y)
-	a.a.Set(int(j), x)
+func (a *readonlyArray) swap(i int, j int) {
+	if a.readyonly {
+		return
+	}
+	if da, ok := a.getDynamicArray(); ok {
+		x := a.sortGet(i)
+		y := a.sortGet(j)
+		da.Set(int(i), y)
+		da.Set(int(j), x)
+	}
 }
 
-func (a *dynamicArray) className() string {
+func (a *readonlyArray) className() string {
 	return classArray
 }
 
-func (a *dynamicArray) getStr(p unistring.String, receiver Value) Value {
+func (a *readonlyArray) getStr(p unistring.String, receiver Value) Value {
 	if p == "length" {
 		return intToValue(int64(a.a.Len()))
 	}
@@ -559,14 +693,14 @@ func (a *dynamicArray) getStr(p unistring.String, receiver Value) Value {
 	return a.getParentStr(p, receiver)
 }
 
-func (a *dynamicArray) getIdx(p valueInt, receiver Value) Value {
+func (a *readonlyArray) getIdx(p valueInt, receiver Value) Value {
 	if val := a.getOwnPropIdx(p); val != nil {
 		return val
 	}
 	return a.getParentIdx(p, receiver)
 }
 
-func (a *dynamicArray) getOwnPropStr(u unistring.String) Value {
+func (a *readonlyArray) getOwnPropStr(u unistring.String) Value {
 	if u == "length" {
 		return &valueProperty{
 			value:    intToValue(int64(a.a.Len())),
@@ -579,50 +713,62 @@ func (a *dynamicArray) getOwnPropStr(u unistring.String) Value {
 	return nil
 }
 
-func (a *dynamicArray) getOwnPropIdx(v valueInt) Value {
+func (a *readonlyArray) getOwnPropIdx(v valueInt) Value {
 	return a.a.Get(toIntStrict(int64(v)))
 }
 
-func (a *dynamicArray) _setLen(v Value, throw bool) bool {
-	if a.a.SetLen(toIntStrict(v.ToInteger())) {
+func (a *readonlyArray) _setLen(v Value, throw bool) bool {
+	if a.readyonly {
 		return true
 	}
-	a.val.runtime.typeErrorResult(throw, "'SetLen' on a dynamic array returned false")
-	return false
+	if da, ok := a.getDynamicArray(); ok {
+		if da.SetLen(toIntStrict(v.ToInteger())) {
+			return true
+		}
+		a.val.runtime.typeErrorResult(throw, "'SetLen' on a readonly array returned false")
+		return false
+	}
+	return true
 }
 
-func (a *dynamicArray) setOwnStr(p unistring.String, v Value, throw bool) bool {
+func (a *readonlyArray) setOwnStr(p unistring.String, v Value, throw bool) bool {
 	if p == "length" {
 		return a._setLen(v, throw)
 	}
 	if idx, ok := strToInt(p); ok {
 		return a._setIdx(idx, v, throw)
 	}
-	a.val.runtime.typeErrorResult(throw, "Cannot set property %q on a dynamic array", p.String())
+	a.val.runtime.typeErrorResult(throw, "Cannot set property %q on a readonly array", p.String())
 	return false
 }
 
-func (a *dynamicArray) _setIdx(idx int, v Value, throw bool) bool {
-	if a.a.Set(idx, v) {
+func (a *readonlyArray) _setIdx(idx int, v Value, throw bool) bool {
+	if a.readyonly {
 		return true
 	}
-	a.val.runtime.typeErrorResult(throw, "'Set' on a dynamic array returned false")
-	return false
+	if da, ok := a.getDynamicArray(); ok {
+		if da.Set(idx, v) {
+			return true
+		}
+		a.val.runtime.typeErrorResult(throw, "'Set' on a readonly array returned false")
+		return false
+	}
+	return true
 }
 
-func (a *dynamicArray) setOwnIdx(p valueInt, v Value, throw bool) bool {
+func (a *readonlyArray) setOwnIdx(p valueInt, v Value, throw bool) bool {
 	return a._setIdx(toIntStrict(int64(p)), v, throw)
 }
 
-func (a *dynamicArray) setForeignStr(p unistring.String, v, receiver Value, throw bool) (res bool, handled bool) {
+func (a *readonlyArray) setForeignStr(p unistring.String, v, receiver Value, throw bool) (res bool, handled bool) {
 	return a.setParentForeignStr(p, v, receiver, throw)
 }
 
-func (a *dynamicArray) setForeignIdx(p valueInt, v, receiver Value, throw bool) (res bool, handled bool) {
+func (a *readonlyArray) setForeignIdx(p valueInt, v, receiver Value, throw bool) (res bool, handled bool) {
 	return a.setParentForeignIdx(p, v, receiver, throw)
 }
 
-func (a *dynamicArray) hasPropertyStr(u unistring.String) bool {
+func (a *readonlyArray) hasPropertyStr(u unistring.String) bool {
 	if a.hasOwnPropertyStr(u) {
 		return true
 	}
@@ -632,7 +778,7 @@ func (a *dynamicArray) hasPropertyStr(u unistring.String) bool {
 	return false
 }
 
-func (a *dynamicArray) hasPropertyIdx(idx valueInt) bool {
+func (a *readonlyArray) hasPropertyIdx(idx valueInt) bool {
 	if a.hasOwnPropertyIdx(idx) {
 		return true
 	}
@@ -642,11 +788,11 @@ func (a *dynamicArray) hasPropertyIdx(idx valueInt) bool {
 	return false
 }
 
-func (a *dynamicArray) _has(idx int) bool {
+func (a *readonlyArray) _has(idx int) bool {
 	return idx >= 0 && idx < a.a.Len()
 }
 
-func (a *dynamicArray) hasOwnPropertyStr(u unistring.String) bool {
+func (a *readonlyArray) hasOwnPropertyStr(u unistring.String) bool {
 	if u == "length" {
 		return true
 	}
@@ -656,55 +802,55 @@ func (a *dynamicArray) hasOwnPropertyStr(u unistring.String) bool {
 	return false
 }
 
-func (a *dynamicArray) hasOwnPropertyIdx(v valueInt) bool {
+func (a *readonlyArray) hasOwnPropertyIdx(v valueInt) bool {
 	return a._has(toIntStrict(int64(v)))
 }
 
-func (a *dynamicArray) defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool {
-	if a.checkDynamicObjectPropertyDescr(name, desc, throw) {
+func (a *readonlyArray) defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool {
+	if a.checkReadonlyObjectPropertyDescr(name, desc, throw) {
 		if idx, ok := strToInt(name); ok {
 			return a._setIdx(idx, desc.Value, throw)
 		}
-		a.val.runtime.typeErrorResult(throw, "Cannot define property %q on a dynamic array", name.String())
+		a.val.runtime.typeErrorResult(throw, "Cannot define property %q on a readonly array", name.String())
 	}
 	return false
 }
 
-func (a *dynamicArray) defineOwnPropertyIdx(name valueInt, desc PropertyDescriptor, throw bool) bool {
-	if a.checkDynamicObjectPropertyDescr(name, desc, throw) {
+func (a *readonlyArray) defineOwnPropertyIdx(name valueInt, desc PropertyDescriptor, throw bool) bool {
+	if a.checkReadonlyObjectPropertyDescr(name, desc, throw) {
 		return a._setIdx(toIntStrict(int64(name)), desc.Value, throw)
 	}
 	return false
 }
 
-func (a *dynamicArray) _delete(idx int, throw bool) bool {
+func (a *readonlyArray) _delete(idx int, throw bool) bool {
 	if a._has(idx) {
 		a._setIdx(idx, _undefined, throw)
 	}
 	return true
 }
 
-func (a *dynamicArray) deleteStr(name unistring.String, throw bool) bool {
+func (a *readonlyArray) deleteStr(name unistring.String, throw bool) bool {
 	if idx, ok := strToInt(name); ok {
 		return a._delete(idx, throw)
 	}
 	if a.hasOwnPropertyStr(name) {
-		a.val.runtime.typeErrorResult(throw, "Cannot delete property %q on a dynamic array", name.String())
+		a.val.runtime.typeErrorResult(throw, "Cannot delete property %q on a readonly array", name.String())
 		return false
 	}
 	return true
 }
 
-func (a *dynamicArray) deleteIdx(idx valueInt, throw bool) bool {
+func (a *readonlyArray) deleteIdx(idx valueInt, throw bool) bool {
 	return a._delete(toIntStrict(int64(idx)), throw)
 }
 
-type dynArrayPropIter struct {
-	a          DynamicArray
+type readonlyArrayPropIter struct {
+	a          ReadonlyArray
 	idx, limit int
 }
 
-func (i *dynArrayPropIter) next() (propIterItem, iterNextFunc) {
+func (i *readonlyArrayPropIter) next() (propIterItem, iterNextFunc) {
 	if i.idx < i.limit && i.idx < i.a.Len() {
 		name := strconv.Itoa(i.idx)
 		i.idx++
@@ -714,33 +860,33 @@ func (i *dynArrayPropIter) next() (propIterItem, iterNextFunc) {
 	return propIterItem{}, nil
 }
 
-func (a *dynamicArray) iterateStringKeys() iterNextFunc {
-	return (&dynArrayPropIter{
+func (a *readonlyArray) iterateStringKeys() iterNextFunc {
+	return (&readonlyArrayPropIter{
 		a:     a.a,
 		limit: a.a.Len(),
 	}).next
 }
 
-func (a *dynamicArray) iterateKeys() iterNextFunc {
+func (a *readonlyArray) iterateKeys() iterNextFunc {
 	return a.iterateStringKeys()
 }
 
-func (a *dynamicArray) export(ctx *objectExportCtx) interface{} {
+func (a *readonlyArray) export(ctx *objectExportCtx) interface{} {
 	return a.a
 }
 
-func (a *dynamicArray) exportType() reflect.Type {
+func (a *readonlyArray) exportType() reflect.Type {
 	return reflect.TypeOf(a.a)
 }
 
-func (a *dynamicArray) equal(impl objectImpl) bool {
-	if other, ok := impl.(*dynamicArray); ok {
+func (a *readonlyArray) equal(impl objectImpl) bool {
+	if other, ok := impl.(*readonlyArray); ok {
 		return a == other
 	}
 	return false
 }
 
-func (a *dynamicArray) stringKeys(all bool, accum []Value) []Value {
+func (a *readonlyArray) stringKeys(all bool, accum []Value) []Value {
 	al := a.a.Len()
 	l := len(accum) + al
 	if all {
@@ -760,6 +906,6 @@ func (a *dynamicArray) stringKeys(all bool, accum []Value) []Value {
 	return accum
 }
 
-func (a *dynamicArray) keys(all bool, accum []Value) []Value {
+func (a *readonlyArray) keys(all bool, accum []Value) []Value {
 	return a.stringKeys(all, accum)
 }

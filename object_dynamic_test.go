@@ -95,6 +95,24 @@ func (t *testDynArray) SetLen(i int) bool {
 	return true
 }
 
+func TestReadonlyObject(t *testing.T) {
+	vm := New()
+	dynObj := &testDynObject{
+		r: vm,
+		m: make(map[string]Value),
+	}
+	o := vm.NewReadonlyObject(dynObj)
+	vm.Set("o", o)
+	vm.testScriptWithTestLibX(`
+	assert(o instanceof Object, "instanceof Object");
+	assert(o === o, "self equality");
+	assert(o !== {}, "non-equality");
+
+	o.test = 42;
+	assert(!("test" in o), "!('test' in o)");
+	`, _undefined, t)
+}
+
 func TestDynamicObject(t *testing.T) {
 	vm := New()
 	dynObj := &testDynObject{
@@ -159,6 +177,29 @@ func TestDynamicObjectCustomProto(t *testing.T) {
 	if v := m["num"]; v.Export() != int64(41) {
 		t.Fatal(v)
 	}
+}
+
+func TestReadonlyArray(t *testing.T) {
+	vm := New()
+	dynObj := &testDynArray{
+		r: vm,
+	}
+	a := vm.NewReadonlyArray(dynObj)
+	vm.Set("a", a)
+	vm.testScriptWithTestLibX(`
+	assert(a instanceof Array, "instanceof Array");
+	assert(a instanceof Object, "instanceof Object");
+	assert(a === a, "self equality");
+	assert(a !== [], "non-equality");
+	assert(Array.isArray(a), "isArray()");
+	assert("length" in a, "length in a");
+	assert.sameValue(a.length, 0, "len == 0");
+	assert.sameValue(a[0], undefined, "a[0] (1)");
+
+	a[0] = 0;
+	assert.sameValue(a[0], undefined, "a[0] (2)");
+	assert.sameValue(a.length, 0, "length");
+	`, _undefined, t)
 }
 
 func TestDynamicArray(t *testing.T) {
