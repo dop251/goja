@@ -5502,6 +5502,52 @@ func TestKeywordsAsLabels(t *testing.T) {
 	testScript(SCRIPT, _undefined, t)
 }
 
+func TestThisResolutionWithArg(t *testing.T) {
+	const SCRIPT = `
+	let capture;
+	function f(arg) {
+		capture = () => this; // move 'this' to stash
+		return [this, arg];
+	}
+	const _this = {};
+	const arg = {};
+	const [_this1, arg1] = f.call(_this, arg);
+	_this1 === _this && arg1 === arg;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestThisResolutionArgInStash(t *testing.T) {
+	const SCRIPT = `
+	let capture;
+	function f(arg) {
+		capture = () => this + arg; // move 'this' and arguments to stash
+		return [this, arg];
+	}
+	const _this = {};
+	const arg = {};
+	const [_this1, arg1] = f.call(_this, arg);
+	_this1 === _this && arg1 === arg;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestThisResolutionWithStackVar(t *testing.T) {
+	const SCRIPT = `
+	let capture;
+	function f(arg) {
+		const _ = 1; // a stack variable
+		capture = () => this + arg; // move 'this' and arguments to stash
+		return [this, arg];
+	}
+	const _this = {};
+	const arg = {};
+	const [_this1, arg1] = f.call(_this, arg);
+	_this1 === _this && arg1 === arg;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := ioutil.ReadFile("babel7.js")
