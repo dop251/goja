@@ -442,6 +442,7 @@ func (p *Program) _dumpCode(indent string, logger func(format string, args ...in
 			if f.initFields != nil {
 				dumpInitFields(f.initFields)
 			}
+			prg = f.ctor
 		case *newStaticFieldInit:
 			if f.initFields != nil {
 				dumpInitFields(f.initFields)
