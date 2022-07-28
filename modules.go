@@ -123,6 +123,7 @@ func (c *compiler) innerModuleLinking(state *linkState, m ModuleRecord, stack *[
 	if state.dfsAncestorIndex[module] == state.dfsIndex[module] {
 		for i := len(*stack) - 1; i >= 0; i-- {
 			requiredModule := (*stack)[i]
+			*stack = (*stack)[:i]
 			state.status[requiredModule] = Linked
 			if requiredModule == module {
 				break
@@ -207,7 +208,7 @@ func (r *Runtime) innerModuleEvaluation(
 	if state.dfsAncestorIndex[c] == state.dfsIndex[c] {
 		for i := len(*stack) - 1; i >= 0; i-- {
 			requiredModuleInstance := (*stack)[i]
-			// TODO assert
+			*stack = (*stack)[:i]
 			state.status[requiredModuleInstance] = Evaluated
 			if requiredModuleInstance == c {
 				break
