@@ -1,8 +1,9 @@
 package goja
 
 import (
-	"github.com/dop251/goja/unistring"
 	"reflect"
+
+	"github.com/dop251/goja/unistring"
 )
 
 type PromiseState int
@@ -74,7 +75,7 @@ func (p *Promise) toValue(r *Runtime) Value {
 	}
 	promise := p.val
 	if promise.runtime != r {
-		panic(r.NewTypeError("Illegal runtime transition of a Promise"))
+		panic(makeTypeError("Illegal runtime transition of a Promise"))
 	}
 	return promise
 }
@@ -214,7 +215,7 @@ func (r *Runtime) newPromise(proto *Object) *Promise {
 
 func (r *Runtime) builtin_newPromise(args []Value, newTarget *Object) *Object {
 	if newTarget == nil {
-		panic(r.needNew("Promise"))
+		panic(makeTypeError(needNew, "Promise"))
 	}
 	var arg0 Value
 	if len(args) > 0 {
@@ -244,7 +245,7 @@ func (r *Runtime) promiseProto_then(call FunctionCall) Value {
 		resultCapability := r.newPromiseCapability(c)
 		return r.performPromiseThen(p, call.Argument(0), call.Argument(1), resultCapability)
 	}
-	panic(r.NewTypeError("Method Promise.prototype.then called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
+	panic(makeTypeError("Method Promise.prototype.then called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 }
 
 func (r *Runtime) newPromiseCapability(c *Object) *promiseCapability {
@@ -257,10 +258,10 @@ func (r *Runtime) newPromiseCapability(c *Object) *promiseCapability {
 		var resolve, reject Value
 		executor := r.newNativeFunc(func(call FunctionCall) Value {
 			if resolve != nil {
-				panic(r.NewTypeError("resolve is already set"))
+				panic(makeTypeError("resolve is already set"))
 			}
 			if reject != nil {
-				panic(r.NewTypeError("reject is already set"))
+				panic(makeTypeError("reject is already set"))
 			}
 			if arg := call.Argument(0); arg != _undefined {
 				resolve = arg

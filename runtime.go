@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/dop251/goja/file"
 	"go/ast"
 	"hash/maphash"
 	"math"
@@ -14,6 +13,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/dop251/goja/file"
 
 	"golang.org/x/text/collate"
 
@@ -465,7 +466,7 @@ func (r *Runtime) init() {
 
 func (r *Runtime) typeErrorResult(throw bool, args ...interface{}) {
 	if throw {
-		panic(r.NewTypeError(args...))
+		panic(makeTypeError(args...))
 	}
 }
 
@@ -1720,7 +1721,7 @@ func (r *Runtime) ToValue(i interface{}) Value {
 			return _null
 		}
 		if i.runtime != r {
-			panic(r.NewTypeError("Illegal runtime transition of an Object"))
+			panic(makeTypeError("Illegal runtime transition of an Object"))
 		}
 		return i
 	case valueContainer:
@@ -1936,7 +1937,7 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 			v := reflect.New(t).Elem()
 			err := r.toReflectValue(a, v, &objectExportCtx{})
 			if err != nil {
-				panic(r.NewTypeError("could not convert function call parameter %d: %v", i, err))
+				panic(makeTypeError("could not convert function call parameter %d: %v", i, err))
 			}
 			in[i] = v
 		}
@@ -2457,7 +2458,7 @@ func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
 		return obj
 	}
 	if len(args) > 0 {
-		panic(r.NewTypeError(args...))
+		panic(makeTypeError(args...))
 	} else {
 		var s string
 		if v == nil {
@@ -2465,7 +2466,7 @@ func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
 		} else {
 			s = v.String()
 		}
-		panic(r.NewTypeError("Value is not an object: %s", s))
+		panic(makeTypeError("Value is not an object: %s", s))
 	}
 }
 
@@ -2478,7 +2479,7 @@ func (r *Runtime) toNumber(v Value) Value {
 			return r.toNumber(pvo.pValue)
 		}
 	}
-	panic(r.NewTypeError("Value is not a number: %s", v))
+	panic(makeTypeError("Value is not a number: %s", v))
 }
 
 func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value, newTarget *Object) *Object {
@@ -2502,7 +2503,7 @@ func (r *Runtime) speciesConstructorObj(o, defaultConstructor *Object) *Object {
 	}
 	obj := r.toObject(c)
 	if obj.self.assertConstructor() == nil {
-		panic(r.NewTypeError("Value is not a constructor"))
+		panic(makeTypeError("Value is not a constructor"))
 	}
 	return obj
 }
@@ -2552,7 +2553,7 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 	if method == nil {
 		method = toMethod(r.getV(obj, SymIterator))
 		if method == nil {
-			panic(r.NewTypeError("object is not iterable"))
+			panic(makeTypeError("object is not iterable"))
 		}
 	}
 

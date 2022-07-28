@@ -338,12 +338,12 @@ func (r *Runtime) newProxy(args []Value, proto *Object) *Object {
 			}
 		}
 	}
-	panic(r.NewTypeError("Cannot create proxy with a non-object as target or handler"))
+	panic(makeTypeError("Cannot create proxy with a non-object as target or handler"))
 }
 
 func (r *Runtime) builtin_newProxy(args []Value, newTarget *Object) *Object {
 	if newTarget == nil {
-		panic(r.needNew("Proxy"))
+		panic(makeTypeError(needNew, "Proxy"))
 	}
 	return r.newProxy(args, r.getPrototypeFromCtor(newTarget, r.global.Proxy, r.global.ObjectPrototype))
 }
@@ -351,7 +351,7 @@ func (r *Runtime) builtin_newProxy(args []Value, newTarget *Object) *Object {
 func (r *Runtime) NewProxy(target *Object, nativeHandler *ProxyTrapConfig) Proxy {
 	if p, ok := target.self.(*proxyObject); ok {
 		if p.handler == nil {
-			panic(r.NewTypeError("Cannot create proxy with a revoked proxy as target"))
+			panic(makeTypeError("Cannot create proxy with a revoked proxy as target"))
 		}
 	}
 	handler := r.newNativeProxyHandler(nativeHandler)
@@ -375,7 +375,7 @@ func (r *Runtime) builtin_proxy_revocable(call FunctionCall) Value {
 			}
 		}
 	}
-	panic(r.NewTypeError("Cannot create proxy with a non-object as target or handler"))
+	panic(makeTypeError("Cannot create proxy with a non-object as target or handler"))
 }
 
 func (r *Runtime) createProxy(val *Object) objectImpl {

@@ -51,7 +51,7 @@ func arraySpeciesCreate(obj *Object, size int64) *Object {
 					return constructor([]Value{intToValue(size)}, constructObj)
 				}
 			}
-			panic(obj.runtime.NewTypeError("Species is not a constructor"))
+			panic(makeTypeError("Species is not a constructor"))
 		}
 	}
 	return obj.runtime.newArrayLength(size)
@@ -273,7 +273,7 @@ func (r *Runtime) arrayproto_concat_append(a *Object, item Value) {
 	if obj, ok := item.(*Object); ok && isConcatSpreadable(obj) {
 		length := toLength(obj.self.getStr("length", nil))
 		if aLength+length >= maxInt {
-			panic(r.NewTypeError("Invalid array length"))
+			panic(makeTypeError("Invalid array length"))
 		}
 		for i := int64(0); i < length; i++ {
 			v := obj.self.getIdx(valueInt(i), nil)
@@ -348,7 +348,7 @@ func (r *Runtime) arrayproto_sort(call FunctionCall) Value {
 			compareFn, _ = arg.self.assertCallable()
 		}
 		if compareFn == nil {
-			panic(r.NewTypeError("The comparison function must be either a function or undefined"))
+			panic(makeTypeError("The comparison function must be either a function or undefined"))
 		}
 	}
 
@@ -407,7 +407,7 @@ func (r *Runtime) arrayproto_splice(call FunctionCall) Value {
 	itemCount := max(int64(len(call.Arguments)-2), 0)
 	newLength := length - actualDeleteCount + itemCount
 	if newLength >= maxInt {
-		panic(r.NewTypeError("Invalid array length"))
+		panic(makeTypeError("Invalid array length"))
 	}
 	a := arraySpeciesCreate(o, actualDeleteCount)
 	if src := r.checkStdArrayObj(o); src != nil {
@@ -501,7 +501,7 @@ func (r *Runtime) arrayproto_unshift(call FunctionCall) Value {
 	if argCount > 0 {
 		newSize := length + argCount
 		if newSize >= maxInt {
-			panic(r.NewTypeError("Invalid array length"))
+			panic(makeTypeError("Invalid array length"))
 		}
 		if arr := r.checkStdArrayObjWithProto(o); arr != nil && newSize < math.MaxUint32 {
 			if int64(cap(arr.values)) >= newSize {
@@ -1149,7 +1149,7 @@ func (r *Runtime) flattenIntoArray(target, source *Object, sourceLen, start, dep
 				targetIndex = r.flattenIntoArray(target, elementArray, elementLen, targetIndex, depth-1, nil, nil)
 			} else {
 				if targetIndex >= maxInt-1 {
-					panic(r.NewTypeError("Invalid array length"))
+					panic(makeTypeError("Invalid array length"))
 				}
 				createDataPropertyOrThrow(target, intToValue(targetIndex), element)
 				targetIndex++
@@ -1226,7 +1226,7 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 			}
 		}
 		if mapFn == nil {
-			panic(r.NewTypeError("%s is not a function", mapFnArg))
+			panic(makeTypeError("%s is not a function", mapFnArg))
 		}
 	}
 	t := call.Argument(2)
@@ -1345,7 +1345,7 @@ func (r *Runtime) arrayIterProto_next(call FunctionCall) Value {
 	if iter, ok := thisObj.self.(*arrayIterObject); ok {
 		return iter.next()
 	}
-	panic(r.NewTypeError("Method Array Iterator.prototype.next called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
+	panic(makeTypeError("Method Array Iterator.prototype.next called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 }
 
 func (r *Runtime) createArrayProto(val *Object) objectImpl {

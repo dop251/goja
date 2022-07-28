@@ -82,7 +82,7 @@ func (p Proxy) toValue(r *Runtime) Value {
 	}
 	proxy := p.proxy.val
 	if proxy.runtime != r {
-		panic(r.NewTypeError("Illegal runtime transition of a Proxy"))
+		panic(makeTypeError("Illegal runtime transition of a Proxy"))
 	}
 	return proxy
 }
@@ -292,11 +292,10 @@ type proxyObject struct {
 }
 
 func (p *proxyObject) checkHandler() proxyHandler {
-	r := p.val.runtime
 	if handler := p.handler; handler != nil {
 		return handler
 	}
-	panic(r.NewTypeError("Proxy already revoked"))
+	panic(makeTypeError("Proxy already revoked"))
 }
 
 func (p *proxyObject) proto() *Object {
@@ -307,7 +306,7 @@ func (p *proxyObject) proto() *Object {
 			handlerProto = p.val.runtime.toObject(v)
 		}
 		if !target.self.isExtensible() && !p.__sameValue(handlerProto, target.self.proto()) {
-			panic(p.val.runtime.NewTypeError("'getPrototypeOf' on proxy: proxy target is non-extensible but the trap did not return its actual prototype"))
+			panic(makeTypeError("'getPrototypeOf' on proxy: proxy target is non-extensible but the trap did not return its actual prototype"))
 		}
 		return handlerProto
 	}
@@ -320,7 +319,7 @@ func (p *proxyObject) setProto(proto *Object, throw bool) bool {
 	if v, ok := p.checkHandler().setPrototypeOf(target, proto); ok {
 		if v {
 			if !target.self.isExtensible() && !p.__sameValue(proto, target.self.proto()) {
-				panic(p.val.runtime.NewTypeError("'setPrototypeOf' on proxy: trap returned truish for setting a new prototype on the non-extensible proxy target"))
+				panic(makeTypeError("'setPrototypeOf' on proxy: trap returned truish for setting a new prototype on the non-extensible proxy target"))
 			}
 			return true
 		} else {
@@ -336,7 +335,7 @@ func (p *proxyObject) isExtensible() bool {
 	target := p.target
 	if booleanTrapResult, ok := p.checkHandler().isExtensible(p.target); ok {
 		if te := target.self.isExtensible(); booleanTrapResult != te {
-			panic(p.val.runtime.NewTypeError("'isExtensible' on proxy: trap result does not reflect extensibility of proxy target (which is '%v')", te))
+			panic(makeTypeError("'isExtensible' on proxy: trap result does not reflect extensibility of proxy target (which is '%v')", te))
 		}
 		return booleanTrapResult
 	}
@@ -352,7 +351,7 @@ func (p *proxyObject) preventExtensions(throw bool) bool {
 			return false
 		}
 		if te := target.self.isExtensible(); booleanTrapResult && te {
-			panic(p.val.runtime.NewTypeError("'preventExtensions' on proxy: trap returned truish but the proxy target is extensible"))
+			panic(makeTypeError("'preventExtensions' on proxy: trap returned truish but the proxy target is extensible"))
 		}
 	}
 
@@ -388,21 +387,21 @@ func (p *proxyObject) proxyDefineOwnPropertyPostCheck(prop Value, target *Object
 	settingConfigFalse := descr.Configurable == FLAG_FALSE
 	if targetDesc == nil {
 		if !extensibleTarget {
-			panic(p.val.runtime.NewTypeError())
+			panic(makeTypeError())
 		}
 		if settingConfigFalse {
-			panic(p.val.runtime.NewTypeError())
+			panic(makeTypeError())
 		}
 	} else {
 		if !p.__isCompatibleDescriptor(extensibleTarget, &descr, targetDesc) {
-			panic(p.val.runtime.NewTypeError())
+			panic(makeTypeError())
 		}
 		if settingConfigFalse && targetDesc.configurable {
-			panic(p.val.runtime.NewTypeError())
+			panic(makeTypeError())
 		}
 		if targetDesc.value != nil && !targetDesc.configurable && targetDesc.writable {
 			if descr.Writable == FLAG_FALSE {
-				panic(p.val.runtime.NewTypeError())
+				panic(makeTypeError())
 			}
 		}
 	}
@@ -450,10 +449,10 @@ func (p *proxyObject) proxyHasChecks(targetProp Value, target *Object, name fmt.
 	targetDesc := propToValueProp(targetProp)
 	if targetDesc != nil {
 		if !targetDesc.configurable {
-			panic(p.val.runtime.NewTypeError("'has' on proxy: trap returned falsish for property '%s' which exists in the proxy target as non-configurable", name.String()))
+			panic(makeTypeError("'has' on proxy: trap returned falsish for property '%s' which exists in the proxy target as non-configurable", name.String()))
 		}
 		if !target.self.isExtensible() {
-			panic(p.val.runtime.NewTypeError("'has' on proxy: trap returned falsish for property '%s' but the proxy target is not extensible", name.String()))
+			panic(makeTypeError("'has' on proxy: trap returned falsish for property '%s' but the proxy target is not extensible", name.String()))
 		}
 	}
 }
@@ -514,7 +513,7 @@ func (p *proxyObject) proxyGetOwnPropertyDescriptor(targetProp Value, target *Ob
 		if obj, ok := trapResult.(*Object); ok {
 			trapResultObj = obj
 		} else {
-			panic(r.NewTypeError("'getOwnPropertyDescriptor' on proxy: trap returned neither object nor undefined for property '%s'", name.String()))
+			panic(makeTypeError("'getOwnPropertyDescriptor' on proxy: trap returned neither object nor undefined for property '%s'", name.String()))
 		}
 	}
 	if trapResultObj == nil {
@@ -522,10 +521,10 @@ func (p *proxyObject) proxyGetOwnPropertyDescriptor(targetProp Value, target *Ob
 			return nil
 		}
 		if !targetDesc.configurable {
-			panic(r.NewTypeError())
+			panic(makeTypeError())
 		}
 		if !target.self.isExtensible() {
-			panic(r.NewTypeError())
+			panic(makeTypeError())
 		}
 		return nil
 	}
@@ -533,20 +532,20 @@ func (p *proxyObject) proxyGetOwnPropertyDescriptor(targetProp Value, target *Ob
 	resultDesc := r.toPropertyDescriptor(trapResultObj)
 	resultDesc.complete()
 	if !p.__isCompatibleDescriptor(extensibleTarget, &resultDesc, targetDesc) {
-		panic(r.NewTypeError("'getOwnPropertyDescriptor' on proxy: trap returned descriptor for property '%s' that is incompatible with the existing property in the proxy target", name.String()))
+		panic(makeTypeError("'getOwnPropertyDescriptor' on proxy: trap returned descriptor for property '%s' that is incompatible with the existing property in the proxy target", name.String()))
 	}
 
 	if resultDesc.Configurable == FLAG_FALSE {
 		if targetDesc == nil {
-			panic(r.NewTypeError("'getOwnPropertyDescriptor' on proxy: trap reported non-configurability for property '%s' which is non-existent in the proxy target", name.String()))
+			panic(makeTypeError("'getOwnPropertyDescriptor' on proxy: trap reported non-configurability for property '%s' which is non-existent in the proxy target", name.String()))
 		}
 
 		if targetDesc.configurable {
-			panic(r.NewTypeError("'getOwnPropertyDescriptor' on proxy: trap reported non-configurability for property '%s' which is configurable in the proxy target", name.String()))
+			panic(makeTypeError("'getOwnPropertyDescriptor' on proxy: trap reported non-configurability for property '%s' which is configurable in the proxy target", name.String()))
 		}
 
 		if resultDesc.Writable == FLAG_FALSE && targetDesc.writable {
-			panic(r.NewTypeError("'getOwnPropertyDescriptor' on proxy: trap reported non-configurable and writable for property '%s' which is non-configurable, non-writable in the proxy target", name.String()))
+			panic(makeTypeError("'getOwnPropertyDescriptor' on proxy: trap reported non-configurable and writable for property '%s' which is non-configurable, non-writable in the proxy target", name.String()))
 		}
 	}
 
@@ -588,11 +587,11 @@ func (p *proxyObject) proxyGetChecks(targetProp, trapResult Value, name fmt.Stri
 	if targetDesc, ok := targetProp.(*valueProperty); ok {
 		if !targetDesc.accessor {
 			if !targetDesc.writable && !targetDesc.configurable && !trapResult.SameAs(targetDesc.value) {
-				panic(p.val.runtime.NewTypeError("'get' on proxy: property '%s' is a read-only and non-configurable data property on the proxy target but the proxy did not return its actual value (expected '%s' but got '%s')", name.String(), nilSafe(targetDesc.value), ret))
+				panic(makeTypeError("'get' on proxy: property '%s' is a read-only and non-configurable data property on the proxy target but the proxy did not return its actual value (expected '%s' but got '%s')", name.String(), nilSafe(targetDesc.value), ret))
 			}
 		} else {
 			if !targetDesc.configurable && targetDesc.getterFunc == nil && trapResult != _undefined {
-				panic(p.val.runtime.NewTypeError("'get' on proxy: property '%s' is a non-configurable accessor property on the proxy target and does not have a getter function, but the trap did not return 'undefined' (got '%s')", name.String(), ret))
+				panic(makeTypeError("'get' on proxy: property '%s' is a non-configurable accessor property on the proxy target and does not have a getter function, but the trap did not return 'undefined' (got '%s')", name.String(), ret))
 			}
 		}
 	}
@@ -646,10 +645,10 @@ func (p *proxyObject) proxySetPostCheck(targetProp, value Value, name fmt.String
 	if prop, ok := targetProp.(*valueProperty); ok {
 		if prop.accessor {
 			if !prop.configurable && prop.setterFunc == nil {
-				panic(p.val.runtime.NewTypeError("'set' on proxy: trap returned truish for property '%s' which exists in the proxy target as a non-configurable and non-writable accessor property without a setter", name.String()))
+				panic(makeTypeError("'set' on proxy: trap returned truish for property '%s' which exists in the proxy target as a non-configurable and non-writable accessor property without a setter", name.String()))
 			}
 		} else if !prop.configurable && !prop.writable && !p.__sameValue(prop.value, value) {
-			panic(p.val.runtime.NewTypeError("'set' on proxy: trap returned truish for property '%s' which exists in the proxy target as a non-configurable and non-writable data property with a different value", name.String()))
+			panic(makeTypeError("'set' on proxy: trap returned truish for property '%s' which exists in the proxy target as a non-configurable and non-writable data property with a different value", name.String()))
 		}
 	}
 }
@@ -721,11 +720,11 @@ func (p *proxyObject) proxyDeleteCheck(trapResult bool, targetProp Value, name f
 		}
 		if targetDesc, ok := targetProp.(*valueProperty); ok {
 			if !targetDesc.configurable {
-				panic(p.val.runtime.NewTypeError("'deleteProperty' on proxy: property '%s' is a non-configurable property but the trap returned truish", name.String()))
+				panic(makeTypeError("'deleteProperty' on proxy: property '%s' is a non-configurable property but the trap returned truish", name.String()))
 			}
 		}
 		if !target.self.isExtensible() {
-			panic(p.val.runtime.NewTypeError("'deleteProperty' on proxy: trap returned truish for property '%s' but the proxy target is non-extensible", name.String()))
+			panic(makeTypeError("'deleteProperty' on proxy: trap returned truish for property '%s' but the proxy target is non-extensible", name.String()))
 		}
 	} else {
 		p.val.runtime.typeErrorResult(throw, "'deleteProperty' on proxy: trap returned falsish for property '%s'", name.String())
@@ -797,11 +796,11 @@ func (p *proxyObject) proxyOwnKeys() ([]Value, bool) {
 			item := keys.self.getIdx(valueInt(k), nil)
 			if _, ok := item.(valueString); !ok {
 				if _, ok := item.(*Symbol); !ok {
-					panic(p.val.runtime.NewTypeError("%s is not a valid property name", item.String()))
+					panic(makeTypeError("%s is not a valid property name", item.String()))
 				}
 			}
 			if _, exists := keySet[item]; exists {
-				panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap returned duplicate entries"))
+				panic(makeTypeError("'ownKeys' on proxy: trap returned duplicate entries"))
 			}
 			keyList = append(keyList, item)
 			keySet[item] = struct{}{}
@@ -812,7 +811,7 @@ func (p *proxyObject) proxyOwnKeys() ([]Value, bool) {
 				delete(keySet, item.name)
 			} else {
 				if !ext {
-					panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap result did not include '%s'", item.name.String()))
+					panic(makeTypeError("'ownKeys' on proxy: trap result did not include '%s'", item.name.String()))
 				}
 				var prop Value
 				if item.value == nil {
@@ -821,12 +820,12 @@ func (p *proxyObject) proxyOwnKeys() ([]Value, bool) {
 					prop = item.value
 				}
 				if prop, ok := prop.(*valueProperty); ok && !prop.configurable {
-					panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap result did not include non-configurable '%s'", item.name.String()))
+					panic(makeTypeError("'ownKeys' on proxy: trap result did not include non-configurable '%s'", item.name.String()))
 				}
 			}
 		}
 		if !ext && len(keyList) > 0 && len(keySet) > 0 {
-			panic(p.val.runtime.NewTypeError("'ownKeys' on proxy: trap returned extra keys but proxy target is non-extensible"))
+			panic(makeTypeError("'ownKeys' on proxy: trap returned extra keys but proxy target is non-extensible"))
 		}
 
 		return keyList, true
@@ -874,7 +873,7 @@ func (p *proxyObject) assertConstructor() func(args []Value, newTarget *Object) 
 
 func (p *proxyObject) apply(call FunctionCall) Value {
 	if p.call == nil {
-		panic(p.val.runtime.NewTypeError("proxy target is not a function"))
+		panic(makeTypeError("proxy target is not a function"))
 	}
 	if v, ok := p.checkHandler().apply(p.target, nilSafe(call.This), call.Arguments); ok {
 		return v
@@ -884,7 +883,7 @@ func (p *proxyObject) apply(call FunctionCall) Value {
 
 func (p *proxyObject) construct(args []Value, newTarget *Object) *Object {
 	if p.ctor == nil {
-		panic(p.val.runtime.NewTypeError("proxy target is not a constructor"))
+		panic(makeTypeError("proxy target is not a constructor"))
 	}
 	if newTarget == nil {
 		newTarget = p.val
@@ -1028,7 +1027,7 @@ func (p *proxyObject) symbols(all bool, accum []Value) []Value {
 
 func (p *proxyObject) className() string {
 	if p.target == nil {
-		panic(p.val.runtime.NewTypeError("proxy has been revoked"))
+		panic(makeTypeError("proxy has been revoked"))
 	}
 	if p.call != nil || p.ctor != nil {
 		return classFunction

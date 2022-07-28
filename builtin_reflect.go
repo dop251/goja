@@ -10,7 +10,7 @@ func (r *Runtime) toConstructor(v Value) func(args []Value, newTarget *Object) *
 	if ctor := r.toObject(v).self.assertConstructor(); ctor != nil {
 		return ctor
 	}
-	panic(r.NewTypeError("Value is not a constructor"))
+	panic(makeTypeError("Value is not a constructor"))
 }
 
 func (r *Runtime) builtin_reflect_construct(call FunctionCall) Value {

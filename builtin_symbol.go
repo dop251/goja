@@ -37,7 +37,7 @@ func (r *Runtime) symbolproto_tostring(call FunctionCall) Value {
 		}
 	}
 	if sym == nil {
-		panic(r.NewTypeError("Method Symbol.prototype.toString is called on incompatible receiver"))
+		panic(makeTypeError("Method Symbol.prototype.toString is called on incompatible receiver"))
 	}
 	return sym.descriptiveString()
 }
@@ -56,7 +56,7 @@ func (r *Runtime) symbolproto_valueOf(call FunctionCall) Value {
 		}
 	}
 
-	panic(r.NewTypeError("Symbol.prototype.valueOf requires that 'this' be a Symbol"))
+	panic(makeTypeError("Symbol.prototype.valueOf requires that 'this' be a Symbol"))
 }
 
 func (r *Runtime) symbol_for(call FunctionCall) Value {
@@ -77,7 +77,7 @@ func (r *Runtime) symbol_keyfor(call FunctionCall) Value {
 	arg := call.Argument(0)
 	sym, ok := arg.(*Symbol)
 	if !ok {
-		panic(r.NewTypeError("%s is not a symbol", arg.String()))
+		panic(makeTypeError("%s is not a symbol", arg.String()))
 	}
 	for key, s := range r.symbolRegistry {
 		if s == sym {
@@ -98,7 +98,7 @@ func (r *Runtime) thisSymbolValue(v Value) *Symbol {
 			}
 		}
 	}
-	panic(r.NewTypeError("Value is not a Symbol"))
+	panic(makeTypeError("Value is not a Symbol"))
 }
 
 func (r *Runtime) createSymbolProto(val *Object) objectImpl {
@@ -128,7 +128,7 @@ func (r *Runtime) createSymbolProto(val *Object) objectImpl {
 
 func (r *Runtime) createSymbol(val *Object) objectImpl {
 	o := r.newNativeFuncObj(val, r.builtin_symbol, func(args []Value, proto *Object) *Object {
-		panic(r.NewTypeError("Symbol is not a constructor"))
+		panic(makeTypeError("Symbol is not a constructor"))
 	}, "Symbol", r.global.SymbolPrototype, _positiveZero)
 
 	o._putProp("for", r.newNativeFunc(r.symbol_for, nil, "for", nil, 1), true, false, true)

@@ -539,7 +539,7 @@ func (r *Runtime) toProto(proto Value) *Object {
 		if obj, ok := proto.(*Object); ok {
 			return obj
 		} else {
-			panic(r.NewTypeError("Object prototype may only be an Object or null: %s", proto))
+			panic(makeTypeError("Object prototype may only be an Object or null: %s", proto))
 		}
 	}
 	return nil

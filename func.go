@@ -177,7 +177,7 @@ func (f *baseJsFuncObject) construct(args []Value, newTarget *Object) *Object {
 }
 
 func (f *classFuncObject) Call(FunctionCall) Value {
-	panic(f.val.runtime.NewTypeError("Class constructor cannot be invoked without 'new'"))
+	panic(makeTypeError("Class constructor cannot be invoked without 'new'"))
 }
 
 func (f *classFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
@@ -189,7 +189,7 @@ func (f *classFuncObject) createInstance(args []Value, newTarget *Object) (insta
 		if ctor := f.prototype.self.assertConstructor(); ctor != nil {
 			instance = ctor(args, newTarget)
 		} else {
-			panic(f.val.runtime.NewTypeError("Super constructor is not a constructor"))
+			panic(makeTypeError("Super constructor is not a constructor"))
 		}
 	} else {
 		instance = f.baseFuncObject.createInstance(newTarget)
@@ -247,7 +247,7 @@ func (f *classFuncObject) construct(args []Value, newTarget *Object) *Object {
 		if f.derived {
 			r := f.val.runtime
 			if ret != _undefined {
-				panic(r.NewTypeError("Derived constructors may only return object or undefined"))
+				panic(makeTypeError("Derived constructors may only return object or undefined"))
 			}
 			if v := r.vm.stack[r.vm.sp+1]; v != nil { // using residual 'this' value (a bit hacky)
 				instance = r.toObject(v)
@@ -416,7 +416,7 @@ func (f *boundFuncObject) deleteStr(name unistring.String, throw bool) bool {
 
 func (f *boundFuncObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
 	if name == "caller" || name == "arguments" {
-		panic(f.val.runtime.NewTypeError("'caller' and 'arguments' are restricted function properties and cannot be accessed in this context."))
+		panic(makeTypeError("'caller' and 'arguments' are restricted function properties and cannot be accessed in this context."))
 	}
 	return f.nativeFuncObject.setOwnStr(name, val, throw)
 }

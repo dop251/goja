@@ -20,7 +20,7 @@ func (r *Runtime) numberproto_valueOf(call FunctionCall) Value {
 		}
 	}
 
-	panic(r.NewTypeError("Number.prototype.valueOf is not generic"))
+	panic(makeTypeError("Number.prototype.valueOf is not generic"))
 }
 
 func isNumber(v Value) bool {

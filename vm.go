@@ -700,9 +700,9 @@ func (vm *vm) toCallee(v Value) *Object {
 		unresolved.throw()
 		panic("Unreachable")
 	case memberUnresolved:
-		panic(vm.r.NewTypeError("Object has no member '%s'", unresolved.ref))
+		panic(makeTypeError("Object has no member '%s'", unresolved.ref))
 	}
-	panic(vm.r.NewTypeError("Value is not an object: %s", v.toString()))
+	panic(makeTypeError("Value is not an object: %s", v.toString()))
 }
 
 type loadVal uint32
@@ -2064,7 +2064,7 @@ func (g getProp) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
 	obj := v.baseObject(vm.r)
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
+		panic(makeTypeError("Cannot read property '%s' of undefined", g))
 	}
 	vm.stack[vm.sp-1] = nilSafe(obj.self.getStr(unistring.String(g), v))
 
@@ -2078,7 +2078,7 @@ func (g getPropRecv) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
 	obj := v.baseObject(vm.r)
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
+		panic(makeTypeError("Cannot read property '%s' of undefined", g))
 	}
 	vm.stack[vm.sp-2] = nilSafe(obj.self.getStr(unistring.String(g), recv))
 	vm.sp--
@@ -2092,7 +2092,7 @@ func (g getPropRecvCallee) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
 	obj := v.baseObject(vm.r)
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
+		panic(makeTypeError("Cannot read property '%s' of undefined", g))
 	}
 
 	n := unistring.String(g)
@@ -2112,7 +2112,7 @@ func (g getPropCallee) exec(vm *vm) {
 	obj := v.baseObject(vm.r)
 	n := unistring.String(g)
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined or null", n))
+		panic(makeTypeError("Cannot read property '%s' of undefined or null", n))
 	}
 	prop := obj.self.getStr(n, v)
 	if prop == nil {
@@ -2132,7 +2132,7 @@ func (_getElem) exec(vm *vm) {
 	obj := v.baseObject(vm.r)
 	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		panic(makeTypeError("Cannot read property '%s' of undefined", propName.String()))
 	}
 
 	vm.stack[vm.sp-2] = nilSafe(obj.get(propName, v))
@@ -2151,7 +2151,7 @@ func (_getElemRecv) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
 	obj := v.baseObject(vm.r)
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		panic(makeTypeError("Cannot read property '%s' of undefined", propName.String()))
 	}
 
 	vm.stack[vm.sp-3] = nilSafe(obj.get(propName, recv))
@@ -2169,7 +2169,7 @@ func (_getKey) exec(vm *vm) {
 	obj := v.baseObject(vm.r)
 	propName := vm.stack[vm.sp-1]
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		panic(makeTypeError("Cannot read property '%s' of undefined", propName.String()))
 	}
 
 	vm.stack[vm.sp-2] = nilSafe(obj.get(propName, v))
@@ -2187,7 +2187,7 @@ func (_getElemCallee) exec(vm *vm) {
 	obj := v.baseObject(vm.r)
 	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		panic(makeTypeError("Cannot read property '%s' of undefined", propName.String()))
 	}
 
 	prop := obj.get(propName, v)
@@ -2209,7 +2209,7 @@ func (_getElemRecvCallee) exec(vm *vm) {
 	obj := v.baseObject(vm.r)
 	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		panic(makeTypeError("Cannot read property '%s' of undefined", propName.String()))
 	}
 
 	prop := obj.get(propName, recv)
@@ -3650,7 +3650,7 @@ func (vm *vm) checkBindVarsGlobal(names []unistring.String) {
 		} else {
 			for _, name := range names {
 				if !bo.hasOwnPropertyStr(name) {
-					panic(vm.r.NewTypeError("Cannot define global variable '%s', global object is not extensible", name))
+					panic(makeTypeError("Cannot define global variable '%s', global object is not extensible", name))
 				}
 				if _, exists := sn[name]; exists {
 					panic(vm.alreadyDeclared(name))
@@ -3660,7 +3660,7 @@ func (vm *vm) checkBindVarsGlobal(names []unistring.String) {
 	} else {
 		for _, name := range names {
 			if !o.hasOwnPropertyStr(name) && !o.isExtensible() {
-				panic(vm.r.NewTypeError("Cannot define global variable '%s', global object is not extensible", name))
+				panic(makeTypeError("Cannot define global variable '%s', global object is not extensible", name))
 			}
 			if _, exists := sn[name]; exists {
 				panic(vm.alreadyDeclared(name))
@@ -3763,7 +3763,7 @@ func (vm *vm) checkBindFuncsGlobal(names []unistring.String) {
 			allowed = prop.configurable || prop.getterFunc == nil && prop.setterFunc == nil && prop.writable && prop.enumerable
 		}
 		if !allowed {
-			panic(vm.r.NewTypeError("Cannot redefine global function '%s'", name))
+			panic(makeTypeError("Cannot redefine global function '%s'", name))
 		}
 	}
 }
@@ -4282,7 +4282,7 @@ func (s superCall) exec(vm *vm) {
 		cls, _ = fn.funcObj.self.(*classFuncObject)
 	}
 	if cls == nil {
-		panic(vm.r.NewTypeError("wrong callee type for super()"))
+		panic(makeTypeError("wrong callee type for super()"))
 	}
 	sp := vm.sp - int(s)
 	newTarget := vm.r.toObject(vm.newTarget)
@@ -4850,14 +4850,14 @@ func (c *newDerivedClass) exec(vm *vm) {
 	var superClass *Object
 	if o := vm.stack[vm.sp-1]; o != _null {
 		if sc, ok := o.(*Object); !ok || sc.self.assertConstructor() == nil {
-			panic(vm.r.NewTypeError("Class extends value is not a constructor or null"))
+			panic(makeTypeError("Class extends value is not a constructor or null"))
 		} else {
 			v := sc.self.getStr("prototype", nil)
 			if v != _null {
 				if o, ok := v.(*Object); ok {
 					protoParent = o
 				} else {
-					panic(vm.r.NewTypeError("Class extends value does not have valid prototype property"))
+					panic(makeTypeError("Class extends value does not have valid prototype property"))
 				}
 			}
 			superClass = sc
@@ -4992,7 +4992,7 @@ func (offset defineComputedKey) exec(vm *vm) {
 		vm.pc++
 		return
 	}
-	panic(vm.r.NewTypeError("Compiler bug: unexpected target for defineComputedKey: %v", obj))
+	panic(makeTypeError("Compiler bug: unexpected target for defineComputedKey: %v", obj))
 }
 
 type loadComputedKey int
@@ -5004,7 +5004,7 @@ func (idx loadComputedKey) exec(vm *vm) {
 		vm.pc++
 		return
 	}
-	panic(vm.r.NewTypeError("Compiler bug: unexpected target for loadComputedKey: %v", obj))
+	panic(makeTypeError("Compiler bug: unexpected target for loadComputedKey: %v", obj))
 }
 
 type initStaticElements struct {
@@ -5028,7 +5028,7 @@ func (i *initStaticElements) exec(vm *vm) {
 		vm.pc++
 		return
 	}
-	panic(vm.r.NewTypeError("Compiler bug: unexpected target for initStaticElements: %v", staticInit))
+	panic(makeTypeError("Compiler bug: unexpected target for initStaticElements: %v", staticInit))
 }
 
 type definePrivateMethod struct {
@@ -5041,7 +5041,7 @@ func (d *definePrivateMethod) getPrivateMethods(vm *vm) []Value {
 	if cls, ok := obj.self.(*classFuncObject); ok {
 		return cls.privateMethods
 	} else {
-		panic(vm.r.NewTypeError("Compiler bug: wrong target type for definePrivateMethod: %T", obj.self))
+		panic(makeTypeError("Compiler bug: wrong target type for definePrivateMethod: %T", obj.self))
 	}
 }
 
@@ -5068,7 +5068,7 @@ func (d *definePrivateGetter) exec(vm *vm) {
 		methods[d.idx] = p
 	}
 	if p.getterFunc != nil {
-		panic(vm.r.NewTypeError("Private getter has already been declared"))
+		panic(makeTypeError("Private getter has already been declared"))
 	}
 	p.getterFunc = method
 	vm.sp--
@@ -5091,7 +5091,7 @@ func (d *definePrivateSetter) exec(vm *vm) {
 		methods[d.idx] = p
 	}
 	if p.setterFunc != nil {
-		panic(vm.r.NewTypeError("Private setter has already been declared"))
+		panic(makeTypeError("Private setter has already been declared"))
 	}
 	p.setterFunc = method
 	vm.sp--
@@ -5162,15 +5162,15 @@ func (vm *vm) getPrivateProp(base Value, name unistring.String, typ *privateEnvT
 		} else {
 			v = penv.fields[idx]
 			if v == nil {
-				panic(vm.r.NewTypeError("Private member #%s is accessed before it is initialized", name))
+				panic(makeTypeError("Private member #%s is accessed before it is initialized", name))
 			}
 		}
 	} else {
-		panic(vm.r.NewTypeError("Cannot read private member #%s from an object whose class did not declare it", name))
+		panic(makeTypeError("Cannot read private member #%s from an object whose class did not declare it", name))
 	}
 	if prop, ok := v.(*valueProperty); ok {
 		if prop.getterFunc == nil {
-			panic(vm.r.NewTypeError("'#%s' was defined without a getter", name))
+			panic(makeTypeError("'#%s' was defined without a getter", name))
 		}
 		v = prop.get(obj)
 	}
@@ -5199,20 +5199,20 @@ func (vm *vm) setPrivateProp(base Value, name unistring.String, typ *privateEnvT
 				if prop.setterFunc != nil {
 					prop.set(base, val)
 				} else {
-					panic(vm.r.NewTypeError("Cannot assign to read only property '#%s'", name))
+					panic(makeTypeError("Cannot assign to read only property '#%s'", name))
 				}
 			} else {
-				panic(vm.r.NewTypeError("Private method '#%s' is not writable", name))
+				panic(makeTypeError("Private method '#%s' is not writable", name))
 			}
 		} else {
 			ptr := &penv.fields[idx]
 			if *ptr == nil {
-				panic(vm.r.NewTypeError("Private member #%s is accessed before it is initialized", name))
+				panic(makeTypeError("Private member #%s is accessed before it is initialized", name))
 			}
 			*ptr = val
 		}
 	} else {
-		panic(vm.r.NewTypeError("Cannot write private member #%s from an object whose class did not declare it", name))
+		panic(makeTypeError("Cannot write private member #%s from an object whose class did not declare it", name))
 	}
 }
 

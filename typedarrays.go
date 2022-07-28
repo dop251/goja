@@ -79,7 +79,7 @@ func (a ArrayBuffer) toValue(r *Runtime) Value {
 	}
 	v := a.buf.val
 	if v.runtime != r {
-		panic(r.NewTypeError("Illegal runtime transition of an ArrayBuffer"))
+		panic(makeTypeError("Illegal runtime transition of an ArrayBuffer"))
 	}
 	return v
 }

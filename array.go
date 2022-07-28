@@ -353,7 +353,7 @@ func (a *arrayObject) expand(idx uint32) bool {
 			} else {
 				if bits.UintSize == 32 {
 					if targetLen >= math.MaxInt32 {
-						panic(a.val.runtime.NewTypeError("Array index overflows int"))
+						panic(makeTypeError("Array index overflows int"))
 					}
 				}
 				tl := int(targetLen)

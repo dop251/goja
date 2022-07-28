@@ -428,7 +428,7 @@ func (o *baseDynamicObject) setProto(proto *Object, throw bool) bool {
 }
 
 func (o *baseDynamicObject) hasInstance(v Value) bool {
-	panic(o.val.runtime.NewTypeError("Expecting a function in instanceof check, but got a dynamic object"))
+	panic(makeTypeError("Expecting a function in instanceof check, but got a dynamic object"))
 }
 
 func (*baseDynamicObject) isExtensible() bool {
@@ -527,7 +527,7 @@ func (*baseDynamicObject) _putSym(s *Symbol, prop Value) {
 }
 
 func (o *baseDynamicObject) getPrivateEnv(*privateEnvType, bool) *privateElements {
-	panic(o.val.runtime.NewTypeError("Dynamic objects cannot have private elements"))
+	panic(makeTypeError("Dynamic objects cannot have private elements"))
 }
 
 func (a *dynamicArray) sortLen() int {

@@ -2,11 +2,12 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dop251/goja/parser"
 	"regexp"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/dop251/goja/parser"
 )
 
 func (r *Runtime) newRegexpObject(proto *Object) *regexpObject {
@@ -360,7 +361,7 @@ func (r *Runtime) regexpproto_compile(call FunctionCall) Value {
 		if o, ok := patternVal.(*Object); ok {
 			if p, ok := o.self.(*regexpObject); ok {
 				if flagsVal != _undefined {
-					panic(r.NewTypeError("Cannot supply flags when constructing one RegExp from another"))
+					panic(makeTypeError("Cannot supply flags when constructing one RegExp from another"))
 				}
 				this.pattern = p.pattern
 				this.source = p.source
@@ -386,7 +387,7 @@ func (r *Runtime) regexpproto_compile(call FunctionCall) Value {
 		return call.This
 	}
 
-	panic(r.NewTypeError("Method RegExp.prototype.compile called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
+	panic(makeTypeError("Method RegExp.prototype.compile called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 }
 
 func (r *Runtime) regexpproto_exec(call FunctionCall) Value {
@@ -406,7 +407,7 @@ func (r *Runtime) regexpproto_test(call FunctionCall) Value {
 			return valueFalse
 		}
 	} else {
-		panic(r.NewTypeError("Method RegExp.prototype.test called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
+		panic(makeTypeError("Method RegExp.prototype.test called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 	}
 }
 
@@ -503,7 +504,7 @@ func (r *Runtime) regexpproto_getSource(call FunctionCall) Value {
 	} else if call.This == r.global.RegExpPrototype {
 		return asciiString("(?:)")
 	} else {
-		panic(r.NewTypeError("Method RegExp.prototype.source getter called on incompatible receiver"))
+		panic(makeTypeError("Method RegExp.prototype.source getter called on incompatible receiver"))
 	}
 }
 
@@ -517,7 +518,7 @@ func (r *Runtime) regexpproto_getGlobal(call FunctionCall) Value {
 	} else if call.This == r.global.RegExpPrototype {
 		return _undefined
 	} else {
-		panic(r.NewTypeError("Method RegExp.prototype.global getter called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
+		panic(makeTypeError("Method RegExp.prototype.global getter called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 	}
 }
 
@@ -531,7 +532,7 @@ func (r *Runtime) regexpproto_getMultiline(call FunctionCall) Value {
 	} else if call.This == r.global.RegExpPrototype {
 		return _undefined
 	} else {
-		panic(r.NewTypeError("Method RegExp.prototype.multiline getter called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
+		panic(makeTypeError("Method RegExp.prototype.multiline getter called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 	}
 }
 
@@ -545,7 +546,7 @@ func (r *Runtime) regexpproto_getIgnoreCase(call FunctionCall) Value {
 	} else if call.This == r.global.RegExpPrototype {
 		return _undefined
 	} else {
-		panic(r.NewTypeError("Method RegExp.prototype.ignoreCase getter called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
+		panic(makeTypeError("Method RegExp.prototype.ignoreCase getter called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 	}
 }
 
@@ -559,7 +560,7 @@ func (r *Runtime) regexpproto_getUnicode(call FunctionCall) Value {
 	} else if call.This == r.global.RegExpPrototype {
 		return _undefined
 	} else {
-		panic(r.NewTypeError("Method RegExp.prototype.unicode getter called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
+		panic(makeTypeError("Method RegExp.prototype.unicode getter called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 	}
 }
 
@@ -573,7 +574,7 @@ func (r *Runtime) regexpproto_getSticky(call FunctionCall) Value {
 	} else if call.This == r.global.RegExpPrototype {
 		return _undefined
 	} else {
-		panic(r.NewTypeError("Method RegExp.prototype.sticky getter called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
+		panic(makeTypeError("Method RegExp.prototype.sticky getter called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 	}
 }
 
@@ -642,7 +643,7 @@ func (r *Runtime) regExpExec(execFn func(FunctionCall) Value, rxObj *Object, arg
 
 	if res != _null {
 		if _, ok := res.(*Object); !ok {
-			panic(r.NewTypeError("RegExp exec method returned something other than an Object or null"))
+			panic(makeTypeError("RegExp exec method returned something other than an Object or null"))
 		}
 	}
 
@@ -654,7 +655,7 @@ func (r *Runtime) getGlobalRegexpMatches(rxObj *Object, s valueString) []Value {
 	rxObj.self.setOwnStr("lastIndex", intToValue(0), true)
 	execFn, ok := r.toObject(rxObj.self.getStr("exec", nil)).self.assertCallable()
 	if !ok {
-		panic(r.NewTypeError("exec is not a function"))
+		panic(makeTypeError("exec is not a function"))
 	}
 	var a []Value
 	for {
@@ -692,7 +693,7 @@ func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, s valueString) Va
 
 	execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
 	if !ok {
-		panic(r.NewTypeError("exec is not a function"))
+		panic(makeTypeError("exec is not a function"))
 	}
 
 	return r.regExpExec(execFn, rxObj, s)
@@ -748,7 +749,7 @@ func (r *Runtime) regexpproto_stdSearchGeneric(rxObj *Object, arg valueString) V
 	}
 	execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
 	if !ok {
-		panic(r.NewTypeError("exec is not a function"))
+		panic(makeTypeError("exec is not a function"))
 	}
 
 	result := r.regExpExec(execFn, rxObj, arg)
@@ -814,7 +815,7 @@ func regExpExec(r *Object, s valueString) Value {
 	if rx, ok := r.self.(*regexpObject); ok {
 		return rx.exec(s)
 	}
-	panic(r.runtime.NewTypeError("no RegExpMatcher internal slot"))
+	panic(makeTypeError("no RegExpMatcher internal slot"))
 }
 
 func (ri *regExpStringIterObject) next() (v Value) {
@@ -1205,7 +1206,7 @@ func (r *Runtime) regExpStringIteratorProto_next(call FunctionCall) Value {
 	if iter, ok := thisObj.self.(*regExpStringIterObject); ok {
 		return iter.next()
 	}
-	panic(r.NewTypeError("Method RegExp String Iterator.prototype.next called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
+	panic(makeTypeError("Method RegExp String Iterator.prototype.next called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 }
 
 func (r *Runtime) createRegExpStringIteratorPrototype(val *Object) objectImpl {

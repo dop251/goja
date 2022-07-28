@@ -57,7 +57,7 @@ repeat:
 			goto repeat2
 		}
 	}
-	panic(r.NewTypeError("Function.prototype.toString requires that 'this' be a Function"))
+	panic(makeTypeError("Function.prototype.toString requires that 'this' be a Function"))
 }
 
 func (r *Runtime) functionproto_hasInstance(call FunctionCall) Value {

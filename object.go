@@ -379,7 +379,7 @@ func (o *baseObject) checkDeleteProp(name unistring.String, prop *valueProperty,
 	if !prop.configurable {
 		if throw {
 			r := o.val.runtime
-			panic(r.NewTypeError("Cannot delete property '%s' of %s", name, r.objectproto_toString(FunctionCall{This: o.val})))
+			panic(makeTypeError("Cannot delete property '%s' of %s", name, r.objectproto_toString(FunctionCall{This: o.val})))
 		}
 		return false
 	}
@@ -816,7 +816,7 @@ func (o *baseObject) _putSym(s *Symbol, prop Value) {
 func (o *baseObject) getPrivateEnv(typ *privateEnvType, create bool) *privateElements {
 	env := o.privateElements[typ]
 	if env != nil && create {
-		panic(o.val.runtime.NewTypeError("Private fields for the class have already been set"))
+		panic(makeTypeError("Private fields for the class have already been set"))
 	}
 	if env == nil && create {
 		env = &privateElements{
@@ -853,7 +853,7 @@ func (o *Object) genericToPrimitiveNumber() Value {
 		return v
 	}
 
-	panic(o.runtime.NewTypeError("Could not convert %v to primitive", o.self))
+	panic(makeTypeError("Could not convert %v to primitive", o.self))
 }
 
 func (o *baseObject) toPrimitiveNumber() Value {
@@ -869,7 +869,7 @@ func (o *Object) genericToPrimitiveString() Value {
 		return v
 	}
 
-	panic(o.runtime.NewTypeError("Could not convert %v to primitive", o.self))
+	panic(makeTypeError("Could not convert %v to primitive", o.self))
 }
 
 func (o *Object) genericToPrimitive() Value {
@@ -894,7 +894,7 @@ func (o *Object) tryExoticToPrimitive(hint Value) Value {
 		if _, fail := ret.(*Object); !fail {
 			return ret
 		}
-		panic(o.runtime.NewTypeError("Cannot convert object to primitive value"))
+		panic(makeTypeError("Cannot convert object to primitive value"))
 	}
 	return nil
 }
@@ -1411,7 +1411,7 @@ func (o *baseObject) keys(all bool, accum []Value) []Value {
 }
 
 func (o *baseObject) hasInstance(Value) bool {
-	panic(o.val.runtime.NewTypeError("Expecting a function in instanceof check, but got %s", o.val.toString()))
+	panic(makeTypeError("Expecting a function in instanceof check, but got %s", o.val.toString()))
 }
 
 func toMethod(v Value) func(FunctionCall) Value {

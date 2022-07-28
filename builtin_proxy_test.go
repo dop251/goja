@@ -328,7 +328,7 @@ func TestProxy_native_proxy_getOwnPropertyDescriptorIdx(t *testing.T) {
 	a := vm.NewArray()
 	proxy1 := vm.NewProxy(a, &ProxyTrapConfig{
 		GetOwnPropertyDescriptor: func(target *Object, prop string) PropertyDescriptor {
-			panic(vm.NewTypeError("GetOwnPropertyDescriptor was called for %q", prop))
+			panic(makeTypeError("GetOwnPropertyDescriptor was called for %q", prop))
 		},
 		GetOwnPropertyDescriptorIdx: func(target *Object, prop int) PropertyDescriptor {
 			if prop >= -1 && prop <= 1 {
@@ -362,7 +362,7 @@ func TestProxy_native_proxy_getOwnPropertyDescriptorIdx(t *testing.T) {
 			}
 		},
 		GetOwnPropertyDescriptorIdx: func(target *Object, prop int) PropertyDescriptor {
-			panic(vm.NewTypeError("GetOwnPropertyDescriptorIdx was called for %d", prop))
+			panic(makeTypeError("GetOwnPropertyDescriptorIdx was called for %d", prop))
 		},
 	})
 
@@ -400,7 +400,7 @@ func TestProxy_native_proxy_getOwnPropertyDescriptorSym(t *testing.T) {
 	proxy := vm.NewProxy(o, &ProxyTrapConfig{
 		GetOwnPropertyDescriptorSym: func(target *Object, s *Symbol) PropertyDescriptor {
 			if target != o {
-				panic(vm.NewTypeError("Invalid target"))
+				panic(makeTypeError("Invalid target"))
 			}
 			if s == sym {
 				return PropertyDescriptor{
@@ -669,7 +669,7 @@ func TestProxy_native_proxy_get(t *testing.T) {
 				}
 			}
 			if prop == "0" {
-				panic(vm.NewTypeError("GetOwnPropertyDescriptor(0) was called"))
+				panic(makeTypeError("GetOwnPropertyDescriptor(0) was called"))
 			}
 			return
 		},
@@ -688,7 +688,7 @@ func TestProxy_native_proxy_get(t *testing.T) {
 				return propValueStr
 			}
 			if property == "0" {
-				panic(vm.NewTypeError("Get(0) was called"))
+				panic(makeTypeError("Get(0) was called"))
 			}
 			return obj.Get(property)
 		},
@@ -755,21 +755,21 @@ func TestProxy_native_proxy_set(t *testing.T) {
 				obj.Set(property, propValueStr)
 				return true
 			}
-			panic(vm.NewTypeError("Setter for unexpected property: %q", property))
+			panic(makeTypeError("Setter for unexpected property: %q", property))
 		},
 		SetIdx: func(target *Object, property int, value Value, receiver Value) (success bool) {
 			if property == 0 {
 				obj.Set(strconv.Itoa(property), propValueIdx)
 				return true
 			}
-			panic(vm.NewTypeError("Setter for unexpected idx property: %d", property))
+			panic(makeTypeError("Setter for unexpected idx property: %d", property))
 		},
 		SetSym: func(target *Object, property *Symbol, value Value, receiver Value) (success bool) {
 			if property == sym {
 				obj.SetSymbol(property, propValueSym)
 				return true
 			}
-			panic(vm.NewTypeError("Setter for unexpected sym property: %q", property.String()))
+			panic(makeTypeError("Setter for unexpected sym property: %q", property.String()))
 		},
 	})
 	proxyObj := vm.ToValue(proxy).ToObject(vm)
@@ -896,7 +896,7 @@ func TestProxy_native_delete(t *testing.T) {
 				strNegCalled = true
 				return false
 			}
-			panic(vm.NewTypeError("DeleteProperty for unexpected property: %q", property))
+			panic(makeTypeError("DeleteProperty for unexpected property: %q", property))
 		},
 		DeletePropertyIdx: func(target *Object, property int) (success bool) {
 			if property == 0 {
@@ -907,7 +907,7 @@ func TestProxy_native_delete(t *testing.T) {
 				idxNegCalled = true
 				return false
 			}
-			panic(vm.NewTypeError("DeletePropertyIdx for unexpected idx property: %d", property))
+			panic(makeTypeError("DeletePropertyIdx for unexpected idx property: %d", property))
 		},
 		DeletePropertySym: func(target *Object, property *Symbol) (success bool) {
 			if property == sym {
@@ -918,7 +918,7 @@ func TestProxy_native_delete(t *testing.T) {
 				symNegCalled = true
 				return false
 			}
-			panic(vm.NewTypeError("DeletePropertySym for unexpected sym property: %q", property.String()))
+			panic(makeTypeError("DeletePropertySym for unexpected sym property: %q", property.String()))
 		},
 	})
 	proxyObj := vm.ToValue(proxy).ToObject(vm)

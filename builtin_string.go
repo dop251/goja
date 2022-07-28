@@ -1,11 +1,12 @@
 package goja
 
 import (
-	"github.com/dop251/goja/unistring"
 	"math"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/dop251/goja/unistring"
 
 	"github.com/dop251/goja/parser"
 	"golang.org/x/text/collate"
@@ -260,7 +261,7 @@ func (r *Runtime) stringproto_endsWith(call FunctionCall) Value {
 	s := call.This.toString()
 	searchString := call.Argument(0)
 	if isRegexp(searchString) {
-		panic(r.NewTypeError("First argument to String.prototype.endsWith must not be a regular expression"))
+		panic(makeTypeError("First argument to String.prototype.endsWith must not be a regular expression"))
 	}
 	searchStr := searchString.toString()
 	l := int64(s.length())
@@ -289,7 +290,7 @@ func (r *Runtime) stringproto_includes(call FunctionCall) Value {
 	s := call.This.toString()
 	searchString := call.Argument(0)
 	if isRegexp(searchString) {
-		panic(r.NewTypeError("First argument to String.prototype.includes must not be a regular expression"))
+		panic(makeTypeError("First argument to String.prototype.includes must not be a regular expression"))
 	}
 	searchStr := searchString.toString()
 	var pos int64
@@ -382,7 +383,7 @@ func (r *Runtime) stringproto_match(call FunctionCall) Value {
 		})
 	}
 
-	panic(r.NewTypeError("RegExp matcher is not a function"))
+	panic(makeTypeError("RegExp matcher is not a function"))
 }
 
 func (r *Runtime) stringproto_matchAll(call FunctionCall) Value {
@@ -394,7 +395,7 @@ func (r *Runtime) stringproto_matchAll(call FunctionCall) Value {
 				flags := nilSafe(o.self.getStr("flags", nil))
 				r.checkObjectCoercible(flags)
 				if !strings.Contains(flags.toString().String(), "g") {
-					panic(r.NewTypeError("RegExp doesn't have global flag set"))
+					panic(makeTypeError("RegExp doesn't have global flag set"))
 				}
 			}
 		}
@@ -415,7 +416,7 @@ func (r *Runtime) stringproto_matchAll(call FunctionCall) Value {
 		})
 	}
 
-	panic(r.NewTypeError("RegExp matcher is not a function"))
+	panic(makeTypeError("RegExp matcher is not a function"))
 }
 
 func (r *Runtime) stringproto_normalize(call FunctionCall) Value {
@@ -719,7 +720,7 @@ func (r *Runtime) stringproto_search(call FunctionCall) Value {
 		})
 	}
 
-	panic(r.NewTypeError("RegExp searcher is not a function"))
+	panic(makeTypeError("RegExp searcher is not a function"))
 }
 
 func (r *Runtime) stringproto_slice(call FunctionCall) Value {
@@ -825,7 +826,7 @@ func (r *Runtime) stringproto_startsWith(call FunctionCall) Value {
 	s := call.This.toString()
 	searchString := call.Argument(0)
 	if isRegexp(searchString) {
-		panic(r.NewTypeError("First argument to String.prototype.startsWith must not be a regular expression"))
+		panic(makeTypeError("First argument to String.prototype.startsWith must not be a regular expression"))
 	}
 	searchStr := searchString.toString()
 	l := int64(s.length())
@@ -944,7 +945,7 @@ func (r *Runtime) stringIterProto_next(call FunctionCall) Value {
 	if iter, ok := thisObj.self.(*stringIterObject); ok {
 		return iter.next()
 	}
-	panic(r.NewTypeError("Method String Iterator.prototype.next called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
+	panic(makeTypeError("Method String Iterator.prototype.next called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 }
 
 func (r *Runtime) createStringIterProto(val *Object) objectImpl {
