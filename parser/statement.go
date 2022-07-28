@@ -982,16 +982,11 @@ illegal:
 	return &ast.BadStatement{From: idx, To: self.idx}
 }
 
-// :white_check_mark: export ExportFromClause FromClause; (3. is missing)
-// :white_check_mark: export NamedExports;
-// :white_check_mark: export VariableStatement
 func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 	self.next()
 
-	// TODO: parse `export Declaration` -> function || generator || async function || async generator || let || const
-
 	switch self.token {
-	case token.MULTIPLY: // FIXME: should also parse NamedExports if '{'
+	case token.MULTIPLY:
 		exportFromClause := self.parseExportFromClause()
 		fromClause := self.parseFromClause()
 		self.semicolon()
