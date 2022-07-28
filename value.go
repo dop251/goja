@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"fmt"
 	"hash/maphash"
 	"math"
 	"reflect"
@@ -138,6 +139,27 @@ var (
 	errAccessBeforeInit = referenceError("Cannot access a variable before initialization")
 	errAssignToConst    = typeError("Assignment to constant variable.")
 )
+
+func makeTypeError(args ...interface{}) typeError {
+	msg := ""
+	if len(args) > 0 {
+		f, _ := args[0].(string)
+		msg = fmt.Sprintf(f, args[1:]...)
+	}
+	return typeError(msg)
+}
+
+func typeErrorResult(throw bool, args ...interface{}) {
+	if throw {
+		msg := ""
+		if len(args) > 0 {
+			f, _ := args[0].(string)
+			msg = fmt.Sprintf(f, args[1:]...)
+		}
+		panic(typeError(msg))
+	}
+
+}
 
 func propGetter(o Value, v Value, r *Runtime) *Object {
 	if v == _undefined {
