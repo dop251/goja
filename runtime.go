@@ -1716,10 +1716,10 @@ func (r *Runtime) ToValue(i interface{}) Value {
 	case nil:
 		return _null
 	case *Object:
-		if i == nil || i.runtime == nil {
+		if i == nil || i.self == nil {
 			return _null
 		}
-		if i.runtime != r {
+		if i.runtime != nil && i.runtime != r {
 			panic(r.NewTypeError("Illegal runtime transition of an Object"))
 		}
 		return i

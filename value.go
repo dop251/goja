@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"fmt"
 	"hash/maphash"
 	"math"
 	"reflect"
@@ -1142,6 +1143,22 @@ func funcName(prefix string, n Value) valueString {
 		b.WriteString(n.toString())
 	}
 	return b.String()
+}
+
+func newTypeError(args ...interface{}) typeError {
+	msg := ""
+	if len(args) > 0 {
+		f, _ := args[0].(string)
+		msg = fmt.Sprintf(f, args[1:]...)
+	}
+	return typeError(msg)
+}
+
+func typeErrorResult(throw bool, args ...interface{}) {
+	if throw {
+		panic(newTypeError(args...))
+	}
+
 }
 
 func init() {
