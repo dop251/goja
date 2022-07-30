@@ -271,6 +271,10 @@ func (f *arrowFuncObject) Call(call FunctionCall) Value {
 	return f._call(call.Arguments, f.newTarget, nil)
 }
 
+func (f *arrowFuncObject) export(*objectExportCtx) interface{} {
+	return f.Call
+}
+
 func (f *baseJsFuncObject) _call(args []Value, newTarget, this Value) Value {
 	vm := f.val.runtime.vm
 
