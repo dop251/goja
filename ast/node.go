@@ -496,8 +496,7 @@ type (
 	}
 
 	ExportDeclaration struct {
-		idx0                 file.Idx
-		idx1                 file.Idx
+		Idx                  file.Idx
 		Variable             *VariableStatement
 		AssignExpression     Expression
 		LexicalDeclaration   *LexicalDeclaration
@@ -754,7 +753,7 @@ func (self *PropertyShort) Idx0() file.Idx                 { return self.Name.Id
 func (self *PropertyKeyed) Idx0() file.Idx                 { return self.Key.Idx0() }
 func (self *ExpressionBody) Idx0() file.Idx                { return self.Expression.Idx0() }
 
-func (self *ExportDeclaration) Idx0() file.Idx { return self.idx0 }
+func (self *ExportDeclaration) Idx0() file.Idx { return self.Idx }
 func (self *ImportDeclaration) Idx0() file.Idx { return self.Idx }
 
 func (self *FieldDefinition) Idx0() file.Idx  { return self.Idx }
@@ -870,8 +869,13 @@ func (self *PropertyKeyed) Idx1() file.Idx { return self.Value.Idx1() }
 
 func (self *ExpressionBody) Idx1() file.Idx { return self.Expression.Idx1() }
 
-func (self *ExportDeclaration) Idx1() file.Idx { return self.idx1 }
-func (self *ImportDeclaration) Idx1() file.Idx { return self.Idx } // TODO fix
+func (self *ExportDeclaration) Idx1() file.Idx {
+	return self.Idx + file.Idx(len(token.EXPORT.String()))
+}
+
+func (self *ImportDeclaration) Idx1() file.Idx {
+	return self.Idx + file.Idx(len(token.IMPORT.String()))
+}
 
 func (self *FieldDefinition) Idx1() file.Idx {
 	if self.Initializer != nil {

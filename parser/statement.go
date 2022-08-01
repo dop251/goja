@@ -983,7 +983,7 @@ illegal:
 }
 
 func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
-	self.next()
+	idx := self.expect(token.EXPORT)
 
 	switch self.token {
 	case token.MULTIPLY:
@@ -991,6 +991,7 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 		fromClause := self.parseFromClause()
 		self.semicolon()
 		return &ast.ExportDeclaration{
+			Idx:              idx,
 			ExportFromClause: exportFromClause,
 			FromClause:       fromClause,
 		}
@@ -999,15 +1000,23 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 		fromClause := self.parseFromClause()
 		self.semicolon()
 		return &ast.ExportDeclaration{
+			Idx:          idx,
 			NamedExports: namedExports,
 			FromClause:   fromClause,
 		}
 	case token.VAR:
-		return &ast.ExportDeclaration{Variable: self.parseVariableStatement()}
+		return &ast.ExportDeclaration{
+			Idx:      idx,
+			Variable: self.parseVariableStatement(),
+		}
 	case token.LET, token.CONST:
-		return &ast.ExportDeclaration{LexicalDeclaration: self.parseLexicalDeclaration(self.token)}
+		return &ast.ExportDeclaration{
+			Idx:                idx,
+			LexicalDeclaration: self.parseLexicalDeclaration(self.token),
+		}
 	case token.FUNCTION:
 		return &ast.ExportDeclaration{
+			Idx: idx,
 			HoistableDeclaration: &ast.HoistableDeclaration{
 				FunctionDeclaration: &ast.FunctionDeclaration{
 					Function: self.parseFunction(true),
@@ -1016,6 +1025,7 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 		}
 	case token.CLASS:
 		decl := &ast.ExportDeclaration{
+			Idx: idx,
 			ClassDeclaration: &ast.ClassDeclaration{
 				Class: self.parseClass(true),
 			},
@@ -1034,6 +1044,7 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 				f.Name = &ast.Identifier{Name: unistring.String("default"), Idx: f.Idx0()}
 			}
 			exp = &ast.ExportDeclaration{
+				Idx: idx,
 				HoistableDeclaration: &ast.HoistableDeclaration{
 					FunctionDeclaration: &ast.FunctionDeclaration{
 						Function:  f,
@@ -1044,6 +1055,7 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 			}
 		case token.CLASS:
 			decl := &ast.ExportDeclaration{
+				Idx: idx,
 				ClassDeclaration: &ast.ClassDeclaration{
 					Class: self.parseClass(false),
 				},
@@ -1054,6 +1066,7 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 
 		default:
 			exp = &ast.ExportDeclaration{
+				Idx:              idx,
 				AssignExpression: self.parseAssignmentExpression(),
 				IsDefault:        true,
 			}
@@ -1063,20 +1076,20 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 	default:
 		namedExports := self.parseNamedExports()
 		self.semicolon()
-		return &ast.ExportDeclaration{NamedExports: namedExports}
+		return &ast.ExportDeclaration{
+			Idx:          idx,
+			NamedExports: namedExports,
+		}
 	}
 }
 
 func (self *_parser) parseImportDeclaration() *ast.ImportDeclaration {
-	idx := self.idx
-	self.next()
+	idx := self.expect(token.IMPORT)
 
-	// _, _, errString := self.scanString(0, false)  // look at first character only
 	if self.token == token.STRING {
 		moduleSpecifier := self.parseModuleSpecifier()
 		self.semicolon()
-
-		return &ast.ImportDeclaration{ModuleSpecifier: moduleSpecifier}
+		return &ast.ImportDeclaration{Idx: idx, ModuleSpecifier: moduleSpecifier}
 	}
 
 	importClause := self.parseImportClause()
