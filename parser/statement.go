@@ -1092,12 +1092,9 @@ func (self *_parser) parseImportDeclaration() *ast.ImportDeclaration {
 		return &ast.ImportDeclaration{Idx: idx, ModuleSpecifier: moduleSpecifier}
 	}
 
-	importClause := self.parseImportClause()
-	fromClause := self.parseFromClause()
-
 	return &ast.ImportDeclaration{
-		ImportClause: importClause,
-		FromClause:   fromClause,
+		ImportClause: self.parseImportClause(),
+		FromClause:   self.parseFromClause(),
 		Idx:          idx,
 	}
 }
@@ -1143,29 +1140,19 @@ func (self *_parser) parseFromClause() *ast.FromClause {
 		}
 	}
 	return nil
-
-	// expression := self.parsePrimaryExpression() // module specifier (string literal)
-	// stringLiteral, ok := expression.(*ast.StringLiteral)
-	// if !ok {
-	// 	self.error(self.idx, "expected module specifier")
-	// 	return nil
-	// }
 }
 
 func (self *_parser) parseExportFromClause() *ast.ExportFromClause {
-	if self.token == token.MULTIPLY { // FIXME: rename token to STAR?
+	if self.token == token.MULTIPLY {
 		self.next()
 
 		if self.token != token.IDENTIFIER {
 			return &ast.ExportFromClause{IsWildcard: true}
 		}
 
-		// Is next token a "as" identifier
-		// nextToken, nextLiteral, _, _, := self.scan()
-		// literal, _, _, _ := self.scanIdentifier()
 		if self.literal == "as" {
 			self.next()
-			alias := self.parseIdentifier() // TODO: does it really match specification's IdentifierName?
+			alias := self.parseIdentifier()
 			return &ast.ExportFromClause{
 				IsWildcard: true,
 				Alias:      alias.Name,
@@ -1184,7 +1171,7 @@ func (self *_parser) parseExportFromClause() *ast.ExportFromClause {
 }
 
 func (self *_parser) parseNamedExports() *ast.NamedExports {
-	_ = self.expect(token.LEFT_BRACE) // FIXME: return idx?
+	_ = self.expect(token.LEFT_BRACE)
 
 	exportsList := self.parseExportsList()
 
@@ -1195,8 +1182,7 @@ func (self *_parser) parseNamedExports() *ast.NamedExports {
 	}
 }
 
-// MOVE IN EXPRESSION
-func (self *_parser) parseExportsList() (exportsList []*ast.ExportSpecifier) { // FIXME: ast.Binding?
+func (self *_parser) parseExportsList() (exportsList []*ast.ExportSpecifier) {
 	if self.token == token.RIGHT_BRACE {
 		return
 	}
@@ -1216,13 +1202,11 @@ func (self *_parser) parseExportsList() (exportsList []*ast.ExportSpecifier) { /
 func (self *_parser) parseExportSpecifier() *ast.ExportSpecifier {
 	identifier := self.parseIdentifier()
 
-	// Is the next token an identifier?
-	if self.token != token.IDENTIFIER { // No "as" identifier found
+	if self.token != token.IDENTIFIER {
 		return &ast.ExportSpecifier{IdentifierName: identifier.Name}
 	}
 
 	if self.literal != "as" {
-		// FAIL
 		self.error(self.idx, "Expected 'as' keyword, found '%s' instead", self.literal)
 	}
 	self.next()
@@ -1235,7 +1219,7 @@ func (self *_parser) parseExportSpecifier() *ast.ExportSpecifier {
 	}
 }
 
-func (self *_parser) parseImportClause() *ast.ImportClause { // FIXME: return type?
+func (self *_parser) parseImportClause() *ast.ImportClause {
 	switch self.token {
 	case token.LEFT_BRACE:
 		return &ast.ImportClause{NamedImports: self.parseNamedImports()}
@@ -1271,7 +1255,7 @@ func (self *_parser) parseImportClause() *ast.ImportClause { // FIXME: return ty
 }
 
 func (self *_parser) parseModuleSpecifier() unistring.String {
-	expression := self.parsePrimaryExpression() // module specifier (string literal)
+	expression := self.parsePrimaryExpression()
 	stringLiteral, ok := expression.(*ast.StringLiteral)
 	if !ok {
 		self.error(self.idx, "expected module specifier")
@@ -1285,11 +1269,9 @@ func (self *_parser) parseImportedDefaultBinding() *ast.Identifier {
 	return self.parseImportedBinding()
 }
 
-// FIXME: return type?
 func (self *_parser) parseNameSpaceImport() *ast.NameSpaceImport {
-	self.expect(token.MULTIPLY) // *
+	self.expect(token.MULTIPLY)
 	if self.literal != "as" {
-		// FAIL
 		self.error(self.idx, "Expected 'as' keyword, found '%s' instead", self.literal)
 	}
 	self.next()
@@ -1298,7 +1280,7 @@ func (self *_parser) parseNameSpaceImport() *ast.NameSpaceImport {
 }
 
 func (self *_parser) parseNamedImports() *ast.NamedImports {
-	_ = self.expect(token.LEFT_BRACE) // FIXME: should we do something with idx?
+	_ = self.expect(token.LEFT_BRACE)
 
 	importsList := self.parseImportsList()
 
