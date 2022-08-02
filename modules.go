@@ -41,16 +41,6 @@ type CyclicModuleRecord interface {
 	Instantiate() CyclicModuleInstance // TODO maybe should be taking the runtime
 }
 
-type LinkedSourceModuleRecord struct{}
-
-func (c *compiler) CyclicModuleRecordConcreteLink(module ModuleRecord) error {
-	stack := []CyclicModuleRecord{}
-	if _, err := c.innerModuleLinking(newLinkState(), module, &stack, 0); err != nil {
-		return err
-	}
-	return nil
-}
-
 type linkState struct {
 	status           map[ModuleRecord]CyclicModuleRecordStatus
 	dfsIndex         map[ModuleRecord]uint
@@ -65,18 +55,12 @@ func newLinkState() *linkState {
 	}
 }
 
-type evaluationState struct {
-	status           map[ModuleInstance]CyclicModuleRecordStatus
-	dfsIndex         map[ModuleInstance]uint
-	dfsAncestorIndex map[ModuleInstance]uint
-}
-
-func newEvaluationState() *evaluationState {
-	return &evaluationState{
-		status:           make(map[ModuleInstance]CyclicModuleRecordStatus),
-		dfsIndex:         make(map[ModuleInstance]uint),
-		dfsAncestorIndex: make(map[ModuleInstance]uint),
+func (c *compiler) CyclicModuleRecordConcreteLink(module ModuleRecord) error {
+	stack := []CyclicModuleRecord{}
+	if _, err := c.innerModuleLinking(newLinkState(), module, &stack, 0); err != nil {
+		return err
 	}
+	return nil
 }
 
 func (c *compiler) innerModuleLinking(state *linkState, m ModuleRecord, stack *[]CyclicModuleRecord, index uint) (uint, error) {
@@ -132,6 +116,20 @@ func (c *compiler) innerModuleLinking(state *linkState, m ModuleRecord, stack *[
 	return index, nil
 }
 
+type evaluationState struct {
+	status           map[ModuleInstance]CyclicModuleRecordStatus
+	dfsIndex         map[ModuleInstance]uint
+	dfsAncestorIndex map[ModuleInstance]uint
+}
+
+func newEvaluationState() *evaluationState {
+	return &evaluationState{
+		status:           make(map[ModuleInstance]CyclicModuleRecordStatus),
+		dfsIndex:         make(map[ModuleInstance]uint),
+		dfsAncestorIndex: make(map[ModuleInstance]uint),
+	}
+}
+
 func (r *Runtime) CyclicModuleRecordEvaluate(c ModuleRecord, resolve HostResolveImportedModuleFunc,
 ) (mi ModuleInstance, err error) {
 	if r.modules == nil {
@@ -181,7 +179,7 @@ func (r *Runtime) innerModuleEvaluation(
 
 	*stack = append(*stack, c)
 	var requiredModule ModuleRecord
-	for _, required := range c.RequestedModules() {
+	for _, required := range cr.RequestedModules() {
 		requiredModule, err = resolve(m, required)
 		if err != nil {
 			return nil, 0, err
@@ -223,7 +221,6 @@ type (
 	}
 	CyclicModuleInstance interface {
 		ModuleInstance
-		RequestedModules() []string
 		ExecuteModule(*Runtime) (ModuleInstance, error)
 	}
 )
@@ -233,7 +230,6 @@ var _ CyclicModuleRecord = &SourceTextModuleRecord{}
 var _ CyclicModuleInstance = &SourceTextModuleInstance{}
 
 type SourceTextModuleInstance struct {
-	cyclicModuleStub
 	moduleRecord *SourceTextModuleRecord
 	// TODO figure out omething less idiotic
 	exportGetters map[unistring.String]func() Value
@@ -253,11 +249,11 @@ func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String) Value 
 }
 
 type SourceTextModuleRecord struct {
-	cyclicModuleStub
 	body *ast.Program
 	p    *Program
 	// context
 	// importmeta
+	requestedModules      []string
 	importEntries         []importEntry
 	localExportEntries    []exportEntry
 	indirectExportEntries []exportEntry
@@ -279,7 +275,7 @@ type exportEntry struct {
 	importName    string
 	localName     string
 
-	// no standard
+	// not standard
 	lex bool
 }
 
@@ -552,9 +548,7 @@ func ModuleFromAST(body *ast.Program, resolveModule HostResolveImportedModuleFun
 		// realm isn't implement
 		// environment is undefined
 		// namespace is undefined
-		cyclicModuleStub: cyclicModuleStub{
-			requestedModules: requestedModules,
-		},
+		requestedModules: requestedModules,
 		// hostDefined TODO
 		body: body,
 		// Context empty
@@ -728,9 +722,6 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 
 func (module *SourceTextModuleRecord) Instantiate() CyclicModuleInstance {
 	return &SourceTextModuleInstance{
-		cyclicModuleStub: cyclicModuleStub{
-			requestedModules: module.requestedModules,
-		},
 		moduleRecord:  module,
 		exportGetters: make(map[unistring.String]func() Value),
 	}
@@ -746,14 +737,6 @@ func (module *SourceTextModuleRecord) Link() error {
 	return c.CyclicModuleRecordConcreteLink(module)
 }
 
-type cyclicModuleStub struct {
-	requestedModules []string
-}
-
-func (c *cyclicModuleStub) SetRequestedModules(modules []string) {
-	c.requestedModules = modules
-}
-
-func (c *cyclicModuleStub) RequestedModules() []string {
-	return c.requestedModules
+func (module *SourceTextModuleRecord) RequestedModules() []string {
+	return module.requestedModules
 }

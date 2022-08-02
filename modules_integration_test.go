@@ -220,10 +220,6 @@ type cyclicModuleInstanceImpl struct {
 	module *cyclicModuleImpl
 }
 
-func (si *cyclicModuleInstanceImpl) RequestedModules() []string {
-	return si.module.RequestedModules()
-}
-
 func (si *cyclicModuleInstanceImpl) ExecuteModule(rt *goja.Runtime) (goja.ModuleInstance, error) {
 	si.rt = rt
 	// TODO others
