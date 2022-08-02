@@ -740,3 +740,55 @@ func (module *SourceTextModuleRecord) Link() error {
 func (module *SourceTextModuleRecord) RequestedModules() []string {
 	return module.requestedModules
 }
+
+func (r *Runtime) GetActiveScriptOrModule() interface{} { // have some better type
+	if r.vm.prg.scriptOrModule != nil {
+		return r.vm.prg.scriptOrModule
+	}
+	for i := len(r.vm.callStack) - 1; i >= 0; i-- {
+		prg := r.vm.callStack[i].prg
+		if prg.scriptOrModule != nil {
+			return prg.scriptOrModule
+		}
+	}
+	return nil
+}
+
+func (r *Runtime) getImportMetaFor(m ModuleRecord) *Object {
+	if r.importMetas == nil {
+		r.importMetas = make(map[ModuleRecord]*Object)
+	}
+	if o, ok := r.importMetas[m]; ok {
+		return o
+	}
+	o := r.NewObject()
+
+	var properties []MetaProperty
+	if r.getImportMetaProperties != nil {
+		properties = r.getImportMetaProperties(m)
+	}
+
+	for _, property := range properties {
+		o.Set(property.Key, property.Value)
+	}
+
+	if r.finalizeImportMeta != nil {
+		r.finalizeImportMeta(o, m)
+	}
+
+	r.importMetas[m] = o
+	return o
+}
+
+type MetaProperty struct {
+	Key   string
+	Value Value
+}
+
+func (r *Runtime) SetGetImportMetaProperties(fn func(ModuleRecord) []MetaProperty) {
+	r.getImportMetaProperties = fn
+}
+
+func (r *Runtime) SetFinalImportMeta(fn func(*Object, ModuleRecord)) {
+	r.finalizeImportMeta = fn
+}

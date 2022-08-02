@@ -185,6 +185,10 @@ type Runtime struct {
 
 	modules          map[ModuleRecord]ModuleInstance
 	moduleNamespaces map[ModuleRecord]*namespaceObject
+	importMetas      map[ModuleRecord]*Object
+
+	getImportMetaProperties func(ModuleRecord) []MetaProperty
+	finalizeImportMeta      func(*Object, ModuleRecord)
 
 	jobQueue []func()
 

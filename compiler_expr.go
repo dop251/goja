@@ -156,6 +156,9 @@ type compiledNewTarget struct {
 	baseCompiledExpr
 }
 
+type compiledImportMeta struct {
+	baseCompiledExpr
+}
 type compiledSequenceExpr struct {
 	baseCompiledExpr
 	sequence []compiledExpr
@@ -1332,7 +1335,8 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 
 	savedPrg := e.c.p
 	e.c.p = &Program{
-		src: e.c.p.src,
+		src:            e.c.p.src,
+		scriptOrModule: e.c.getScriptOrModule(),
 	}
 	e.c.newScope()
 	s := e.c.scope
@@ -2129,9 +2133,10 @@ func (e *compiledClassLiteral) compileFieldsAndStaticBlocks(elements []clsElemen
 	}
 
 	e.c.p = &Program{
-		src:      savedPrg.src,
-		funcName: funcName,
-		code:     make([]instruction, 2, len(elements)*2+3),
+		src:            savedPrg.src,
+		funcName:       funcName,
+		code:           make([]instruction, 2, len(elements)*2+3),
+		scriptOrModule: e.c.getScriptOrModule(),
 	}
 
 	e.c.newScope()
@@ -2342,12 +2347,25 @@ func (e *compiledNewTarget) emitGetter(putOnStack bool) {
 	}
 }
 
+func (e *compiledImportMeta) emitGetter(putOnStack bool) {
+	if putOnStack {
+		e.addSrcMap()
+		e.c.emit(loadImportMeta)
+	}
+}
+
 func (c *compiler) compileMetaProperty(v *ast.MetaProperty) compiledExpr {
-	if v.Meta.Name == "new" || v.Property.Name != "target" {
+	if v.Meta.Name == "new" && v.Property.Name == "target" {
 		r := &compiledNewTarget{}
 		r.init(c, v.Idx0())
 		return r
 	}
+	if v.Meta.Name == "import" && v.Property.Name == "meta" {
+		r := &compiledImportMeta{}
+		r.init(c, v.Idx0())
+		return r
+	}
+
 	c.throwSyntaxError(int(v.Idx)-1, "Unsupported meta property: %s.%s", v.Meta.Name, v.Property.Name)
 	return nil
 }

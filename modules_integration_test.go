@@ -12,9 +12,10 @@ import (
 )
 
 type simpleComboResolver struct {
-	cache  map[string]cacheElement
-	fs     fs.FS
-	custom func(interface{}, string) (goja.ModuleRecord, error)
+	cache        map[string]cacheElement
+	reverseCache map[goja.ModuleRecord]string
+	fs           fs.FS
+	custom       func(interface{}, string) (goja.ModuleRecord, error)
 }
 type cacheElement struct {
 	m   goja.ModuleRecord
@@ -22,7 +23,7 @@ type cacheElement struct {
 }
 
 func newSimpleComboResolver() *simpleComboResolver {
-	return &simpleComboResolver{cache: make(map[string]cacheElement)}
+	return &simpleComboResolver{cache: make(map[string]cacheElement), reverseCache: make(map[goja.ModuleRecord]string)}
 }
 
 func (s *simpleComboResolver) resolve(referencingScriptOrModule interface{}, specifier string) (goja.ModuleRecord, error) {
@@ -46,6 +47,7 @@ func (s *simpleComboResolver) resolve(referencingScriptOrModule interface{}, spe
 		return nil, err
 	}
 	s.cache[specifier] = cacheElement{m: p}
+	s.reverseCache[p] = specifier
 	return p, nil
 }
 
@@ -232,4 +234,56 @@ func (si *cyclicModuleInstanceImpl) GetBindingValue(exportName unistring.String)
 		panic("fix this")
 	}
 	return si.rt.GetModuleInstance(b.Module).GetBindingValue(exportName)
+}
+
+func TestSourceMetaImport(t *testing.T) {
+	t.Parallel()
+	resolver := newSimpleComboResolver()
+	mapfs := make(fstest.MapFS)
+	mapfs["main.js"] = &fstest.MapFile{
+		Data: []byte(`
+        import { meta } from "b.js"
+
+        if (meta.url != "file:///b.js") {
+            throw "wrong url " + meta.url + " for b.js"
+        }
+
+        if (import.meta.url != "file:///main.js") {
+            throw "wrong url " + import.meta.url + " for main.js"
+        }
+        `),
+	}
+	mapfs["b.js"] = &fstest.MapFile{
+		Data: []byte(`
+        export var meta = import.meta
+        `),
+	}
+	resolver.fs = mapfs
+	m, err := resolver.resolve(nil, "main.js")
+	if err != nil {
+		t.Fatalf("got error %s", err)
+	}
+	p := m.(*goja.SourceTextModuleRecord)
+
+	err = p.Link()
+	if err != nil {
+		t.Fatalf("got error %s", err)
+	}
+	vm := goja.New()
+	vm.SetGetImportMetaProperties(func(m goja.ModuleRecord) []goja.MetaProperty {
+		specifier, ok := resolver.reverseCache[m]
+		if !ok {
+			panic("we got import.meta for module that wasn't imported")
+		}
+		return []goja.MetaProperty{
+			{
+				Key:   "url",
+				Value: vm.ToValue("file:///" + specifier),
+			},
+		}
+	})
+	_, err = m.Evaluate(vm)
+	if err != nil {
+		t.Fatalf("got error %s", err)
+	}
 }

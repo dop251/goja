@@ -91,6 +91,12 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 		return self.parseFunction(false)
 	case token.CLASS:
 		return self.parseClass(false)
+	case token.IMPORT:
+		if self.opts.module {
+			return self.parseImportMeta()
+		}
+		self.error(self.idx, "import not supported in script")
+		self.next()
 	}
 
 	if isBindingId(self.token, parsedLiteral) {
@@ -104,6 +110,29 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 	self.errorUnexpectedToken(self.token)
 	self.nextStatement()
 	return &ast.BadExpression{From: idx, To: self.idx}
+}
+
+func (self *_parser) parseImportMeta() *ast.MetaProperty {
+	idx := self.expect(token.IMPORT)
+	self.expect(token.PERIOD)
+	if self.literal == "meta" {
+		return &ast.MetaProperty{
+			Meta: &ast.Identifier{
+				Name: unistring.String(token.IMPORT.String()),
+				Idx:  idx,
+			},
+			Idx:      idx,
+			Property: self.parseIdentifier(),
+		}
+	}
+	self.errorUnexpectedToken(self.token)
+	return &ast.MetaProperty{
+		Meta: &ast.Identifier{
+			Name: unistring.String(token.IMPORT.String()),
+			Idx:  idx,
+		},
+		Idx: idx,
+	}
 }
 
 func (self *_parser) parseSuperProperty() ast.Expression {

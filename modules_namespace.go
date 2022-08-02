@@ -1,7 +1,6 @@
 package goja
 
 import (
-	"bytes"
 	"sort"
 
 	"github.com/dop251/goja/unistring"
@@ -154,11 +153,6 @@ func (no *namespaceObject) deleteStr(name unistring.String, throw bool) bool {
 
 func (no *namespaceObject) defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool {
 	returnFalse := func() bool {
-		var buf bytes.Buffer
-		for _, stack := range no.val.runtime.CaptureCallStack(0, nil) {
-			stack.Write(&buf)
-			buf.WriteRune('\n')
-		}
 		if throw {
 			no.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
 		}

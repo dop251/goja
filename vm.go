@@ -4386,6 +4386,18 @@ func (_loadNewTarget) exec(vm *vm) {
 	vm.pc++
 }
 
+type _loadImportMeta struct{}
+
+var loadImportMeta _loadImportMeta
+
+func (_loadImportMeta) exec(vm *vm) {
+	// https://262.ecma-international.org/12.0/#sec-meta-properties-runtime-semantics-evaluation
+	t := vm.r.GetActiveScriptOrModule()
+	m := t.(ModuleRecord) // There should be now way for this to have compiled
+	vm.push(vm.r.getImportMetaFor(m))
+	vm.pc++
+}
+
 type _typeof struct{}
 
 var typeof _typeof

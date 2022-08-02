@@ -71,6 +71,8 @@ type Program struct {
 	funcName unistring.String
 	src      *file.File
 	srcMap   []srcMapItem
+
+	scriptOrModule interface{}
 }
 
 type compiler struct {
@@ -87,6 +89,13 @@ type compiler struct {
 
 	evalVM *vm // VM used to evaluate constant expressions
 	ctxVM  *vm // VM in which an eval() code is compiled
+}
+
+func (c *compiler) getScriptOrModule() interface{} {
+	if c.module != nil {
+		return c.module
+	}
+	return c.p // TODO figure comething better
 }
 
 type binding struct {
@@ -909,6 +918,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		c.hostResolveImportedModule = oldResolve
 	}()
 	in := module.body
+	c.p.scriptOrModule = module
 	c.p.src = in.File
 	strict := true
 	inGlobal := false
