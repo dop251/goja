@@ -1244,3 +1244,24 @@ func TestGoReflectCopyOnWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestReflectOverwriteReflectMap(t *testing.T) {
+	vm := New()
+	type S struct {
+		M map[int]interface{}
+	}
+	var s S
+	s.M = map[int]interface{}{
+		0: true,
+	}
+	vm.Set("s", &s)
+	_, err := vm.RunString(`
+	s.M = {1: false};
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := s.M[0]; exists {
+		t.Fatal(s)
+	}
+}
