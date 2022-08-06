@@ -258,3 +258,16 @@ func TestGoSliceSort(t *testing.T) {
 		t.Fatalf("val: %v", s)
 	}
 }
+
+func TestGoSliceToString(t *testing.T) {
+	vm := New()
+	s := []interface{}{4, 2, 3}
+	vm.Set("s", &s)
+	res, err := vm.RunString("`${s}`")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exp := res.Export(); exp != "4,2,3" {
+		t.Fatal(exp)
+	}
+}

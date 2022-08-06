@@ -273,3 +273,32 @@ func TestCopyOnChangeSort(t *testing.T) {
 		t.Fatal(a)
 	}
 }
+
+type testStringerArray [8]byte
+
+func (a testStringerArray) String() string {
+	return "X"
+}
+
+func TestReflectArrayToString(t *testing.T) {
+	vm := New()
+	var a testStringerArray
+	vm.Set("a", &a)
+	res, err := vm.RunString("`${a}`")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exp := res.Export(); exp != "X" {
+		t.Fatal(exp)
+	}
+
+	var a1 [2]byte
+	vm.Set("a", &a1)
+	res, err = vm.RunString("`${a}`")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exp := res.Export(); exp != "0,0" {
+		t.Fatal(exp)
+	}
+}
