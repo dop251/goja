@@ -9,6 +9,7 @@ var (
 	SymMatch              = newSymbol(asciiString("Symbol.match"))
 	SymMatchAll           = newSymbol(asciiString("Symbol.matchAll"))
 	SymReplace            = newSymbol(asciiString("Symbol.replace"))
+	SymReplaceAll         = newSymbol(asciiString("Symbol.replaceAll"))
 	SymSearch             = newSymbol(asciiString("Symbol.search"))
 	SymSpecies            = newSymbol(asciiString("Symbol.species"))
 	SymSplit              = newSymbol(asciiString("Symbol.split"))
@@ -141,6 +142,7 @@ func (r *Runtime) createSymbol(val *Object) objectImpl {
 		SymMatch,
 		SymMatchAll,
 		SymReplace,
+		SymReplaceAll,
 		SymSearch,
 		SymSpecies,
 		SymSplit,

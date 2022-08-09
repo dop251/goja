@@ -213,7 +213,6 @@ var (
 		"async-functions",
 		"BigInt",
 		"generators",
-		"String.prototype.replaceAll",
 		"resizable-arraybuffer",
 		"array-find-from-last",
 		"regexp-named-groups",
