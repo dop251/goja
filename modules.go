@@ -38,7 +38,7 @@ type CyclicModuleRecord interface {
 	ModuleRecord
 	RequestedModules() []string
 	InitializeEnvironment() error
-	Instantiate() CyclicModuleInstance // TODO maybe should be taking the runtime
+	Instantiate(rt *Runtime) (CyclicModuleInstance, error)
 }
 
 type linkState struct {
@@ -163,7 +163,11 @@ func (r *Runtime) innerModuleEvaluation(
 		if ok {
 			return mi, index, nil
 		}
-		c = cr.Instantiate()
+		c, err = cr.Instantiate(r)
+		if err != nil {
+			return nil, index, err
+		}
+
 		mi = c
 		r.modules[m] = c
 	}
@@ -221,7 +225,7 @@ type (
 	}
 	CyclicModuleInstance interface {
 		ModuleInstance
-		ExecuteModule(*Runtime) (ModuleInstance, error)
+		ExecuteModule(*Runtime) (CyclicModuleInstance, error)
 	}
 )
 
@@ -233,10 +237,12 @@ type SourceTextModuleInstance struct {
 	moduleRecord *SourceTextModuleRecord
 	// TODO figure out omething less idiotic
 	exportGetters map[unistring.String]func() Value
+	context       *context //  hacks haxx
+	stack         valueStack
 }
 
-func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime) (ModuleInstance, error) {
-	_, err := rt.RunProgram(s.moduleRecord.p)
+func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime) (CyclicModuleInstance, error) {
+	_, err := rt.continueRunProgram(s.moduleRecord.p, s.context, s.stack)
 	return s, err
 }
 
@@ -720,11 +726,15 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 	return starResolution, false
 }
 
-func (module *SourceTextModuleRecord) Instantiate() CyclicModuleInstance {
-	return &SourceTextModuleInstance{
+func (module *SourceTextModuleRecord) Instantiate(rt *Runtime) (CyclicModuleInstance, error) {
+	mi := &SourceTextModuleInstance{
 		moduleRecord:  module,
 		exportGetters: make(map[unistring.String]func() Value),
 	}
+	rt.modules[module] = mi
+	// TODO figure a better way
+	_, err := rt.RunProgram(mi.moduleRecord.p)
+	return mi, err
 }
 
 func (module *SourceTextModuleRecord) Evaluate(rt *Runtime) (ModuleInstance, error) {
@@ -742,7 +752,7 @@ func (module *SourceTextModuleRecord) RequestedModules() []string {
 }
 
 func (r *Runtime) GetActiveScriptOrModule() interface{} { // have some better type
-	if r.vm.prg.scriptOrModule != nil {
+	if r.vm.prg != nil && r.vm.prg.scriptOrModule != nil {
 		return r.vm.prg.scriptOrModule
 	}
 	for i := len(r.vm.callStack) - 1; i >= 0; i-- {

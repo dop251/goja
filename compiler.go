@@ -1106,6 +1106,8 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 	if !inGlobal || ownVarScope {
 		c.compileFunctions(funcs)
 	}
+	c.emit(notReallyYield) //  this to stop us execute once after we initialize globals
+	// TODO figure something better :grimacing:
 	c.compileStatements(in.Body, true)
 	if enter != nil {
 		c.leaveScopeBlock(enter)

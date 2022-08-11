@@ -179,8 +179,8 @@ func (s *cyclicModuleImpl) InitializeEnvironment() error {
 	return nil
 }
 
-func (s *cyclicModuleImpl) Instantiate() goja.CyclicModuleInstance {
-	return &cyclicModuleInstanceImpl{module: s}
+func (s *cyclicModuleImpl) Instantiate(_ *goja.Runtime) (goja.CyclicModuleInstance, error) {
+	return &cyclicModuleInstanceImpl{module: s}, nil
 }
 
 func (s *cyclicModuleImpl) RequestedModules() []string {
@@ -222,7 +222,7 @@ type cyclicModuleInstanceImpl struct {
 	module *cyclicModuleImpl
 }
 
-func (si *cyclicModuleInstanceImpl) ExecuteModule(rt *goja.Runtime) (goja.ModuleInstance, error) {
+func (si *cyclicModuleInstanceImpl) ExecuteModule(rt *goja.Runtime) (goja.CyclicModuleInstance, error) {
 	si.rt = rt
 	// TODO others
 	return nil, nil

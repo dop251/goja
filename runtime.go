@@ -1431,6 +1431,52 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	return
 }
 
+// RunProgram executes a pre-compiled (see Compile()) code in the global context.
+func (r *Runtime) continueRunProgram(_ *Program, context *context, stack valueStack) (result Value, err error) {
+	defer func() {
+		if x := recover(); x != nil {
+			if ex, ok := x.(*uncatchableException); ok {
+				err = ex.err
+				if len(r.vm.callStack) == 0 {
+					r.leaveAbrupt()
+				}
+			} else {
+				panic(x)
+			}
+		}
+	}()
+	vm := r.vm
+	recursive := false
+	if len(vm.callStack) > 0 {
+		recursive = true
+		vm.pushCtx()
+		vm.stash = &r.global.stash
+		vm.sb = vm.sp - 1
+	}
+	vm.result = _undefined
+	vm.restoreCtx(context)
+	vm.stack = stack
+	// fmt.Println("continue sb ", vm.sb, vm.callStack)
+	// fmt.Println("stack at continue", vm.stack)
+	ex := vm.runTry()
+	if ex == nil {
+		result = r.vm.result
+	} else {
+		err = ex
+	}
+	if recursive {
+		vm.popCtx()
+		vm.halt = false
+		vm.clearStack()
+	} else {
+		vm.stack = nil
+		vm.prg = nil
+		vm.funcName = ""
+		r.leave()
+	}
+	return
+}
+
 // CaptureCallStack appends the current call stack frames to the stack slice (which may be nil) up to the specified depth.
 // The most recent frame will be the first one.
 // If depth <= 0 or more than the number of available frames, returns the entire stack.

@@ -248,6 +248,7 @@ type vm struct {
 	pc           int
 	stack        valueStack
 	sp, sb, args int
+	oldsp        int // haxx
 
 	stash     *stash
 	privEnv   *privateEnv
@@ -556,6 +557,8 @@ func (vm *vm) try(f func()) (ex *Exception) {
 
 	ctxOffset := len(vm.callStack)
 	sp := vm.sp
+	oldsp := vm.oldsp
+	vm.oldsp = sp
 	iterLen := len(vm.iterStack)
 	refLen := len(vm.refStack)
 
@@ -565,6 +568,7 @@ func (vm *vm) try(f func()) (ex *Exception) {
 				vm.callStack = vm.callStack[:ctxOffset]
 				vm.restoreCtx(&ctx)
 				vm.sp = sp
+				vm.oldsp = oldsp
 
 				// Restore other stacks
 				iterTail := vm.iterStack[iterLen:]
@@ -1420,6 +1424,26 @@ var halt _halt
 func (_halt) exec(vm *vm) {
 	vm.halt = true
 	vm.pc++
+}
+
+type _notReallyYield struct{}
+
+var notReallyYield _notReallyYield
+
+func (_notReallyYield) exec(vm *vm) {
+	vm.halt = true
+	vm.pc++
+	mi := vm.r.modules[vm.r.GetActiveScriptOrModule().(ModuleRecord)].(*SourceTextModuleInstance)
+	if vm.sp > vm.oldsp {
+		stack := make(valueStack, vm.sp-vm.oldsp-1)
+		_ = copy(stack, vm.stack[vm.oldsp:])
+		// fmt.Println("yield sb ", vm.sb, vm.args, stack)
+		mi.stack = stack
+	}
+	// fmt.Println("stack at yield", vm.stack)
+	context := &context{}
+	vm.saveCtx(context)
+	mi.context = context
 }
 
 type jump int32
