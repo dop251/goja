@@ -109,26 +109,29 @@ func (self *_parser) parseStatement() ast.Statement {
 			return exp
 		}
 	case token.IMPORT:
-		if !self.opts.module {
-			self.error(self.idx, "import not supported in script")
-			self.next()
-			return &ast.BadStatement{From: self.idx, To: self.idx + 1}
-		}
-		if self.peek() != token.PERIOD {
-			// this will be parsed as expression
-			if !allowImportExport {
-				self.error(self.idx, "import only allowed in global scope")
+		if self.peek() != token.LEFT_PARENTHESIS {
+			if !self.opts.module {
+				self.error(self.idx, "import not supported in script")
 				self.next()
 				return &ast.BadStatement{From: self.idx, To: self.idx + 1}
 			}
-			imp := self.parseImportDeclaration()
-			self.scope.importEntries = append(self.scope.importEntries, imp)
+			if self.peek() != token.PERIOD {
+				// this will be parsed as expression
+				if !allowImportExport {
+					self.error(self.idx, "import only allowed in global scope")
+					self.next()
+					return &ast.BadStatement{From: self.idx, To: self.idx + 1}
+				}
+				imp := self.parseImportDeclaration()
+				self.scope.importEntries = append(self.scope.importEntries, imp)
 
-			return imp
+				return imp
+			}
 		}
 	}
 
 	expression := self.parseExpression()
+	// spew.Dump(expression)
 
 	if identifier, isIdentifier := expression.(*ast.Identifier); isIdentifier && self.token == token.COLON {
 		// LabelledStatement

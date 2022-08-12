@@ -772,6 +772,7 @@ func (r *Runtime) getImportMetaFor(m ModuleRecord) *Object {
 		return o
 	}
 	o := r.NewObject()
+	o.SetPrototype(nil)
 
 	var properties []MetaProperty
 	if r.getImportMetaProperties != nil {

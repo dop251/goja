@@ -493,6 +493,13 @@ func (vm *vm) run() {
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
 			break
 		}
+		/*
+			fmt.Printf("code: ")
+			for _, code := range vm.prg.code[vm.pc:] {
+				fmt.Printf("{%T: %#v},", code, code)
+			}
+			fmt.Print("\n")
+			//*/
 		vm.prg.code[vm.pc].exec(vm)
 		ticks++
 		if ticks > 10000 {
@@ -808,6 +815,7 @@ func (l loadStackLex) exec(vm *vm) {
 	} else {
 		p = &vm.stack[vm.sb+vm.args+int(l)]
 	}
+	// fmt.Println(vm.stack, vm.sb, vm.args, l, p, *p)
 	if *p == nil {
 		panic(errAccessBeforeInit)
 	}
@@ -1435,10 +1443,10 @@ func (_notReallyYield) exec(vm *vm) {
 	vm.pc++
 	mi := vm.r.modules[vm.r.GetActiveScriptOrModule().(ModuleRecord)].(*SourceTextModuleInstance)
 	if vm.sp > vm.oldsp {
-		stack := make(valueStack, vm.sp-vm.oldsp-1)
-		_ = copy(stack, vm.stack[vm.oldsp:])
-		// fmt.Println("yield sb ", vm.sb, vm.args, stack)
-		mi.stack = stack
+		toCopy := vm.stack[vm.oldsp:]
+		mi.stack = make(valueStack, len(toCopy))
+		_ = copy(mi.stack, toCopy)
+		// fmt.Println("yield sb ", vm.sb, vm.args, mi.stack)
 	}
 	// fmt.Println("stack at yield", vm.stack)
 	context := &context{}
@@ -2647,7 +2655,8 @@ func (s setGlobalStrict) exec(vm *vm) {
 type loadIndirect func(vm *vm) Value
 
 func (g loadIndirect) exec(vm *vm) {
-	vm.push(nilSafe(g(vm)))
+	v := nilSafe(g(vm))
+	vm.push(v)
 	vm.pc++
 }
 
@@ -4415,10 +4424,42 @@ type _loadImportMeta struct{}
 var loadImportMeta _loadImportMeta
 
 func (_loadImportMeta) exec(vm *vm) {
-	// https://262.ecma-international.org/12.0/#sec-meta-properties-runtime-semantics-evaluation
+	// https://262.ecma-international.org/13.0/#sec-meta-properties-runtime-semantics-evaluation
 	t := vm.r.GetActiveScriptOrModule()
 	m := t.(ModuleRecord) // There should be now way for this to have compiled
 	vm.push(vm.r.getImportMetaFor(m))
+	vm.pc++
+}
+
+type _loadDynamicImport struct{}
+
+var dynamicImport _loadDynamicImport
+
+func (_loadDynamicImport) exec(vm *vm) {
+	// https://262.ecma-international.org/13.0/#sec-import-call-runtime-semantics-evaluation
+	vm.push(vm.r.ToValue(func(specifier Value) Value { // TODO remove this function
+		t := vm.r.GetActiveScriptOrModule()
+
+		pcap := vm.r.newPromiseCapability(vm.r.global.Promise)
+		var specifierStr valueString
+		err := vm.r.runWrapped(func() {
+			specifierStr = specifier.toString()
+		})
+		if err != nil {
+			if ex, ok := err.(*Exception); ok {
+				pcap.reject(vm.r.ToValue(ex.val))
+			} else {
+				pcap.reject(vm.r.ToValue(err))
+			}
+		} else {
+			if vm.r.importModuleDynamically == nil {
+				pcap.reject(asciiString("dynamic modules not enabled in the host program"))
+			} else {
+				vm.r.importModuleDynamically(t, specifierStr, pcap)
+			}
+		}
+		return pcap.promise
+	}))
 	vm.pc++
 }
 

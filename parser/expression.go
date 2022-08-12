@@ -91,12 +91,6 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 		return self.parseFunction(false)
 	case token.CLASS:
 		return self.parseClass(false)
-	case token.IMPORT:
-		if self.opts.module {
-			return self.parseImportMeta()
-		}
-		self.error(self.idx, "import not supported in script")
-		self.next()
 	}
 
 	if isBindingId(self.token, parsedLiteral) {
@@ -635,7 +629,7 @@ func (self *_parser) parseArgumentList() (argumentList []ast.Expression, idx0, i
 	return
 }
 
-func (self *_parser) parseCallExpression(left ast.Expression) ast.Expression {
+func (self *_parser) parseCallExpression(left ast.Expression) *ast.CallExpression {
 	argumentList, idx0, idx1 := self.parseArgumentList()
 	return &ast.CallExpression{
 		Callee:           left,
@@ -717,6 +711,14 @@ func (self *_parser) parseNewExpression() ast.Expression {
 		bad.From = idx
 		return bad
 	}
+
+	if call, ok := callee.(*ast.CallExpression); ok {
+		if _, ok := call.Callee.(*ast.DynamicImportExpression); ok {
+			self.error(idx, "You can't use new with import()")
+			return &ast.BadExpression{From: idx, To: self.idx}
+		}
+	}
+
 	node := &ast.NewExpression{
 		New:    idx,
 		Callee: callee,
@@ -734,6 +736,8 @@ func (self *_parser) parseLeftHandSideExpression() ast.Expression {
 	var left ast.Expression
 	if self.token == token.NEW {
 		left = self.parseNewExpression()
+	} else if self.token == token.IMPORT {
+		left = self.parseImportExpression()
 	} else {
 		left = self.parsePrimaryExpression()
 	}
@@ -754,6 +758,31 @@ L:
 	return left
 }
 
+func (self *_parser) parseImportExpression() ast.Expression {
+	idx := self.idx
+	if self.peek() == token.LEFT_PARENTHESIS {
+		self.expect(token.IMPORT)
+		cexp := self.parseCallExpression(&ast.DynamicImportExpression{})
+		if len(cexp.ArgumentList) != 1 {
+			self.error(self.idx, "dynamic import requires exactly one argument")
+			return &ast.BadExpression{From: idx, To: self.idx}
+		}
+
+		if _, ok := cexp.ArgumentList[0].(*ast.SpreadElement); ok {
+			self.error(self.idx, "dynamic import can't use spread list")
+			return &ast.BadExpression{From: idx, To: self.idx}
+		}
+
+		return cexp
+	}
+	if self.opts.module {
+		return self.parseImportMeta()
+	}
+	self.error(self.idx, "import not supported in script")
+	self.next()
+	return &ast.BadExpression{From: idx, To: self.idx}
+}
+
 func (self *_parser) parseLeftHandSideExpressionAllowCall() ast.Expression {
 	allowIn := self.scope.allowIn
 	self.scope.allowIn = true
@@ -765,6 +794,8 @@ func (self *_parser) parseLeftHandSideExpressionAllowCall() ast.Expression {
 	start := self.idx
 	if self.token == token.NEW {
 		left = self.parseNewExpression()
+	} else if self.token == token.IMPORT {
+		left = self.parseImportExpression()
 	} else {
 		left = self.parsePrimaryExpression()
 	}

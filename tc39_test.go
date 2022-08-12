@@ -75,114 +75,271 @@ var (
 		"test/language/literals/regexp/S7.8.5_A2.4_T2.js":            true,
 
 		// generators
-		"test/language/module-code/instn-local-bndng-gen.js":                               true,
-		"test/language/module-code/instn-local-bndng-export-gen.js":                        true,
-		"test/language/module-code/instn-star-props-nrml.js":                               true,
-		"test/language/module-code/namespace/internals/get-nested-namespace-props-nrml.js": true,
+		"test/language/module-code/instn-local-bndng-gen.js":                                                    true,
+		"test/language/module-code/instn-local-bndng-export-gen.js":                                             true,
+		"test/language/module-code/instn-star-props-nrml.js":                                                    true,
+		"test/language/module-code/namespace/internals/get-nested-namespace-props-nrml.js":                      true,
+		"test/language/expressions/dynamic-import/namespace/promise-then-ns-get-nested-namespace-props-nrml.js": true,
 
 		// async
-		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js":                                                        true,
-		"test/language/statements/switch/scope-lex-generator.js":                                                                      true,
-		"test/language/expressions/in/rhs-yield-present.js":                                                                           true,
-		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-yield-expression.js":                                true,
-		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-generator-function-declaration.js":                  true,
-		"test/built-ins/TypedArrayConstructors/ctors/object-arg/as-generator-iterable-returns.js":                                     true,
-		"test/built-ins/Object/seal/seal-generatorfunction.js":                                                                        true,
-		"test/language/statements/class/syntax/class-declaration-computed-method-generator-definition.js":                             true,
-		"test/language/statements/class/cpn-class-decl-fields-methods-computed-property-name-from-yield-expression.js":                true,
-		"test/language/statements/class/cpn-class-decl-fields-methods-computed-property-name-from-generator-function-declaration.js":  true,
-		"test/language/statements/class/cpn-class-decl-fields-computed-property-name-from-yield-expression.js":                        true,
-		"test/language/statements/class/cpn-class-decl-fields-computed-property-name-from-generator-function-declaration.js":          true,
-		"test/language/statements/class/cpn-class-decl-computed-property-name-from-yield-expression.js":                               true,
-		"test/language/statements/class/cpn-class-decl-computed-property-name-from-generator-function-declaration.js":                 true,
-		"test/language/statements/class/cpn-class-decl-accessors-computed-property-name-from-yield-expression.js":                     true,
-		"test/language/statements/class/cpn-class-decl-accessors-computed-property-name-from-generator-function-declaration.js":       true,
-		"test/language/expressions/class/cpn-class-expr-fields-computed-property-name-from-yield-expression.js":                       true,
-		"test/language/expressions/class/cpn-class-expr-fields-computed-property-name-from-generator-function-declaration.js":         true,
-		"test/language/expressions/class/cpn-class-expr-computed-property-name-from-yield-expression.js":                              true,
-		"test/language/expressions/class/cpn-class-expr-computed-property-name-from-generator-function-declaration.js":                true,
-		"test/language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-yield-expression.js":                    true,
-		"test/language/expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-yield-expression.js":               true,
-		"test/language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-generator-function-declaration.js":      true,
-		"test/language/expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-generator-function-declaration.js": true,
-		"test/language/statements/class/static-init-arguments-methods.js":                                                             true,
-		"test/language/statements/class/static-init-arguments-functions.js":                                                           true,
-		"test/language/expressions/object/method-definition/static-init-await-reference-generator.js":                                 true,
-		"test/language/expressions/generators/static-init-await-binding.js":                                                           true,
-		"test/language/expressions/generators/static-init-await-reference.js":                                                         true,
-		"test/language/expressions/optional-chaining/member-expression.js":                                                            true,
-		"test/language/expressions/class/elements/private-generator-method-name.js":                                                   true,
-		"test/language/statements/class/elements/private-generator-method-name.js":                                                    true,
-		"test/language/expressions/in/private-field-rhs-yield-present.js":                                                             true,
-		"test/language/expressions/class/elements/private-static-generator-method-name.js":                                            true,
-		"test/language/expressions/class/elements/private-static-async-generator-method-name.js":                                      true,
-		"test/language/computed-property-names/class/static/generator-prototype.js":                                                   true,
-		"test/language/computed-property-names/class/method/constructor-can-be-generator.js":                                          true,
-		"test/language/computed-property-names/class/static/generator-constructor.js":                                                 true,
-		"test/language/computed-property-names/class/method/generator.js":                                                             true,
-		"test/language/computed-property-names/object/method/generator.js":                                                            true,
-		"test/language/destructuring/binding/syntax/destructuring-object-parameters-function-arguments-length.js":                     true,
-		"test/language/destructuring/binding/syntax/destructuring-array-parameters-function-arguments-length.js":                      true,
-
-		// async
-		"test/language/eval-code/direct/async-func-decl-a-preceding-parameter-is-named-arguments-declare-arguments-and-assign.js":      true,
-		"test/language/statements/switch/scope-lex-async-generator.js":                                                                 true,
-		"test/language/statements/switch/scope-lex-async-function.js":                                                                  true,
-		"test/language/statements/for-of/head-lhs-async-invalid.js":                                                                    true,
-		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-async-arrow-function-expression.js":                  true,
-		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-await-expression.js":                                 true,
-		"test/language/statements/async-function/evaluation-body.js":                                                                   true,
-		"test/language/expressions/object/method-definition/object-method-returns-promise.js":                                          true,
-		"test/language/expressions/object/method-definition/async-super-call-param.js":                                                 true,
-		"test/language/expressions/object/method-definition/async-super-call-body.js":                                                  true,
-		"test/built-ins/Object/seal/seal-asyncgeneratorfunction.js":                                                                    true,
-		"test/built-ins/Object/seal/seal-asyncfunction.js":                                                                             true,
-		"test/built-ins/Object/seal/seal-asyncarrowfunction.js":                                                                        true,
-		"test/language/statements/for/head-init-async-of.js":                                                                           true,
-		"test/language/reserved-words/await-module.js":                                                                                 true,
-		"test/language/expressions/optional-chaining/optional-chain-async-square-brackets.js":                                          true,
-		"test/language/expressions/optional-chaining/optional-chain-async-optional-chain-square-brackets.js":                           true,
-		"test/language/expressions/optional-chaining/member-expression-async-this.js":                                                  true,
-		"test/language/expressions/optional-chaining/member-expression-async-literal.js":                                               true,
-		"test/language/expressions/optional-chaining/member-expression-async-identifier.js":                                            true,
-		"test/language/expressions/optional-chaining/iteration-statement-for-await-of.js":                                              true,
-		"test/language/statements/class/cpn-class-decl-fields-methods-computed-property-name-from-async-arrow-function-expression.js":  true,
-		"test/language/statements/class/cpn-class-decl-fields-computed-property-name-from-async-arrow-function-expression.js":          true,
-		"test/language/statements/class/cpn-class-decl-computed-property-name-from-async-arrow-function-expression.js":                 true,
-		"test/language/statements/class/cpn-class-decl-accessors-computed-property-name-from-async-arrow-function-expression.js":       true,
-		"test/language/expressions/class/cpn-class-expr-fields-computed-property-name-from-async-arrow-function-expression.js":         true,
-		"test/language/expressions/class/cpn-class-expr-computed-property-name-from-async-arrow-function-expression.js":                true,
-		"test/language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-async-arrow-function-expression.js":      true,
-		"test/language/expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-async-arrow-function-expression.js": true,
-		"test/language/statements/let/static-init-await-binding-invalid.js":                                                            true,
-		"test/language/statements/labeled/static-init-invalid-await.js":                                                                true,
-		"test/language/statements/variable/dstr/obj-ptrn-elem-id-static-init-await-invalid.js":                                         true,
-		"test/language/statements/variable/static-init-await-binding-invalid.js":                                                       true,
-		"test/language/statements/variable/dstr/ary-ptrn-elem-id-static-init-await-invalid.js":                                         true,
-		"test/language/statements/try/static-init-await-binding-invalid.js":                                                            true,
-		"test/language/statements/function/static-init-await-binding-invalid.js":                                                       true,
-		"test/language/statements/const/static-init-await-binding-invalid.js":                                                          true,
-		"test/language/statements/class/static-init-await-binding-invalid.js":                                                          true,
-		"test/language/identifier-resolution/static-init-invalid-await.js":                                                             true,
-		"test/language/expressions/class/static-init-await-binding.js":                                                                 true,
-		"test/language/expressions/class/heritage-async-arrow-function.js":                                                             true,
-		"test/language/expressions/arrow-function/static-init-await-reference.js":                                                      true,
-		"test/language/expressions/arrow-function/static-init-await-binding.js":                                                        true,
-		"test/language/expressions/object/method-definition/static-init-await-binding-generator.js":                                    true,
-		"test/language/expressions/object/identifier-shorthand-static-init-await-invalid.js":                                           true,
-		"test/language/expressions/class/heritage-arrow-function.js":                                                                   true,
-		"test/language/expressions/class/elements/private-async-generator-method-name.js":                                              true,
-		"test/language/expressions/class/elements/private-async-method-name.js":                                                        true,
-		"test/language/statements/class/elements/private-async-generator-method-name.js":                                               true,
-		"test/language/statements/class/elements/private-async-method-name.js":                                                         true,
-		"test/language/statements/labeled/value-await-module.js":                                                                       true,
-		"test/language/statements/labeled/value-await-module-escaped.js":                                                               true,
-		"test/language/expressions/in/private-field-rhs-await-present.js":                                                              true,
-		"test/language/expressions/class/elements/private-static-async-method-name.js":                                                 true,
-		"test/language/statements/class/class-name-ident-await-module.js":                                                              true,
-		"test/language/statements/class/class-name-ident-await-escaped-module.js":                                                      true,
-		"test/language/expressions/class/class-name-ident-await-module.js":                                                             true,
-		"test/language/expressions/class/class-name-ident-await-escaped-module.js":                                                     true,
+		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js":                                                             true,
+		"test/language/statements/switch/scope-lex-generator.js":                                                                           true,
+		"test/language/expressions/in/rhs-yield-present.js":                                                                                true,
+		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-yield-expression.js":                                     true,
+		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-generator-function-declaration.js":                       true,
+		"test/built-ins/TypedArrayConstructors/ctors/object-arg/as-generator-iterable-returns.js":                                          true,
+		"test/built-ins/Object/seal/seal-generatorfunction.js":                                                                             true,
+		"test/language/statements/class/syntax/class-declaration-computed-method-generator-definition.js":                                  true,
+		"test/language/statements/class/cpn-class-decl-fields-methods-computed-property-name-from-yield-expression.js":                     true,
+		"test/language/statements/class/cpn-class-decl-fields-methods-computed-property-name-from-generator-function-declaration.js":       true,
+		"test/language/statements/class/cpn-class-decl-fields-computed-property-name-from-yield-expression.js":                             true,
+		"test/language/statements/class/cpn-class-decl-fields-computed-property-name-from-generator-function-declaration.js":               true,
+		"test/language/statements/class/cpn-class-decl-computed-property-name-from-yield-expression.js":                                    true,
+		"test/language/statements/class/cpn-class-decl-computed-property-name-from-generator-function-declaration.js":                      true,
+		"test/language/statements/class/cpn-class-decl-accessors-computed-property-name-from-yield-expression.js":                          true,
+		"test/language/statements/class/cpn-class-decl-accessors-computed-property-name-from-generator-function-declaration.js":            true,
+		"test/language/expressions/class/cpn-class-expr-fields-computed-property-name-from-yield-expression.js":                            true,
+		"test/language/expressions/class/cpn-class-expr-fields-computed-property-name-from-generator-function-declaration.js":              true,
+		"test/language/expressions/class/cpn-class-expr-computed-property-name-from-yield-expression.js":                                   true,
+		"test/language/expressions/class/cpn-class-expr-computed-property-name-from-generator-function-declaration.js":                     true,
+		"test/language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-yield-expression.js":                         true,
+		"test/language/expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-yield-expression.js":                    true,
+		"test/language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-generator-function-declaration.js":           true,
+		"test/language/expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-generator-function-declaration.js":      true,
+		"test/language/statements/class/static-init-arguments-methods.js":                                                                  true,
+		"test/language/statements/class/static-init-arguments-functions.js":                                                                true,
+		"test/language/expressions/object/method-definition/static-init-await-reference-generator.js":                                      true,
+		"test/language/expressions/generators/static-init-await-binding.js":                                                                true,
+		"test/language/expressions/generators/static-init-await-reference.js":                                                              true,
+		"test/language/expressions/optional-chaining/member-expression.js":                                                                 true,
+		"test/language/expressions/class/elements/private-generator-method-name.js":                                                        true,
+		"test/language/statements/class/elements/private-generator-method-name.js":                                                         true,
+		"test/language/expressions/in/private-field-rhs-yield-present.js":                                                                  true,
+		"test/language/expressions/class/elements/private-static-generator-method-name.js":                                                 true,
+		"test/language/expressions/class/elements/private-static-async-generator-method-name.js":                                           true,
+		"test/language/computed-property-names/class/static/generator-prototype.js":                                                        true,
+		"test/language/computed-property-names/class/method/constructor-can-be-generator.js":                                               true,
+		"test/language/computed-property-names/class/static/generator-constructor.js":                                                      true,
+		"test/language/computed-property-names/class/method/generator.js":                                                                  true,
+		"test/language/computed-property-names/object/method/generator.js":                                                                 true,
+		"test/language/destructuring/binding/syntax/destructuring-object-parameters-function-arguments-length.js":                          true,
+		"test/language/destructuring/binding/syntax/destructuring-array-parameters-function-arguments-length.js":                           true,
+		"test/language/eval-code/direct/async-func-decl-a-preceding-parameter-is-named-arguments-declare-arguments-and-assign.js":          true,
+		"test/language/statements/switch/scope-lex-async-generator.js":                                                                     true,
+		"test/language/statements/switch/scope-lex-async-function.js":                                                                      true,
+		"test/language/statements/for-of/head-lhs-async-invalid.js":                                                                        true,
+		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-async-arrow-function-expression.js":                      true,
+		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-await-expression.js":                                     true,
+		"test/language/statements/async-function/evaluation-body.js":                                                                       true,
+		"test/language/expressions/object/method-definition/object-method-returns-promise.js":                                              true,
+		"test/language/expressions/object/method-definition/async-super-call-param.js":                                                     true,
+		"test/language/expressions/object/method-definition/async-super-call-body.js":                                                      true,
+		"test/built-ins/Object/seal/seal-asyncgeneratorfunction.js":                                                                        true,
+		"test/built-ins/Object/seal/seal-asyncfunction.js":                                                                                 true,
+		"test/built-ins/Object/seal/seal-asyncarrowfunction.js":                                                                            true,
+		"test/language/statements/for/head-init-async-of.js":                                                                               true,
+		"test/language/reserved-words/await-module.js":                                                                                     true,
+		"test/language/expressions/optional-chaining/optional-chain-async-square-brackets.js":                                              true,
+		"test/language/expressions/optional-chaining/optional-chain-async-optional-chain-square-brackets.js":                               true,
+		"test/language/expressions/optional-chaining/member-expression-async-this.js":                                                      true,
+		"test/language/expressions/optional-chaining/member-expression-async-literal.js":                                                   true,
+		"test/language/expressions/optional-chaining/member-expression-async-identifier.js":                                                true,
+		"test/language/expressions/optional-chaining/iteration-statement-for-await-of.js":                                                  true,
+		"test/language/statements/class/cpn-class-decl-fields-methods-computed-property-name-from-async-arrow-function-expression.js":      true,
+		"test/language/statements/class/cpn-class-decl-fields-computed-property-name-from-async-arrow-function-expression.js":              true,
+		"test/language/statements/class/cpn-class-decl-computed-property-name-from-async-arrow-function-expression.js":                     true,
+		"test/language/statements/class/cpn-class-decl-accessors-computed-property-name-from-async-arrow-function-expression.js":           true,
+		"test/language/expressions/class/cpn-class-expr-fields-computed-property-name-from-async-arrow-function-expression.js":             true,
+		"test/language/expressions/class/cpn-class-expr-computed-property-name-from-async-arrow-function-expression.js":                    true,
+		"test/language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-async-arrow-function-expression.js":          true,
+		"test/language/expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-async-arrow-function-expression.js":     true,
+		"test/language/statements/let/static-init-await-binding-invalid.js":                                                                true,
+		"test/language/statements/labeled/static-init-invalid-await.js":                                                                    true,
+		"test/language/statements/variable/dstr/obj-ptrn-elem-id-static-init-await-invalid.js":                                             true,
+		"test/language/statements/variable/static-init-await-binding-invalid.js":                                                           true,
+		"test/language/statements/variable/dstr/ary-ptrn-elem-id-static-init-await-invalid.js":                                             true,
+		"test/language/statements/try/static-init-await-binding-invalid.js":                                                                true,
+		"test/language/statements/function/static-init-await-binding-invalid.js":                                                           true,
+		"test/language/statements/const/static-init-await-binding-invalid.js":                                                              true,
+		"test/language/statements/class/static-init-await-binding-invalid.js":                                                              true,
+		"test/language/identifier-resolution/static-init-invalid-await.js":                                                                 true,
+		"test/language/expressions/class/static-init-await-binding.js":                                                                     true,
+		"test/language/expressions/class/heritage-async-arrow-function.js":                                                                 true,
+		"test/language/expressions/arrow-function/static-init-await-reference.js":                                                          true,
+		"test/language/expressions/arrow-function/static-init-await-binding.js":                                                            true,
+		"test/language/expressions/object/method-definition/static-init-await-binding-generator.js":                                        true,
+		"test/language/expressions/object/identifier-shorthand-static-init-await-invalid.js":                                               true,
+		"test/language/expressions/class/heritage-arrow-function.js":                                                                       true,
+		"test/language/expressions/class/elements/private-async-generator-method-name.js":                                                  true,
+		"test/language/expressions/class/elements/private-async-method-name.js":                                                            true,
+		"test/language/statements/class/elements/private-async-generator-method-name.js":                                                   true,
+		"test/language/statements/class/elements/private-async-method-name.js":                                                             true,
+		"test/language/statements/labeled/value-await-module.js":                                                                           true,
+		"test/language/statements/labeled/value-await-module-escaped.js":                                                                   true,
+		"test/language/expressions/in/private-field-rhs-await-present.js":                                                                  true,
+		"test/language/expressions/class/elements/private-static-async-method-name.js":                                                     true,
+		"test/language/statements/class/class-name-ident-await-module.js":                                                                  true,
+		"test/language/statements/class/class-name-ident-await-escaped-module.js":                                                          true,
+		"test/language/expressions/class/class-name-ident-await-module.js":                                                                 true,
+		"test/language/expressions/class/class-name-ident-await-escaped-module.js":                                                         true,
+		"test/language/expressions/dynamic-import/for-await-resolution-and-error-agen-yield.js":                                            true,
+		"test/language/expressions/dynamic-import/2nd-param-await-ident.js":                                                                true,
+		"test/language/expressions/dynamic-import/for-await-resolution-and-error.js":                                                       true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-function-await-assignment-expr-not-optional.js":              true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-function-return-await-no-new-call-expression.js":             true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-function-await-nested-imports.js":                              true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-arrow-function-return-await-trailing-comma-second.js":          true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-gen-await-empty-str-is-valid-assign-expr.js":                   true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-arrow-function-return-await-script-code-valid.js":              true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-arrow-function-return-await-trailing-comma-first.js":           true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-gen-await-trailing-comma-second.js":                            true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-function-await-trailing-comma-second.js":                       true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-function-await-script-code-valid.js":                           true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-arrow-function-return-await-empty-str-is-valid-assign-expr.js": true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-arrow-function-await-empty-str-is-valid-assign-expr.js":        true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-arrow-function-return-await-nested-imports.js":                 true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-function-return-await-trailing-comma-first.js":                 true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-arrow-function-await-trailing-comma-first.js":                  true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-function-return-await-nested-imports.js":                       true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-gen-await-script-code-valid.js":                                true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-arrow-function-await-script-code-valid.js":                     true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-arrow-function-await-nested-imports.js":                        true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-function-return-await-empty-str-is-valid-assign-expr.js":       true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-gen-await-trailing-comma-first.js":                             true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-arrow-function-await-trailing-comma-second.js":                 true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-function-await-trailing-comma-first.js":                        true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-function-return-await-trailing-comma-second.js":                true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-gen-await-nested-imports.js":                                   true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-function-await-empty-str-is-valid-assign-expr.js":              true,
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-function-return-await-script-code-valid.js":                    true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-arrow-function-await-assignment-expr-not-optional.js":        true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-gen-await-assignment-expr-not-optional.js":                   true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-gen-await-no-new-call-expression.js":                         true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-function-return-await-assignment-expr-not-optional.js":       true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-arrow-function-return-await-not-extensible-args.js":          true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-arrow-function-await-not-extensible-args.js":                 true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-gen-await-no-rest-param.js":                                  true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-function-return-await-not-extensible-args.js":                true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-function-await-no-rest-param.js":                             true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-function-await-not-extensible-args.js":                       true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-arrow-function-return-await-no-new-call-expression.js":       true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-gen-await-not-extensible-args.js":                            true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-arrow-function-await-no-rest-param.js":                       true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-function-await-no-new-call-expression.js":                    true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-arrow-function-return-await-assignment-expr-not-optional.js": true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-arrow-function-return-await-no-rest-param.js":                true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-arrow-function-await-no-new-call-expression.js":              true,
+		"test/language/expressions/dynamic-import/update-to-dynamic-import.js":                                                             true,
+		"test/language/expressions/dynamic-import/syntax/invalid/nested-async-function-return-await-no-rest-param.js":                      true,
+		"test/language/expressions/dynamic-import/eval-rqstd-once.js":                                                                      true,
+		"test/language/expressions/dynamic-import/for-await-resolution-and-error-agen.js":                                                  true,
+		"test/language/expressions/dynamic-import/imported-self-update.js":                                                                 true,
+		"test/language/expressions/dynamic-import/indirect-resolution.js":                                                                  true,
+		"test/language/expressions/dynamic-import/assignment-expression/identifier.js":                                                     true,
+		"test/language/expressions/dynamic-import/assignment-expression/await-expr.js":                                                     true,
+		"test/language/expressions/dynamic-import/assignment-expression/call-expr-arguments.js":                                            true,
+		"test/language/expressions/dynamic-import/assignment-expression/additive-expr.js":                                                  true,
+		"test/language/expressions/dynamic-import/assignment-expression/array-literal.js":                                                  true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-return-await-eval-rqstd-abrupt-typeerror.js":           true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-return-await-eval-rqstd-abrupt-urierror.js":            true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-return-await-instn-iee-err-circular.js":                true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-delete-exported-init-strict.js":                                       true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-await-eval-script-code-target.js":                            true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-return-await-file-does-not-exist.js":                         true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-await-eval-rqstd-abrupt-typeerror.js":                  true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-await-instn-iee-err-circular.js":                             true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-set-same-values-strict.js":                                            true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-get-nested-namespace-props-nrml.js":                                   true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-await-eval-script-code-target.js":                                 true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-return-await-eval-rqstd-abrupt-typeerror.js":                      true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-await-file-does-not-exist.js":                                true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-has-property-str-found-init.js":                                       true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-no-iterator.js":                                                       true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-return-await-file-does-not-exist.js":                              true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-get-nested-namespace-dflt-direct.js":                                  true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-extensible.js":                                                        true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-delete-exported-init-no-strict.js":                                    true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-get-own-property-str-not-found.js":                                    true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-own-property-keys-sort.js":                                            true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-has-property-sym-found.js":                                            true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-set-prototype-of-null.js":                                             true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-set-no-strict.js":                                                     true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-define-own-property.js":                                               true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-prototype.js":                                                         true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-return-await-specifier-tostring-abrupt-rejects.js":           true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-get-nested-namespace-dflt-indirect.js":                                true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-get-str-not-found.js":                                                 true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-prevent-extensions-object.js":                                         true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-delete-non-exported-strict.js":                                        true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-delete-non-exported-no-strict.js":                                     true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-set-prototype-of.js":                                                  true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-has-property-sym-not-found.js":                                        true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-get-str-found.js":                                                     true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-set-same-values-no-strict.js":                                         true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-return-await-eval-script-code-target.js":                     true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-await-specifier-tostring-abrupt-rejects.js":                  true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-await-eval-rqstd-abrupt-typeerror.js":                             true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-await-instn-iee-err-ambiguous-import.js":               true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-get-own-property-str-found-init.js":                                   true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-return-await-instn-iee-err-circular.js":                           true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-return-await-eval-rqstd-abrupt-urierror.js":                       true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-await-instn-iee-err-ambiguous-import.js":                          true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-get-own-property-sym.js":                                              true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-await-specifier-tostring-abrupt-rejects.js":            true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-return-await-instn-iee-err-ambiguous-import.js":        true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-return-await-specifier-tostring-abrupt-rejects.js":                true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-await-file-does-not-exist.js":                                     true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-return-await-file-does-not-exist.js":                   true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-await-instn-iee-err-circular.js":                       true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-prop-descs.js":                                                        true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-get-sym-not-found.js":                                                 true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-await-instn-iee-err-circular.js":                                  true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-return-await-eval-rqstd-abrupt-typeerror.js":                 true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-has-property-str-not-found.js":                                        true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-prevent-extensions-reflect.js":                                        true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-await-file-does-not-exist.js":                          true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-return-await-eval-rqstd-abrupt-urierror.js":                  true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-get-sym-found.js":                                                     true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-await-instn-iee-err-ambiguous-import.js":                     true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-await-eval-rqstd-abrupt-typeerror.js":                        true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-await-eval-rqstd-abrupt-urierror.js":                              true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-Symbol-toStringTag.js":                                                true,
+		"test/language/expressions/dynamic-import/namespace/await-ns-set-strict.js":                                                        true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-await-eval-script-code-target.js":                      true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-return-await-specifier-tostring-abrupt-rejects.js":     true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-await-eval-rqstd-abrupt-urierror.js":                         true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-return-await-eval-script-code-target.js":                          true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-return-await-instn-iee-err-circular.js":                      true,
+		"test/language/expressions/dynamic-import/assignment-expression/ternary.js":                                                        true,
+		"test/language/expressions/dynamic-import/assignment-expression/logical-or-expr.js":                                                true,
+		"test/language/expressions/dynamic-import/assignment-expression/lhs-assign-operator-assign-expr.js":                                true,
+		"test/language/expressions/dynamic-import/assignment-expression/arrow-function.js":                                                 true,
+		"test/language/expressions/dynamic-import/assignment-expression/lhs-eq-assign-expr-nostrict.js":                                    true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-await-specifier-tostring-abrupt-rejects.js":                       true,
+		"test/language/expressions/dynamic-import/assignment-expression/lhs-eq-assign-expr.js":                                             true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-await-eval-rqstd-abrupt-urierror.js":                   true,
+		"test/language/expressions/dynamic-import/assignment-expression/object-literal.js":                                                 true,
+		"test/language/expressions/dynamic-import/catch/nested-async-arrow-function-return-await-eval-script-code-target.js":               true,
+		"test/language/expressions/dynamic-import/assignment-expression/cover-parenthesized-expr.js":                                       true,
+		"test/language/expressions/dynamic-import/catch/nested-async-gen-return-await-instn-iee-err-ambiguous-import.js":                   true,
+		"test/language/expressions/dynamic-import/assignment-expression/yield-assign-expr.js":                                              true,
+		"test/language/expressions/dynamic-import/assignment-expression/tagged-function-call.js":                                           true,
+		"test/language/expressions/dynamic-import/assignment-expression/new-target.js":                                                     true,
+		"test/language/expressions/dynamic-import/assignment-expression/yield-expr.js":                                                     true,
+		"test/language/expressions/dynamic-import/assignment-expression/this.js":                                                           true,
+		"test/language/expressions/dynamic-import/assignment-expression/member-expr.js":                                                    true,
+		"test/language/expressions/dynamic-import/assignment-expression/await-identifier.js":                                               true,
+		"test/language/expressions/dynamic-import/assignment-expression/cover-call-expr.js":                                                true,
+		"test/language/expressions/dynamic-import/catch/nested-async-function-return-await-instn-iee-err-ambiguous-import.js":              true,
+		"test/language/expressions/dynamic-import/assignment-expression/call-expr-identifier.js":                                           true,
+		"test/language/expressions/dynamic-import/assignment-expression/call-expr-expr.js":                                                 true,
+		"test/language/expressions/dynamic-import/assignment-expression/logical-and-expr.js":                                               true,
+		"test/language/expressions/dynamic-import/await-import-evaluation.js":                                                              true,
+		"test/language/expressions/dynamic-import/assignment-expression/yield-identifier.js":                                               true,
+		"test/language/expressions/dynamic-import/custom-primitive.js":                                                                     true,
+		"test/language/expressions/dynamic-import/eval-self-once-module.js":                                                                true,
+		"test/language/expressions/dynamic-import/eval-self-once-script.js":                                                                true,
+		"test/language/expressions/dynamic-import/2nd-param-await-expr.js":                                                                 true,
 
 		// legacy number literals
 		"test/language/literals/numeric/non-octal-decimal-integer.js": true,
@@ -217,6 +374,9 @@ var (
 
 		// Left-hand side as a CoverParenthesizedExpression
 		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
+
+		// 'new' with import
+		"test/language/expressions/dynamic-import/syntax/valid/new-covered-expression-is-valid.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -236,7 +396,6 @@ var (
 		"tail-call-optimization",
 		"Temporal",
 		"import-assertions",
-		"dynamic-import",
 		"logical-assignment-operators",
 		"Atomics",
 		"Atomics.waitAsync",
@@ -296,6 +455,9 @@ func init() {
 		"test/language/expressions/class/elements/multiple-stacked-definitions-rs-static-async-",
 		"test/language/statements/class/elements/multiple-definitions-rs-static-async-",
 		"test/language/expressions/class/elements/multiple-definitions-rs-static-async-",
+		"test/language/expressions/dynamic-import/catch/nested-async-",
+		"test/language/expressions/dynamic-import/usage/nested-async-",
+		"test/language/expressions/dynamic-import/syntax/valid/nested-async-",
 
 		// generators
 		"test/language/eval-code/direct/gen-",
@@ -321,6 +483,7 @@ func init() {
 		"test/language/expressions/class/elements/multiple-stacked-definitions-rs-static-generator-",
 		"test/language/statements/class/elements/multiple-definitions-rs-static-generator-",
 		"test/language/expressions/class/elements/multiple-definitions-rs-static-generator-",
+		"test/language/expressions/dynamic-import/assignment-expression/yield-",
 
 		// BigInt
 		"test/built-ins/TypedArrayConstructors/BigUint64Array/",
@@ -410,6 +573,15 @@ func (m *tc39Meta) hasFlag(flag string) bool {
 	return false
 }
 
+func (m *tc39Meta) hasFeature(feature string) bool {
+	for _, f := range m.Features {
+		if f == feature {
+			return true
+		}
+	}
+	return false
+}
+
 func parseTC39File(name string) (*tc39Meta, string, error) {
 	f, err := os.Open(name)
 	if err != nil {
@@ -483,7 +655,86 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	vm.Set("IgnorableTestError", ignorableTestError)
 	vm.RunProgram(ctx.sabStub)
 	var out []string
+	eventLoopQueue := make(chan func(), 2) // the most basic and likely buggy event loop
 	async := meta.hasFlag("async")
+
+	type cacheElement struct {
+		m   ModuleRecord
+		err error
+	}
+	cache := make(map[string]cacheElement)
+	mx := sync.Mutex{}
+
+	var hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
+	hostResolveImportedModule = func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error) {
+		mx.Lock()
+		defer mx.Unlock()
+		fname := path.Join(ctx.base, path.Dir(name), specifier)
+		k, ok := cache[fname]
+		if ok {
+			return k.m, k.err
+		}
+		f, err := os.Open(fname)
+		if err != nil {
+			cache[fname] = cacheElement{err: err}
+			return nil, err
+		}
+		defer f.Close()
+
+		b, err := ioutil.ReadAll(f)
+		if err != nil {
+			cache[fname] = cacheElement{err: err}
+			return nil, err
+		}
+
+		str := string(b)
+		p, err := ParseModule(fname, str, hostResolveImportedModule)
+		if err != nil {
+			cache[fname] = cacheElement{err: err}
+			return nil, err
+		}
+		cache[fname] = cacheElement{m: p}
+		return p, nil
+	}
+
+	dynamicImport := meta.hasFeature("dynamic-import")
+	if dynamicImport {
+		vm.importModuleDynamically = func(referencingScriptOrModule interface{}, specifierValue Value, pcap interface{}) {
+			specifier := specifierValue.String()
+			// TODO have this be a lot less stupid
+			p := pcap.(*promiseCapability) // FIX
+			go func() {
+				m, err := hostResolveImportedModule(referencingScriptOrModule, specifier)
+
+				eventLoopQueue <- func() {
+					defer vm.RunString("") // haxx
+					if err == nil {
+						err = m.Link()
+						if err == nil {
+							_, err = m.Evaluate(vm)
+						}
+					}
+					if err != nil {
+						// fmt.Printf("err %T %+v", err, err)
+						// TODO figure how to this more centralized
+						switch x1 := err.(type) {
+						case *Exception:
+							p.reject(x1.val)
+						case *CompilerSyntaxError:
+							p.reject(vm.builtin_new(vm.global.SyntaxError, []Value{newStringValue(x1.Error())}))
+						case *CompilerReferenceError:
+							p.reject(vm.newError(vm.global.ReferenceError, x1.Message))
+						default:
+							p.reject(vm.ToValue(err))
+						}
+						return
+					}
+					// finalize
+					p.resolve(vm.NamespaceObjectFor(m))
+				}
+			}()
+		}
+	}
 	if async {
 		err := ctx.runFile(ctx.base, path.Join("harness", "doneprintHandle.js"), vm)
 		if err != nil {
@@ -499,7 +750,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	var err error
 	var early bool
 	if meta.hasFlag("module") {
-		err, early = ctx.runTC39Module(name, src, meta.Includes, vm)
+		err, early = ctx.runTC39Module(name, src, meta.Includes, vm, hostResolveImportedModule)
 	} else {
 		err, early = ctx.runTC39Script(name, src, meta.Includes, vm)
 	}
@@ -553,7 +804,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		}
 	} else {
 		if meta.Negative.Type != "" {
-			vm.vm.prg.dumpCode(t.Logf)
+			// vm.vm.prg.dumpCode(t.Logf)
 			t.Fatalf("%s: Expected error: %v", name, err)
 		}
 	}
@@ -566,19 +817,27 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		t.Fatalf("iter stack is not empty: %d", l)
 	}
 	if async {
-		complete := false
-		for _, line := range out {
-			if strings.HasPrefix(line, "Test262:AsyncTestFailure:") {
-				t.Fatal(line)
-			} else if line == "Test262:AsyncTestComplete" {
-				complete = true
+		for {
+			complete := false
+			for _, line := range out {
+				if strings.HasPrefix(line, "Test262:AsyncTestFailure:") {
+					t.Fatal(line)
+				} else if line == "Test262:AsyncTestComplete" {
+					complete = true
+				}
 			}
-		}
-		if !complete {
+			if complete {
+				return
+			}
 			for _, line := range out {
 				t.Log(line)
 			}
-			t.Fatal("Test262:AsyncTestComplete was not printed")
+			select {
+			case fn := <-eventLoopQueue:
+				fn()
+			case <-time.After(time.Millisecond * 5000):
+				t.Fatal("nothing happened in 500ms :(")
+			}
 		}
 	}
 }
@@ -689,7 +948,7 @@ func (ctx *tc39TestCtx) runFile(base, name string, vm *Runtime) error {
 	return err
 }
 
-func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *Runtime) (err error, early bool) {
+func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *Runtime, hostResolveImportedModule HostResolveImportedModuleFunc) (err error, early bool) {
 	early = true
 	err = ctx.runFile(ctx.base, path.Join("harness", "assert.js"), vm)
 	if err != nil {
@@ -707,42 +966,6 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 			return
 		}
 	}
-	type cacheElement struct {
-		m   ModuleRecord
-		err error
-	}
-	cache := make(map[string]cacheElement)
-
-	var hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
-	hostResolveImportedModule = func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error) {
-		fname := path.Join(ctx.base, path.Dir(name), specifier)
-		k, ok := cache[fname]
-		if ok {
-			return k.m, k.err
-		}
-		f, err := os.Open(fname)
-		if err != nil {
-			cache[fname] = cacheElement{err: err}
-			return nil, err
-		}
-		defer f.Close()
-
-		b, err := ioutil.ReadAll(f)
-		if err != nil {
-			cache[fname] = cacheElement{err: err}
-			return nil, err
-		}
-
-		str := string(b)
-		p, err := ParseModule(fname, str, hostResolveImportedModule)
-		if err != nil {
-			cache[fname] = cacheElement{err: err}
-			return nil, err
-		}
-		cache[fname] = cacheElement{m: p}
-		return p, nil
-	}
-
 	m, err := hostResolveImportedModule(nil, path.Base(name))
 	if err != nil {
 		return

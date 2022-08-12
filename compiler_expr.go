@@ -220,6 +220,9 @@ type compiledOptional struct {
 	baseCompiledExpr
 	expr compiledExpr
 }
+type compiledDynamicImport struct {
+	baseCompiledExpr
+}
 
 func (e *defaultDeleteExpr) emitGetter(putOnStack bool) {
 	e.expr.emitGetter(false)
@@ -3142,10 +3145,16 @@ func (c *compiler) compileCallee(v ast.Expression) compiledExpr {
 		c.throwSyntaxError(int(v.Idx0())-1, "'super' keyword unexpected here")
 		panic("unreachable")
 	}
+	if imp, ok := v.(*ast.DynamicImportExpression); ok {
+		r := &compiledDynamicImport{}
+		r.init(c, imp.Idx)
+		return r
+	}
 	return c.compileExpression(v)
 }
 
 func (c *compiler) compileCallExpression(v *ast.CallExpression) compiledExpr {
+	// fmt.Printf("%+v %+v %T\n", v, v.Callee, v.Callee)
 	args := make([]compiledExpr, len(v.ArgumentList))
 	isVariadic := false
 	for i, argExpr := range v.ArgumentList {
@@ -3240,8 +3249,6 @@ func (c *compiler) compileBooleanLiteral(v *ast.BooleanLiteral) compiledExpr {
 }
 
 func (c *compiler) compileAssignExpression(v *ast.AssignExpression) compiledExpr {
-	// log.Printf("compileAssignExpression(): %+v", v)
-
 	r := &compiledAssignExpr{
 		left:     c.compileExpression(v.Left),
 		right:    c.compileExpression(v.Right),
@@ -3538,5 +3545,11 @@ func (e *compiledOptional) emitGetter(putOnStack bool) {
 	if putOnStack {
 		e.c.block.breaks = append(e.c.block.breaks, len(e.c.p.code))
 		e.c.emit(nil)
+	}
+}
+
+func (e *compiledDynamicImport) emitGetter(putOnStack bool) {
+	if putOnStack {
+		e.c.emit(dynamicImport)
 	}
 }

@@ -188,6 +188,7 @@ type Runtime struct {
 
 	getImportMetaProperties func(ModuleRecord) []MetaProperty
 	finalizeImportMeta      func(*Object, ModuleRecord)
+	importModuleDynamically func(interface{}, Value, interface{})
 
 	jobQueue []func()
 
@@ -1454,8 +1455,10 @@ func (r *Runtime) continueRunProgram(_ *Program, context *context, stack valueSt
 		vm.sb = vm.sp - 1
 	}
 	vm.result = _undefined
+	// sb := vm.sb
 	vm.restoreCtx(context)
 	vm.stack = stack
+	// vm.sb = sb
 	// fmt.Println("continue sb ", vm.sb, vm.callStack)
 	// fmt.Println("stack at continue", vm.stack)
 	ex := vm.runTry()
