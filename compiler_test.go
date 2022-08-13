@@ -1,7 +1,7 @@
 package goja
 
 import (
-	"io/ioutil"
+	"os"
 	"sync"
 	"testing"
 )
@@ -5550,7 +5550,7 @@ func TestThisResolutionWithStackVar(t *testing.T) {
 
 /*
 func TestBabel(t *testing.T) {
-	src, err := ioutil.ReadFile("babel7.js")
+	src, err := os.ReadFile("babel7.js")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -5566,7 +5566,7 @@ func TestBabel(t *testing.T) {
 }*/
 
 func BenchmarkCompile(b *testing.B) {
-	data, err := ioutil.ReadFile("testdata/S15.10.2.12_A1_T1.js")
+	data, err := os.ReadFile("testdata/S15.10.2.12_A1_T1.js")
 	if err != nil {
 		b.Fatal(err)
 	}

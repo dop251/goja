@@ -3,8 +3,7 @@ package goja
 import (
 	"errors"
 	"fmt"
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
+	"io"
 	"os"
 	"path"
 	"sort"
@@ -12,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -412,7 +413,7 @@ func parseTC39File(name string) (*tc39Meta, string, error) {
 	}
 	defer f.Close()
 
-	b, err := ioutil.ReadAll(f)
+	b, err := io.ReadAll(f)
 	if err != nil {
 		return nil, "", err
 	}
@@ -652,7 +653,7 @@ func (ctx *tc39TestCtx) compile(base, name string) (*Program, error) {
 		}
 		defer f.Close()
 
-		b, err := ioutil.ReadAll(f)
+		b, err := io.ReadAll(f)
 		if err != nil {
 			return nil, err
 		}
@@ -710,7 +711,7 @@ func (ctx *tc39TestCtx) runTC39Script(name, src string, includes []string, vm *R
 }
 
 func (ctx *tc39TestCtx) runTC39Tests(name string) {
-	files, err := ioutil.ReadDir(path.Join(ctx.base, name))
+	files, err := os.ReadDir(path.Join(ctx.base, name))
 	if err != nil {
 		ctx.t.Fatal(err)
 	}

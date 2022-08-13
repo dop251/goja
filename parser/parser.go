@@ -36,7 +36,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
+	"os"
 
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
@@ -147,7 +147,7 @@ func ReadSource(filename string, src interface{}) ([]byte, error) {
 		}
 		return nil, errors.New("invalid source")
 	}
-	return ioutil.ReadFile(filename)
+	return os.ReadFile(filename)
 }
 
 // ParseFile parses the source code of a single JavaScript/ECMAScript source file and returns

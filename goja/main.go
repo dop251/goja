@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"math/rand"
 	"os"
@@ -23,9 +23,9 @@ var timelimit = flag.Int("timelimit", 0, "max time to run (in seconds)")
 
 func readSource(filename string) ([]byte, error) {
 	if filename == "" || filename == "-" {
-		return ioutil.ReadAll(os.Stdin)
+		return io.ReadAll(os.Stdin)
 	}
-	return ioutil.ReadFile(filename)
+	return os.ReadFile(filename)
 }
 
 func load(vm *goja.Runtime, call goja.FunctionCall) goja.Value {
@@ -71,7 +71,7 @@ func run() error {
 	})
 
 	vm.Set("readFile", func(name string) (string, error) {
-		b, err := ioutil.ReadFile(name)
+		b, err := os.ReadFile(name)
 		if err != nil {
 			return "", err
 		}
