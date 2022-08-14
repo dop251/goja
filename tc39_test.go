@@ -303,9 +303,7 @@ func init() {
 	}
 
 	skip(
-		// Go 1.14 only supports unicode 12
-		"test/language/identifiers/start-unicode-13.",
-		"test/language/identifiers/part-unicode-13.",
+		// Go 1.16 only supports unicode 13
 		"test/language/identifiers/start-unicode-14.",
 		"test/language/identifiers/part-unicode-14.",
 
