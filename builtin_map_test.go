@@ -62,6 +62,46 @@ func TestMapEvilIterator(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestMapExportToNilMap(t *testing.T) {
+	vm := New()
+	var m map[int]interface{}
+	res, err := vm.RunString("new Map([[1, true]])")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = vm.ExportTo(res, &m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m) != 1 {
+		t.Fatal(m)
+	}
+	if _, exists := m[1]; !exists {
+		t.Fatal(m)
+	}
+}
+
+func TestMapExportToNonNilMap(t *testing.T) {
+	vm := New()
+	m := map[int]interface{}{
+		2: true,
+	}
+	res, err := vm.RunString("new Map([[1, true]])")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = vm.ExportTo(res, &m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m) != 1 {
+		t.Fatal(m)
+	}
+	if _, exists := m[1]; !exists {
+		t.Fatal(m)
+	}
+}
+
 func ExampleObject_Export_map() {
 	vm := New()
 	m, err := vm.RunString(`

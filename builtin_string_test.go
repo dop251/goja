@@ -252,4 +252,27 @@ func TestValueStringBuilder(t *testing.T) {
 			t.Fatal(res)
 		}
 	})
+
+	t.Run("concat_ASCII_importedASCII", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		sb.WriteString(asciiString("ascii"))
+		sb.WriteString(&importedString{s: " imported_ascii1234567890"})
+		s := sb.String()
+		if res, ok := s.(asciiString); !ok || res != "ascii imported_ascii1234567890" {
+			t.Fatal(s)
+		}
+	})
+
+	t.Run("concat_ASCII_importedUnicode", func(t *testing.T) {
+		t.Parallel()
+		var sb valueStringBuilder
+		sb.WriteString(asciiString("ascii"))
+		sb.WriteString(&importedString{s: " imported_юникод"})
+		s := sb.String()
+		if res, ok := s.(unicodeString); !ok || !res.SameAs(newStringValue("ascii imported_юникод")) {
+			t.Fatal(s)
+		}
+	})
+
 }

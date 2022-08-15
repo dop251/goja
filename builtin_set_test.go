@@ -100,3 +100,43 @@ func TestSetExportToArrayMismatchedLengths(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestSetExportToNilMap(t *testing.T) {
+	vm := New()
+	var m map[int]interface{}
+	res, err := vm.RunString("new Set([1])")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = vm.ExportTo(res, &m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m) != 1 {
+		t.Fatal(m)
+	}
+	if _, exists := m[1]; !exists {
+		t.Fatal(m)
+	}
+}
+
+func TestSetExportToNonNilMap(t *testing.T) {
+	vm := New()
+	m := map[int]interface{}{
+		2: true,
+	}
+	res, err := vm.RunString("new Set([1])")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = vm.ExportTo(res, &m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m) != 1 {
+		t.Fatal(m)
+	}
+	if _, exists := m[1]; !exists {
+		t.Fatal(m)
+	}
+}

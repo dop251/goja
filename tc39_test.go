@@ -3,7 +3,7 @@ package goja
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path"
 	"sort"
@@ -29,6 +29,54 @@ var (
 	skipPrefixes prefixList
 
 	skipList = map[string]bool{
+		// out-of-date (https://github.com/tc39/test262/issues/3407)
+		"test/language/expressions/prefix-increment/S11.4.4_A6_T3.js":        true,
+		"test/language/expressions/prefix-increment/S11.4.4_A6_T2.js":        true,
+		"test/language/expressions/prefix-increment/S11.4.4_A6_T1.js":        true,
+		"test/language/expressions/prefix-decrement/S11.4.5_A6_T3.js":        true,
+		"test/language/expressions/prefix-decrement/S11.4.5_A6_T2.js":        true,
+		"test/language/expressions/prefix-decrement/S11.4.5_A6_T1.js":        true,
+		"test/language/expressions/postfix-increment/S11.3.1_A6_T3.js":       true,
+		"test/language/expressions/postfix-increment/S11.3.1_A6_T2.js":       true,
+		"test/language/expressions/postfix-increment/S11.3.1_A6_T1.js":       true,
+		"test/language/expressions/postfix-decrement/S11.3.2_A6_T3.js":       true,
+		"test/language/expressions/postfix-decrement/S11.3.2_A6_T2.js":       true,
+		"test/language/expressions/postfix-decrement/S11.3.2_A6_T1.js":       true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.1_T4.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.1_T2.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.1_T1.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.11_T4.js": true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.11_T2.js": true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.11_T1.js": true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.10_T4.js": true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.10_T2.js": true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.10_T1.js": true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.9_T4.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.9_T2.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.9_T1.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.8_T4.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.8_T2.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.8_T1.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.7_T4.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.7_T2.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.7_T1.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.6_T4.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.6_T2.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.6_T1.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.5_T4.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.5_T2.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.5_T1.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.4_T4.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.4_T2.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.4_T1.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.3_T4.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.3_T2.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.3_T1.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.2_T4.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.2_T2.js":  true,
+		"test/language/expressions/compound-assignment/S11.13.2_A7.2_T1.js":  true,
+		"test/language/expressions/assignment/S11.13.1_A7_T3.js":             true,
+
 		// timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true,
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true,
@@ -377,6 +425,13 @@ var (
 
 		// 'new' with import
 		"test/language/expressions/dynamic-import/syntax/valid/new-covered-expression-is-valid.js": true,
+
+		// unpaired surrogates pairs in import/exports
+		"test/language/module-code/export-expname-import-unpaired-surrogate.js":  true,
+		"test/language/module-code/export-expname-from-unpaired-surrogate.js":    true,
+		"test/language/module-code/export-expname-from-as-unpaired-surrogate.js": true,
+		"test/language/module-code/export-expname-unpaired-surrogate.js":         true,
+		"test/language/module-code/export-expname-string-binding.js":             true,
 	}
 
 	featuresBlackList = []string{
@@ -424,9 +479,7 @@ func init() {
 	}
 
 	skip(
-		// Go 1.14 only supports unicode 12
-		"test/language/identifiers/start-unicode-13.",
-		"test/language/identifiers/part-unicode-13.",
+		// Go 1.16 only supports unicode 13
 		"test/language/identifiers/start-unicode-14.",
 		"test/language/identifiers/part-unicode-14.",
 
@@ -458,6 +511,8 @@ func init() {
 		"test/language/expressions/dynamic-import/catch/nested-async-",
 		"test/language/expressions/dynamic-import/usage/nested-async-",
 		"test/language/expressions/dynamic-import/syntax/valid/nested-async-",
+		"test/language/module-code/export-default-asyncfunction-",
+		"test/language/module-code/export-default-asyncgenerator-",
 
 		// generators
 		"test/language/eval-code/direct/gen-",
@@ -484,6 +539,7 @@ func init() {
 		"test/language/statements/class/elements/multiple-definitions-rs-static-generator-",
 		"test/language/expressions/class/elements/multiple-definitions-rs-static-generator-",
 		"test/language/expressions/dynamic-import/assignment-expression/yield-",
+		"test/language/module-code/export-default-generator-",
 
 		// BigInt
 		"test/built-ins/TypedArrayConstructors/BigUint64Array/",
@@ -589,7 +645,7 @@ func parseTC39File(name string) (*tc39Meta, string, error) {
 	}
 	defer f.Close()
 
-	b, err := ioutil.ReadAll(f)
+	b, err := io.ReadAll(f)
 	if err != nil {
 		return nil, "", err
 	}
@@ -681,7 +737,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		}
 		defer f.Close()
 
-		b, err := ioutil.ReadAll(f)
+		b, err := io.ReadAll(f)
 		if err != nil {
 			cache[fname] = cacheElement{err: err}
 			return nil, err
@@ -836,7 +892,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 			case fn := <-eventLoopQueue:
 				fn()
 			case <-time.After(time.Millisecond * 5000):
-				t.Fatal("nothing happened in 500ms :(")
+				t.Fatal("nothing happened in 5s :(")
 			}
 		}
 	}
@@ -857,10 +913,6 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		return
 	}
 	if meta.Es5id == "" {
-		if meta.Es6id == "" && meta.Esid == "" {
-			t.Skip("No ids")
-		}
-
 		for _, feature := range meta.Features {
 			for _, bl := range featuresBlackList {
 				if feature == bl {
@@ -923,7 +975,7 @@ func (ctx *tc39TestCtx) compile(base, name string) (*Program, error) {
 		}
 		defer f.Close()
 
-		b, err := ioutil.ReadAll(f)
+		b, err := io.ReadAll(f)
 		if err != nil {
 			return nil, err
 		}
@@ -1015,7 +1067,7 @@ func (ctx *tc39TestCtx) runTC39Script(name, src string, includes []string, vm *R
 }
 
 func (ctx *tc39TestCtx) runTC39Tests(name string) {
-	files, err := ioutil.ReadDir(path.Join(ctx.base, name))
+	files, err := os.ReadDir(path.Join(ctx.base, name))
 	if err != nil {
 		ctx.t.Fatal(err)
 	}
