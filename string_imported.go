@@ -133,6 +133,10 @@ func (i *importedString) ExportType() reflect.Type {
 }
 
 func (i *importedString) baseObject(r *Runtime) *Object {
+	i.ensureScanned()
+	if i.u != nil {
+		return i.u.baseObject(r)
+	}
 	return asciiString(i.s).baseObject(r)
 }
 

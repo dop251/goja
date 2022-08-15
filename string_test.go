@@ -133,6 +133,7 @@ func TestImportedString(t *testing.T) {
 
 	for i, a := range strs {
 		testUnaryOp(a, "JSON.parse(JSON.stringify(a))", a, t)
+		testUnaryOp(a, "a.length", int64(len(utf16.Encode([]rune(a)))), t)
 		for j, b := range strs {
 			testBinaryOp(a, b, "a === b", a == b, t)
 			testBinaryOp(a, b, "a == b", a == b, t)
