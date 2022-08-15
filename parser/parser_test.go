@@ -453,7 +453,7 @@ func TestParserErr(t *testing.T) {
 			test("{a: 1,}", "(anonymous): Line 1:7 Unexpected token }")
 			test("{a: 1, b: 2}", "(anonymous): Line 1:9 Unexpected token :")
 			test("{a: 1, b: 2,}", "(anonymous): Line 1:9 Unexpected token :")
-			test(`let f = () => new import('');`, "(anonymous): Line 1:19 import not supported in script")
+			test(`let f = () => new import('');`, "(anonymous): Line 1:15 You can't use new with import()")
 
 		}
 
