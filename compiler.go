@@ -959,11 +959,8 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		if v == nil || ambiguous {
 			c.compileAmbiguousImport(unistring.NewFromString(in.importName))
 		}
-
 	}
-	// scope.module = module
-	// module.scope = scope
-	// 15.2.1.17.4 step 9 start
+
 	for _, in := range module.importEntries {
 		importedModule, err := c.hostResolveImportedModule(module, in.moduleRequest)
 		if err != nil {
@@ -980,7 +977,6 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 			c.createImmutableBinding(unistring.NewFromString(in.localName), true)
 		}
 	}
-	// 15.2.1.17.4 step 9 end
 	funcs := c.extractFunctions(in.Body)
 	c.createFunctionBindings(funcs)
 	numFuncs := len(scope.bindings)
@@ -1041,17 +1037,11 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		b.markAccessPoint()
 
 		exportName := unistring.NewFromString(entry.localName)
-		lex := entry.lex || !scope.boundNames[exportName].isVar
 		callback := func(vm *vm, getter func() Value) {
-			m := vm.r.modules[module]
-
-			if s, ok := m.(*SourceTextModuleInstance); !ok {
-				vm.r.throwReferenceError(exportName) // TODO fix
-			} else {
-				s.exportGetters[exportName] = getter
-			}
+			vm.r.modules[module].(*SourceTextModuleInstance).exportGetters[exportName] = getter
 		}
-		if lex {
+
+		if entry.lex || !scope.boundNames[exportName].isVar {
 			c.emit(exportLex{callback: callback})
 		} else {
 			c.emit(export{callback: callback})
@@ -1076,14 +1066,8 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		c.emit(exportIndirect{callback: func(vm *vm) {
 			m := vm.r.modules[module]
 			m2 := vm.r.modules[b.Module]
-
-			if s, ok := m.(*SourceTextModuleInstance); !ok {
-				vm.r.throwReferenceError(exportName) // TODO fix
-			} else {
-				s.exportGetters[exportName] = func() Value {
-					v := m2.GetBindingValue(importName)
-					return v
-				}
+			m.(*SourceTextModuleInstance).exportGetters[exportName] = func() Value {
+				return m2.GetBindingValue(importName)
 			}
 		}})
 	}
@@ -1106,8 +1090,8 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 	if !inGlobal || ownVarScope {
 		c.compileFunctions(funcs)
 	}
-	c.emit(notReallyYield) //  this to stop us execute once after we initialize globals
-	// TODO figure something better :grimacing:
+	// TODO figure something better 😬
+	c.emit(notReallyYield) // this to stop us execute once after we initialize globals
 	c.compileStatements(in.Body, true)
 	if enter != nil {
 		c.leaveScopeBlock(enter)
@@ -1372,8 +1356,6 @@ func (c *compiler) createImmutableBinding(name unistring.String, isConst bool) *
 	b, _ := c.scope.bindName(name)
 	b.inStash = true
 	b.isConst = isConst
-	// b.isVar = true // TODO figure out if this needs to be true at some point
-	// b.isStrict = isStrict
 	return b
 }
 
@@ -1427,37 +1409,32 @@ func (c *compiler) createLexicalBindings(lex *ast.LexicalDeclaration) {
 }
 
 func (c *compiler) compileLexicalDeclarations(list []ast.Statement, scopeDeclared bool) bool {
+	declareScope := func() {
+		if !scopeDeclared {
+			c.newBlockScope()
+			scopeDeclared = true
+		}
+	}
 	for _, st := range list {
-		if lex, ok := st.(*ast.LexicalDeclaration); ok {
-			if !scopeDeclared {
-				c.newBlockScope()
-				scopeDeclared = true
-			}
+		switch lex := st.(type) {
+		case *ast.LexicalDeclaration:
+			declareScope()
 			c.createLexicalBindings(lex)
-		} else if cls, ok := st.(*ast.ClassDeclaration); ok {
-			if !scopeDeclared {
-				c.newBlockScope()
-				scopeDeclared = true
-			}
-			c.createLexicalIdBinding(cls.Class.Name.Name, false, int(cls.Class.Name.Idx)-1)
-		} else if exp, ok := st.(*ast.ExportDeclaration); ok && exp.LexicalDeclaration != nil {
-			// TODO refactor
-			if !scopeDeclared {
-				c.newBlockScope()
-				scopeDeclared = true
-			}
-			c.createLexicalBindings(exp.LexicalDeclaration)
-		} else if exp, ok := st.(*ast.ExportDeclaration); ok && exp.ClassDeclaration != nil {
-			// TODO refactor
-			if !scopeDeclared {
-				c.newBlockScope()
-				scopeDeclared = true
-			}
-			cls := exp.ClassDeclaration
-			if exp.IsDefault {
-				c.createLexicalIdBinding("default", false, int(exp.Idx0())-1)
-			} else {
-				c.createLexicalIdBinding(cls.Class.Name.Name, false, int(cls.Class.Name.Idx)-1)
+		case *ast.ClassDeclaration:
+			declareScope()
+			c.createLexicalIdBinding(lex.Class.Name.Name, false, int(lex.Class.Name.Idx)-1)
+		case *ast.ExportDeclaration:
+			if lex.LexicalDeclaration != nil {
+				declareScope()
+				c.createLexicalBindings(lex.LexicalDeclaration)
+			} else if lex.ClassDeclaration != nil {
+				declareScope()
+				if lex.IsDefault {
+					c.createLexicalIdBinding("default", false, int(lex.Idx0())-1)
+				} else {
+					cls := lex.ClassDeclaration
+					c.createLexicalIdBinding(cls.Class.Name.Name, false, int(cls.Class.Name.Idx)-1)
+				}
 			}
 		}
 	}

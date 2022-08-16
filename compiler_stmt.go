@@ -52,8 +52,7 @@ func (c *compiler) compileStatement(v ast.Statement, needResult bool) {
 		c.compileWithStatement(v, needResult)
 	case *ast.DebuggerStatement:
 	case *ast.ImportDeclaration:
-		// c.compileImportDeclaration(v)
-		// TODO explain this maybe do something in here as well ?
+		// this is already done, earlier
 	case *ast.ExportDeclaration:
 		c.compileExportDeclaration(v)
 	default:
@@ -785,22 +784,21 @@ func (c *compiler) emitVarAssign(name unistring.String, offset int, init compile
 }
 
 func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
-	// module := c.module // the compiler.module might be different at execution of this
-	// fmt.Printf("Export %#v\n", expr)
-	if expr.Variable != nil {
+	switch {
+	case expr.Variable != nil:
 		c.compileVariableStatement(expr.Variable)
-	} else if expr.LexicalDeclaration != nil {
+	case expr.LexicalDeclaration != nil:
 		c.compileLexicalDeclaration(expr.LexicalDeclaration)
-	} else if expr.ClassDeclaration != nil {
+	case expr.ClassDeclaration != nil:
 		cls := expr.ClassDeclaration
 		if expr.IsDefault {
 			c.emitLexicalAssign("default", int(cls.Class.Class)-1, c.compileClassLiteral(cls.Class, false))
 		} else {
 			c.compileClassDeclaration(cls)
 		}
-	} else if expr.HoistableDeclaration != nil {
-		// already done
-	} else if assign := expr.AssignExpression; assign != nil {
+	case expr.HoistableDeclaration != nil: // already handled
+	case expr.AssignExpression != nil:
+		assign := expr.AssignExpression
 		c.compileLexicalDeclaration(&ast.LexicalDeclaration{
 			Idx:   assign.Idx0(),
 			Token: token.CONST,
@@ -814,14 +812,13 @@ func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
 				},
 			},
 		})
-	} else if expr.ExportFromClause != nil {
+	case expr.ExportFromClause != nil:
 		from := expr.ExportFromClause
 		module, err := c.hostResolveImportedModule(c.module, expr.FromClause.ModuleSpecifier.String())
 		if err != nil {
-			// TODO this should in practice never happen
 			c.throwSyntaxError(int(expr.Idx0()), err.Error())
 		}
-		if from.NamedExports == nil { // star export -nothing to do
+		if from.NamedExports == nil { // star export - nothing to do
 			return
 		}
 		for _, name := range from.NamedExports.ExportsList {
@@ -841,8 +838,7 @@ func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
 			}
 			identifier := name.IdentifierName // name will be reused in the for loop
 			localB.getIndirect = func(vm *vm) Value {
-				m := vm.r.modules[module]
-				return m.GetBindingValue(identifier)
+				return vm.r.modules[module].GetBindingValue(identifier)
 			}
 		}
 	}
@@ -850,16 +846,15 @@ func (c *compiler) compileExportDeclaration(expr *ast.ExportDeclaration) {
 
 func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 	if expr.FromClause == nil {
-		return // TODO is this right?
+		return // import "specifier";
 	}
 	module, err := c.hostResolveImportedModule(c.module, expr.FromClause.ModuleSpecifier.String())
 	if err != nil {
-		// TODO this should in practice never happen
 		c.throwSyntaxError(int(expr.Idx0()), err.Error())
 	}
 	if expr.ImportClause != nil {
 		if namespace := expr.ImportClause.NameSpaceImport; namespace != nil {
-			idx := expr.Idx // TODO fix
+			idx := expr.Idx
 			c.emitLexicalAssign(
 				namespace.ImportedBinding,
 				int(idx),
@@ -874,7 +869,7 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 			for _, name := range named.ImportsList {
 				value, ambiguous := module.ResolveExport(name.IdentifierName.String())
 
-				if ambiguous || value == nil { // also ambiguous
+				if ambiguous || value == nil {
 					continue // ambiguous import already reports
 				}
 				n := name.Alias
@@ -882,7 +877,7 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 					n = name.IdentifierName
 				}
 				if value.BindingName == "*namespace*" {
-					idx := expr.Idx // TODO fix
+					idx := expr.Idx
 					c.emitLexicalAssign(
 						n,
 						int(idx),
@@ -911,7 +906,7 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 		if def := expr.ImportClause.ImportedDefaultBinding; def != nil {
 			value, ambiguous := module.ResolveExport("default")
 
-			if ambiguous || value == nil { // also ambiguous
+			if ambiguous || value == nil {
 				return // already handled
 			}
 
@@ -920,7 +915,7 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 				c.throwSyntaxError(int(expr.Idx0()), "couldn't lookup  %s", def.Name)
 			}
 			if value.BindingName == "*namespace*" {
-				idx := expr.Idx // TODO fix
+				idx := expr.Idx
 				c.emitLexicalAssign(
 					def.Name,
 					int(idx),

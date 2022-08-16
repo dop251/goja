@@ -17,8 +17,7 @@ type HostResolveImportedModuleFunc func(referencingScriptOrModule interface{}, s
 
 // ModuleRecord is the common interface for module record as defined in the EcmaScript specification
 type ModuleRecord interface {
-	// TODO move to ModuleInstance
-	GetExportedNames(resolveset ...ModuleRecord) []string // TODO maybe this parameter is wrong
+	GetExportedNames(resolveset ...ModuleRecord) []string
 	ResolveExport(exportName string, resolveset ...ResolveSetElement) (*ResolvedBinding, bool)
 	Link() error
 	Evaluate(*Runtime) (ModuleInstance, error)
@@ -67,8 +66,7 @@ func (c *compiler) innerModuleLinking(state *linkState, m ModuleRecord, stack *[
 	var module CyclicModuleRecord
 	var ok bool
 	if module, ok = m.(CyclicModuleRecord); !ok {
-		err := m.Link() // TODO fix
-		return index, err
+		return index, m.Link()
 	}
 	if status := state.status[module]; status == Linking || status == Linked || status == Evaluated {
 		return index, nil
