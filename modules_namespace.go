@@ -108,7 +108,7 @@ func (no *namespaceObject) getOwnPropStr(name unistring.String) Value {
 	}
 
 	mi := no.val.runtime.modules[v.Module]
-	b := mi.GetBindingValue(unistring.NewFromString(v.BindingName))
+	b := mi.GetBindingValue(v.BindingName)
 	if b == nil {
 		// TODO figure this out - this is needed as otherwise valueproperty is thought to not have a value
 		// which isn't really correct in a particular test around isFrozen

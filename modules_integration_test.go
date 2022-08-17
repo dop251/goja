@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
-	"github.com/dop251/goja/unistring"
 )
 
 type simpleComboResolver struct {
@@ -275,8 +274,8 @@ type simpleModuleInstanceImpl struct {
 	rt *goja.Runtime
 }
 
-func (si *simpleModuleInstanceImpl) GetBindingValue(exportName unistring.String) goja.Value {
-	if exportName.String() == "coolStuff" {
+func (si *simpleModuleInstanceImpl) GetBindingValue(exportName string) goja.Value {
+	if exportName == "coolStuff" {
 		return si.rt.ToValue(5)
 	}
 	return nil
@@ -349,8 +348,8 @@ func (si *cyclicModuleInstanceImpl) ExecuteModule(rt *goja.Runtime) (goja.Cyclic
 	return nil, nil
 }
 
-func (si *cyclicModuleInstanceImpl) GetBindingValue(exportName unistring.String) goja.Value {
-	b, ambigious := si.module.ResolveExport(exportName.String())
+func (si *cyclicModuleInstanceImpl) GetBindingValue(exportName string) goja.Value {
+	b, ambigious := si.module.ResolveExport(exportName)
 	if ambigious || b == nil {
 		panic("fix this")
 	}

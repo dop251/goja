@@ -7,7 +7,6 @@ import (
 
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/parser"
-	"github.com/dop251/goja/unistring"
 )
 
 type HostResolveImportedModuleFunc func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
@@ -219,7 +218,7 @@ func (r *Runtime) innerModuleEvaluation(
 
 type (
 	ModuleInstance interface {
-		GetBindingValue(unistring.String) Value
+		GetBindingValue(string) Value
 	}
 	CyclicModuleInstance interface {
 		ModuleInstance
@@ -234,7 +233,7 @@ var _ CyclicModuleInstance = &SourceTextModuleInstance{}
 type SourceTextModuleInstance struct {
 	moduleRecord *SourceTextModuleRecord
 	// TODO figure out omething less idiotic
-	exportGetters map[unistring.String]func() Value
+	exportGetters map[string]func() Value
 	context       *context //  hacks haxx
 	stack         valueStack
 }
@@ -244,7 +243,7 @@ func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime) (CyclicModuleInsta
 	return s, err
 }
 
-func (s *SourceTextModuleInstance) GetBindingValue(name unistring.String) Value {
+func (s *SourceTextModuleInstance) GetBindingValue(name string) Value {
 	getter, ok := s.exportGetters[name]
 	if !ok { // let's not panic in case somebody asks for a binding that isn't exported
 		return nil
@@ -727,7 +726,7 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 func (module *SourceTextModuleRecord) Instantiate(rt *Runtime) (CyclicModuleInstance, error) {
 	mi := &SourceTextModuleInstance{
 		moduleRecord:  module,
-		exportGetters: make(map[unistring.String]func() Value),
+		exportGetters: make(map[string]func() Value),
 	}
 	rt.modules[module] = mi
 	// TODO figure a better way

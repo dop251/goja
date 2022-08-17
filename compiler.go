@@ -1038,7 +1038,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 
 		exportName := unistring.NewFromString(entry.localName)
 		callback := func(vm *vm, getter func() Value) {
-			vm.r.modules[module].(*SourceTextModuleInstance).exportGetters[exportName] = getter
+			vm.r.modules[module].(*SourceTextModuleInstance).exportGetters[exportName.String()] = getter
 		}
 
 		if entry.lex || !scope.boundNames[exportName].isVar {
@@ -1061,8 +1061,8 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 			continue
 		}
 
-		exportName := unistring.NewFromString(entry.exportName)
-		importName := unistring.NewFromString(b.BindingName)
+		exportName := unistring.NewFromString(entry.exportName).String()
+		importName := unistring.NewFromString(b.BindingName).String()
 		c.emit(exportIndirect{callback: func(vm *vm) {
 			m := vm.r.modules[module]
 			m2 := vm.r.modules[b.Module]
