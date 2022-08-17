@@ -188,7 +188,7 @@ type Runtime struct {
 
 	getImportMetaProperties func(ModuleRecord) []MetaProperty
 	finalizeImportMeta      func(*Object, ModuleRecord)
-	importModuleDynamically func(interface{}, Value, interface{})
+	importModuleDynamically ImportModuleDynamicallyCallback
 
 	jobQueue []func()
 

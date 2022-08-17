@@ -801,3 +801,29 @@ func (r *Runtime) SetGetImportMetaProperties(fn func(ModuleRecord) []MetaPropert
 func (r *Runtime) SetFinalImportMeta(fn func(*Object, ModuleRecord)) {
 	r.finalizeImportMeta = fn
 }
+
+// TODO fix signature
+type ImportModuleDynamicallyCallback func(referencingScriptOrModule interface{}, specifier Value, promiseCapability interface{})
+
+func (r *Runtime) SetImportModuleDynamically(callback ImportModuleDynamicallyCallback) {
+	r.importModuleDynamically = callback
+}
+
+// TODO figure out the arguments
+func (r *Runtime) FinalizeDynamicImport(m ModuleRecord, pcap interface{}, err interface{}) {
+	p := pcap.(*promiseCapability)
+	if err != nil {
+		switch x1 := err.(type) {
+		case *Exception:
+			p.reject(x1.val)
+		case *CompilerSyntaxError:
+			p.reject(r.builtin_new(r.global.SyntaxError, []Value{newStringValue(x1.Error())}))
+		case *CompilerReferenceError:
+			p.reject(r.newError(r.global.ReferenceError, x1.Message))
+		default:
+			p.reject(r.ToValue(err))
+		}
+		return
+	}
+	p.resolve(r.NamespaceObjectFor(m))
+}

@@ -3,9 +3,11 @@ package goja_test // this is on purpose in a separate package
 import (
 	"fmt"
 	"io/fs"
+	"sort"
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja/unistring"
@@ -107,6 +109,7 @@ func TestNotSourceModulesBigTest(t *testing.T) {
         if (otherCoolStuff != 5) {
             throw "otherCoolStuff isn't a 5 it is a "+ otherCoolStuff
         }
+        globalThis.s = true
         `),
 	}
 	resolver.fs = mapfs
@@ -121,9 +124,122 @@ func TestNotSourceModulesBigTest(t *testing.T) {
 		t.Fatalf("got error %s", err)
 	}
 	vm := goja.New()
+	_, err = vm.CyclicModuleRecordEvaluate(m, resolver.resolve)
+	if err != nil {
+		t.Fatalf("got error %s", err)
+	}
+	if s := vm.GlobalObject().Get("s"); s == nil || !s.ToBoolean() {
+		t.Fatalf("test didn't run till the end")
+	}
+}
+
+func TestNotSourceModulesBigTestDynamicImport(t *testing.T) {
+	t.Parallel()
+	resolver := newSimpleComboResolver()
+	resolver.custom = func(_ interface{}, specifier string) (goja.ModuleRecord, error) {
+		switch specifier {
+		case "custom:coolstuff":
+			return &simpleModuleImpl{}, nil
+		case "custom:coolstuff2":
+			return &cyclicModuleImpl{
+				resolve:          resolver.resolve,
+				requestedModules: []string{"custom:coolstuff3", "custom:coolstuff"},
+				exports: map[string]unresolvedBinding{
+					"coolStuff": {
+						bidning: "coolStuff",
+						module:  "custom:coolstuff",
+					},
+					"otherCoolStuff": { // request it from third module which will request it back from us
+						bidning: "coolStuff",
+						module:  "custom:coolstuff3",
+					},
+				},
+			}, nil
+		case "custom:coolstuff3":
+			return &cyclicModuleImpl{
+				resolve:          resolver.resolve,
+				requestedModules: []string{"custom:coolstuff2"},
+				exports: map[string]unresolvedBinding{
+					"coolStuff": { // request it back from the module
+						bidning: "coolStuff",
+						module:  "custom:coolstuff2",
+					},
+				},
+			}, nil
+		default:
+			return nil, fmt.Errorf("unknown module %q", specifier)
+		}
+	}
+	mapfs := make(fstest.MapFS)
+	mapfs["main.js"] = &fstest.MapFile{
+		Data: []byte(`
+        Promise.all([import("custom:coolstuff"), import("custom:coolstuff2")]).then((res)=> {
+            let coolStuff = res[0].coolStuff
+            let coolStuff3 = res[1].coolStuff
+            let otherCoolStuff = res[1].otherCoolStuff
+
+            if (coolStuff != 5) {
+                throw "coolStuff isn't a 5 it is a "+ coolStuff
+            }
+            if (coolStuff3 != 5) {
+                throw "coolStuff3 isn't a 5 it is a "+ coolStuff3
+            }
+            if (otherCoolStuff != 5) {
+                throw "otherCoolStuff isn't a 5 it is a "+ otherCoolStuff
+            }
+            globalThis.s = true;
+        })`),
+	}
+	resolver.fs = mapfs
+	m, err := resolver.resolve(nil, "main.js")
+	if err != nil {
+		t.Fatalf("got error %s", err)
+	}
+	p := m.(*goja.SourceTextModuleRecord)
+	err = p.Link()
+	if err != nil {
+		t.Fatalf("got error %s", err)
+	}
+	vm := goja.New()
+	eventLoopQueue := make(chan func(), 2) // the most basic and likely buggy event loop
+	vm.SetPromiseRejectionTracker(func(p *goja.Promise, operation goja.PromiseRejectionOperation) {
+		t.Fatal(p.Result())
+	})
+	vm.SetImportModuleDynamically(func(referencingScriptOrModule interface{}, specifierValue goja.Value, promiseCapability interface{}) {
+		specifier := specifierValue.String()
+		go func() {
+			m, err := resolver.resolve(referencingScriptOrModule, specifier)
+
+			eventLoopQueue <- func() {
+				defer vm.RunString("") // haxx // maybe have leave in ffinalize :?!?!
+				if err == nil {
+					err = m.Link()
+					if err == nil {
+						_, err = vm.CyclicModuleRecordEvaluate(m, resolver.resolve)
+					}
+				}
+				vm.FinalizeDynamicImport(m, promiseCapability, err)
+			}
+		}()
+	})
 	_, err = m.Evaluate(vm)
 	if err != nil {
 		t.Fatalf("got error %s", err)
+	}
+	const timeout = time.Millisecond * 1000
+	for {
+		if s := vm.GlobalObject().Get("s"); s != nil {
+			if !s.ToBoolean() {
+				t.Fatal("s has wrong value false")
+			}
+			return
+		}
+		select {
+		case fn := <-eventLoopQueue:
+			fn()
+		case <-time.After(timeout):
+			t.Fatalf("nothing happened in %s :(", timeout)
+		}
 	}
 }
 
@@ -214,7 +330,12 @@ func (s *cyclicModuleImpl) ResolveExport(exportName string, resolveset ...goja.R
 }
 
 func (s *cyclicModuleImpl) GetExportedNames(records ...goja.ModuleRecord) []string {
-	return []string{"coolStuff"}
+	result := make([]string, len(s.exports))
+	for k := range s.exports {
+		result = append(result, k)
+	}
+	sort.Strings(result)
+	return result
 }
 
 type cyclicModuleInstanceImpl struct {

@@ -757,36 +757,18 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	if dynamicImport {
 		vm.importModuleDynamically = func(referencingScriptOrModule interface{}, specifierValue Value, pcap interface{}) {
 			specifier := specifierValue.String()
-			// TODO have this be a lot less stupid
-			p := pcap.(*promiseCapability) // FIX
 			go func() {
 				m, err := hostResolveImportedModule(referencingScriptOrModule, specifier)
 
 				eventLoopQueue <- func() {
-					defer vm.RunString("") // haxx
+					defer vm.RunString("") // haxx // maybe have leave in ffinalize :?!?!
 					if err == nil {
 						err = m.Link()
 						if err == nil {
 							_, err = m.Evaluate(vm)
 						}
 					}
-					if err != nil {
-						// fmt.Printf("err %T %+v", err, err)
-						// TODO figure how to this more centralized
-						switch x1 := err.(type) {
-						case *Exception:
-							p.reject(x1.val)
-						case *CompilerSyntaxError:
-							p.reject(vm.builtin_new(vm.global.SyntaxError, []Value{newStringValue(x1.Error())}))
-						case *CompilerReferenceError:
-							p.reject(vm.newError(vm.global.ReferenceError, x1.Message))
-						default:
-							p.reject(vm.ToValue(err))
-						}
-						return
-					}
-					// finalize
-					p.resolve(vm.NamespaceObjectFor(m))
+					vm.FinalizeDynamicImport(m, pcap, err)
 				}
 			}()
 		}
