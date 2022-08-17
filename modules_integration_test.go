@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -13,6 +14,7 @@ import (
 )
 
 type simpleComboResolver struct {
+	mu           sync.Mutex
 	cache        map[string]cacheElement
 	reverseCache map[goja.ModuleRecord]string
 	fs           fs.FS
@@ -28,6 +30,8 @@ func newSimpleComboResolver() *simpleComboResolver {
 }
 
 func (s *simpleComboResolver) resolve(referencingScriptOrModule interface{}, specifier string) (goja.ModuleRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	k, ok := s.cache[specifier]
 	if ok {
 		return k.m, k.err
