@@ -21,7 +21,7 @@ type SourceTextModuleInstance struct {
 	stack         valueStack
 }
 
-func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime) (CyclicModuleInstance, error) {
+func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime, res, rej func(interface{})) (CyclicModuleInstance, error) {
 	_, err := rt.continueRunProgram(s.moduleRecord.p, s.context, s.stack)
 	return s, err
 }
@@ -32,6 +32,10 @@ func (s *SourceTextModuleInstance) GetBindingValue(name string) Value {
 		return nil
 	}
 	return getter()
+}
+
+func (s *SourceTextModuleInstance) HasTLA() bool {
+	return false // TODO implement when TLA is added
 }
 
 type SourceTextModuleRecord struct {
@@ -517,7 +521,7 @@ func (module *SourceTextModuleRecord) Instantiate(rt *Runtime) (CyclicModuleInst
 	return mi, err
 }
 
-func (module *SourceTextModuleRecord) Evaluate(rt *Runtime) (ModuleInstance, error) {
+func (module *SourceTextModuleRecord) Evaluate(rt *Runtime) *Promise {
 	return rt.CyclicModuleRecordEvaluate(module, module.hostResolveImportedModule)
 }
 

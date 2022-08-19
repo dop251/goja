@@ -14,7 +14,7 @@ type ModuleRecord interface {
 	GetExportedNames(resolveset ...ModuleRecord) []string
 	ResolveExport(exportName string, resolveset ...ResolveSetElement) (*ResolvedBinding, bool)
 	Link() error
-	Evaluate(*Runtime) (ModuleInstance, error)
+	Evaluate(*Runtime) *Promise
 }
 
 type CyclicModuleRecordStatus uint8
@@ -24,6 +24,7 @@ const (
 	Linking
 	Linked
 	Evaluating
+	Evaluating_Async
 	Evaluated
 )
 
@@ -40,7 +41,8 @@ type (
 	}
 	CyclicModuleInstance interface {
 		ModuleInstance
-		ExecuteModule(*Runtime) (CyclicModuleInstance, error)
+		HasTLA() bool
+		ExecuteModule(rt *Runtime, res, rej func(interface{})) (CyclicModuleInstance, error)
 	}
 )
 
@@ -119,68 +121,105 @@ func (c *compiler) innerModuleLinking(state *linkState, m ModuleRecord, stack *[
 }
 
 type evaluationState struct {
-	status           map[ModuleInstance]CyclicModuleRecordStatus
-	dfsIndex         map[ModuleInstance]uint
-	dfsAncestorIndex map[ModuleInstance]uint
+	status                   map[ModuleInstance]CyclicModuleRecordStatus
+	dfsIndex                 map[ModuleInstance]uint
+	dfsAncestorIndex         map[ModuleInstance]uint
+	pendingAsyncDependancies map[ModuleInstance]uint
+	cycleRoot                map[ModuleInstance]CyclicModuleInstance
+	asyncEvaluation          map[CyclicModuleInstance]bool
+	asyncParentModules       map[CyclicModuleInstance][]CyclicModuleInstance
+	evaluationError          map[CyclicModuleInstance]error
+	topLevelCapability       map[CyclicModuleRecord]*promiseCapability
 }
 
 func newEvaluationState() *evaluationState {
 	return &evaluationState{
-		status:           make(map[ModuleInstance]CyclicModuleRecordStatus),
-		dfsIndex:         make(map[ModuleInstance]uint),
-		dfsAncestorIndex: make(map[ModuleInstance]uint),
+		status:                   make(map[ModuleInstance]CyclicModuleRecordStatus),
+		dfsIndex:                 make(map[ModuleInstance]uint),
+		dfsAncestorIndex:         make(map[ModuleInstance]uint),
+		pendingAsyncDependancies: make(map[ModuleInstance]uint),
+		cycleRoot:                make(map[ModuleInstance]CyclicModuleInstance),
+		asyncEvaluation:          make(map[CyclicModuleInstance]bool),
+		asyncParentModules:       make(map[CyclicModuleInstance][]CyclicModuleInstance),
+		evaluationError:          make(map[CyclicModuleInstance]error),
+		topLevelCapability:       make(map[CyclicModuleRecord]*promiseCapability),
 	}
 }
 
-func (r *Runtime) CyclicModuleRecordEvaluate(c ModuleRecord, resolve HostResolveImportedModuleFunc,
-) (mi ModuleInstance, err error) {
+// TODO have resolve as part of runtime
+func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostResolveImportedModuleFunc,
+) *Promise {
 	if r.modules == nil {
 		r.modules = make(map[ModuleRecord]ModuleInstance)
 	}
+	// TODO implement all the promise stuff
 	stackInstance := []CyclicModuleInstance{}
-	if mi, _, err = r.innerModuleEvaluation(newEvaluationState(), c, &stackInstance, 0, resolve); err != nil {
-		return nil, err
-	}
 
-	return mi, nil
+	state := newEvaluationState()
+	capability := r.newPromiseCapability(r.global.Promise)
+	state.topLevelCapability[c] = capability
+	// TODO fix abrupt result
+	_, err := r.innerModuleEvaluation(state, c, &stackInstance, 0, resolve)
+	if err != nil {
+		for _, m := range stackInstance {
+			state.status[m] = Evaluated
+			state.evaluationError[m] = err
+		}
+		capability.reject(r.ToValue(err))
+
+	} else {
+		if !state.asyncEvaluation[r.modules[c].(CyclicModuleInstance)] {
+			state.topLevelCapability[c].resolve(_undefined)
+		}
+	}
+	// TODO handle completion
+	return state.topLevelCapability[c].promise.Export().(*Promise)
 }
 
 func (r *Runtime) innerModuleEvaluation(
 	state *evaluationState,
 	m ModuleRecord, stack *[]CyclicModuleInstance, index uint,
 	resolve HostResolveImportedModuleFunc,
-) (mi ModuleInstance, idx uint, err error) {
+) (idx uint, err error) {
 	if len(*stack) > 100000 {
 		panic("too deep dependancy stack of 100000")
 	}
 	var cr CyclicModuleRecord
 	var ok bool
 	var c CyclicModuleInstance
+	// TODO use only `c` instead `mi` after the initial part
+	var mi ModuleInstance
 	if cr, ok = m.(CyclicModuleRecord); !ok {
-		mi, err = m.Evaluate(r)
-		r.modules[m] = mi
-		return mi, index, err
-	} else {
-		mi, ok = r.modules[m]
-		if ok {
-			return mi, index, nil
+		p := m.Evaluate(r)
+		if p.state == PromiseStateRejected {
+			return index, p.Result().Export().(error)
 		}
-		c, err = cr.Instantiate(r)
-		if err != nil {
-			return nil, index, err
-		}
-
-		mi = c
-		r.modules[m] = c
+		r.modules[m] = p.Result().Export().(ModuleInstance) // TODO fix this cast ... somehow
+		return index, nil
 	}
+	mi, ok = r.modules[m]
+	if ok {
+		return index, nil
+	}
+	c, err = cr.Instantiate(r)
+	if err != nil {
+		// state.evaluationError[cr] = err
+		// TODO handle this somehow - maybe just panic
+		return index, err
+	}
+
+	mi = c
+	r.modules[m] = c
 	if status := state.status[mi]; status == Evaluated {
-		return nil, index, nil
-	} else if status == Evaluating {
-		return nil, index, nil
+		return index, nil
+	} else if status == Evaluating || status == Evaluating_Async {
+		// maybe check evaluation error
+		return index, nil
 	}
 	state.status[mi] = Evaluating
 	state.dfsIndex[mi] = index
 	state.dfsAncestorIndex[mi] = index
+	state.pendingAsyncDependancies[mi] = 0
 	index++
 
 	*stack = append(*stack, c)
@@ -188,37 +227,156 @@ func (r *Runtime) innerModuleEvaluation(
 	for _, required := range cr.RequestedModules() {
 		requiredModule, err = resolve(m, required)
 		if err != nil {
-			return nil, 0, err
+			state.evaluationError[c] = err
+			return index, err
 		}
 		var requiredInstance ModuleInstance
-		requiredInstance, index, err = r.innerModuleEvaluation(state, requiredModule, stack, index, resolve)
+		index, err = r.innerModuleEvaluation(state, requiredModule, stack, index, resolve)
 		if err != nil {
-			return nil, 0, err
+			return index, err
 		}
 		if requiredC, ok := requiredInstance.(CyclicModuleInstance); ok {
 			if state.status[requiredC] == Evaluating {
 				if ancestorIndex := state.dfsAncestorIndex[c]; state.dfsAncestorIndex[requiredC] > ancestorIndex {
 					state.dfsAncestorIndex[requiredC] = ancestorIndex
 				}
+			} else {
+				requiredC = state.cycleRoot[requiredC]
+				// check stuff
+			}
+			if state.asyncEvaluation[requiredC] {
+				state.pendingAsyncDependancies[mi]++
+				state.asyncParentModules[requiredC] = append(state.asyncParentModules[requiredC], c)
 			}
 		}
 	}
-	mi, err = c.ExecuteModule(r)
-	if err != nil {
-		return nil, 0, err
+	if state.pendingAsyncDependancies[mi] > 0 || c.HasTLA() {
+		state.asyncEvaluation[c] = true
+		if state.pendingAsyncDependancies[c] == 0 {
+			r.executeAsyncModule(state, c)
+		}
+	} else {
+		mi, err = c.ExecuteModule(r, nil, nil)
+		if err != nil {
+			// state.evaluationError[c] = err
+			return index, err
+		}
 	}
 
 	if state.dfsAncestorIndex[c] == state.dfsIndex[c] {
 		for i := len(*stack) - 1; i >= 0; i-- {
 			requiredModuleInstance := (*stack)[i]
 			*stack = (*stack)[:i]
-			state.status[requiredModuleInstance] = Evaluated
+			if !state.asyncEvaluation[requiredModuleInstance] {
+				state.status[requiredModuleInstance] = Evaluated
+			} else {
+				state.status[requiredModuleInstance] = Evaluating_Async
+			}
+			state.cycleRoot[requiredModuleInstance] = c
 			if requiredModuleInstance == c {
 				break
 			}
 		}
 	}
-	return mi, index, nil
+	return index, nil
+}
+
+func (r *Runtime) executeAsyncModule(state *evaluationState, c CyclicModuleInstance) {
+	// implement https://262.ecma-international.org/13.0/#sec-execute-async-module
+	// TODO likely wrong
+	p, res, rej := r.NewPromise()
+	r.performPromiseThen(p, r.ToValue(func() {
+		r.asyncModuleExecutionFulfilled(state, c)
+	}), r.ToValue(func(err error) {
+		r.asyncModuleExecutionRejected(state, c, err)
+	}), nil)
+	c.ExecuteModule(r, res, rej)
+}
+
+func (r *Runtime) asyncModuleExecutionFulfilled(state *evaluationState, c CyclicModuleInstance) {
+	if state.status[c] == Evaluated {
+		return
+	}
+	state.asyncEvaluation[c] = false
+	// TODO fix this
+	for m, i := range r.modules {
+		if i == c {
+			if cap := state.topLevelCapability[m.(CyclicModuleRecord)]; cap != nil {
+				cap.resolve(_undefined)
+			}
+			break
+		}
+	}
+	execList := make([]CyclicModuleInstance, 0)
+	r.gatherAvailableAncestors(state, c, &execList)
+	// TODO sort? per when the modules got their AsyncEvaluation set ... somehow
+	for _, m := range execList {
+		if state.status[m] == Evaluated {
+			continue
+		}
+		if m.HasTLA() {
+			r.executeAsyncModule(state, m)
+		} else {
+			result, err := m.ExecuteModule(r, nil, nil)
+			if err != nil {
+				r.asyncModuleExecutionRejected(state, m, err)
+				continue
+			}
+			state.status[m] = Evaluated
+			if cap := state.topLevelCapability[r.findModuleRecord(c).(CyclicModuleRecord)]; cap != nil {
+				// TODO having the module instances going through Values and back is likely not a *great* idea
+				cap.resolve(r.ToValue(result))
+			}
+		}
+	}
+}
+
+func (r *Runtime) gatherAvailableAncestors(state *evaluationState, c CyclicModuleInstance, execList *[]CyclicModuleInstance) {
+	contains := func(m CyclicModuleInstance) bool {
+		for _, l := range *execList {
+			if l == m {
+				return true
+			}
+		}
+		return false
+	}
+	for _, m := range state.asyncParentModules[c] {
+		if contains(m) || state.evaluationError[m] != nil {
+			continue
+		}
+		state.pendingAsyncDependancies[m]--
+		if state.pendingAsyncDependancies[m] == 0 {
+			*execList = append(*execList, m)
+			if !m.HasTLA() {
+				r.gatherAvailableAncestors(state, m, execList)
+			}
+		}
+	}
+}
+
+func (r *Runtime) asyncModuleExecutionRejected(state *evaluationState, c CyclicModuleInstance, err error) {
+	if state.status[c] == Evaluated {
+		return
+	}
+	state.evaluationError[c] = err
+	state.status[c] = Evaluated
+	for _, m := range state.asyncParentModules[c] {
+		r.asyncModuleExecutionRejected(state, m, err)
+	}
+	// TODO handle top level capabiltiy better
+	if cap := state.topLevelCapability[r.findModuleRecord(c).(CyclicModuleRecord)]; cap != nil {
+		cap.reject(r.ToValue(err))
+	}
+}
+
+// TODO fix this whole thing
+func (r *Runtime) findModuleRecord(i ModuleInstance) ModuleRecord {
+	for m, mi := range r.modules {
+		if mi == i {
+			return m
+		}
+	}
+	panic("this should never happen")
 }
 
 func (r *Runtime) GetActiveScriptOrModule() interface{} { // have some better type

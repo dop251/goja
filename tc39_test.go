@@ -765,7 +765,11 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 					if err == nil {
 						err = m.Link()
 						if err == nil {
-							_, err = m.Evaluate(vm)
+							promise := m.Evaluate(vm)
+							// TODO fix
+							if promise.state != PromiseStateFulfilled {
+								err = promise.Result().Export().(error)
+							}
 						}
 					}
 					vm.FinalizeDynamicImport(m, pcap, err)
@@ -1012,7 +1016,11 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 	}
 
 	early = false
-	_, err = m.Evaluate(vm)
+	promise := m.Evaluate(vm)
+	// TODO fix
+	if promise.state != PromiseStateFulfilled {
+		err = promise.Result().Export().(error)
+	}
 	return
 }
 

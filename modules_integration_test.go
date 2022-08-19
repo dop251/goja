@@ -127,8 +127,9 @@ func TestNotSourceModulesBigTest(t *testing.T) {
 		t.Fatalf("got error %s", err)
 	}
 	vm := goja.New()
-	_, err = vm.CyclicModuleRecordEvaluate(m, resolver.resolve)
-	if err != nil {
+	promise := vm.CyclicModuleRecordEvaluate(p, resolver.resolve)
+	if promise.State() != goja.PromiseStateFulfilled {
+		err := promise.Result().Export().(error)
 		t.Fatalf("got error %s", err)
 	}
 	if s := vm.GlobalObject().Get("s"); s == nil || !s.ToBoolean() {
@@ -218,15 +219,25 @@ func TestNotSourceModulesBigTestDynamicImport(t *testing.T) {
 				if err == nil {
 					err = m.Link()
 					if err == nil {
-						_, err = vm.CyclicModuleRecordEvaluate(m, resolver.resolve)
+						var promise *goja.Promise
+						if c, ok := m.(goja.CyclicModuleRecord); ok {
+							promise = vm.CyclicModuleRecordEvaluate(c, resolver.resolve)
+						} else {
+							promise = m.Evaluate(vm)
+						}
+						if promise.State() != goja.PromiseStateFulfilled {
+							err = promise.Result().Export().(error)
+						}
 					}
 				}
 				vm.FinalizeDynamicImport(m, promiseCapability, err)
 			}
 		}()
 	})
-	_, err = m.Evaluate(vm)
-	if err != nil {
+	promise := vm.CyclicModuleRecordEvaluate(p, resolver.resolve)
+	// TODO fix
+	if promise.State() != goja.PromiseStateFulfilled {
+		err := promise.Result().Export().(error)
 		t.Fatalf("got error %s", err)
 	}
 	const timeout = time.Millisecond * 1000
@@ -266,8 +277,10 @@ func (s *simpleModuleImpl) ResolveExport(exportName string, resolveset ...goja.R
 	return nil, false
 }
 
-func (s *simpleModuleImpl) Evaluate(rt *goja.Runtime) (goja.ModuleInstance, error) {
-	return &simpleModuleInstanceImpl{rt: rt}, nil
+func (s *simpleModuleImpl) Evaluate(rt *goja.Runtime) *goja.Promise {
+	p, res, _ := rt.NewPromise()
+	res(&simpleModuleInstanceImpl{rt: rt})
+	return p
 }
 
 func (s *simpleModuleImpl) GetExportedNames(records ...goja.ModuleRecord) []string {
@@ -311,8 +324,8 @@ func (s *cyclicModuleImpl) Link() error {
 	return nil
 }
 
-func (s *cyclicModuleImpl) Evaluate(rt *goja.Runtime) (goja.ModuleInstance, error) {
-	return nil, nil
+func (s *cyclicModuleImpl) Evaluate(rt *goja.Runtime) *goja.Promise {
+	panic("this should never be called")
 }
 
 func (s *cyclicModuleImpl) ResolveExport(exportName string, resolveset ...goja.ResolveSetElement) (*goja.ResolvedBinding, bool) {
@@ -346,10 +359,13 @@ type cyclicModuleInstanceImpl struct {
 	module *cyclicModuleImpl
 }
 
-func (si *cyclicModuleInstanceImpl) ExecuteModule(rt *goja.Runtime) (goja.CyclicModuleInstance, error) {
+func (s *cyclicModuleInstanceImpl) HasTLA() bool {
+	return false
+}
+
+func (si *cyclicModuleInstanceImpl) ExecuteModule(rt *goja.Runtime, res, rej func(interface{})) (goja.CyclicModuleInstance, error) {
 	si.rt = rt
-	// TODO others
-	return nil, nil
+	return si, nil
 }
 
 func (si *cyclicModuleInstanceImpl) GetBindingValue(exportName string) goja.Value {
@@ -406,8 +422,9 @@ func TestSourceMetaImport(t *testing.T) {
 			},
 		}
 	})
-	_, err = m.Evaluate(vm)
-	if err != nil {
+	promise := m.Evaluate(vm)
+	if promise.State() != goja.PromiseStateFulfilled {
+		err := promise.Result().Export().(error)
 		t.Fatalf("got error %s", err)
 	}
 }

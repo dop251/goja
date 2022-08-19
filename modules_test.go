@@ -136,8 +136,9 @@ globalThis.s = b()
 					if err != nil {
 						t.Fatalf("got error %s", err)
 					}
-					_, err = m.Evaluate(vm)
-					if err != nil {
+					promise := m.Evaluate(vm)
+					if promise.state != PromiseStateFulfilled {
+						err = promise.Result().Export().(error)
 						t.Fatalf("got error %s", err)
 					}
 					v := vm.Get("s")
