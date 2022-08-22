@@ -187,8 +187,6 @@ func (r *Runtime) innerModuleEvaluation(
 	var cr CyclicModuleRecord
 	var ok bool
 	var c CyclicModuleInstance
-	// TODO use only `c` instead `mi` after the initial part
-	var mi ModuleInstance
 	if cr, ok = m.(CyclicModuleRecord); !ok {
 		p := m.Evaluate(r)
 		if p.state == PromiseStateRejected {
@@ -197,8 +195,7 @@ func (r *Runtime) innerModuleEvaluation(
 		r.modules[m] = p.Result().Export().(ModuleInstance) // TODO fix this cast ... somehow
 		return index, nil
 	}
-	mi, ok = r.modules[m]
-	if ok {
+	if _, ok = r.modules[m]; ok {
 		return index, nil
 	}
 	c, err = cr.Instantiate(r)
@@ -208,18 +205,17 @@ func (r *Runtime) innerModuleEvaluation(
 		return index, err
 	}
 
-	mi = c
 	r.modules[m] = c
-	if status := state.status[mi]; status == Evaluated {
+	if status := state.status[c]; status == Evaluated {
 		return index, nil
 	} else if status == Evaluating || status == Evaluating_Async {
 		// maybe check evaluation error
 		return index, nil
 	}
-	state.status[mi] = Evaluating
-	state.dfsIndex[mi] = index
-	state.dfsAncestorIndex[mi] = index
-	state.pendingAsyncDependancies[mi] = 0
+	state.status[c] = Evaluating
+	state.dfsIndex[c] = index
+	state.dfsAncestorIndex[c] = index
+	state.pendingAsyncDependancies[c] = 0
 	index++
 
 	*stack = append(*stack, c)
@@ -245,18 +241,18 @@ func (r *Runtime) innerModuleEvaluation(
 				// check stuff
 			}
 			if state.asyncEvaluation[requiredC] {
-				state.pendingAsyncDependancies[mi]++
+				state.pendingAsyncDependancies[c]++
 				state.asyncParentModules[requiredC] = append(state.asyncParentModules[requiredC], c)
 			}
 		}
 	}
-	if state.pendingAsyncDependancies[mi] > 0 || c.HasTLA() {
+	if state.pendingAsyncDependancies[c] > 0 || c.HasTLA() {
 		state.asyncEvaluation[c] = true
 		if state.pendingAsyncDependancies[c] == 0 {
 			r.executeAsyncModule(state, c)
 		}
 	} else {
-		mi, err = c.ExecuteModule(r, nil, nil)
+		c, err = c.ExecuteModule(r, nil, nil)
 		if err != nil {
 			// state.evaluationError[c] = err
 			return index, err

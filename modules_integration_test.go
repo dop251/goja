@@ -359,7 +359,7 @@ type cyclicModuleInstanceImpl struct {
 	module *cyclicModuleImpl
 }
 
-func (s *cyclicModuleInstanceImpl) HasTLA() bool {
+func (si *cyclicModuleInstanceImpl) HasTLA() bool {
 	return false
 }
 
