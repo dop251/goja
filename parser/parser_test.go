@@ -237,7 +237,7 @@ func TestParserErr(t *testing.T) {
 
 		test("a if", "(anonymous): Line 1:3 Unexpected token if")
 
-		test("a class", "(anonymous): Line 1:3 Unexpected reserved word")
+		test("a class", "(anonymous): Line 1:3 Unexpected token class")
 
 		test("break\n", "(anonymous): Line 1:1 Illegal break statement")
 
@@ -382,7 +382,7 @@ func TestParserErr(t *testing.T) {
 
 		test("/*/.source", "(anonymous): Line 1:11 Unexpected end of input")
 
-		test("var class", "(anonymous): Line 1:5 Unexpected reserved word")
+		test("var class", "(anonymous): Line 1:5 Unexpected token class")
 
 		test("var if", "(anonymous): Line 1:5 Unexpected token if")
 
@@ -416,9 +416,9 @@ func TestParserErr(t *testing.T) {
 
 		{ // Reserved words
 
-			test("class", "(anonymous): Line 1:1 Unexpected reserved word")
+			test("class", "(anonymous): Line 1:6 Unexpected end of input")
 			test("abc.class = 1", nil)
-			test("var class;", "(anonymous): Line 1:5 Unexpected reserved word")
+			test("var class;", "(anonymous): Line 1:5 Unexpected token class")
 
 			test("const", "(anonymous): Line 1:6 Unexpected end of input")
 			test("abc.const = 1", nil)
@@ -432,17 +432,17 @@ func TestParserErr(t *testing.T) {
 			test("abc.export = 1", nil)
 			test("var export;", "(anonymous): Line 1:5 Unexpected reserved word")
 
-			test("extends", "(anonymous): Line 1:1 Unexpected reserved word")
+			test("extends", "(anonymous): Line 1:1 Unexpected token extends")
 			test("abc.extends = 1", nil)
-			test("var extends;", "(anonymous): Line 1:5 Unexpected reserved word")
+			test("var extends;", "(anonymous): Line 1:5 Unexpected token extends")
 
 			test("import", "(anonymous): Line 1:1 Unexpected reserved word")
 			test("abc.import = 1", nil)
 			test("var import;", "(anonymous): Line 1:5 Unexpected reserved word")
 
-			test("super", "(anonymous): Line 1:1 Unexpected reserved word")
+			test("super", "(anonymous): Line 1:1 'super' keyword unexpected here")
 			test("abc.super = 1", nil)
-			test("var super;", "(anonymous): Line 1:5 Unexpected reserved word")
+			test("var super;", "(anonymous): Line 1:5 Unexpected token super")
 			test(`
 			obj = {
 			  aaa: 1
@@ -506,6 +506,11 @@ func TestParserErr(t *testing.T) {
 		test(`(0 ?? 0 || true)`, "(anonymous): Line 1:9 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 		test(`(a || b ?? c)`, "(anonymous): Line 1:9 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 		test(`2 ?? 2 && 3 + 3`, "(anonymous): Line 1:3 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
+		test(`
+		class C {
+            st\u0061tic m() {}
+		}
+		`, "(anonymous): Line 3:25 Unexpected identifier")
 	})
 }
 
@@ -911,6 +916,18 @@ func TestParser(t *testing.T) {
 		program = test(`a ?? b ?? c`, nil)
 		is(len(program.Body), 1)
 		is(program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression).Right.(*ast.Identifier).Name, "c")
+
+		program = test(`
+		class C {
+			a
+			b
+			#c
+			m() {
+				return this.#c;
+			}
+		}
+		`, nil)
+		is(len(program.Body), 1)
 	})
 }
 

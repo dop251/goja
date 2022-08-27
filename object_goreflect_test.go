@@ -61,6 +61,22 @@ func TestGoReflectSet(t *testing.T) {
 	if o.Y != "2P" {
 		t.Fatalf("Unexpected Y: %s", o.Y)
 	}
+
+	r.Set("o", o)
+	_, err = r.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res, ok := r.Get("o").Export().(O); ok {
+		if res.X != 6 {
+			t.Fatalf("Unexpected res.X: %d", res.X)
+		}
+
+		if res.Y != "2PP" {
+			t.Fatalf("Unexpected res.Y: %s", res.Y)
+		}
+	}
 }
 
 func TestGoReflectEnumerate(t *testing.T) {
@@ -1183,4 +1199,257 @@ func TestGoReflectPreserveType(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+}
+
+func TestGoReflectCopyOnWrite(t *testing.T) {
+	type Inner struct {
+		Field int
+	}
+	type S struct {
+		I Inner
+	}
+	var s S
+	s.I.Field = 1
+
+	vm := New()
+	vm.Set("s", &s)
+	_, err := vm.RunString(`
+		if (s.I.Field !== 1) {
+			throw new Error("s.I.Field: " + s.I.Field);
+		}
+
+		let tmp = s.I; // tmp becomes a reference to s.I
+		if (tmp.Field !== 1) {
+			throw new Error("tmp.Field: " + tmp.Field);
+		}
+
+		s.I.Field = 2;
+		if (s.I.Field !== 2) {
+			throw new Error("s.I.Field (1): " + s.I.Field);
+		}
+		if (tmp.Field !== 2) {
+			throw new Error("tmp.Field (1): " + tmp.Field);
+		}
+
+		s.I = {Field: 3}; // at this point tmp is changed to a copy
+		if (s.I.Field !== 3) {
+			throw new Error("s.I.Field (2): " + s.I.Field);
+		}
+		if (tmp.Field !== 2) {
+			throw new Error("tmp.Field (2): " + tmp.Field);
+		}
+	`)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReflectOverwriteReflectMap(t *testing.T) {
+	vm := New()
+	type S struct {
+		M map[int]interface{}
+	}
+	var s S
+	s.M = map[int]interface{}{
+		0: true,
+	}
+	vm.Set("s", &s)
+	_, err := vm.RunString(`
+	s.M = {1: false};
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := s.M[0]; exists {
+		t.Fatal(s)
+	}
+}
+
+type testBoolS bool
+
+func (testBoolS) String() string {
+	return "B"
+}
+
+type testIntS int
+
+func (testIntS) String() string {
+	return "I"
+}
+
+type testStringS string
+
+func (testStringS) String() string {
+	return "S"
+}
+
+func TestGoReflectToPrimitive(t *testing.T) {
+	vm := New()
+
+	f := func(expr string, expected Value, t *testing.T) {
+		v, err := vm.RunString(expr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if IsNaN(expected) {
+			if IsNaN(v) {
+				return
+			}
+		} else {
+			if v.StrictEquals(expected) {
+				return
+			}
+		}
+		t.Fatalf("%s: expected: %v, actual: %v", expr, expected, v)
+	}
+
+	t.Run("Not Stringers", func(t *testing.T) {
+		type Bool bool
+		var b Bool = true
+
+		t.Run("Bool", func(t *testing.T) {
+			vm.Set("b", b)
+			f("+b", intToValue(1), t)
+			f("`${b}`", asciiString("true"), t)
+			f("b.toString()", asciiString("true"), t)
+			f("b.valueOf()", valueTrue, t)
+		})
+
+		t.Run("*Bool", func(t *testing.T) {
+			vm.Set("b", &b)
+			f("+b", intToValue(1), t)
+			f("`${b}`", asciiString("true"), t)
+			f("b.toString()", asciiString("true"), t)
+			f("b.valueOf()", valueTrue, t)
+		})
+
+		type Int int
+		var i Int = 1
+
+		t.Run("Int", func(t *testing.T) {
+			vm.Set("i", i)
+			f("+i", intToValue(1), t)
+			f("`${i}`", asciiString("1"), t)
+			f("i.toString()", asciiString("1"), t)
+			f("i.valueOf()", intToValue(1), t)
+		})
+
+		t.Run("*Int", func(t *testing.T) {
+			vm.Set("i", &i)
+			f("+i", intToValue(1), t)
+			f("`${i}`", asciiString("1"), t)
+			f("i.toString()", asciiString("1"), t)
+			f("i.valueOf()", intToValue(1), t)
+		})
+
+		type Uint uint
+		var ui Uint = 1
+
+		t.Run("Uint", func(t *testing.T) {
+			vm.Set("ui", ui)
+			f("+ui", intToValue(1), t)
+			f("`${ui}`", asciiString("1"), t)
+			f("ui.toString()", asciiString("1"), t)
+			f("ui.valueOf()", intToValue(1), t)
+		})
+
+		t.Run("*Uint", func(t *testing.T) {
+			vm.Set("ui", &i)
+			f("+ui", intToValue(1), t)
+			f("`${ui}`", asciiString("1"), t)
+			f("ui.toString()", asciiString("1"), t)
+			f("ui.valueOf()", intToValue(1), t)
+		})
+
+		type Float float64
+		var fl Float = 1.1
+
+		t.Run("Float", func(t *testing.T) {
+			vm.Set("fl", fl)
+			f("+fl", floatToValue(1.1), t)
+			f("`${fl}`", asciiString("1.1"), t)
+			f("fl.toString()", asciiString("1.1"), t)
+			f("fl.valueOf()", floatToValue(1.1), t)
+		})
+
+		t.Run("*Float", func(t *testing.T) {
+			vm.Set("fl", &fl)
+			f("+fl", floatToValue(1.1), t)
+			f("`${fl}`", asciiString("1.1"), t)
+			f("fl.toString()", asciiString("1.1"), t)
+			f("fl.valueOf()", floatToValue(1.1), t)
+		})
+
+		fl = Float(math.Inf(1))
+		t.Run("FloatInf", func(t *testing.T) {
+			vm.Set("fl", fl)
+			f("+fl", _positiveInf, t)
+			f("fl.toString()", asciiString("Infinity"), t)
+		})
+
+		type Empty struct{}
+
+		var e Empty
+		t.Run("Empty", func(t *testing.T) {
+			vm.Set("e", &e)
+			f("+e", _NaN, t)
+			f("`${e}`", asciiString("[object Object]"), t)
+			f("e.toString()", asciiString("[object Object]"), t)
+			f("e.valueOf()", vm.ToValue(&e), t)
+		})
+	})
+
+	t.Run("Stringers", func(t *testing.T) {
+		var b testBoolS = true
+		t.Run("Bool", func(t *testing.T) {
+			vm.Set("b", b)
+			f("`${b}`", asciiString("B"), t)
+			f("b.toString()", asciiString("B"), t)
+			f("b.valueOf()", valueTrue, t)
+			f("+b", intToValue(1), t)
+		})
+
+		t.Run("*Bool", func(t *testing.T) {
+			vm.Set("b", &b)
+			f("`${b}`", asciiString("B"), t)
+			f("b.toString()", asciiString("B"), t)
+			f("b.valueOf()", valueTrue, t)
+			f("+b", intToValue(1), t)
+		})
+
+		var i testIntS = 1
+		t.Run("Int", func(t *testing.T) {
+			vm.Set("i", i)
+			f("`${i}`", asciiString("I"), t)
+			f("i.toString()", asciiString("I"), t)
+			f("i.valueOf()", intToValue(1), t)
+			f("+i", intToValue(1), t)
+		})
+
+		t.Run("*Int", func(t *testing.T) {
+			vm.Set("i", &i)
+			f("`${i}`", asciiString("I"), t)
+			f("i.toString()", asciiString("I"), t)
+			f("i.valueOf()", intToValue(1), t)
+			f("+i", intToValue(1), t)
+		})
+
+		var s testStringS
+		t.Run("String", func(t *testing.T) {
+			vm.Set("s", s)
+			f("`${s}`", asciiString("S"), t)
+			f("s.toString()", asciiString("S"), t)
+			f("s.valueOf()", asciiString("S"), t)
+			f("+s", _NaN, t)
+		})
+
+		t.Run("*String", func(t *testing.T) {
+			vm.Set("s", &s)
+			f("`${s}`", asciiString("S"), t)
+			f("s.toString()", asciiString("S"), t)
+			f("s.valueOf()", asciiString("S"), t)
+			f("+s", _NaN, t)
+		})
+	})
 }
