@@ -233,6 +233,16 @@ func (o *objectGoReflect) _getMethod(jsName string) reflect.Value {
 }
 
 func (o *objectGoReflect) elemToValue(ev reflect.Value) (Value, reflectValueWrapper) {
+	if v, ok := ev.Interface().(ToValueConverter); ok {
+		ret := v.ToValue(o.val.runtime)
+		if obj, ok := ret.(*Object); ok {
+			if w, ok := obj.self.(reflectValueWrapper); ok {
+				return ret, w
+			}
+		}
+		return ret, nil
+	}
+
 	if isContainer(ev.Kind()) {
 		if ev.Type() == reflectTypeArray {
 			a := o.val.runtime.newObjectGoSlice(ev.Addr().Interface().(*[]interface{}))

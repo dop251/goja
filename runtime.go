@@ -1753,6 +1753,8 @@ func (r *Runtime) ToValue(i interface{}) Value {
 			panic(r.NewTypeError("Illegal runtime transition of an Object"))
 		}
 		return i
+	case ToValueConverter:
+		return i.ToValue(r)
 	case valueContainer:
 		return i.toValue(r)
 	case Value:
@@ -1849,10 +1851,23 @@ func (r *Runtime) ToValue(i interface{}) Value {
 	return r.reflectValueToValue(reflect.ValueOf(i))
 }
 
+type ToValueConverter interface {
+	ToValue(*Runtime) Value
+}
+
 func (r *Runtime) reflectValueToValue(origValue reflect.Value) Value {
+	if v, ok := origValue.Interface().(ToValueConverter); ok {
+		return v.ToValue(r)
+	}
+
 	value := origValue
 	for value.Kind() == reflect.Ptr {
 		value = value.Elem()
+		if value.IsValid() {
+			if v, ok := value.Interface().(ToValueConverter); ok {
+				return v.ToValue(r)
+			}
+		}
 	}
 
 	if !value.IsValid() {

@@ -1177,6 +1177,35 @@ func TestGoReflectSymbolEqualityQuirk(t *testing.T) {
 	}
 }
 
+type testToValue struct {
+	i int
+	j string
+}
+
+func (s testToValue) ToValue(r *Runtime) Value {
+	if s.i == 0 {
+		return r.ToValue(s.j)
+	}
+	return r.ToValue(s.i)
+}
+
+func TestGoReflectToValue(t *testing.T) {
+	vm := New()
+	vm.Set("s", testToValue{i: 3, j: "toto"})
+	vm.Set("t", &testToValue{i: 0, j: "toto"})
+	vm.Set("u", map[string][]testToValue{
+		"y": {{i: 2, j: "toto"}},
+	})
+	res, err := vm.RunString(`
+	s===3 && t==="toto" && u.y[0]===2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != valueTrue {
+		t.Fatal(res)
+	}
+}
+
 func TestGoObj__Proto__(t *testing.T) {
 	type S struct {
 		Field int
