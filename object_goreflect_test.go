@@ -273,6 +273,54 @@ func TestGoReflectMethodPtr(t *testing.T) {
 	}
 }
 
+func (b *testBoolS) Method() bool {
+	return bool(*b)
+}
+
+func TestGoReflectPtrMethodOnNonPtrValue(t *testing.T) {
+	var o testGoReflectMethod_O
+	o.Get()
+	vm := New()
+	vm.Set("o", o)
+	_, err := vm.RunString(`o.Get()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = vm.RunString(`o.Method()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var b testBoolS
+	vm.Set("b", b)
+	_, err = vm.RunString(`b.Method()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGoReflectStructField(t *testing.T) {
+	type S struct {
+		F testGoReflectMethod_O
+		B testBoolS
+	}
+	var s S
+	vm := New()
+	vm.Set("s", &s)
+
+	const SCRIPT = `
+	s.F.Set("Test");
+	assert.sameValue(s.F.Method(""), "Test", "1");
+
+	s.B = true;
+	assert.sameValue(s.B.Method(), true, "2");
+
+	assert.sameValue(s.B.toString(), "B", "3");
+	`
+
+	vm.testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestGoReflectProp(t *testing.T) {
 	const SCRIPT = `
 	var d1 = Object.getOwnPropertyDescriptor(o, "Get");
@@ -1237,6 +1285,25 @@ func TestGoReflectCopyOnWrite(t *testing.T) {
 		}
 		if (tmp.Field !== 2) {
 			throw new Error("tmp.Field (2): " + tmp.Field);
+		}
+	`)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReflectSetReflectValue(t *testing.T) {
+	o := []testGoReflectMethod_O{{}}
+	vm := New()
+	vm.Set("o", o)
+	_, err := vm.RunString(`
+		const t = o[0];
+		t.Set("a");
+		o[0] = {};
+		o[0].Set("b");
+		if (t.Get() !== "a") {
+			throw new Error();
 		}
 	`)
 
