@@ -622,7 +622,7 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 					}
 				} else {
 					initializer = &ast.ForLoopInitializerLexicalDecl{
-						LexicalDeclaration: ast.LexicalDeclaration{
+						LexicalDeclaration: &ast.LexicalDeclaration{
 							Idx:   idx,
 							Token: tok,
 							List:  list,

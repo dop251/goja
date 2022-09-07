@@ -124,7 +124,7 @@ func (self *_parser) parseSuperProperty() ast.Expression {
 			Left: &ast.SuperExpression{
 				Idx: idx,
 			},
-			Identifier: ast.Identifier{
+			Identifier: &ast.Identifier{
 				Name: parsedLiteral,
 				Idx:  idIdx,
 			},
@@ -366,7 +366,7 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String, ast.Exp
 		}
 	case token.PRIVATE_IDENTIFIER:
 		value = &ast.PrivateIdentifier{
-			Identifier: ast.Identifier{
+			Identifier: &ast.Identifier{
 				Idx:  idx,
 				Name: parsedLiteral,
 			},
@@ -425,7 +425,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 					initializer = self.parseAssignmentExpression()
 				}
 				return &ast.PropertyShort{
-					Name: ast.Identifier{
+					Name: &ast.Identifier{
 						Name: parsedLiteral,
 						Idx:  value.Idx0(),
 					},
@@ -623,8 +623,8 @@ func (self *_parser) parseDotMember(left ast.Expression) ast.Expression {
 		self.next()
 		return &ast.PrivateDotExpression{
 			Left: left,
-			Identifier: ast.PrivateIdentifier{
-				Identifier: ast.Identifier{
+			Identifier: &ast.PrivateIdentifier{
+				Identifier: &ast.Identifier{
 					Idx:  idx,
 					Name: literal,
 				},
@@ -642,7 +642,7 @@ func (self *_parser) parseDotMember(left ast.Expression) ast.Expression {
 
 	return &ast.DotExpression{
 		Left: left,
-		Identifier: ast.Identifier{
+		Identifier: &ast.Identifier{
 			Idx:  idx,
 			Name: literal,
 		},
@@ -914,7 +914,7 @@ func (self *_parser) parseShiftExpression() ast.Expression {
 func (self *_parser) parseRelationalExpression() ast.Expression {
 	if self.scope.allowIn && self.token == token.PRIVATE_IDENTIFIER {
 		left := &ast.PrivateIdentifier{
-			Identifier: ast.Identifier{
+			Identifier: &ast.Identifier{
 				Idx:  self.idx,
 				Name: self.parsedLiteral,
 			},
