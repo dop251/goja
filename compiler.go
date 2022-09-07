@@ -966,16 +966,16 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		if err != nil {
 			panic(fmt.Errorf("previously resolved module returned error %w", err))
 		}
-		if in.importName == "*" {
-			c.createImmutableBinding(unistring.NewFromString(in.localName), true)
-		} else {
+		if in.importName != "*" {
 			resolution, ambiguous := importedModule.ResolveExport(in.importName)
 			if resolution == nil || ambiguous {
 				c.compileAmbiguousImport(unistring.NewFromString(in.importName))
 				continue
 			}
-			c.createImmutableBinding(unistring.NewFromString(in.localName), true)
 		}
+		b, _ := c.scope.bindName(unistring.NewFromString(in.localName))
+		b.inStash = true
+		b.isConst = true
 	}
 	funcs := c.extractFunctions(in.Body)
 	c.createFunctionBindings(funcs)
@@ -1350,13 +1350,6 @@ func (c *compiler) createVarBindings(v *ast.VariableDeclaration, inFunc bool) {
 	for _, item := range v.List {
 		c.createVarBinding(item.Target, inFunc)
 	}
-}
-
-func (c *compiler) createImmutableBinding(name unistring.String, isConst bool) *binding {
-	b, _ := c.scope.bindName(name)
-	b.inStash = true
-	b.isConst = isConst
-	return b
 }
 
 func (c *compiler) createLexicalIdBinding(name unistring.String, isConst bool, offset int) *binding {
