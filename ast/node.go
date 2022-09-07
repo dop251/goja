@@ -119,7 +119,7 @@ type (
 
 	PrivateDotExpression struct {
 		Left       Expression
-		Identifier PrivateIdentifier
+		Identifier *PrivateIdentifier
 	}
 
 	OptionalChain struct {
@@ -172,7 +172,7 @@ type (
 	}
 
 	PrivateIdentifier struct {
-		Identifier
+		*Identifier
 	}
 
 	NewExpression struct {
