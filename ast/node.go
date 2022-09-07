@@ -688,9 +688,10 @@ func (self *PropertyShort) Idx0() file.Idx                 { return self.Name.Id
 func (self *PropertyKeyed) Idx0() file.Idx                 { return self.Key.Idx0() }
 func (self *ExpressionBody) Idx0() file.Idx                { return self.Expression.Idx0() }
 
-func (self *FieldDefinition) Idx0() file.Idx  { return self.Idx }
-func (self *MethodDefinition) Idx0() file.Idx { return self.Idx }
-func (self *ClassStaticBlock) Idx0() file.Idx { return self.Static }
+func (self *VariableDeclaration) Idx0() file.Idx { return self.Var }
+func (self *FieldDefinition) Idx0() file.Idx     { return self.Idx }
+func (self *MethodDefinition) Idx0() file.Idx    { return self.Idx }
+func (self *ClassStaticBlock) Idx0() file.Idx    { return self.Static }
 
 func (self *ForDeclaration) Idx0() file.Idx    { return self.Idx }
 func (self *ForIntoVar) Idx0() file.Idx        { return self.Binding.Idx0() }
@@ -803,6 +804,10 @@ func (self *PropertyShort) Idx1() file.Idx {
 func (self *PropertyKeyed) Idx1() file.Idx { return self.Value.Idx1() }
 
 func (self *ExpressionBody) Idx1() file.Idx { return self.Expression.Idx1() }
+
+func (self *VariableDeclaration) Idx1() file.Idx {
+	return self.Var
+}
 
 func (self *FieldDefinition) Idx1() file.Idx {
 	if self.Initializer != nil {
