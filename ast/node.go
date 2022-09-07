@@ -555,7 +555,7 @@ type (
 	}
 
 	ForLoopInitializerLexicalDecl struct {
-		LexicalDeclaration LexicalDeclaration
+		LexicalDeclaration *LexicalDeclaration
 	}
 
 	ForInto interface {
