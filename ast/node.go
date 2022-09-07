@@ -114,7 +114,7 @@ type (
 
 	DotExpression struct {
 		Left       Expression
-		Identifier Identifier
+		Identifier *Identifier
 	}
 
 	PrivateDotExpression struct {
@@ -220,7 +220,7 @@ type (
 	}
 
 	PropertyShort struct {
-		Name        Identifier
+		Name        *Identifier
 		Initializer Expression
 	}
 
@@ -541,6 +541,7 @@ type (
 
 type (
 	ForLoopInitializer interface {
+		Node
 		_forLoopInitializer()
 	}
 
@@ -625,6 +626,7 @@ type Program struct {
 func (self *ArrayLiteral) Idx0() file.Idx          { return self.LeftBracket }
 func (self *ArrayPattern) Idx0() file.Idx          { return self.LeftBracket }
 func (self *ObjectPattern) Idx0() file.Idx         { return self.LeftBrace }
+func (self *ParameterList) Idx0() file.Idx         { return self.Opening }
 func (self *AssignExpression) Idx0() file.Idx      { return self.Left.Idx0() }
 func (self *BadExpression) Idx0() file.Idx         { return self.From }
 func (self *BinaryExpression) Idx0() file.Idx      { return self.Left.Idx0() }
@@ -645,6 +647,7 @@ func (self *ObjectLiteral) Idx0() file.Idx         { return self.LeftBrace }
 func (self *RegExpLiteral) Idx0() file.Idx         { return self.Idx }
 func (self *SequenceExpression) Idx0() file.Idx    { return self.Sequence[0].Idx0() }
 func (self *StringLiteral) Idx0() file.Idx         { return self.Idx }
+func (self *TemplateElement) Idx0() file.Idx       { return self.Idx }
 func (self *TemplateLiteral) Idx0() file.Idx       { return self.OpenQuote }
 func (self *ThisExpression) Idx0() file.Idx        { return self.Idx }
 func (self *SuperExpression) Idx0() file.Idx       { return self.Idx }
@@ -678,7 +681,9 @@ func (self *FunctionDeclaration) Idx0() file.Idx { return self.Function.Idx0() }
 func (self *ClassDeclaration) Idx0() file.Idx    { return self.Class.Idx0() }
 func (self *Binding) Idx0() file.Idx             { return self.Target.Idx0() }
 
+func (self *ForLoopInitializerExpression) Idx0() file.Idx  { return self.Expression.Idx0() }
 func (self *ForLoopInitializerVarDeclList) Idx0() file.Idx { return self.List[0].Idx0() }
+func (self *ForLoopInitializerLexicalDecl) Idx0() file.Idx { return self.LexicalDeclaration.Idx0() }
 func (self *PropertyShort) Idx0() file.Idx                 { return self.Name.Idx }
 func (self *PropertyKeyed) Idx0() file.Idx                 { return self.Key.Idx0() }
 func (self *ExpressionBody) Idx0() file.Idx                { return self.Expression.Idx0() }
@@ -721,9 +726,11 @@ func (self *NullLiteral) Idx1() file.Idx        { return file.Idx(int(self.Idx) 
 func (self *NumberLiteral) Idx1() file.Idx      { return file.Idx(int(self.Idx) + len(self.Literal)) }
 func (self *ObjectLiteral) Idx1() file.Idx      { return self.RightBrace + 1 }
 func (self *ObjectPattern) Idx1() file.Idx      { return self.RightBrace + 1 }
+func (self *ParameterList) Idx1() file.Idx      { return self.Closing }
 func (self *RegExpLiteral) Idx1() file.Idx      { return file.Idx(int(self.Idx) + len(self.Literal)) }
 func (self *SequenceExpression) Idx1() file.Idx { return self.Sequence[len(self.Sequence)-1].Idx1() }
 func (self *StringLiteral) Idx1() file.Idx      { return file.Idx(int(self.Idx) + len(self.Literal)) }
+func (self *TemplateElement) Idx1() file.Idx    { return self.Idx }
 func (self *TemplateLiteral) Idx1() file.Idx    { return self.CloseQuote + 1 }
 func (self *ThisExpression) Idx1() file.Idx     { return self.Idx + 4 }
 func (self *SuperExpression) Idx1() file.Idx    { return self.Idx + 5 }
@@ -782,7 +789,9 @@ func (self *Binding) Idx1() file.Idx {
 	return self.Target.Idx1()
 }
 
+func (self *ForLoopInitializerExpression) Idx1() file.Idx  { return self.Expression.Idx1() }
 func (self *ForLoopInitializerVarDeclList) Idx1() file.Idx { return self.List[len(self.List)-1].Idx1() }
+func (self *ForLoopInitializerLexicalDecl) Idx1() file.Idx { return self.LexicalDeclaration.Idx1() }
 
 func (self *PropertyShort) Idx1() file.Idx {
 	if self.Initializer != nil {
