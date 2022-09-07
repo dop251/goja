@@ -114,12 +114,12 @@ type (
 
 	DotExpression struct {
 		Left       Expression
-		Identifier *Identifier
+		Identifier Identifier
 	}
 
 	PrivateDotExpression struct {
 		Left       Expression
-		Identifier *PrivateIdentifier
+		Identifier PrivateIdentifier
 	}
 
 	OptionalChain struct {
@@ -172,7 +172,7 @@ type (
 	}
 
 	PrivateIdentifier struct {
-		*Identifier
+		Identifier
 	}
 
 	NewExpression struct {
@@ -220,7 +220,7 @@ type (
 	}
 
 	PropertyShort struct {
-		Name        *Identifier
+		Name        Identifier
 		Initializer Expression
 	}
 
@@ -555,7 +555,7 @@ type (
 	}
 
 	ForLoopInitializerLexicalDecl struct {
-		LexicalDeclaration *LexicalDeclaration
+		LexicalDeclaration LexicalDeclaration
 	}
 
 	ForInto interface {

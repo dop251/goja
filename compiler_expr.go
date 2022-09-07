@@ -2903,7 +2903,7 @@ func (e *compiledObjectLiteral) emitGetter(putOnStack bool) {
 			if e.c.scope.strict && key == "let" {
 				e.c.throwSyntaxError(e.offset, "'let' cannot be used as a shorthand property in strict mode")
 			}
-			e.c.compileIdentifierExpression(prop.Name).emitGetter(true)
+			e.c.compileIdentifierExpression(&prop.Name).emitGetter(true)
 			e.c.emit(putProp(key))
 		case *ast.SpreadElement:
 			e.c.compileExpression(prop.Expression).emitGetter(true)
@@ -3334,7 +3334,7 @@ func (c *compiler) emitObjectPattern(pattern *ast.ObjectPattern, emitAssign func
 		switch prop := prop.(type) {
 		case *ast.PropertyShort:
 			c.emit(dup)
-			emitAssign(c.compileIdentifierExpression(prop.Name), c.compilePatternInitExpr(func() {
+			emitAssign(c.compileIdentifierExpression(&prop.Name), c.compilePatternInitExpr(func() {
 				c.emit(getProp(prop.Name.Name))
 			}, prop.Initializer, prop.Idx0()))
 		case *ast.PropertyKeyed:
