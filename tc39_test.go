@@ -220,6 +220,7 @@ var (
 		"test/language/statements/class/elements/private-async-method-name.js":                                                         true,
 		"test/language/expressions/in/private-field-rhs-await-present.js":                                                              true,
 		"test/language/expressions/class/elements/private-static-async-method-name.js":                                                 true,
+		"test/language/comments/hashbang/function-constructor.js":                                                                      true,
 
 		// legacy number literals
 		"test/language/literals/numeric/non-octal-decimal-integer.js": true,
@@ -290,7 +291,6 @@ var (
 		"error-cause",
 		"decorators",
 		"regexp-v-flag",
-		"hashbang",
 	}
 )
 
