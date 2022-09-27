@@ -81,6 +81,41 @@ func TestFuncExport(t *testing.T) {
 	})
 }
 
+func TestFuncWrapUnwrap(t *testing.T) {
+	vm := New()
+	f := func(a int, b string) bool {
+		return a > 0 && b != ""
+	}
+	var f1 func(int, string) bool
+	v := vm.ToValue(f)
+	if et := v.ExportType(); et != reflect.TypeOf(f1) {
+		t.Fatal(et)
+	}
+	err := vm.ExportTo(v, &f1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !f1(1, "a") {
+		t.Fatal("not true")
+	}
+}
+
+func TestWrappedFunc(t *testing.T) {
+	vm := New()
+	f := func(a int, b string) bool {
+		return a > 0 && b != ""
+	}
+	vm.Set("f", f)
+	const SCRIPT = `
+	assert.sameValue(typeof f, "function");
+	const s = f.toString()
+	assert(s.endsWith("TestWrappedFunc.func1() { [native code] }"), s);
+	assert(f(1, "a"));
+	assert(!f(0, ""));
+	`
+	vm.testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func ExampleAssertConstructor() {
 	vm := New()
 	res, err := vm.RunString(`

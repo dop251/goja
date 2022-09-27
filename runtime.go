@@ -744,6 +744,30 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(ar
 	return v
 }
 
+func (r *Runtime) newWrappedFunc(value reflect.Value) *Object {
+
+	v := &Object{runtime: r}
+
+	f := &wrappedFuncObject{
+		nativeFuncObject: nativeFuncObject{
+			baseFuncObject: baseFuncObject{
+				baseObject: baseObject{
+					class:      classFunction,
+					val:        v,
+					extensible: true,
+					prototype:  r.global.FunctionPrototype,
+				},
+			},
+			f: r.wrapReflectFunc(value),
+		},
+		wrapped: value,
+	}
+	v.self = f
+	name := unistring.NewFromString(runtime.FuncForPC(value.Pointer()).Name())
+	f.init(name, intToValue(int64(value.Type().NumIn())))
+	return v
+}
+
 func (r *Runtime) newNativeFuncConstructObj(v *Object, construct func(args []Value, proto *Object) *Object, name unistring.String, proto *Object, length int) *nativeFuncObject {
 	f := &nativeFuncObject{
 		baseFuncObject: baseFuncObject{
@@ -1890,8 +1914,7 @@ func (r *Runtime) reflectValueToValue(origValue reflect.Value) Value {
 		obj.self = a
 		return obj
 	case reflect.Func:
-		name := unistring.NewFromString(runtime.FuncForPC(value.Pointer()).Name())
-		return r.newNativeFunc(r.wrapReflectFunc(value), nil, name, nil, value.Type().NumIn())
+		return r.newWrappedFunc(value)
 	}
 
 	obj := &Object{runtime: r}
