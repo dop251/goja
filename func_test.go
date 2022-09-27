@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -114,6 +115,26 @@ func TestWrappedFunc(t *testing.T) {
 	assert(!f(0, ""));
 	`
 	vm.testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestWrappedFuncErrorPassthrough(t *testing.T) {
+	vm := New()
+	e := errors.New("test")
+	f := func(a int) error {
+		if a > 0 {
+			return e
+		}
+		return nil
+	}
+
+	var f1 func(a int64) error
+	err := vm.ExportTo(vm.ToValue(f), &f1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f1(1); err != e {
+		t.Fatal(err)
+	}
 }
 
 func ExampleAssertConstructor() {

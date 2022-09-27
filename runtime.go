@@ -2200,10 +2200,11 @@ func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.
 			jsArgs[i] = r.ToValue(arg.Interface())
 		}
 
-		results = make([]reflect.Value, typ.NumOut())
+		numOut := typ.NumOut()
+		results = make([]reflect.Value, numOut)
 		res, err := fn(_undefined, jsArgs...)
 		if err == nil {
-			if typ.NumOut() > 0 {
+			if numOut > 0 {
 				v := reflect.New(typ.Out(0)).Elem()
 				err = r.toReflectValue(res, v, &objectExportCtx{})
 				if err == nil {
@@ -2213,8 +2214,17 @@ func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.
 		}
 
 		if err != nil {
-			if typ.NumOut() == 2 && typ.Out(1).Name() == "error" {
-				results[1] = reflect.ValueOf(err).Convert(typ.Out(1))
+			if numOut > 0 && typ.Out(numOut-1) == reflectTypeError {
+				if ex, ok := err.(*Exception); ok {
+					if exo, ok := ex.val.(*Object); ok {
+						if v := exo.self.getStr("value", nil); v != nil {
+							if v.ExportType().AssignableTo(reflectTypeError) {
+								err = v.Export().(error)
+							}
+						}
+					}
+				}
+				results[numOut-1] = reflect.ValueOf(err).Convert(typ.Out(numOut - 1))
 			} else {
 				panic(err)
 			}
@@ -2249,13 +2259,9 @@ func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.
 // Exporting to a 'func' creates a strictly typed 'gateway' into an ES function which can be called from Go.
 // The arguments are converted into ES values using Runtime.ToValue(). If the func has no return values,
 // the return value is ignored. If the func has exactly one return value, it is converted to the appropriate
-// type using ExportTo(). If the func has exactly 2 return values and the second value is 'error', exceptions
-// are caught and returned as *Exception. In all other cases exceptions result in a panic. Any extra return values
-// are zeroed.
-//
-// Note, if you want to catch and return exceptions as an `error` and you don't need the return value,
-// 'func(...) error' will not work as expected. The 'error' in this case is mapped to the function return value, not
-// the exception which will still result in a panic. Use 'func(...) (Value, error)' instead, and ignore the Value.
+// type using ExportTo(). If the last return value is 'error', exceptions are caught and returned as *Exception
+// (instances of GoError are unwrapped, i.e. their 'value' is returned instead). In all other cases exceptions
+// result in a panic. Any extra return values are zeroed.
 //
 // 'this' value will always be set to 'undefined'.
 //
