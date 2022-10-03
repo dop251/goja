@@ -5548,6 +5548,59 @@ func TestThisResolutionWithStackVar(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestForInLoopContinue(t *testing.T) {
+	const SCRIPT = `
+	var globalSink;
+	(function() {
+	    const data = [{disabled: true}, {}];
+		function dummy() {}
+	    function f1() {}
+
+	    function f() {
+			dummy(); // move dummy to stash (so that f1 is at index 1)
+	        for (const d of data) {
+	            if (d.disabled) continue;
+	            globalSink = () => d; // move d to stash
+	            f1();
+	        }
+	    }
+
+	    f();
+	})();
+	`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestForInLoopContinueOuter(t *testing.T) {
+	const SCRIPT = `
+	var globalSink;
+	(function() {
+	    const data = [{disabled: true}, {}];
+		function dummy1() {}
+	    function f1() {}
+
+	    function f() {
+			dummy1();
+			let counter = 0;
+			OUTER: for (let i = 0; i < 1; i++) {
+		        for (const d of data) {
+		            if (d.disabled) continue OUTER;
+		            globalSink = () => d;
+		        }
+				counter++;
+			}
+			f1();
+			if (counter !== 0) {
+				throw new Error(counter);
+			}
+	    }
+
+	    f();
+	})();
+	`
+	testScript(SCRIPT, _undefined, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := os.ReadFile("babel7.js")
