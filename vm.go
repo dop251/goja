@@ -258,6 +258,7 @@ type vm struct {
 	result    Value
 
 	maxCallStackSize int
+	maxSteps         uint64
 
 	stashAllocs int
 	halt        bool
@@ -488,15 +489,37 @@ func (vm *vm) run() {
 	vm.halt = false
 	interrupted := false
 	ticks := 0
-	for !vm.halt {
-		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
-			break
+
+	if vm.maxSteps == 0 {
+		for !vm.halt {
+			if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
+				break
+			}
+			vm.prg.code[vm.pc].exec(vm)
+			ticks++
+			if ticks > 10000 {
+				runtime.Gosched()
+				ticks = 0
+			}
 		}
-		vm.prg.code[vm.pc].exec(vm)
-		ticks++
-		if ticks > 10000 {
-			runtime.Gosched()
-			ticks = 0
+	} else {
+		var step uint64
+		for !vm.halt {
+			step++
+			if step >= vm.maxSteps {
+				panic(&uncatchableException{
+					err: &MaxExecutionStepsError{},
+				})
+			}
+			if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
+				break
+			}
+			vm.prg.code[vm.pc].exec(vm)
+			ticks++
+			if ticks > 10000 {
+				runtime.Gosched()
+				ticks = 0
+			}
 		}
 	}
 

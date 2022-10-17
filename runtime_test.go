@@ -2169,6 +2169,17 @@ func TestStackOverflowError(t *testing.T) {
 	}
 }
 
+func TestMaxExecutionStepsError(t *testing.T) {
+	vm := New()
+	vm.SetMaxExecutionSteps(100)
+	_, err := vm.RunString(`
+	while(true){}
+	`)
+	if _, ok := err.(*MaxExecutionStepsError); !ok {
+		t.Fatal(err)
+	}
+}
+
 func TestStacktraceLocationThrowFromCatch(t *testing.T) {
 	vm := New()
 	_, err := vm.RunString(`

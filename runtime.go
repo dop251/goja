@@ -315,6 +315,12 @@ func (e *InterruptedError) Unwrap() error {
 type StackOverflowError struct {
 	Exception
 }
+type MaxExecutionStepsError struct {
+}
+
+func (e *MaxExecutionStepsError) Error() string {
+	return "too many steps"
+}
 
 func (e *InterruptedError) Value() interface{} {
 	return e.iface
@@ -2373,6 +2379,13 @@ func (r *Runtime) SetParserOptions(opts ...parser.Option) {
 // from the vm goroutine or when the vm is not running.
 func (r *Runtime) SetMaxCallStackSize(size int) {
 	r.vm.maxCallStackSize = size
+}
+
+// SetMaxExecutionSteps sets a limit on the number of goja computation steps that may be executed by once call.
+// when the step counter exceeds this limit, a *MaxExecutionStepsError is thrown and returned by RunProgram or by a Callable call.
+// set to 0 for unlimited.
+func (r *Runtime) SetMaxExecutionSteps(max uint64) {
+	r.vm.maxSteps = max
 }
 
 // New is an equivalent of the 'new' operator allowing to call it directly from Go.
