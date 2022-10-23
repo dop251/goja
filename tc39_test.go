@@ -265,7 +265,6 @@ var (
 		"generators",
 		"String.prototype.replaceAll",
 		"resizable-arraybuffer",
-		"array-find-from-last",
 		"regexp-named-groups",
 		"regexp-dotall",
 		"regexp-unicode-property-escapes",
