@@ -2635,7 +2635,11 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 func (ir *iteratorRecord) iterate(step func(Value)) {
 	r := ir.iterator.runtime
 	for {
-		res := r.toObject(ir.next(FunctionCall{This: ir.iterator}))
+		if ir.next == nil {
+			panic(r.NewTypeError("\"next\" method cannot be undefined"))
+		}
+		nextVal := ir.next(FunctionCall{This: ir.iterator})
+		res := r.toObject(nextVal)
 		if nilSafe(res.self.getStr("done", nil)).ToBoolean() {
 			break
 		}
