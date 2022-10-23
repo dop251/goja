@@ -5,6 +5,11 @@ import (
 	"math/bits"
 )
 
+var (
+	_realNegativeInf = math.Inf(-1)
+	_realPositiveInf = math.Inf(1)
+)
+
 func (r *Runtime) math_abs(call FunctionCall) Value {
 	return floatToValue(math.Abs(call.Argument(0).ToFloat()))
 }
@@ -138,7 +143,7 @@ func (r *Runtime) math_log2(call FunctionCall) Value {
 }
 
 func (r *Runtime) math_max(call FunctionCall) Value {
-	result := math.Inf(-1)
+	result := _realNegativeInf
 	args := call.Arguments
 	for i, arg := range args {
 		n := nilSafe(arg).ToFloat()
@@ -146,7 +151,9 @@ func (r *Runtime) math_max(call FunctionCall) Value {
 			args = args[i+1:]
 			goto NaNLoop
 		}
-		result = math.Max(result, n)
+		if n > result || (n == 0 && n == result && !math.Signbit(n)) {
+			result = n
+		}
 	}
 
 	return floatToValue(result)
@@ -160,7 +167,7 @@ NaNLoop:
 }
 
 func (r *Runtime) math_min(call FunctionCall) Value {
-	result := math.Inf(1)
+	result := _realPositiveInf
 	args := call.Arguments
 	for i, arg := range args {
 		n := nilSafe(arg).ToFloat()
@@ -168,7 +175,9 @@ func (r *Runtime) math_min(call FunctionCall) Value {
 			args = args[i+1:]
 			goto NaNLoop
 		}
-		result = math.Min(result, n)
+		if n < result || (n == 0 && n == result && math.Signbit(n)) {
+			result = n
+		}
 	}
 
 	return floatToValue(result)
