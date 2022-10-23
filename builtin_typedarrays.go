@@ -595,7 +595,7 @@ func (r *Runtime) typedArrayProto_findLast(call FunctionCall) Value {
 		}
 		return _undefined
 	}
-	panic(r.NewTypeError("Method TypedArray.prototype.find called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
+	panic(r.NewTypeError("Method TypedArray.prototype.findLast called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 }
 
 func (r *Runtime) typedArrayProto_findLastIndex(call FunctionCall) Value {
@@ -619,7 +619,7 @@ func (r *Runtime) typedArrayProto_findLastIndex(call FunctionCall) Value {
 		}
 		return intToValue(-1)
 	}
-	panic(r.NewTypeError("Method TypedArray.prototype.findIndex called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
+	panic(r.NewTypeError("Method TypedArray.prototype.findLastIndex called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 }
 
 func (r *Runtime) typedArrayProto_forEach(call FunctionCall) Value {
