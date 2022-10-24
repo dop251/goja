@@ -562,13 +562,6 @@ func (r *Runtime) object_fromEntries(call FunctionCall) Value {
 
 	result := r.newBaseObject(r.global.ObjectPrototype, classObject).val
 
-	adderFn := func(call FunctionCall) Value {
-		key := toPropertyKey(call.Argument(0))
-		val := call.Argument(1)
-		createDataPropertyOrThrow(call.This.ToObject(r), key, val)
-		return _undefined
-	}
-
 	iter := r.getIterator(o, nil)
 	iter.iterate(func(nextValue Value) {
 		i0 := valueInt(0)
@@ -577,8 +570,9 @@ func (r *Runtime) object_fromEntries(call FunctionCall) Value {
 		itemObj := r.toObject(nextValue)
 		k := itemObj.self.getIdx(i0, nil)
 		v := itemObj.self.getIdx(i1, nil)
+		key := toPropertyKey(k)
 
-		adderFn(FunctionCall{This: result, Arguments: []Value{k, v}})
+		createDataPropertyOrThrow(result, key, v)
 	})
 
 	return result

@@ -2636,7 +2636,7 @@ func (ir *iteratorRecord) iterate(step func(Value)) {
 	r := ir.iterator.runtime
 	for {
 		if ir.next == nil {
-			panic(r.NewTypeError("\"next\" method cannot be undefined"))
+			panic(r.NewTypeError("object null is not a function"))
 		}
 		nextVal := ir.next(FunctionCall{This: ir.iterator})
 		res := r.toObject(nextVal)
