@@ -281,8 +281,6 @@ var (
 		"FinalizationRegistry",
 		"WeakRef",
 		"numeric-separator-literal",
-		"Object.fromEntries",
-		"Object.hasOwn",
 		"__getter__",
 		"__setter__",
 		"ShadowRealm",
