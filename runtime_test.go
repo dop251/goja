@@ -2479,7 +2479,8 @@ func TestErrorStack(t *testing.T) {
 	if (Reflect.ownKeys(err)[0] !== "stack") {
 		throw new Error("property order");
 	}
-	if (err.stack !== "Error\n\tat test.js:2:14(3)\n") {
+	const stack = err.stack;
+	if (stack !== "Error: test\n\tat test.js:2:14(3)\n") {
 		throw new Error(stack);
 	}
 	delete err.stack;
