@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -79,6 +80,61 @@ func TestFuncExport(t *testing.T) {
 	t.Run("class", func(t *testing.T) {
 		f("(class {})", t)
 	})
+}
+
+func TestFuncWrapUnwrap(t *testing.T) {
+	vm := New()
+	f := func(a int, b string) bool {
+		return a > 0 && b != ""
+	}
+	var f1 func(int, string) bool
+	v := vm.ToValue(f)
+	if et := v.ExportType(); et != reflect.TypeOf(f1) {
+		t.Fatal(et)
+	}
+	err := vm.ExportTo(v, &f1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !f1(1, "a") {
+		t.Fatal("not true")
+	}
+}
+
+func TestWrappedFunc(t *testing.T) {
+	vm := New()
+	f := func(a int, b string) bool {
+		return a > 0 && b != ""
+	}
+	vm.Set("f", f)
+	const SCRIPT = `
+	assert.sameValue(typeof f, "function");
+	const s = f.toString()
+	assert(s.endsWith("TestWrappedFunc.func1() { [native code] }"), s);
+	assert(f(1, "a"));
+	assert(!f(0, ""));
+	`
+	vm.testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestWrappedFuncErrorPassthrough(t *testing.T) {
+	vm := New()
+	e := errors.New("test")
+	f := func(a int) error {
+		if a > 0 {
+			return e
+		}
+		return nil
+	}
+
+	var f1 func(a int64) error
+	err := vm.ExportTo(vm.ToValue(f), &f1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f1(1); err != e {
+		t.Fatal(err)
+	}
 }
 
 func ExampleAssertConstructor() {

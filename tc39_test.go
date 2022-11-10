@@ -388,6 +388,7 @@ var (
 		"test/language/expressions/dynamic-import/eval-self-once-module.js":                                                                true,
 		"test/language/expressions/dynamic-import/eval-self-once-script.js":                                                                true,
 		"test/language/expressions/dynamic-import/2nd-param-await-expr.js":                                                                 true,
+		"test/language/comments/hashbang/function-constructor.js":                                                                          true,
 
 		// legacy number literals
 		"test/language/literals/numeric/non-octal-decimal-integer.js": true,
@@ -442,7 +443,6 @@ var (
 		"generators",
 		"String.prototype.replaceAll",
 		"resizable-arraybuffer",
-		"array-find-from-last",
 		"regexp-named-groups",
 		"regexp-dotall",
 		"regexp-unicode-property-escapes",
@@ -457,8 +457,6 @@ var (
 		"FinalizationRegistry",
 		"WeakRef",
 		"numeric-separator-literal",
-		"Object.fromEntries",
-		"Object.hasOwn",
 		"__getter__",
 		"__setter__",
 		"ShadowRealm",
@@ -467,7 +465,6 @@ var (
 		"top-level-await",
 		"decorators",
 		"regexp-v-flag",
-		"hashbang",
 	}
 )
 
