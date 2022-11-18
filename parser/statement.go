@@ -488,6 +488,7 @@ func (self *_parser) parseCaseStatement() *ast.CaseStatement {
 			self.token == token.DEFAULT {
 			break
 		}
+		self.scope.allowLet = true
 		node.Consequent = append(node.Consequent, self.parseStatement())
 
 	}

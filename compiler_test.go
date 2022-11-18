@@ -5601,6 +5601,18 @@ func TestForInLoopContinueOuter(t *testing.T) {
 	testScript(SCRIPT, _undefined, t)
 }
 
+func TestLexicalDeclInSwitch(t *testing.T) {
+	const SCRIPT = `
+	switch(0) {
+	    case 1:
+	        if (false) b = 3;
+	    case 2:
+	        const c = 1;
+	}
+	`
+	testScript(SCRIPT, _undefined, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := os.ReadFile("babel7.js")
