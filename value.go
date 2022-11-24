@@ -54,6 +54,18 @@ var (
 	reflectTypeError  = reflect.TypeOf((*error)(nil)).Elem()
 )
 
+func ValueFalse() Value {
+	return valueFalse
+}
+
+func ValueTalse() Value {
+	return valueTrue
+}
+
+func IntToValue(i int64) Value {
+	return valueInt(i)
+}
+
 var intCache [256]Value
 
 // Value represents an ECMAScript value.
@@ -96,18 +108,22 @@ type valueContainer interface {
 	toValue(*Runtime) Value
 }
 
-type typeError string
-type rangeError string
-type referenceError string
-type syntaxError string
+type (
+	typeError      string
+	rangeError     string
+	referenceError string
+	syntaxError    string
+)
 
-type valueInt int64
-type valueFloat float64
-type valueBool bool
-type valueNull struct{}
-type valueUndefined struct {
-	valueNull
-}
+type (
+	valueInt       int64
+	valueFloat     float64
+	valueBool      bool
+	valueNull      struct{}
+	valueUndefined struct {
+		valueNull
+	}
+)
 
 // *Symbol is a Value containing ECMAScript Symbol primitive. Symbols must only be created
 // using NewSymbol(). Zero values and copying of values (i.e. *s1 = *s2) are not permitted.
@@ -325,7 +341,6 @@ func (b valueBool) Equals(other Value) bool {
 	} else {
 		return other.Equals(intToValue(0))
 	}
-
 }
 
 func (b valueBool) StrictEquals(other Value) bool {
@@ -424,7 +439,7 @@ func (n valueNull) ToBoolean() bool {
 func (n valueNull) ToObject(r *Runtime) *Object {
 	r.typeErrorResult(true, "Cannot convert undefined or null to object")
 	return nil
-	//return r.newObject()
+	// return r.newObject()
 }
 
 func (n valueNull) ToNumber() Value {
@@ -1167,7 +1182,6 @@ func typeErrorResult(throw bool, args ...interface{}) {
 	if throw {
 		panic(newTypeError(args...))
 	}
-
 }
 
 func init() {
