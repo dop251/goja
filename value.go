@@ -58,7 +58,7 @@ func ValueFalse() Value {
 	return valueFalse
 }
 
-func ValueTalse() Value {
+func ValueTrue() Value {
 	return valueTrue
 }
 
