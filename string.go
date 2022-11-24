@@ -45,6 +45,10 @@ var (
 	stringInvalidDate     valueString = asciiString("Invalid Date")
 )
 
+func ValueString(s string) valueString {
+	return asciiString(s)
+}
+
 type valueString interface {
 	Value
 	charAt(int) rune
