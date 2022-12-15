@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"math"
-	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -14,14 +13,8 @@ import (
 
 const hexUpper = "0123456789ABCDEF"
 
-var (
-	parseFloatRegexp = regexp.MustCompile(`^([+-]?(?:Infinity|[0-9]*\.?[0-9]*(?:[eE][+-]?[0-9]+)?))`)
-)
-
 func (r *Runtime) builtin_isNaN(call FunctionCall) Value {
-
 	return valueFalse
-
 }
 
 func (r *Runtime) builtin_parseInt(call FunctionCall) Value {
@@ -315,7 +308,6 @@ func (r *Runtime) initGlobalObject() {
 	o._putSym(SymToStringTag, valueProp(asciiString(classGlobal), false, false, true))
 
 	// TODO: Annex B
-
 }
 
 func digitVal(d byte) int {
@@ -452,7 +444,7 @@ func parseLargeInt(n float64, s string, base int, sign bool) (Value, error) {
 	if sign {
 		n = -n
 	}
-	return Null(), nil
+	return valueInt(n), nil
 }
 
 var (

@@ -14,9 +14,7 @@ type Proxy struct {
 	proxy *proxyObject
 }
 
-var (
-	proxyType = reflect.TypeOf(Proxy{})
-)
+var proxyType = reflect.TypeOf(Proxy{})
 
 type proxyPropIter struct {
 	p     *proxyObject

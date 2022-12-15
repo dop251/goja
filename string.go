@@ -14,21 +14,18 @@ const (
 )
 
 var (
-	stringTrue        valueString = asciiString("true")
-	stringFalse       valueString = asciiString("false")
-	stringNull        valueString = asciiString("null")
-	stringUndefined   valueString = asciiString("undefined")
-	stringObjectC     valueString = asciiString("object")
-	stringFunction    valueString = asciiString("function")
-	stringBoolean     valueString = asciiString("boolean")
-	stringString      valueString = asciiString("string")
-	stringSymbol      valueString = asciiString("symbol")
-	stringNumber      valueString = asciiString("number")
-	stringNaN         valueString = asciiString("NaN")
-	stringInfinity                = asciiString("Infinity")
-	stringNegInfinity             = asciiString("-Infinity")
-	stringBound_      valueString = asciiString("bound ")
-	stringEmpty       valueString = asciiString("")
+	stringTrue      valueString = asciiString("true")
+	stringFalse     valueString = asciiString("false")
+	stringNull      valueString = asciiString("null")
+	stringUndefined valueString = asciiString("undefined")
+	stringObjectC   valueString = asciiString("object")
+	stringFunction  valueString = asciiString("function")
+	stringBoolean   valueString = asciiString("boolean")
+	stringString    valueString = asciiString("string")
+	stringSymbol    valueString = asciiString("symbol")
+	stringNumber    valueString = asciiString("number")
+	stringBound_    valueString = asciiString("bound ")
+	stringEmpty     valueString = asciiString("")
 
 	stringError          valueString = asciiString("Error")
 	stringAggregateError valueString = asciiString("AggregateError")
@@ -42,7 +39,6 @@ var (
 
 	stringObjectNull      valueString = asciiString("[object Null]")
 	stringObjectUndefined valueString = asciiString("[object Undefined]")
-	stringInvalidDate     valueString = asciiString("Invalid Date")
 )
 
 func ValueString(s string) valueString {

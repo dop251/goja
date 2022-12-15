@@ -1,17 +1,18 @@
 package goja
 
 import (
+	"testing"
+
 	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
-	"testing"
 )
 
 func TestTaggedTemplateArgExport(t *testing.T) {
 	vm := New()
-	vm.Set("f", func(v Value) {
+	_ = vm.Set("f", func(v Value) {
 		v.Export()
 	})
-	vm.RunString("f`test`")
+	_, _ = vm.RunString("f`test`")
 }
 
 func TestVM1(t *testing.T) {
@@ -48,7 +49,6 @@ func TestVM1(t *testing.T) {
 	} else {
 		t.Fatalf("Unexpected result: %v", rv)
 	}
-
 }
 
 func TestEvalVar(t *testing.T) {
@@ -92,9 +92,9 @@ func TestNewArrayFromIterClosed(t *testing.T) {
 
 func BenchmarkVmNOP2(b *testing.B) {
 	prg := []func(*vm){
-		//loadVal(0).exec,
-		//loadVal(1).exec,
-		//add.exec,
+		// loadVal(0).exec,
+		// loadVal(1).exec,
+		// add.exec,
 		jump(1).exec,
 		halt.exec,
 	}
@@ -132,7 +132,7 @@ func BenchmarkVmNOP(b *testing.B) {
 	vm.prg = &Program{
 		code: []instruction{
 			jump(1),
-			//jump(1),
+			// jump(1),
 			halt,
 		},
 	}
@@ -141,7 +141,6 @@ func BenchmarkVmNOP(b *testing.B) {
 		vm.pc = 0
 		vm.run()
 	}
-
 }
 
 func BenchmarkVm1(b *testing.B) {
@@ -150,8 +149,8 @@ func BenchmarkVm1(b *testing.B) {
 
 	vm := r.vm
 
-	//ins1 := loadVal1(0)
-	//ins2 := loadVal1(1)
+	// ins1 := loadVal1(0)
+	// ins2 := loadVal1(1)
 
 	vm.prg = &Program{
 		values: []Value{valueInt(2), valueInt(3)},
@@ -214,7 +213,6 @@ fib(35);
 	if !v.SameAs(expectedResult) {
 		b.Fatalf("Result: %+v, expected: %+v", v, expectedResult)
 	}
-
 }
 
 func BenchmarkEmptyLoop(b *testing.B) {
@@ -231,7 +229,7 @@ func BenchmarkEmptyLoop(b *testing.B) {
 	// prg.dumpCode(log.Printf)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		vm.RunProgram(prg)
+		_, _ = vm.RunProgram(prg)
 	}
 }
 
@@ -262,11 +260,11 @@ func BenchmarkFuncCall(b *testing.B) {
 	vm := New()
 	prg := MustCompile("test.js", SCRIPT, false)
 
-	vm.RunProgram(prg)
+	_, _ = vm.RunProgram(prg)
 	if f, ok := AssertFunction(vm.Get("f")); ok {
 		b.StartTimer()
 		for i := 0; i < b.N; i++ {
-			f(nil, nil, intToValue(1), intToValue(2), intToValue(3), intToValue(4), intToValue(5), intToValue(6))
+			_, _ = f(nil, nil, intToValue(1), intToValue(2), intToValue(3), intToValue(4), intToValue(5), intToValue(6))
 		}
 	} else {
 		b.Fatal("f is not a function")

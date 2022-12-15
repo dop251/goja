@@ -56,7 +56,6 @@ type _RegExp_parser struct {
 // If the pattern is invalid (not valid even in JavaScript), then this function
 // returns an empty string and a generic error.
 func TransformRegExp(pattern string) (transformed string, err error) {
-
 	if pattern == "" {
 		return "", nil
 	}

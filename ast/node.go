@@ -733,6 +733,7 @@ func (self *UnaryExpression) Idx1() file.Idx {
 	}
 	return self.Operand.Idx1()
 }
+
 func (self *MetaProperty) Idx1() file.Idx {
 	return self.Property.Idx1()
 }

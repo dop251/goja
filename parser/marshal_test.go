@@ -195,7 +195,6 @@ func testMarshal(node interface{}) string {
 
 func TestParserAST(t *testing.T) {
 	tt(t, func() {
-
 		test := func(inputOutput string) {
 			match := matchBeforeAfterSeparator.FindStringIndex(inputOutput)
 			input := strings.TrimSpace(inputOutput[0:match[0]])
@@ -204,8 +203,8 @@ func TestParserAST(t *testing.T) {
 			is(err, nil)
 			haveOutput := testMarshal(program)
 			tmp0, tmp1 := bytes.Buffer{}, bytes.Buffer{}
-			json.Indent(&tmp0, []byte(haveOutput), "\t\t", "   ")
-			json.Indent(&tmp1, []byte(wantOutput), "\t\t", "   ")
+			_ = json.Indent(&tmp0, []byte(haveOutput), "\t\t", "   ")
+			_ = json.Indent(&tmp1, []byte(wantOutput), "\t\t", "   ")
 			is("\n\t\t"+tmp0.String(), "\n\t\t"+tmp1.String())
 		}
 
@@ -885,6 +884,5 @@ func TestParserAST(t *testing.T) {
   }
 ]
             `)
-
 	})
 }

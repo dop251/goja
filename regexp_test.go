@@ -724,7 +724,7 @@ func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	vm := New()
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		vm.RunProgram(prg)
+		_, _ = vm.RunProgram(prg)
 	}
 }
 
@@ -750,7 +750,7 @@ func BenchmarkRegexpMatch(b *testing.B) {
 	vm := New()
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		vm.RunProgram(prg)
+		_, _ = vm.RunProgram(prg)
 	}
 }
 
@@ -808,7 +808,7 @@ func BenchmarkRegexpMatchCache(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			fn(_undefined)
+			_, _ = fn(_undefined)
 		}
 	} else {
 		b.Fatal("not a function")
@@ -869,7 +869,7 @@ func BenchmarkRegexpMatchAll(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			fn(_undefined)
+			_, _ = fn(_undefined)
 		}
 	} else {
 		b.Fatal("not a function")
@@ -914,5 +914,4 @@ func BenchmarkRegexpSingleExec(b *testing.B) {
 	b.Run("Re2-Unicode", func(b *testing.B) {
 		f("(?=)test", "aaaaaaaaaaaaaaaaaaaaaaaaa testing 😀", b)
 	})
-
 }

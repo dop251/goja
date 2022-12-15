@@ -1057,7 +1057,8 @@ func (r *Runtime) typedArrayProto_subarray(call FunctionCall) Value {
 		}
 		endIdx := relToIdx(relEnd, l)
 		newLen := max(endIdx-beginIdx, 0)
-		return r.typedArraySpeciesCreate(ta, []Value{ta.viewedArrayBuf.val,
+		return r.typedArraySpeciesCreate(ta, []Value{
+			ta.viewedArrayBuf.val,
 			intToValue((int64(ta.offset) + beginIdx) * int64(ta.elemSize)),
 			intToValue(newLen),
 		}).val
@@ -1494,7 +1495,6 @@ func (r *Runtime) typedArrayCreator(ctor func(args []Value, newTarget, proto *Ob
 }
 
 func (r *Runtime) initTypedArrays() {
-
 	r.global.ArrayBufferPrototype = r.newLazyObject(r.createArrayBufferProto)
 	r.global.ArrayBuffer = r.newLazyObject(r.createArrayBuffer)
 	r.addToGlobal("ArrayBuffer", r.global.ArrayBuffer)
@@ -1526,5 +1526,4 @@ func (r *Runtime) initTypedArrays() {
 
 	r.global.Int32Array = r.newLazyObject(r.typedArrayCreator(r.newInt32Array, "Int32Array", 4))
 	r.addToGlobal("Int32Array", r.global.Int32Array)
-
 }

@@ -511,7 +511,6 @@ func TestRuntime_ExportToNumbers(t *testing.T) {
 			t.Fatalf("f: %f", f)
 		}
 	})
-
 }
 
 func TestRuntime_ExportToSlice(t *testing.T) {
@@ -616,7 +615,6 @@ func TestRuntime_ExportToStruct(t *testing.T) {
 	if o.Test != "1" {
 		t.Fatalf("Unexpected value: '%s'", o.Test)
 	}
-
 }
 
 func TestRuntime_ExportToStructPtr(t *testing.T) {
@@ -641,7 +639,6 @@ func TestRuntime_ExportToStructPtr(t *testing.T) {
 	if o.Test != "1" {
 		t.Fatalf("Unexpected value: '%s'", o.Test)
 	}
-
 }
 
 func TestRuntime_ExportToStructAnonymous(t *testing.T) {
@@ -684,7 +681,6 @@ func TestRuntime_ExportToStructAnonymous(t *testing.T) {
 	if test.C != "testC" {
 		t.Fatalf("Unexpected value: '%s'", test.C)
 	}
-
 }
 
 func TestRuntime_ExportToStructFromPtr(t *testing.T) {
@@ -759,7 +755,6 @@ func TestRuntime_ExportToStructWithPtrValues(t *testing.T) {
 	if test.D == nil || test.D.E != "testE" {
 		t.Fatalf("Unexpected value: '%s'", test.D.E)
 	}
-
 }
 
 func TestRuntime_ExportToTime(t *testing.T) {
@@ -1054,7 +1049,6 @@ func TestToValueFloat(t *testing.T) {
 }
 
 func TestToValueInterface(t *testing.T) {
-
 	f := func(i interface{}) bool {
 		return i == t
 	}
@@ -1220,7 +1214,7 @@ func TestNilCallArg(t *testing.T) {
 	`
 	vm := New()
 	prg := MustCompile("test.js", SCRIPT, false)
-	vm.RunProgram(prg)
+	_, _ = vm.RunProgram(prg)
 	if f, ok := AssertFunction(vm.Get("f")); ok {
 		v, err := f(nil, nil)
 		if err != nil {
@@ -1357,7 +1351,7 @@ func TestReflectCallVariadic(t *testing.T) {
 
 func TestReflectNullValueArgument(t *testing.T) {
 	rt := New()
-	rt.Set("fn", func(v Value) {
+	_ = rt.Set("fn", func(v Value) {
 		if v == nil {
 			t.Error("null becomes nil")
 		}
@@ -1365,7 +1359,7 @@ func TestReflectNullValueArgument(t *testing.T) {
 			t.Error("null is not null")
 		}
 	})
-	rt.RunString(`fn(null);`)
+	_, _ = rt.RunString(`fn(null);`)
 }
 
 type testNativeConstructHelper struct {
@@ -1390,15 +1384,18 @@ func TestNativeConstruct(t *testing.T) {
 		return rt.ToValue(42)
 	}
 
-	rt.Set("F", func(call ConstructorCall) *Object { // constructor signature (as opposed to 'func(FunctionCall) Value')
+	err := rt.Set("F", func(call ConstructorCall) *Object { // constructor signature (as opposed to 'func(FunctionCall) Value')
 		h := &testNativeConstructHelper{
 			rt:   rt,
 			base: call.Argument(0).ToInteger(),
 		}
-		call.This.Set("method", method)
-		call.This.Set("calc", h.calc)
+		_ = call.This.Set("method", method)
+		_ = call.This.Set("calc", h.calc)
 		return nil // or any other *Object which will be used instead of call.This
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	prg := MustCompile("test.js", SCRIPT, false)
 
@@ -1496,7 +1493,7 @@ func TestInterruptInWrappedFunction2(t *testing.T) {
 	rt := New()
 	// this test panics as otherwise goja will recover and possibly loop
 	var called bool
-	rt.Set("v", rt.ToValue(func() {
+	_ = rt.Set("v", rt.ToValue(func() {
 		if called {
 			go func() {
 				panic("this should never get called twice")
@@ -1506,11 +1503,11 @@ func TestInterruptInWrappedFunction2(t *testing.T) {
 		rt.Interrupt("here is the error")
 	}))
 
-	rt.Set("s", rt.ToValue(func(a Callable) (Value, error) {
+	_ = rt.Set("s", rt.ToValue(func(a Callable) (Value, error) {
 		return a(nil)
 	}))
 
-	rt.Set("k", rt.ToValue(func(e Value) {
+	_ = rt.Set("k", rt.ToValue(func(e Value) {
 		go func() {
 			panic("this should never get called actually")
 		}()
@@ -1552,14 +1549,14 @@ func TestInterruptInWrappedFunction2Recover(t *testing.T) {
 	rt := New()
 	// this test panics as otherwise goja will recover and possibly loop
 	var vCalled int
-	rt.Set("v", rt.ToValue(func() {
+	_ = rt.Set("v", rt.ToValue(func() {
 		if vCalled == 0 {
 			rt.Interrupt("here is the error")
 		}
 		vCalled++
 	}))
 
-	rt.Set("s", rt.ToValue(func(a Callable) (Value, error) {
+	_ = rt.Set("s", rt.ToValue(func(a Callable) (Value, error) {
 		v, err := a(nil)
 		if err != nil {
 			intErr := new(InterruptedError)
@@ -1572,7 +1569,7 @@ func TestInterruptInWrappedFunction2Recover(t *testing.T) {
 	}))
 	var kCalled int
 
-	rt.Set("k", rt.ToValue(func(e Value) {
+	_ = rt.Set("k", rt.ToValue(func(e Value) {
 		kCalled++
 	}))
 	_, err := rt.RunString(`
@@ -1886,10 +1883,10 @@ func TestNativeCtorNewTarget(t *testing.T) {
 
 func TestNativeCtorNonNewCall(t *testing.T) {
 	vm := New()
-	vm.Set(`Animal`, func(call ConstructorCall) *Object {
+	_ = vm.Set(`Animal`, func(call ConstructorCall) *Object {
 		obj := call.This
-		obj.Set(`name`, call.Argument(0).String())
-		obj.Set(`eat`, func(call FunctionCall) Value {
+		_ = obj.Set(`name`, call.Argument(0).String())
+		_ = obj.Set(`eat`, func(call FunctionCall) Value {
 			self := call.This.(*Object)
 			return vm.ToValue(fmt.Sprintf("%s eat", self.Get(`name`)))
 		})
@@ -1940,10 +1937,10 @@ func ExampleObject_SetSymbol() {
 	vm.SetFieldNameMapper(UncapFieldNameMapper()) // to use IterResult
 
 	o := vm.NewObject()
-	o.SetSymbol(SymIterator, func() *Object {
+	_ = o.SetSymbol(SymIterator, func() *Object {
 		count := 0
 		iter := vm.NewObject()
-		iter.Set("next", func() IterResult {
+		_ = iter.Set("next", func() IterResult {
 			if count < 10 {
 				count++
 				return IterResult{
@@ -1956,7 +1953,7 @@ func ExampleObject_SetSymbol() {
 		})
 		return iter
 	})
-	vm.Set("o", o)
+	_ = vm.Set("o", o)
 
 	res, err := vm.RunString(`
 	var acc = "";
@@ -1975,7 +1972,7 @@ func ExampleObject_SetSymbol() {
 func ExampleRuntime_NewArray() {
 	vm := New()
 	array := vm.NewArray(1, 2, true)
-	vm.Set("array", array)
+	_ = vm.Set("array", array)
 	res, err := vm.RunString(`
 	var acc = "";
 	for (var v of array) {
@@ -1997,7 +1994,6 @@ func ExampleRuntime_SetParserOptions() {
 	res, err := vm.RunString(`
 	"I did not hang!";
 //# sourceMappingURL=/dev/zero`)
-
 	if err != nil {
 		panic(err)
 	}
@@ -2019,7 +2015,7 @@ func TestRuntime_SetParserOptions_Eval(t *testing.T) {
 
 func TestNativeCallWithRuntimeParameter(t *testing.T) {
 	vm := New()
-	vm.Set("f", func(_ FunctionCall, r *Runtime) Value {
+	_ = vm.Set("f", func(_ FunctionCall, r *Runtime) Value {
 		if r == vm {
 			return valueTrue
 		}
@@ -2488,14 +2484,13 @@ function foo(a,b,c)
 func BenchmarkCallReflect(b *testing.B) {
 	vm := New()
 	vm.Set("f", func(v Value) {
-
 	})
 
 	prg := MustCompile("test.js", "f(null)", true)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		vm.RunProgram(prg)
+		_, _ = vm.RunProgram(prg)
 	}
 }
 
@@ -2509,7 +2504,7 @@ func BenchmarkCallNative(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		vm.RunProgram(prg)
+		_, _ = vm.RunProgram(prg)
 	}
 }
 
@@ -2525,7 +2520,7 @@ func BenchmarkMainLoop(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		vm.RunProgram(prg)
+		_, _ = vm.RunProgram(prg)
 	}
 }
 
@@ -2562,7 +2557,7 @@ func BenchmarkAsciiStringMapGet(b *testing.B) {
 		m[asciiString(strconv.Itoa(i))] = intToValue(int64(i))
 	}
 	b.ResetTimer()
-	var key = asciiString("50")
+	key := asciiString("50")
 	for i := 0; i < b.N; i++ {
 		if m[key] == nil {
 			b.Fatal()

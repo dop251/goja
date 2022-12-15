@@ -645,7 +645,6 @@ func (o *baseObject) hasOwnPropertyIdx(idx valueInt) bool {
 }
 
 func (o *baseObject) _defineOwnProperty(name unistring.String, existingValue Value, descr PropertyDescriptor, throw bool) (val Value, ok bool) {
-
 	getterObj, _ := descr.Getter.(*Object)
 	setterObj, _ := descr.Setter.(*Object)
 
@@ -744,7 +743,6 @@ func (o *baseObject) _defineOwnProperty(name unistring.String, existingValue Val
 Reject:
 	o.val.runtime.typeErrorResult(throw, "Cannot redefine property: %s", name)
 	return nil, false
-
 }
 
 func (o *baseObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {

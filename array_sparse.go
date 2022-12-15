@@ -308,7 +308,7 @@ func (a *sparseArrayObject) expand(idx uint32) bool {
 			idx = ii
 		}
 		if (bits.UintSize == 64 || idx < math.MaxInt32) && int(idx)>>3 < l {
-			//log.Println("Switching sparse->standard")
+			// log.Println("Switching sparse->standard")
 			ar := &arrayObject{
 				baseObject:     a.baseObject,
 				length:         a.length,

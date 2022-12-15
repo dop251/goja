@@ -240,8 +240,8 @@ func TestExportToCircular(t *testing.T) {
 	}
 
 	o1 := vm.NewObject()
-	o1.Set("S", o)
-	o1.Set("S1", o)
+	_ = o1.Set("S", o)
+	_ = o1.Set("S1", o)
 	err = vm.ExportTo(o1, &s2)
 	if err != nil {
 		t.Fatal(err)
@@ -549,7 +549,6 @@ func BenchmarkGet(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		v.get(n, nil)
 	}
-
 }
 
 func BenchmarkGetStr(b *testing.B) {

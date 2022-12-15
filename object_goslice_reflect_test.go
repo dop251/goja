@@ -22,7 +22,6 @@ func TestGoSliceReflectBasic(t *testing.T) {
 	if i := v.ToInteger(); i != 10 {
 		t.Fatalf("Expected 10, got: %d", i)
 	}
-
 }
 
 func TestGoSliceReflectIn(t *testing.T) {
@@ -75,7 +74,6 @@ func TestGoSliceReflectSet(t *testing.T) {
 }
 
 func TestGoSliceReflectPush(t *testing.T) {
-
 	r := New()
 
 	t.Run("Can push to array by array ptr", func(t *testing.T) {
@@ -109,7 +107,6 @@ func TestGoSliceReflectPush(t *testing.T) {
 			t.Fatalf("a[1] = %v, expected 10", a)
 		}
 	})
-
 }
 
 func TestGoSliceReflectStructField(t *testing.T) {
@@ -199,7 +196,6 @@ func TestGoSliceReflectMethod(t *testing.T) {
 	if !v.StrictEquals(valueTrue) {
 		t.Fatalf("Expected true, got %v", v)
 	}
-
 }
 
 func TestGoSliceReflectGetStr(t *testing.T) {
@@ -332,7 +328,6 @@ func TestGoSliceReflectProtoProto(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 }
 
 func TestGoSliceReflectDelete(t *testing.T) {
@@ -405,7 +400,7 @@ func (a testCustomSliceWithMethods) Method() bool {
 
 func TestGoSliceReflectMethods(t *testing.T) {
 	vm := New()
-	vm.Set("s", testCustomSliceWithMethods{1, 2, 3})
+	_ = vm.Set("s", testCustomSliceWithMethods{1, 2, 3})
 	_, err := vm.RunString(`
 	if (!s.hasOwnProperty("Method")) {
 		throw new Error("hasOwnProperty() returned false");
@@ -422,7 +417,7 @@ func TestGoSliceReflectMethods(t *testing.T) {
 
 func TestGoSliceReflectExportAfterGrow(t *testing.T) {
 	vm := New()
-	vm.Set("a", []int{1})
+	_ = vm.Set("a", []int{1})
 	v, err := vm.RunString(`
 		a.push(2);
 		a;
@@ -443,7 +438,7 @@ func TestGoSliceReflectExportAfterGrow(t *testing.T) {
 func TestGoSliceReflectSort(t *testing.T) {
 	vm := New()
 	type Thing struct{ Name string }
-	vm.Set("v", []*Thing{
+	_ = vm.Set("v", []*Thing{
 		{Name: "log"},
 		{Name: "etc"},
 		{Name: "test"},
@@ -464,7 +459,7 @@ func TestGoSliceReflectSort(t *testing.T) {
 
 func TestGoSliceReflect111(t *testing.T) {
 	vm := New()
-	vm.Set("v", []int32{
+	_ = vm.Set("v", []int32{
 		1, 2,
 	})
 	ret, err := vm.RunString(`
@@ -490,6 +485,6 @@ func BenchmarkGoSliceReflectSet(b *testing.B) {
 	b.ResetTimer()
 	v := intToValue(0)
 	for i := 0; i < b.N; i++ {
-		a.Set("0", v)
+		_ = a.Set("0", v)
 	}
 }

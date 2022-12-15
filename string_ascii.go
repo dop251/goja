@@ -185,7 +185,6 @@ func (s asciiString) Equals(other Value) bool {
 	}
 
 	if _, ok := other.(valueBool); ok {
-
 		return false
 	}
 

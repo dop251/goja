@@ -122,8 +122,10 @@ func TestGoMapReflectProto(t *testing.T) {
 	}
 }
 
-type gomapReflect_noMethods map[string]interface{}
-type gomapReflect_withMethods map[string]interface{}
+type (
+	gomapReflect_noMethods   map[string]interface{}
+	gomapReflect_withMethods map[string]interface{}
+)
 
 func (m gomapReflect_withMethods) Method() bool {
 	return true
@@ -145,7 +147,6 @@ func TestGoMapReflectNoMethods(t *testing.T) {
 	if !v.StrictEquals(valueTrue) {
 		t.Fatalf("Expected true, got %v", v)
 	}
-
 }
 
 func TestGoMapReflectWithMethods(t *testing.T) {
@@ -164,7 +165,6 @@ func TestGoMapReflectWithMethods(t *testing.T) {
 	if !v.StrictEquals(valueTrue) {
 		t.Fatalf("Expected true, got %v", v)
 	}
-
 }
 
 func TestGoMapReflectWithProto(t *testing.T) {
@@ -240,7 +240,7 @@ func TestGoMapReflectProtoProp(t *testing.T) {
 	`
 
 	r := New()
-	r.Set("m", map[string]string{})
+	_ = r.Set("m", map[string]string{})
 	r.testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 

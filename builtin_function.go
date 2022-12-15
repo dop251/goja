@@ -157,13 +157,12 @@ func (r *Runtime) functionproto_bind(call FunctionCall) Value {
 	fcall := r.toCallable(call.This)
 	construct := obj.self.assertConstructor()
 
-	var l = _positiveZero
+	l := _positiveZero
 	if obj.self.hasOwnPropertyStr("length") {
 		var li int64
 		switch lenProp := nilSafe(obj.self.getStr("length", nil)).(type) {
 		case valueInt:
 			li = lenProp.ToInteger()
-
 		}
 		if len(call.Arguments) > 1 {
 			li -= int64(len(call.Arguments)) - 1

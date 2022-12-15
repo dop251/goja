@@ -43,7 +43,7 @@ func TestProxy_Object_native_proxy_getPrototypeOf(t *testing.T) {
 	runtime := New()
 
 	prototype := runtime.NewObject()
-	runtime.Set("proto", prototype)
+	_ = runtime.Set("proto", prototype)
 
 	target := runtime.NewObject()
 	proxy := runtime.NewProxy(target, &ProxyTrapConfig{
@@ -51,7 +51,7 @@ func TestProxy_Object_native_proxy_getPrototypeOf(t *testing.T) {
 			return prototype
 		},
 	})
-	runtime.Set("proxy", proxy)
+	_ = runtime.Set("proxy", proxy)
 
 	runtime.testScriptWithTestLib(SCRIPT, _undefined, t)
 }
@@ -125,14 +125,14 @@ func TestProxy_native_proxy_isExtensible(t *testing.T) {
 	runtime := New()
 
 	target := runtime.NewObject()
-	runtime.Set("target", target)
+	_ = runtime.Set("target", target)
 
 	proxy := runtime.NewProxy(target, &ProxyTrapConfig{
 		IsExtensible: func(target *Object) (success bool) {
 			return false
 		},
 	})
-	runtime.Set("proxy", proxy)
+	_ = runtime.Set("proxy", proxy)
 
 	val, err := runtime.RunString(SCRIPT)
 	if err != nil {
@@ -186,12 +186,12 @@ func TestProxy_native_proxy_preventExtensions(t *testing.T) {
 	runtime := New()
 
 	target := runtime.NewObject()
-	target.Set("canEvolve", true)
-	runtime.Set("target", target)
+	_ = target.Set("canEvolve", true)
+	_ = runtime.Set("target", target)
 
 	proxy := runtime.NewProxy(target, &ProxyTrapConfig{
 		PreventExtensions: func(target *Object) (success bool) {
-			target.Set("canEvolve", false)
+			_ = target.Set("canEvolve", false)
 			_, err := runtime.RunString("Object.preventExtensions(target)")
 			if err != nil {
 				panic(err)
@@ -199,7 +199,7 @@ func TestProxy_native_proxy_preventExtensions(t *testing.T) {
 			return true
 		},
 	})
-	runtime.Set("proxy", proxy)
+	_ = runtime.Set("proxy", proxy)
 
 	val, err := runtime.RunString(SCRIPT)
 	if err != nil {
@@ -366,9 +366,9 @@ func TestProxy_native_proxy_getOwnPropertyDescriptorIdx(t *testing.T) {
 		},
 	})
 
-	vm.Set("proxy1", proxy1)
-	vm.Set("proxy2", proxy2)
-	vm.Set("proxy3", proxy3)
+	_ = vm.Set("proxy1", proxy1)
+	_ = vm.Set("proxy2", proxy2)
+	_ = vm.Set("proxy3", proxy3)
 	vm.testScriptWithTestLibX(`
 	var desc;
 	for (var i = -1; i <= 1; i++) {
@@ -396,7 +396,7 @@ func TestProxy_native_proxy_getOwnPropertyDescriptorSym(t *testing.T) {
 	vm := New()
 	o := vm.NewObject()
 	sym := NewSymbol("42")
-	vm.Set("sym", sym)
+	_ = vm.Set("sym", sym)
 	proxy := vm.NewProxy(o, &ProxyTrapConfig{
 		GetOwnPropertyDescriptorSym: func(target *Object, s *Symbol) PropertyDescriptor {
 			if target != o {
@@ -428,7 +428,7 @@ func TestProxy_native_proxy_getOwnPropertyDescriptor_non_existing(t *testing.T) 
 			return // empty PropertyDescriptor
 		},
 	})
-	vm.Set("proxy", proxy)
+	_ = vm.Set("proxy", proxy)
 	res, err := vm.RunString(`Object.getOwnPropertyDescriptor(proxy, "foo") === undefined`)
 	if err != nil {
 		t.Fatal(err)
@@ -491,19 +491,19 @@ func TestProxy_native_proxy_defineProperty(t *testing.T) {
 
 	proxy := runtime.NewProxy(target, &ProxyTrapConfig{
 		DefineProperty: func(target *Object, key string, propertyDescriptor PropertyDescriptor) (success bool) {
-			target.Set(key, propertyDescriptor.Value.String()+"-passed-str")
+			_ = target.Set(key, propertyDescriptor.Value.String()+"-passed-str")
 			return true
 		},
 		DefinePropertyIdx: func(target *Object, key int, propertyDescriptor PropertyDescriptor) (success bool) {
-			target.Set(strconv.Itoa(key), propertyDescriptor.Value.String()+"-passed-idx")
+			_ = target.Set(strconv.Itoa(key), propertyDescriptor.Value.String()+"-passed-idx")
 			return true
 		},
 		DefinePropertySym: func(target *Object, key *Symbol, propertyDescriptor PropertyDescriptor) (success bool) {
-			target.SetSymbol(key, propertyDescriptor.Value.String()+"-passed-sym")
+			_ = target.SetSymbol(key, propertyDescriptor.Value.String()+"-passed-sym")
 			return true
 		},
 	})
-	runtime.Set("proxy", proxy)
+	_ = runtime.Set("proxy", proxy)
 
 	runtime.testScriptWithTestLib(SCRIPT, _undefined, t)
 }
@@ -752,21 +752,21 @@ func TestProxy_native_proxy_set(t *testing.T) {
 	proxy := vm.NewProxy(obj, &ProxyTrapConfig{
 		Set: func(target *Object, property string, value Value, receiver Value) (success bool) {
 			if property == "str" {
-				obj.Set(property, propValueStr)
+				_ = obj.Set(property, propValueStr)
 				return true
 			}
 			panic(vm.NewTypeError("Setter for unexpected property: %q", property))
 		},
 		SetIdx: func(target *Object, property int, value Value, receiver Value) (success bool) {
 			if property == 0 {
-				obj.Set(strconv.Itoa(property), propValueIdx)
+				_ = obj.Set(strconv.Itoa(property), propValueIdx)
 				return true
 			}
 			panic(vm.NewTypeError("Setter for unexpected idx property: %d", property))
 		},
 		SetSym: func(target *Object, property *Symbol, value Value, receiver Value) (success bool) {
 			if property == sym {
-				obj.SetSymbol(property, propValueSym)
+				_ = obj.SetSymbol(property, propValueSym)
 				return true
 			}
 			panic(vm.NewTypeError("Setter for unexpected sym property: %q", property.String()))
@@ -822,6 +822,7 @@ func TestProxy_proxy_set_prop(t *testing.T) {
 
 	testScript(SCRIPT, asciiString("321tset"), t)
 }
+
 func TestProxy_target_set_associative(t *testing.T) {
 	const SCRIPT = `
 	var obj = {};

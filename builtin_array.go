@@ -151,7 +151,7 @@ func (r *Runtime) arrayproto_pop(call FunctionCall) Value {
 				// optimisation bail-out
 				return r.arrayproto_pop_generic(obj)
 			}
-			//a._setLengthInt(l, false)
+			// a._setLengthInt(l, false)
 			a.values[l] = nil
 			a.values = a.values[:l]
 		} else {
@@ -942,7 +942,7 @@ func (r *Runtime) arrayproto_reverse(call FunctionCall) Value {
 			upper := l - lower - 1
 			a.values[lower], a.values[upper] = a.values[upper], a.values[lower]
 		}
-		//TODO: go arrays
+		// TODO: go arrays
 	} else {
 		r.arrayproto_reverse_generic(o, 0)
 	}
@@ -1471,13 +1471,13 @@ func (r *Runtime) initArray() {
 	r.global.arrayToString = r.newNativeFunc(r.arrayproto_toString, nil, "toString", nil, 0)
 
 	r.global.ArrayIteratorPrototype = r.newLazyObject(r.createArrayIterProto)
-	//r.global.ArrayPrototype = r.newArray(r.global.ObjectPrototype).val
-	//o := r.global.ArrayPrototype.self
+	// r.global.ArrayPrototype = r.newArray(r.global.ObjectPrototype).val
+	// o := r.global.ArrayPrototype.self
 	r.global.ArrayPrototype = r.newLazyObject(r.createArrayProto)
 
-	//r.global.Array = r.newNativeFuncConstruct(r.builtin_newArray, "Array", r.global.ArrayPrototype, 1)
-	//o = r.global.Array.self
-	//o._putProp("isArray", r.newNativeFunc(r.array_isArray, nil, "isArray", nil, 1), true, false, true)
+	// r.global.Array = r.newNativeFuncConstruct(r.builtin_newArray, "Array", r.global.ArrayPrototype, 1)
+	// o = r.global.Array.self
+	// o._putProp("isArray", r.newNativeFunc(r.array_isArray, nil, "isArray", nil, 1), true, false, true)
 	r.global.Array = r.newLazyObject(r.createArray)
 
 	r.addToGlobal("Array", r.global.Array)
@@ -1520,7 +1520,6 @@ func (a *arraySortCtx) sortCompare(x, y Value) int {
 	}
 
 	if a.compare != nil {
-
 		return 0
 	}
 	return x.toString().compareTo(y.toString())

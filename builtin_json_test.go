@@ -10,8 +10,8 @@ import (
 func TestJSONMarshalObject(t *testing.T) {
 	vm := New()
 	o := vm.NewObject()
-	o.Set("test", 42)
-	o.Set("testfunc", vm.Get("Error"))
+	_ = o.Set("test", 42)
+	_ = o.Set("testfunc", vm.Get("Error"))
 	b, err := json.Marshal(o)
 	if err != nil {
 		t.Fatal(err)
@@ -24,7 +24,7 @@ func TestJSONMarshalObject(t *testing.T) {
 func TestJSONMarshalGoDate(t *testing.T) {
 	vm := New()
 	o := vm.NewObject()
-	o.Set("test", time.Unix(86400, 0).UTC())
+	_ = o.Set("test", time.Unix(86400, 0).UTC())
 	b, err := json.Marshal(o)
 	if err != nil {
 		t.Fatal(err)

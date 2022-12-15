@@ -23,9 +23,9 @@ func TestMapHash(t *testing.T) {
 	testMapHashVal(SymIterator, SymIterator, true, t)
 
 	// The following tests introduce indeterministic behaviour
-	//testMapHashVal(asciiString("Test"), asciiString("Test1"), false, t)
-	//testMapHashVal(newStringValue("Тест"), asciiString("Test"), false, t)
-	//testMapHashVal(newStringValue("Тест"), newStringValue("Тест1"), false, t)
+	// testMapHashVal(asciiString("Test"), asciiString("Test1"), false, t)
+	// testMapHashVal(newStringValue("Тест"), asciiString("Test"), false, t)
+	// testMapHashVal(newStringValue("Тест"), newStringValue("Тест1"), false, t)
 }
 
 func TestOrderedMap(t *testing.T) {
@@ -90,7 +90,6 @@ func TestOrderedMapCollision(t *testing.T) {
 	if !m.remove(n1Key) {
 		t.Fatal("removing n1Key returned false")
 	}
-
 }
 
 func TestOrderedMapIter(t *testing.T) {

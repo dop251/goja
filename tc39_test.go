@@ -29,7 +29,6 @@ var (
 	skipPrefixes prefixList
 
 	skipList = map[string]bool{
-
 		// out-of-date (https://github.com/tc39/test262/issues/3407)
 		"test/language/expressions/prefix-increment/S11.4.4_A6_T3.js":        true,
 		"test/language/expressions/prefix-increment/S11.4.4_A6_T2.js":        true,
@@ -292,7 +291,6 @@ var (
 )
 
 func init() {
-
 	skip := func(prefixes ...string) {
 		for _, prefix := range prefixes {
 			skipPrefixes.Add(prefix)
@@ -371,7 +369,6 @@ func init() {
 		"test/language/import/",
 		"test/language/module-code/",
 	)
-
 }
 
 type tc39Test struct {
@@ -508,9 +505,9 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	}()
 	vm := New()
 	_262 := vm.NewObject()
-	_262.Set("detachArrayBuffer", ctx.detachArrayBuffer)
-	_262.Set("createRealm", ctx.throwIgnorableTestError)
-	_262.Set("evalScript", func(call FunctionCall) Value {
+	_ = _262.Set("detachArrayBuffer", ctx.detachArrayBuffer)
+	_ = _262.Set("createRealm", ctx.throwIgnorableTestError)
+	_ = _262.Set("evalScript", func(call FunctionCall) Value {
 		script := call.Argument(0).String()
 		result, err := vm.RunString(script)
 		if err != nil {
@@ -518,9 +515,9 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		}
 		return result
 	})
-	vm.Set("$262", _262)
-	vm.Set("IgnorableTestError", ignorableTestError)
-	vm.RunProgram(ctx.sabStub)
+	_ = vm.Set("$262", _262)
+	_ = vm.Set("IgnorableTestError", ignorableTestError)
+	_, _ = vm.RunProgram(ctx.sabStub)
 	var out []string
 	async := meta.hasFlag("async")
 	if async {
@@ -528,11 +525,11 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		if err != nil {
 			t.Fatal(err)
 		}
-		vm.Set("print", func(msg string) {
+		_ = vm.Set("print", func(msg string) {
 			out = append(out, msg)
 		})
 	} else {
-		vm.Set("print", t.Log)
+		_ = vm.Set("print", t.Log)
 	}
 
 	err, early := ctx.runTC39Script(name, src, meta.Includes, vm)
@@ -621,7 +618,7 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 	p := path.Join(ctx.base, name)
 	meta, src, err := parseTC39File(p)
 	if err != nil {
-		//t.Fatalf("Could not parse %s: %v", name, err)
+		// t.Fatalf("Could not parse %s: %v", name, err)
 		t.Errorf("Could not parse %s: %v", name, err)
 		return
 	}
@@ -646,13 +643,13 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 	hasRaw := meta.hasFlag("raw")
 
 	if hasRaw || !meta.hasFlag("onlyStrict") {
-		//log.Printf("Running normal test: %s", name)
+		// log.Printf("Running normal test: %s", name)
 		t.Logf("Running normal test: %s", name)
 		ctx.runTC39Test(name, src, meta, t)
 	}
 
 	if !hasRaw && !meta.hasFlag("noStrict") {
-		//log.Printf("Running strict test: %s", name)
+		// log.Printf("Running strict test: %s", name)
 		t.Logf("Running strict test: %s", name)
 		ctx.runTC39Test(name, "'use strict';\n"+src, meta, t)
 	}
@@ -665,7 +662,6 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 		})
 		ctx.benchLock.Unlock()
 	}
-
 }
 
 func (ctx *tc39TestCtx) init() {
@@ -771,7 +767,6 @@ func (ctx *tc39TestCtx) runTC39Tests(name string) {
 			}
 		}
 	}
-
 }
 
 func TestTC39(t *testing.T) {
@@ -787,11 +782,11 @@ func TestTC39(t *testing.T) {
 		base: tc39BASE,
 	}
 	ctx.init()
-	//ctx.enableBench = true
+	// ctx.enableBench = true
 
 	t.Run("tc39", func(t *testing.T) {
 		ctx.t = t
-		//ctx.runTC39File("test/language/types/number/8.5.1.js", t)
+		// ctx.runTC39File("test/language/types/number/8.5.1.js", t)
 		ctx.runTC39Tests("test/language")
 		ctx.runTC39Tests("test/built-ins")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")

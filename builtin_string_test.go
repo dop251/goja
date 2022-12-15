@@ -274,5 +274,4 @@ func TestValueStringBuilder(t *testing.T) {
 			t.Fatal(s)
 		}
 	})
-
 }

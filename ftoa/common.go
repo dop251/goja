@@ -30,7 +30,6 @@ const (
 )
 
 func lo0bits(x uint32) (k int) {
-
 	if (x & 7) != 0 {
 		if (x & 1) != 0 {
 			return 0
@@ -67,7 +66,6 @@ func lo0bits(x uint32) (k int) {
 }
 
 func hi0bits(x uint32) (k int) {
-
 	if (x & 0xffff0000) == 0 {
 		k = 16
 		x <<= 16

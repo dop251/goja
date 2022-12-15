@@ -23,8 +23,6 @@ import (
 )
 
 const (
-	sqrt1_2 float64 = math.Sqrt2 / 2
-
 	deoptimiseRegexp = false
 )
 
@@ -32,7 +30,6 @@ var (
 	typeCallable = reflect.TypeOf(Callable(nil))
 	typeValue    = reflect.TypeOf((*Value)(nil)).Elem()
 	typeObject   = reflect.TypeOf((*Object)(nil))
-	typeTime     = reflect.TypeOf(time.Time{})
 	typeBytes    = reflect.TypeOf(([]byte)(nil))
 )
 
@@ -550,7 +547,7 @@ func (r *Runtime) NewTypeError(args ...interface{}) *Object {
 
 func (r *Runtime) NewGoError(err error) *Object {
 	e := r.newError(r.global.GoError, err.Error()).(*Object)
-	e.Set("value", err)
+	_ = e.Set("value", err)
 	return e
 }
 
@@ -742,7 +739,6 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(ar
 }
 
 func (r *Runtime) newWrappedFunc(value reflect.Value) *Object {
-
 	v := &Object{runtime: r}
 
 	f := &wrappedFuncObject{
@@ -1268,7 +1264,6 @@ func (r *Runtime) RunString(str string) (Value, error) {
 // RunScript executes the given string in the global context.
 func (r *Runtime) RunScript(name, src string) (Value, error) {
 	p, err := r.compile(name, src, false, true, nil)
-
 	if err != nil {
 		return nil, err
 	}
@@ -1924,23 +1919,6 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 		}
 	}
 
-	if typ == typeTime {
-		if obj, ok := v.(*Object); ok {
-			if d, ok := obj.self.(*dateObject); ok {
-				dst.Set(reflect.ValueOf(d.time()))
-				return nil
-			}
-		}
-		if et.Kind() == reflect.String {
-			tme, ok := dateParse(v.String())
-			if !ok {
-				return fmt.Errorf("could not convert string %v to %v", v, typ)
-			}
-			dst.Set(reflect.ValueOf(tme))
-			return nil
-		}
-	}
-
 	switch kind {
 	case reflect.String:
 		dst.Set(reflect.ValueOf(v.String()).Convert(typ))
@@ -2375,18 +2353,6 @@ func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
 	}
 }
 
-func (r *Runtime) toNumber(v Value) Value {
-	switch o := v.(type) {
-	case valueInt:
-		return v
-	case *Object:
-		if pvo, ok := o.self.(*primitiveValueObject); ok {
-			return r.toNumber(pvo.pValue)
-		}
-	}
-	panic(r.NewTypeError("Value is not a number: %s", v))
-}
-
 func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value, newTarget *Object) *Object {
 	c := o.self.getStr("constructor", nil)
 	if c != nil && c != _undefined {
@@ -2611,14 +2577,6 @@ func isRegexp(v Value) bool {
 		return reg
 	}
 	return false
-}
-
-func limitCallArgs(call FunctionCall, n int) FunctionCall {
-	if len(call.Arguments) > n {
-		return FunctionCall{This: call.This, Arguments: call.Arguments[:n]}
-	} else {
-		return call
-	}
 }
 
 func shrinkCap(newSize, oldCap int) int {

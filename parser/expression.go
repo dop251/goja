@@ -44,7 +44,7 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 		case "false":
 			value = false
 		default:
-			self.error(idx, "Illegal boolean literal")
+			_ = self.error(idx, "Illegal boolean literal")
 		}
 		return &ast.BooleanLiteral{
 			Idx:     idx,
@@ -62,7 +62,7 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 		self.next()
 		value, err := parseNumberLiteral(literal)
 		if err != nil {
-			self.error(idx, err.Error())
+			_ = self.error(idx, err.Error())
 			value = 0
 		}
 		return &ast.NumberLiteral{
@@ -101,7 +101,7 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 		}
 	}
 
-	self.errorUnexpectedToken(self.token)
+	_ = self.errorUnexpectedToken(self.token)
 	self.nextStatement()
 	return &ast.BadExpression{From: idx, To: self.idx}
 }
@@ -138,7 +138,7 @@ func (self *_parser) parseSuperProperty() ast.Expression {
 			Idx: idx,
 		})
 	default:
-		self.error(idx, "'super' keyword unexpected here")
+		_ = self.error(idx, "'super' keyword unexpected here")
 		self.nextStatement()
 		return &ast.BadExpression{From: idx, To: self.idx}
 	}
@@ -155,7 +155,7 @@ func (self *_parser) reinterpretSequenceAsArrowFuncParams(seq *ast.SequenceExpre
 			}
 		}
 		if firstRestIdx != -1 {
-			self.error(seq.Sequence[firstRestIdx].Idx0(), "Rest parameter must be last formal parameter")
+			_ = self.error(seq.Sequence[firstRestIdx].Idx0(), "Rest parameter must be last formal parameter")
 			return &ast.ParameterList{}
 		}
 		params = append(params, self.reinterpretAsBinding(item))
@@ -178,7 +178,7 @@ func (self *_parser) parseParenthesisedExpression() ast.Expression {
 		for {
 			if self.token == token.ELLIPSIS {
 				start := self.idx
-				self.errorUnexpectedToken(token.ELLIPSIS)
+				_ = self.errorUnexpectedToken(token.ELLIPSIS)
 				self.next()
 				expr := self.parseAssignmentExpression()
 				list = append(list, &ast.BadExpression{
@@ -193,7 +193,7 @@ func (self *_parser) parseParenthesisedExpression() ast.Expression {
 			}
 			self.next()
 			if self.token == token.RIGHT_PARENTHESIS {
-				self.errorUnexpectedToken(token.RIGHT_PARENTHESIS)
+				_ = self.errorUnexpectedToken(token.RIGHT_PARENTHESIS)
 				break
 			}
 		}
@@ -203,7 +203,7 @@ func (self *_parser) parseParenthesisedExpression() ast.Expression {
 		return list[0]
 	}
 	if len(list) == 0 {
-		self.errorUnexpectedToken(token.RIGHT_PARENTHESIS)
+		_ = self.errorUnexpectedToken(token.RIGHT_PARENTHESIS)
 		return &ast.BadExpression{
 			From: opening,
 			To:   self.idx,
@@ -215,7 +215,6 @@ func (self *_parser) parseParenthesisedExpression() ast.Expression {
 }
 
 func (self *_parser) parseRegExpLiteral() *ast.RegExpLiteral {
-
 	offset := self.chrOffset - 1 // Opening slash already gotten
 	if self.token == token.QUOTIENT_ASSIGN {
 		offset -= 1 // =
@@ -380,7 +379,7 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String, ast.Exp
 				Value:   unistring.String(literal),
 			}
 		} else {
-			self.errorUnexpectedToken(tkn)
+			_ = self.errorUnexpectedToken(tkn)
 		}
 	}
 	return literal, parsedLiteral, value, tkn
@@ -432,7 +431,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 					Initializer: initializer,
 				}
 			} else {
-				self.errorUnexpectedToken(self.token)
+				_ = self.errorUnexpectedToken(self.token)
 			}
 		case (literal == "get" || literal == "set") && self.token != token.COLON:
 			_, _, keyValue, _ := self.parseObjectPropertyKey()
@@ -510,7 +509,6 @@ func (self *_parser) parseObjectLiteral() *ast.ObjectLiteral {
 }
 
 func (self *_parser) parseArrayLiteral() *ast.ArrayLiteral {
-
 	idx0 := self.expect(token.LEFT_BRACKET)
 	var value []ast.Expression
 	for self.token != token.RIGHT_BRACKET && self.token != token.EOF {
@@ -568,7 +566,7 @@ func (self *_parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
 		expr := self.parseExpression()
 		res.Expressions = append(res.Expressions, expr)
 		if self.token != token.RIGHT_BRACE {
-			self.errorUnexpectedToken(self.token)
+			_ = self.errorUnexpectedToken(self.token)
 		}
 	}
 	return res
@@ -695,7 +693,6 @@ func (self *_parser) parseNewExpression() ast.Expression {
 }
 
 func (self *_parser) parseLeftHandSideExpression() ast.Expression {
-
 	var left ast.Expression
 	if self.token == token.NEW {
 		left = self.parseNewExpression()
@@ -720,7 +717,6 @@ L:
 }
 
 func (self *_parser) parseLeftHandSideExpressionAllowCall() ast.Expression {
-
 	allowIn := self.scope.allowIn
 	self.scope.allowIn = true
 	defer func() {
@@ -804,7 +800,6 @@ func (self *_parser) parsePostfixExpression() ast.Expression {
 }
 
 func (self *_parser) parseUnaryExpression() ast.Expression {
-
 	switch self.token {
 	case token.PLUS, token.MINUS, token.NOT, token.BITWISE_NOT:
 		fallthrough

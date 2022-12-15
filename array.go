@@ -339,7 +339,7 @@ func (a *arrayObject) expand(idx uint32) bool {
 			a.values = a.values[:targetLen]
 		} else {
 			if idx > 4096 && (a.objCount == 0 || idx/uint32(a.objCount) > 10) {
-				//log.Println("Switching standard->sparse")
+				// log.Println("Switching standard->sparse")
 				sa := &sparseArrayObject{
 					baseObject:     a.baseObject,
 					length:         a.length,

@@ -54,8 +54,7 @@ func (tfm tagFieldNameMapper) MethodName(_ reflect.Type, m reflect.Method) strin
 	return m.Name
 }
 
-type uncapFieldNameMapper struct {
-}
+type uncapFieldNameMapper struct{}
 
 func (u uncapFieldNameMapper) FieldName(_ reflect.Type, f reflect.StructField) string {
 	return uncapitalize(f.Name)

@@ -378,7 +378,7 @@ func (r *Runtime) object_isExtensible(call FunctionCall) Value {
 		return valueFalse
 	} else {
 		// ES6
-		//r.typeErrorResult(true, "Object.isExtensible called on non-object")
+		// r.typeErrorResult(true, "Object.isExtensible called on non-object")
 		return valueFalse
 	}
 }

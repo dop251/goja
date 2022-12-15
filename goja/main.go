@@ -18,8 +18,10 @@ import (
 	"github.com/dop251/goja_nodejs/require"
 )
 
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
-var timelimit = flag.Int("timelimit", 0, "max time to run (in seconds)")
+var (
+	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+	timelimit  = flag.Int("timelimit", 0, "max time to run (in seconds)")
+)
 
 func readSource(filename string) ([]byte, error) {
 	if filename == "" || filename == "-" {
@@ -66,11 +68,11 @@ func run() error {
 	new(require.Registry).Enable(vm)
 	console.Enable(vm)
 
-	vm.Set("load", func(call goja.FunctionCall) goja.Value {
+	_ = vm.Set("load", func(call goja.FunctionCall) goja.Value {
 		return load(vm, call)
 	})
 
-	vm.Set("readFile", func(name string) (string, error) {
+	_ = vm.Set("readFile", func(name string) (string, error) {
 		b, err := os.ReadFile(name)
 		if err != nil {
 			return "", err
@@ -84,14 +86,14 @@ func run() error {
 		})
 	}
 
-	//log.Println("Compiling...")
+	// log.Println("Compiling...")
 	prg, err := goja.Compile(filename, string(src), false)
 	if err != nil {
 		return err
 	}
-	//log.Println("Running...")
+	// log.Println("Running...")
 	_, err = vm.RunProgram(prg)
-	//log.Println("Finished.")
+	// log.Println("Finished.")
 	return err
 }
 
@@ -108,12 +110,12 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		pprof.StartCPUProfile(f)
+		_ = pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
 
 	if err := run(); err != nil {
-		//fmt.Printf("err type: %T\n", err)
+		// fmt.Printf("err type: %T\n", err)
 		switch err := err.(type) {
 		case *goja.Exception:
 			fmt.Println(err.String())

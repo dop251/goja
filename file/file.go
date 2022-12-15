@@ -23,7 +23,6 @@ type Position struct {
 	Filename string // The filename where the error occurred, if any
 	Line     int    // The line number, starting at 1
 	Column   int    // The column number, starting at 1 (The character count)
-
 }
 
 // A Position is valid if the line number is > 0.

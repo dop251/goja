@@ -161,5 +161,4 @@ func (r *Runtime) initSymbol() {
 
 	r.global.Symbol = r.newLazyObject(r.createSymbol)
 	r.addToGlobal("Symbol", r.global.Symbol)
-
 }

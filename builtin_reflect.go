@@ -3,7 +3,8 @@ package goja
 func (r *Runtime) builtin_reflect_apply(call FunctionCall) Value {
 	return r.toCallable(call.Argument(0))(FunctionCall{
 		This:      call.Argument(1),
-		Arguments: r.createListFromArrayLike(call.Argument(2))})
+		Arguments: r.createListFromArrayLike(call.Argument(2)),
+	})
 }
 
 func (r *Runtime) toConstructor(v Value) func(args []Value, newTarget *Object) *Object {

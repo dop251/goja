@@ -7,7 +7,7 @@ func TestGomapProp(t *testing.T) {
 	o.a + o.b;
 	`
 	r := New()
-	r.Set("o", map[string]interface{}{
+	_ = r.Set("o", map[string]interface{}{
 		"a": 40,
 		"b": 2,
 	})
@@ -45,7 +45,7 @@ func TestGomapEnumerate(t *testing.T) {
 	hasX && hasY;
 	`
 	r := New()
-	r.Set("o", map[string]interface{}{
+	_ = r.Set("o", map[string]interface{}{
 		"x": 40,
 		"y": 2,
 	})
@@ -86,7 +86,7 @@ func TestGomapDeleteWhileEnumerate(t *testing.T) {
 	hasX && !hasY || hasY && !hasX;
 	`
 	r := New()
-	r.Set("o", map[string]interface{}{
+	_ = r.Set("o", map[string]interface{}{
 		"x": 40,
 		"y": 2,
 	})
@@ -105,7 +105,7 @@ func TestGomapInstanceOf(t *testing.T) {
 	(o instanceof Object) && !(o instanceof Error);
 	`
 	r := New()
-	r.Set("o", map[string]interface{}{})
+	_ = r.Set("o", map[string]interface{}{})
 	v, err := r.RunString(SCRIPT)
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +121,7 @@ func TestGomapTypeOf(t *testing.T) {
 	typeof o;
 	`
 	r := New()
-	r.Set("o", map[string]interface{}{})
+	_ = r.Set("o", map[string]interface{}{})
 	v, err := r.RunString(SCRIPT)
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +137,7 @@ func TestGomapProto(t *testing.T) {
 	o.hasOwnProperty("test");
 	`
 	r := New()
-	r.Set("o", map[string]interface{}{
+	_ = r.Set("o", map[string]interface{}{
 		"test": 42,
 	})
 	v, err := r.RunString(SCRIPT)
@@ -167,7 +167,7 @@ func TestGoMapExtensibility(t *testing.T) {
 	`
 
 	r := New()
-	r.Set("o", map[string]interface{}{})
+	_ = r.Set("o", map[string]interface{}{})
 	v, err := r.RunString(SCRIPT)
 	if err != nil {
 		if ex, ok := err.(*Exception); ok {
@@ -180,7 +180,6 @@ func TestGoMapExtensibility(t *testing.T) {
 	if !v.StrictEquals(valueTrue) {
 		t.Fatalf("Expected true, got %v", v)
 	}
-
 }
 
 func TestGoMapWithProto(t *testing.T) {
@@ -256,7 +255,7 @@ func TestGoMapProtoProp(t *testing.T) {
 	`
 
 	r := New()
-	r.Set("m", map[string]interface{}{})
+	_ = r.Set("m", map[string]interface{}{})
 	r.testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
@@ -294,7 +293,7 @@ func TestGoMapProtoPropChain(t *testing.T) {
 	`
 
 	r := New()
-	r.Set("m", map[string]interface{}{})
+	_ = r.Set("m", map[string]interface{}{})
 	r.testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 

@@ -3,7 +3,6 @@ package goja
 import (
 	"fmt"
 	"hash/maphash"
-	"math"
 	"reflect"
 	"strconv"
 	"unsafe"
@@ -23,7 +22,7 @@ var (
 
 // Not goroutine-safe, do not use for anything other than package level init
 func randomHash() uint64 {
-	pkgHasher.WriteByte(0)
+	_ = pkgHasher.WriteByte(0)
 	return pkgHasher.Sum64()
 }
 
@@ -530,18 +529,6 @@ func (p *valueProperty) ExportType() reflect.Type {
 
 func (p *valueProperty) hash(*maphash.Hash) uint64 {
 	panic("valueProperty should never be used in maps or sets")
-}
-
-func floatToIntClip(n float64) int64 {
-	switch {
-	case math.IsNaN(n):
-		return 0
-	case n >= math.MaxInt64:
-		return math.MaxInt64
-	case n <= math.MinInt64:
-		return math.MinInt64
-	}
-	return int64(n)
 }
 
 func (o *Object) ToInteger() int64 {

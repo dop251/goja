@@ -54,13 +54,15 @@ type typedArray interface {
 	typeMatch(v Value) bool
 }
 
-type uint8Array []uint8
-type uint8ClampedArray []uint8
-type int8Array []int8
-type uint16Array []uint16
-type int16Array []int16
-type uint32Array []uint32
-type int32Array []int32
+type (
+	uint8Array        []uint8
+	uint8ClampedArray []uint8
+	int8Array         []int8
+	uint16Array       []uint16
+	int16Array        []int16
+	uint32Array       []uint32
+	int32Array        []int32
+)
 
 type typedArrayObject struct {
 	baseObject
@@ -602,7 +604,6 @@ func (r *Runtime) _newTypedArrayObject(buf *arrayBufferObject, offset, length, e
 	o.self = a
 	a.init()
 	return a
-
 }
 
 func (r *Runtime) newUint8ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
@@ -658,44 +659,6 @@ func (o *arrayBufferObject) ensureNotDetached(throw bool) bool {
 		return false
 	}
 	return true
-}
-
-func (o *arrayBufferObject) getFloat32(idx int, byteOrder byteOrder) float32 {
-	return math.Float32frombits(o.getUint32(idx, byteOrder))
-}
-
-func (o *arrayBufferObject) setFloat32(idx int, val float32, byteOrder byteOrder) {
-	o.setUint32(idx, math.Float32bits(val), byteOrder)
-}
-
-func (o *arrayBufferObject) getFloat64(idx int, byteOrder byteOrder) float64 {
-	return math.Float64frombits(o.getUint64(idx, byteOrder))
-}
-
-func (o *arrayBufferObject) setFloat64(idx int, val float64, byteOrder byteOrder) {
-	o.setUint64(idx, math.Float64bits(val), byteOrder)
-}
-
-func (o *arrayBufferObject) getUint64(idx int, byteOrder byteOrder) uint64 {
-	var b []byte
-	if byteOrder == nativeEndian {
-		b = o.data[idx : idx+8]
-	} else {
-		b = make([]byte, 8)
-		d := o.data[idx : idx+8]
-		b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7] = d[7], d[6], d[5], d[4], d[3], d[2], d[1], d[0]
-	}
-	return *((*uint64)(unsafe.Pointer(&b[0])))
-}
-
-func (o *arrayBufferObject) setUint64(idx int, val uint64, byteOrder byteOrder) {
-	if byteOrder == nativeEndian {
-		*(*uint64)(unsafe.Pointer(&o.data[idx])) = val
-	} else {
-		b := (*[8]byte)(unsafe.Pointer(&val))
-		d := o.data[idx : idx+8]
-		d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7] = b[7], b[6], b[5], b[4], b[3], b[2], b[1], b[0]
-	}
 }
 
 func (o *arrayBufferObject) getUint32(idx int, byteOrder byteOrder) uint32 {

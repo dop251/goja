@@ -62,7 +62,6 @@ func BenchmarkArrayGetStr(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		a.getStr("0", nil)
 	}
-
 }
 
 func BenchmarkArrayGet(b *testing.B) {
@@ -89,7 +88,6 @@ func BenchmarkArrayGet(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		v.get(idx, nil)
 	}
-
 }
 
 func BenchmarkArrayPut(b *testing.B) {
@@ -117,7 +115,6 @@ func BenchmarkArrayPut(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		v.setOwn(idx, val, false)
 	}
-
 }
 
 func BenchmarkArraySetEmpty(b *testing.B) {

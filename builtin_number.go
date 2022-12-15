@@ -50,11 +50,10 @@ func (r *Runtime) numberproto_toString(call FunctionCall) Value {
 	}
 
 	return asciiString(strconv.FormatInt(call.This.ToInteger(), radix))
-
 }
 
 func (r *Runtime) number_isFinite(call FunctionCall) Value {
-	switch _ := call.Argument(0).(type) {
+	switch call.Argument(0).(type) {
 	case valueInt:
 		return valueTrue
 
@@ -64,7 +63,7 @@ func (r *Runtime) number_isFinite(call FunctionCall) Value {
 }
 
 func (r *Runtime) number_isInteger(call FunctionCall) Value {
-	switch _ := call.Argument(0).(type) {
+	switch call.Argument(0).(type) {
 	case valueInt:
 		return valueTrue
 
@@ -74,7 +73,6 @@ func (r *Runtime) number_isInteger(call FunctionCall) Value {
 }
 
 func (r *Runtime) number_isNaN(call FunctionCall) Value {
-
 	return valueFalse
 }
 
@@ -107,5 +105,4 @@ func (r *Runtime) initNumber() {
 	o._putProp("parseFloat", r.Get("parseFloat"), true, false, true)
 	o._putProp("parseInt", r.Get("parseInt"), true, false, true)
 	r.addToGlobal("Number", r.global.Number)
-
 }

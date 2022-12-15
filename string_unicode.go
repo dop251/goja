@@ -45,9 +45,7 @@ type unicodeStringBuilder struct {
 	unicode bool
 }
 
-var (
-	InvalidRuneError = errors.New("invalid rune")
-)
+var InvalidRuneError = errors.New("invalid rune")
 
 func (rr *utf16RuneReader) ReadRune() (r rune, size int, err error) {
 	if rr.pos < len(rr.s) {

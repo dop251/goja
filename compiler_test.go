@@ -476,7 +476,6 @@ func TestJSCall(t *testing.T) {
 	o.test;
 	`
 	testScript(SCRIPT, intToValue(42), t)
-
 }
 
 func TestLoop1(t *testing.T) {
@@ -540,7 +539,6 @@ func TestBlockBreak(t *testing.T) {
 	rv;
 	`
 	testScript(SCRIPT, intToValue(2), t)
-
 }
 
 func TestTry(t *testing.T) {
