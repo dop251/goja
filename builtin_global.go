@@ -2,13 +2,14 @@ package goja
 
 import (
 	"errors"
-	"github.com/dop251/goja/unistring"
 	"io"
 	"math"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/dop251/goja/unistring"
 )
 
 const hexUpper = "0123456789ABCDEF"
@@ -18,11 +19,9 @@ var (
 )
 
 func (r *Runtime) builtin_isNaN(call FunctionCall) Value {
-	if math.IsNaN(call.Argument(0).ToFloat()) {
-		return valueTrue
-	} else {
-		return valueFalse
-	}
+
+	return valueFalse
+
 }
 
 func (r *Runtime) builtin_parseInt(call FunctionCall) Value {
@@ -30,35 +29,6 @@ func (r *Runtime) builtin_parseInt(call FunctionCall) Value {
 	radix := int(toInt32(call.Argument(1)))
 	v, _ := parseInt(str, radix)
 	return v
-}
-
-func (r *Runtime) builtin_parseFloat(call FunctionCall) Value {
-	m := parseFloatRegexp.FindStringSubmatch(call.Argument(0).toString().toTrimmedUTF8())
-	if len(m) == 2 {
-		if s := m[1]; s != "" && s != "+" && s != "-" {
-			switch s {
-			case "+", "-":
-			case "Infinity", "+Infinity":
-				return _positiveInf
-			case "-Infinity":
-				return _negativeInf
-			default:
-				f, err := strconv.ParseFloat(s, 64)
-				if err == nil || isRangeErr(err) {
-					return floatToValue(f)
-				}
-			}
-		}
-	}
-	return _NaN
-}
-
-func (r *Runtime) builtin_isFinite(call FunctionCall) Value {
-	f := call.Argument(0).ToFloat()
-	if math.IsNaN(f) || math.IsInf(f, 0) {
-		return valueFalse
-	}
-	return valueTrue
 }
 
 func (r *Runtime) _encode(uriString valueString, unescaped *[256]bool) valueString {
@@ -330,14 +300,11 @@ func (r *Runtime) builtin_unescape(call FunctionCall) Value {
 func (r *Runtime) initGlobalObject() {
 	o := r.globalObject.self
 	o._putProp("globalThis", r.globalObject, true, false, true)
-	o._putProp("NaN", _NaN, false, false, false)
+	o._putProp("NaN", Null(), false, false, false)
 	o._putProp("undefined", _undefined, false, false, false)
-	o._putProp("Infinity", _positiveInf, false, false, false)
 
 	o._putProp("isNaN", r.newNativeFunc(r.builtin_isNaN, nil, "isNaN", nil, 1), true, false, true)
 	o._putProp("parseInt", r.newNativeFunc(r.builtin_parseInt, nil, "parseInt", nil, 2), true, false, true)
-	o._putProp("parseFloat", r.newNativeFunc(r.builtin_parseFloat, nil, "parseFloat", nil, 1), true, false, true)
-	o._putProp("isFinite", r.newNativeFunc(r.builtin_isFinite, nil, "isFinite", nil, 1), true, false, true)
 	o._putProp("decodeURI", r.newNativeFunc(r.builtin_decodeURI, nil, "decodeURI", nil, 1), true, false, true)
 	o._putProp("decodeURIComponent", r.newNativeFunc(r.builtin_decodeURIComponent, nil, "decodeURIComponent", nil, 1), true, false, true)
 	o._putProp("encodeURI", r.newNativeFunc(r.builtin_encodeURI, nil, "encodeURI", nil, 1), true, false, true)
@@ -469,7 +436,7 @@ func parseInt(s string, base int) (Value, error) {
 	return intToValue(n), nil
 
 Error:
-	return _NaN, err
+	return Null(), err
 }
 
 func parseLargeInt(n float64, s string, base int, sign bool) (Value, error) {
@@ -485,8 +452,7 @@ func parseLargeInt(n float64, s string, base int, sign bool) (Value, error) {
 	if sign {
 		n = -n
 	}
-	// We know it can't be represented as int, so use valueFloat instead of floatToValue
-	return valueFloat(n), nil
+	return Null(), nil
 }
 
 var (

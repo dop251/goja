@@ -61,8 +61,6 @@ type uint16Array []uint16
 type int16Array []int16
 type uint32Array []uint32
 type int32Array []int32
-type float32Array []float32
-type float64Array []float64
 
 type typedArrayObject struct {
 	baseObject
@@ -361,92 +359,6 @@ func (a *int32Array) typeMatch(v Value) bool {
 	return false
 }
 
-func (a *float32Array) get(idx int) Value {
-	return floatToValue(float64((*a)[idx]))
-}
-
-func (a *float32Array) getRaw(idx int) uint64 {
-	return uint64(math.Float32bits((*a)[idx]))
-}
-
-func (a *float32Array) set(idx int, value Value) {
-	(*a)[idx] = toFloat32(value)
-}
-
-func (a *float32Array) toRaw(v Value) uint64 {
-	return uint64(math.Float32bits(toFloat32(v)))
-}
-
-func (a *float32Array) setRaw(idx int, v uint64) {
-	(*a)[idx] = math.Float32frombits(uint32(v))
-}
-
-func typedFloatLess(x, y float64) bool {
-	xNan := math.IsNaN(x)
-	yNan := math.IsNaN(y)
-	if yNan {
-		return !xNan
-	} else if xNan {
-		return false
-	}
-	if x == 0 && y == 0 { // handle neg zero
-		return math.Signbit(x)
-	}
-	return x < y
-}
-
-func (a *float32Array) less(i, j int) bool {
-	return typedFloatLess(float64((*a)[i]), float64((*a)[j]))
-}
-
-func (a *float32Array) swap(i, j int) {
-	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
-}
-
-func (a *float32Array) typeMatch(v Value) bool {
-	switch v.(type) {
-	case valueInt, valueFloat:
-		return true
-	}
-	return false
-}
-
-func (a *float64Array) get(idx int) Value {
-	return floatToValue((*a)[idx])
-}
-
-func (a *float64Array) getRaw(idx int) uint64 {
-	return math.Float64bits((*a)[idx])
-}
-
-func (a *float64Array) set(idx int, value Value) {
-	(*a)[idx] = value.ToFloat()
-}
-
-func (a *float64Array) toRaw(v Value) uint64 {
-	return math.Float64bits(v.ToFloat())
-}
-
-func (a *float64Array) setRaw(idx int, v uint64) {
-	(*a)[idx] = math.Float64frombits(v)
-}
-
-func (a *float64Array) less(i, j int) bool {
-	return typedFloatLess((*a)[i], (*a)[j])
-}
-
-func (a *float64Array) swap(i, j int) {
-	(*a)[i], (*a)[j] = (*a)[j], (*a)[i]
-}
-
-func (a *float64Array) typeMatch(v Value) bool {
-	switch v.(type) {
-	case valueInt, valueFloat:
-		return true
-	}
-	return false
-}
-
 func (a *typedArrayObject) _getIdx(idx int) Value {
 	if 0 <= idx && idx < a.length {
 		if !a.viewedArrayBuf.ensureNotDetached(false) {
@@ -719,14 +631,6 @@ func (r *Runtime) newUint32ArrayObject(buf *arrayBufferObject, offset, length in
 
 func (r *Runtime) newInt32ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
 	return r._newTypedArrayObject(buf, offset, length, 4, r.global.Int32Array, (*int32Array)(unsafe.Pointer(&buf.data)), proto)
-}
-
-func (r *Runtime) newFloat32ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
-	return r._newTypedArrayObject(buf, offset, length, 4, r.global.Float32Array, (*float32Array)(unsafe.Pointer(&buf.data)), proto)
-}
-
-func (r *Runtime) newFloat64ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
-	return r._newTypedArrayObject(buf, offset, length, 8, r.global.Float64Array, (*float64Array)(unsafe.Pointer(&buf.data)), proto)
 }
 
 func (o *dataViewObject) getIdxAndByteOrder(getIdx int, littleEndianVal Value, size int) (int, byteOrder) {

@@ -354,14 +354,6 @@ func TestArgsKeys(t *testing.T) {
 	testScript(SCRIPT, intToValue(2), t)
 }
 
-func TestIPowOverflow(t *testing.T) {
-	const SCRIPT = `
-	Math.pow(65536, 6)
-	`
-
-	testScript(SCRIPT, floatToValue(7.922816251426434e+28), t)
-}
-
 func TestIPowZero(t *testing.T) {
 	const SCRIPT = `
 	Math.pow(0, 0)
@@ -1639,36 +1631,6 @@ func TestRunLoopPreempt(t *testing.T) {
 	}
 	if _, ok := err.(*InterruptedError); !ok {
 		t.Fatalf("Wrong error type: %T", err)
-	}
-}
-
-func TestNaN(t *testing.T) {
-	if !IsNaN(_NaN) {
-		t.Fatal("IsNaN() doesn't detect NaN")
-	}
-	if IsNaN(Undefined()) {
-		t.Fatal("IsNaN() says undefined is a NaN")
-	}
-	if !IsNaN(NaN()) {
-		t.Fatal("NaN() doesn't return NaN")
-	}
-}
-
-func TestInf(t *testing.T) {
-	if !IsInfinity(_positiveInf) {
-		t.Fatal("IsInfinity() doesn't detect +Inf")
-	}
-	if !IsInfinity(_negativeInf) {
-		t.Fatal("IsInfinity() doesn't detect -Inf")
-	}
-	if IsInfinity(Undefined()) {
-		t.Fatal("IsInfinity() says undefined is a Infinity")
-	}
-	if !IsInfinity(PositiveInf()) {
-		t.Fatal("PositiveInfinity() doesn't return Inf")
-	}
-	if !IsInfinity(NegativeInf()) {
-		t.Fatal("NegativeInfinity() doesn't return Inf")
 	}
 }
 

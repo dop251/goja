@@ -1429,38 +1429,12 @@ func TestGoReflectToPrimitive(t *testing.T) {
 			f("ui.valueOf()", intToValue(1), t)
 		})
 
-		type Float float64
-		var fl Float = 1.1
-
-		t.Run("Float", func(t *testing.T) {
-			vm.Set("fl", fl)
-			f("+fl", floatToValue(1.1), t)
-			f("`${fl}`", asciiString("1.1"), t)
-			f("fl.toString()", asciiString("1.1"), t)
-			f("fl.valueOf()", floatToValue(1.1), t)
-		})
-
-		t.Run("*Float", func(t *testing.T) {
-			vm.Set("fl", &fl)
-			f("+fl", floatToValue(1.1), t)
-			f("`${fl}`", asciiString("1.1"), t)
-			f("fl.toString()", asciiString("1.1"), t)
-			f("fl.valueOf()", floatToValue(1.1), t)
-		})
-
-		fl = Float(math.Inf(1))
-		t.Run("FloatInf", func(t *testing.T) {
-			vm.Set("fl", fl)
-			f("+fl", _positiveInf, t)
-			f("fl.toString()", asciiString("Infinity"), t)
-		})
-
 		type Empty struct{}
 
 		var e Empty
 		t.Run("Empty", func(t *testing.T) {
 			vm.Set("e", &e)
-			f("+e", _NaN, t)
+			f("+e", Null(), t)
 			f("`${e}`", asciiString("[object Object]"), t)
 			f("e.toString()", asciiString("[object Object]"), t)
 			f("e.valueOf()", vm.ToValue(&e), t)
@@ -1508,7 +1482,7 @@ func TestGoReflectToPrimitive(t *testing.T) {
 			f("`${s}`", asciiString("S"), t)
 			f("s.toString()", asciiString("S"), t)
 			f("s.valueOf()", asciiString("S"), t)
-			f("+s", _NaN, t)
+			f("+s", Null(), t)
 		})
 
 		t.Run("*String", func(t *testing.T) {
@@ -1516,7 +1490,7 @@ func TestGoReflectToPrimitive(t *testing.T) {
 			f("`${s}`", asciiString("S"), t)
 			f("s.toString()", asciiString("S"), t)
 			f("s.valueOf()", asciiString("S"), t)
-			f("+s", _NaN, t)
+			f("+s", Null(), t)
 		})
 	})
 }

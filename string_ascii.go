@@ -156,22 +156,12 @@ func (s asciiString) ToNumber() Value {
 	if s == "" {
 		return intToValue(0)
 	}
-	if s == "Infinity" || s == "+Infinity" {
-		return _positiveInf
-	}
-	if s == "-Infinity" {
-		return _negativeInf
-	}
 
 	if i, err := s._toInt(); err == nil {
 		return intToValue(i)
 	}
 
-	if f, err := s._toFloat(); err == nil {
-		return floatToValue(f)
-	}
-
-	return _NaN
+	return Null()
 }
 
 func (s asciiString) ToObject(r *Runtime) *Object {
@@ -194,14 +184,8 @@ func (s asciiString) Equals(other Value) bool {
 		return false
 	}
 
-	if o, ok := other.(valueFloat); ok {
-		return s.ToFloat() == float64(o)
-	}
+	if _, ok := other.(valueBool); ok {
 
-	if o, ok := other.(valueBool); ok {
-		if o1, e := s._toFloat(); e == nil {
-			return o1 == o.ToFloat()
-		}
 		return false
 	}
 

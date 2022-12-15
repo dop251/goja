@@ -24,9 +24,7 @@ type orderedMapIter struct {
 }
 
 func (m *orderedMap) lookup(key Value) (h uint64, entry, hPrev *mapEntry) {
-	if key == _negativeZero {
-		key = intToValue(0)
-	}
+
 	h = key.hash(m.hash)
 	for entry = m.hashTable[h]; entry != nil && !entry.key.SameAs(key); hPrev, entry = entry, entry.hNext {
 	}
@@ -38,9 +36,7 @@ func (m *orderedMap) set(key, value Value) {
 	if entry != nil {
 		entry.value = value
 	} else {
-		if key == _negativeZero {
-			key = intToValue(0)
-		}
+
 		entry = &mapEntry{key: key, value: value}
 		if hPrev == nil {
 			m.hashTable[h] = entry

@@ -278,31 +278,7 @@ func intToValue(i int64) Value {
 		}
 		return valueInt(i)
 	}
-	return valueFloat(i)
-}
-
-func floatToInt(f float64) (result int64, ok bool) {
-	if (f != 0 || !math.Signbit(f)) && !math.IsInf(f, 0) && f == math.Trunc(f) && f >= -maxInt && f <= maxInt {
-		return int64(f), true
-	}
-	return 0, false
-}
-
-func floatToValue(f float64) (result Value) {
-	if i, ok := floatToInt(f); ok {
-		return intToValue(i)
-	}
-	switch {
-	case f == 0:
-		return _negativeZero
-	case math.IsNaN(f):
-		return _NaN
-	case math.IsInf(f, 1):
-		return _positiveInf
-	case math.IsInf(f, -1):
-		return _negativeInf
-	}
-	return valueFloat(f)
+	return valueInt(0)
 }
 
 func assertInt64(v Value) (int64, bool) {
@@ -310,11 +286,7 @@ func assertInt64(v Value) (int64, bool) {
 	if i, ok := num.(valueInt); ok {
 		return int64(i), true
 	}
-	if f, ok := num.(valueFloat); ok {
-		if i, ok := floatToInt(float64(f)); ok {
-			return i, true
-		}
-	}
+
 	return 0, false
 }
 
@@ -1026,11 +998,7 @@ func (_add) exec(vm *vm) {
 		if leftInt, ok := left.(valueInt); ok {
 			if rightInt, ok := right.(valueInt); ok {
 				ret = intToValue(int64(leftInt) + int64(rightInt))
-			} else {
-				ret = floatToValue(float64(leftInt) + right.ToFloat())
 			}
-		} else {
-			ret = floatToValue(left.ToFloat() + right.ToFloat())
 		}
 	}
 
@@ -1056,7 +1024,6 @@ func (_sub) exec(vm *vm) {
 		}
 	}
 
-	result = floatToValue(left.ToFloat() - right.ToFloat())
 end:
 	vm.sp--
 	vm.stack[vm.sp-1] = result
@@ -1076,7 +1043,7 @@ func (_mul) exec(vm *vm) {
 	if left, ok := assertInt64(left); ok {
 		if right, ok := assertInt64(right); ok {
 			if left == 0 && right == -1 || left == -1 && right == 0 {
-				result = _negativeZero
+				result = valueInt(0)
 				goto end
 			}
 			res := left * right
@@ -1088,8 +1055,6 @@ func (_mul) exec(vm *vm) {
 
 		}
 	}
-
-	result = floatToValue(left.ToFloat() * right.ToFloat())
 
 end:
 	vm.sp--
@@ -1103,7 +1068,12 @@ var exp _exp
 
 func (_exp) exec(vm *vm) {
 	vm.sp--
-	vm.stack[vm.sp-1] = pow(vm.stack[vm.sp-1], vm.stack[vm.sp])
+	n := vm.stack[vm.sp-1].ToInteger()
+	var i int64
+	for ; i < vm.stack[vm.sp].ToInteger(); i++ {
+		n = n * n
+	}
+	vm.stack[vm.sp-1] = valueInt(n)
 	vm.pc++
 }
 
@@ -1112,55 +1082,11 @@ type _div struct{}
 var div _div
 
 func (_div) exec(vm *vm) {
-	left := vm.stack[vm.sp-2].ToFloat()
-	right := vm.stack[vm.sp-1].ToFloat()
+	left := vm.stack[vm.sp-2].ToInteger()
+	right := vm.stack[vm.sp-1].ToInteger()
 
-	var result Value
+	var result Value = valueInt(left / right)
 
-	if math.IsNaN(left) || math.IsNaN(right) {
-		result = _NaN
-		goto end
-	}
-	if math.IsInf(left, 0) && math.IsInf(right, 0) {
-		result = _NaN
-		goto end
-	}
-	if left == 0 && right == 0 {
-		result = _NaN
-		goto end
-	}
-
-	if math.IsInf(left, 0) {
-		if math.Signbit(left) == math.Signbit(right) {
-			result = _positiveInf
-			goto end
-		} else {
-			result = _negativeInf
-			goto end
-		}
-	}
-	if math.IsInf(right, 0) {
-		if math.Signbit(left) == math.Signbit(right) {
-			result = _positiveZero
-			goto end
-		} else {
-			result = _negativeZero
-			goto end
-		}
-	}
-	if right == 0 {
-		if math.Signbit(left) == math.Signbit(right) {
-			result = _positiveInf
-			goto end
-		} else {
-			result = _negativeInf
-			goto end
-		}
-	}
-
-	result = floatToValue(left / right)
-
-end:
 	vm.sp--
 	vm.stack[vm.sp-1] = result
 	vm.pc++
@@ -1179,20 +1105,17 @@ func (_mod) exec(vm *vm) {
 	if leftInt, ok := assertInt64(left); ok {
 		if rightInt, ok := assertInt64(right); ok {
 			if rightInt == 0 {
-				result = _NaN
+				result = Null()
 				goto end
 			}
 			r := leftInt % rightInt
 			if r == 0 && leftInt < 0 {
-				result = _negativeZero
+				result = Null()
 			} else {
 				result = intToValue(leftInt % rightInt)
 			}
-			goto end
 		}
 	}
-
-	result = floatToValue(math.Mod(left.ToFloat(), right.ToFloat()))
 end:
 	vm.sp--
 	vm.stack[vm.sp-1] = result
@@ -1210,16 +1133,10 @@ func (_neg) exec(vm *vm) {
 
 	if i, ok := assertInt64(operand); ok {
 		if i == 0 {
-			result = _negativeZero
+			result = valueInt(0)
 		} else {
 			result = valueInt(-i)
 		}
-	} else {
-		f := operand.ToFloat()
-		if !math.IsNaN(f) {
-			f = -f
-		}
-		result = valueFloat(f)
 	}
 
 	vm.stack[vm.sp-1] = result
@@ -1247,8 +1164,6 @@ func (_inc) exec(vm *vm) {
 		goto end
 	}
 
-	v = valueFloat(v.ToFloat() + 1)
-
 end:
 	vm.stack[vm.sp-1] = v
 	vm.pc++
@@ -1263,12 +1178,8 @@ func (_dec) exec(vm *vm) {
 
 	if i, ok := assertInt64(v); ok {
 		v = intToValue(i - 1)
-		goto end
 	}
 
-	v = valueFloat(v.ToFloat() - 1)
-
-end:
 	vm.stack[vm.sp-1] = v
 	vm.pc++
 }
@@ -3991,13 +3902,6 @@ func cmp(px, py Value) Value {
 		}
 	}
 
-	nx = px.ToFloat()
-	ny = py.ToFloat()
-
-	if math.IsNaN(nx) || math.IsNaN(ny) {
-		return _undefined
-	}
-
 	ret = nx < ny
 
 end:
@@ -4349,7 +4253,7 @@ func (_typeof) exec(vm *vm) {
 		r = stringBoolean
 	case valueString:
 		r = stringString
-	case valueInt, valueFloat:
+	case valueInt:
 		r = stringNumber
 	case *Symbol:
 		r = stringSymbol

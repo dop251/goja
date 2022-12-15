@@ -2,7 +2,6 @@ package goja
 
 import (
 	"fmt"
-	"math"
 )
 
 func (r *Runtime) builtin_Function(args []Value, proto *Object) *Object {
@@ -164,20 +163,7 @@ func (r *Runtime) functionproto_bind(call FunctionCall) Value {
 		switch lenProp := nilSafe(obj.self.getStr("length", nil)).(type) {
 		case valueInt:
 			li = lenProp.ToInteger()
-		case valueFloat:
-			switch lenProp {
-			case _positiveInf:
-				l = lenProp
-				goto lenNotInt
-			case _negativeInf:
-				goto lenNotInt
-			case _negativeZero:
-				// no-op, li == 0
-			default:
-				if !math.IsNaN(float64(lenProp)) {
-					li = int64(math.Abs(float64(lenProp)))
-				} // else li = 0
-			}
+
 		}
 		if len(call.Arguments) > 1 {
 			li -= int64(len(call.Arguments)) - 1
@@ -187,7 +173,7 @@ func (r *Runtime) functionproto_bind(call FunctionCall) Value {
 		}
 		l = intToValue(li)
 	}
-lenNotInt:
+
 	name := obj.self.getStr("name", nil)
 	nameStr := stringBound_
 	if s, ok := name.(valueString); ok {

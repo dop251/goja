@@ -154,7 +154,7 @@ func (d *dateObject) setTimeMs(ms int64) Value {
 	}
 
 	d.unset()
-	return _NaN
+	return Null()
 }
 
 func (d *dateObject) isSet() bool {

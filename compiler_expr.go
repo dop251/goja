@@ -3166,8 +3166,7 @@ func (c *compiler) compileNumberLiteral(v *ast.NumberLiteral) compiledExpr {
 	switch num := v.Value.(type) {
 	case int64:
 		val = intToValue(num)
-	case float64:
-		val = floatToValue(num)
+
 	default:
 		c.assert(false, int(v.Idx)-1, "Unsupported number literal type: %T", v.Value)
 		panic("unreachable")

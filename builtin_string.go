@@ -1,11 +1,11 @@
 package goja
 
 import (
-	"github.com/dop251/goja/unistring"
-	"math"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/dop251/goja/unistring"
 
 	"github.com/dop251/goja/parser"
 	"golang.org/x/text/collate"
@@ -186,7 +186,7 @@ func (r *Runtime) stringproto_charCodeAt(call FunctionCall) Value {
 	s := call.This.toString()
 	pos := call.Argument(0).ToInteger()
 	if pos < 0 || pos >= int64(s.length()) {
-		return _NaN
+		return Null()
 	}
 	return intToValue(int64(s.charAt(toIntStrict(pos)) & 0xFFFF))
 }
@@ -341,17 +341,14 @@ func (r *Runtime) stringproto_lastIndexOf(call FunctionCall) Value {
 	numPos := call.Argument(1).ToNumber()
 
 	var pos int64
-	if f, ok := numPos.(valueFloat); ok && math.IsNaN(float64(f)) {
-		pos = int64(value.length())
+
+	pos = numPos.ToInteger()
+	if pos < 0 {
+		pos = 0
 	} else {
-		pos = numPos.ToInteger()
-		if pos < 0 {
-			pos = 0
-		} else {
-			l := int64(value.length())
-			if pos > l {
-				pos = l
-			}
+		l := int64(value.length())
+		if pos > l {
+			pos = l
 		}
 	}
 
@@ -542,9 +539,7 @@ func (r *Runtime) stringproto_repeat(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
 	n := call.Argument(0).ToNumber()
-	if n == _positiveInf {
-		panic(r.newError(r.global.RangeError, "Invalid count value"))
-	}
+
 	numInt := n.ToInteger()
 	if numInt < 0 {
 		panic(r.newError(r.global.RangeError, "Invalid count value"))

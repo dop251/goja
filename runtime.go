@@ -432,7 +432,6 @@ func (r *Runtime) init() {
 	r.global.Eval = r.newNativeFunc(r.builtin_eval, nil, "eval", nil, 1)
 	r.addToGlobal("eval", r.global.Eval)
 
-	r.initMath()
 	r.initJSON()
 
 	r.initTypedArrays()
@@ -982,12 +981,6 @@ func toInt8(v Value) int8 {
 		return int8(i)
 	}
 
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return int8(int64(f))
-		}
-	}
 	return 0
 }
 
@@ -997,12 +990,6 @@ func toUint8(v Value) uint8 {
 		return uint8(i)
 	}
 
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return uint8(int64(f))
-		}
-	}
 	return 0
 }
 
@@ -1018,30 +1005,6 @@ func toUint8Clamp(v Value) uint8 {
 		return 255
 	}
 
-	if num, ok := v.(valueFloat); ok {
-		num := float64(num)
-		if !math.IsNaN(num) {
-			if num < 0 {
-				return 0
-			}
-			if num > 255 {
-				return 255
-			}
-			f := math.Floor(num)
-			f1 := f + 0.5
-			if f1 < num {
-				return uint8(f + 1)
-			}
-			if f1 > num {
-				return uint8(f)
-			}
-			r := uint8(f)
-			if r&1 != 0 {
-				return r + 1
-			}
-			return r
-		}
-	}
 	return 0
 }
 
@@ -1051,12 +1014,6 @@ func toInt16(v Value) int16 {
 		return int16(i)
 	}
 
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return int16(int64(f))
-		}
-	}
 	return 0
 }
 
@@ -1066,12 +1023,6 @@ func toUint16(v Value) uint16 {
 		return uint16(i)
 	}
 
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return uint16(int64(f))
-		}
-	}
 	return 0
 }
 
@@ -1081,12 +1032,6 @@ func toInt32(v Value) int32 {
 		return int32(i)
 	}
 
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return int32(int64(f))
-		}
-	}
 	return 0
 }
 
@@ -1096,12 +1041,6 @@ func toUint32(v Value) uint32 {
 		return uint32(i)
 	}
 
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return uint32(int64(f))
-		}
-	}
 	return 0
 }
 
@@ -1111,12 +1050,6 @@ func toInt64(v Value) int64 {
 		return int64(i)
 	}
 
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return int64(f)
-		}
-	}
 	return 0
 }
 
@@ -1126,12 +1059,6 @@ func toUint64(v Value) uint64 {
 		return uint64(i)
 	}
 
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return uint64(int64(f))
-		}
-	}
 	return 0
 }
 
@@ -1141,12 +1068,6 @@ func toInt(v Value) int {
 		return int(i)
 	}
 
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return int(f)
-		}
-	}
 	return 0
 }
 
@@ -1156,17 +1077,7 @@ func toUint(v Value) uint {
 		return uint(i)
 	}
 
-	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return uint(int64(f))
-		}
-	}
 	return 0
-}
-
-func toFloat32(v Value) float32 {
-	return float32(v.ToFloat())
 }
 
 func toLength(v Value) int64 {
@@ -1189,14 +1100,7 @@ repeat:
 	switch num := v.(type) {
 	case valueInt:
 		intVal = int64(num)
-	case valueFloat:
-		if v != _negativeZero {
-			if i, ok := floatToInt(float64(num)); ok {
-				intVal = i
-			} else {
-				goto fail
-			}
-		}
+
 	case valueString:
 		v = num.ToNumber()
 		goto repeat
@@ -1204,12 +1108,7 @@ repeat:
 		// Legacy behaviour as specified in https://tc39.es/ecma262/#sec-arraysetlength (see the note)
 		n2 := toUint32(v)
 		n1 := v.ToNumber()
-		if f, ok := n1.(valueFloat); ok {
-			f := float64(f)
-			if f != 0 || !math.Signbit(f) {
-				goto fail
-			}
-		}
+
 		if n1.ToInteger() != int64(n2) {
 			goto fail
 		}
@@ -1774,11 +1673,6 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 	case int64:
 		return intToValue(i)
 	case uint:
-		if uint64(i) <= math.MaxInt64 {
-			return intToValue(int64(i))
-		} else {
-			return floatToValue(float64(i))
-		}
 	case uint8:
 		return intToValue(int64(i))
 	case uint16:
@@ -1789,11 +1683,8 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 		if i <= math.MaxInt64 {
 			return intToValue(int64(i))
 		}
-		return floatToValue(float64(i))
-	case float32:
-		return floatToValue(float64(i))
-	case float64:
-		return floatToValue(i)
+		return Null()
+
 	case map[string]interface{}:
 		if i == nil {
 			return _null
@@ -2088,12 +1979,6 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 		return nil
 	case reflect.Uint8:
 		dst.Set(reflect.ValueOf(toUint8(v)).Convert(typ))
-		return nil
-	case reflect.Float64:
-		dst.Set(reflect.ValueOf(v.ToFloat()).Convert(typ))
-		return nil
-	case reflect.Float32:
-		dst.Set(reflect.ValueOf(toFloat32(v)).Convert(typ))
 		return nil
 	case reflect.Slice, reflect.Array:
 		if o, ok := v.(*Object); ok {
@@ -2434,13 +2319,13 @@ func IsNull(v Value) bool {
 
 // IsNaN returns true if the supplied value is NaN.
 func IsNaN(v Value) bool {
-	f, ok := v.(valueFloat)
-	return ok && math.IsNaN(float64(f))
+	_, ok := v.(valueInt)
+	return !ok
 }
 
 // IsInfinity returns true if the supplied is (+/-)Infinity
 func IsInfinity(v Value) bool {
-	return v == _positiveInf || v == _negativeInf
+	return false
 }
 
 // Undefined returns JS undefined value. Note if global 'undefined' property is changed this still returns the original value.
@@ -2451,21 +2336,6 @@ func Undefined() Value {
 // Null returns JS null value.
 func Null() Value {
 	return _null
-}
-
-// NaN returns a JS NaN value.
-func NaN() Value {
-	return _NaN
-}
-
-// PositiveInf returns a JS +Inf value.
-func PositiveInf() Value {
-	return _positiveInf
-}
-
-// NegativeInf returns a JS -Inf value.
-func NegativeInf() Value {
-	return _negativeInf
 }
 
 func tryFunc(f func()) (ret interface{}) {
@@ -2509,7 +2379,7 @@ func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
 
 func (r *Runtime) toNumber(v Value) Value {
 	switch o := v.(type) {
-	case valueInt, valueFloat:
+	case valueInt:
 		return v
 	case *Object:
 		if pvo, ok := o.self.(*primitiveValueObject); ok {

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 	"strings"
 	"unicode/utf16"
@@ -56,8 +55,7 @@ func (r *Runtime) builtinJSON_decodeToken(d *json.Decoder, tok json.Token) (Valu
 		return _null, nil
 	case string:
 		return newStringValue(tok), nil
-	case float64:
-		return floatToValue(tok), nil
+
 	case bool:
 		if tok {
 			return valueTrue, nil
@@ -192,7 +190,7 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 				var name string
 				value := replacer.self.getIdx(valueInt(int64(index)), nil)
 				switch v := value.(type) {
-				case valueFloat, valueInt, valueString:
+				case valueInt, valueString:
 					name = value.String()
 				case *Object:
 					switch v.self.className() {
@@ -221,7 +219,7 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 			switch oImpl := o.self.(type) {
 			case *primitiveValueObject:
 				switch oImpl.pValue.(type) {
-				case valueInt, valueFloat:
+				case valueInt:
 					spaceValue = o.ToNumber()
 				}
 			case *stringObject:
@@ -232,9 +230,6 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 		var num int64
 		if i, ok := spaceValue.(valueInt); ok {
 			num = int64(i)
-			isNum = true
-		} else if f, ok := spaceValue.(valueFloat); ok {
-			num = int64(f)
 			isNum = true
 		}
 		if isNum {
@@ -299,7 +294,7 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 		switch o1 := o.self.(type) {
 		case *primitiveValueObject:
 			switch pValue := o1.pValue.(type) {
-			case valueInt, valueFloat:
+			case valueInt:
 				value = o.ToNumber()
 			default:
 				value = pValue
@@ -345,12 +340,7 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 		ctx.quote(value1)
 	case valueInt:
 		ctx.buf.WriteString(value.String())
-	case valueFloat:
-		if !math.IsNaN(float64(value1)) && !math.IsInf(float64(value1), 0) {
-			ctx.buf.WriteString(value.String())
-		} else {
-			ctx.buf.WriteString("null")
-		}
+
 	case valueNull:
 		ctx.buf.WriteString("null")
 	case *Object:

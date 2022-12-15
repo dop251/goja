@@ -2,7 +2,6 @@ package goja
 
 import (
 	"fmt"
-	"math"
 	"sort"
 	"unsafe"
 
@@ -36,16 +35,7 @@ func (ctx *typedArraySortCtx) Less(i, j int) bool {
 		if i, ok := res.(valueInt); ok {
 			return i < 0
 		}
-		f := res.ToFloat()
-		if f < 0 {
-			return true
-		}
-		if f > 0 {
-			return false
-		}
-		if math.Signbit(f) {
-			return true
-		}
+
 		return false
 	}
 
@@ -216,20 +206,6 @@ func (r *Runtime) dataViewProto_getByteOffset(call FunctionCall) Value {
 	panic(r.NewTypeError("Method get DataView.prototype.byteOffset called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 }
 
-func (r *Runtime) dataViewProto_getFloat32(call FunctionCall) Value {
-	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
-		return floatToValue(float64(dv.viewedArrayBuf.getFloat32(dv.getIdxAndByteOrder(r.toIndex(call.Argument(0)), call.Argument(1), 4))))
-	}
-	panic(r.NewTypeError("Method DataView.prototype.getFloat32 called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
-}
-
-func (r *Runtime) dataViewProto_getFloat64(call FunctionCall) Value {
-	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
-		return floatToValue(dv.viewedArrayBuf.getFloat64(dv.getIdxAndByteOrder(r.toIndex(call.Argument(0)), call.Argument(1), 8)))
-	}
-	panic(r.NewTypeError("Method DataView.prototype.getFloat64 called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
-}
-
 func (r *Runtime) dataViewProto_getInt8(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
 		idx, _ := dv.getIdxAndByteOrder(r.toIndex(call.Argument(0)), call.Argument(1), 1)
@@ -272,28 +248,6 @@ func (r *Runtime) dataViewProto_getUint32(call FunctionCall) Value {
 		return intToValue(int64(dv.viewedArrayBuf.getUint32(dv.getIdxAndByteOrder(r.toIndex(call.Argument(0)), call.Argument(1), 4))))
 	}
 	panic(r.NewTypeError("Method DataView.prototype.getUint32 called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
-}
-
-func (r *Runtime) dataViewProto_setFloat32(call FunctionCall) Value {
-	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
-		idxVal := r.toIndex(call.Argument(0))
-		val := toFloat32(call.Argument(1))
-		idx, bo := dv.getIdxAndByteOrder(idxVal, call.Argument(2), 4)
-		dv.viewedArrayBuf.setFloat32(idx, val, bo)
-		return _undefined
-	}
-	panic(r.NewTypeError("Method DataView.prototype.setFloat32 called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
-}
-
-func (r *Runtime) dataViewProto_setFloat64(call FunctionCall) Value {
-	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
-		idxVal := r.toIndex(call.Argument(0))
-		val := call.Argument(1).ToFloat()
-		idx, bo := dv.getIdxAndByteOrder(idxVal, call.Argument(2), 8)
-		dv.viewedArrayBuf.setFloat64(idx, val, bo)
-		return _undefined
-	}
-	panic(r.NewTypeError("Method DataView.prototype.setFloat64 called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 }
 
 func (r *Runtime) dataViewProto_setInt8(call FunctionCall) Value {
@@ -662,9 +616,7 @@ func (r *Runtime) typedArrayProto_includes(call FunctionCall) Value {
 		}
 
 		searchElement := call.Argument(0)
-		if searchElement == _negativeZero {
-			searchElement = _positiveZero
-		}
+
 		startIdx := toIntStrict(n)
 		if !ta.viewedArrayBuf.ensureNotDetached(false) {
 			if searchElement == _undefined && startIdx < ta.length {
@@ -723,9 +675,7 @@ func (r *Runtime) typedArrayProto_indexOf(call FunctionCall) Value {
 
 		if ta.viewedArrayBuf.ensureNotDetached(false) {
 			searchElement := call.Argument(0)
-			if searchElement == _negativeZero {
-				searchElement = _positiveZero
-			}
+
 			if !IsNaN(searchElement) && ta.typedArray.typeMatch(searchElement) {
 				se := ta.typedArray.toRaw(searchElement)
 				for k := toIntStrict(n); k < ta.length; k++ {
@@ -814,9 +764,7 @@ func (r *Runtime) typedArrayProto_lastIndexOf(call FunctionCall) Value {
 
 		if ta.viewedArrayBuf.ensureNotDetached(false) {
 			searchElement := call.Argument(0)
-			if searchElement == _negativeZero {
-				searchElement = _positiveZero
-			}
+
 			if !IsNaN(searchElement) && ta.typedArray.typeMatch(searchElement) {
 				se := ta.typedArray.toRaw(searchElement)
 				for k := toIntStrict(fromIndex); k >= 0; k-- {
@@ -1395,14 +1343,6 @@ func (r *Runtime) newInt32Array(args []Value, newTarget, proto *Object) *Object 
 	return r._newTypedArray(args, newTarget, r.newInt32ArrayObject, proto)
 }
 
-func (r *Runtime) newFloat32Array(args []Value, newTarget, proto *Object) *Object {
-	return r._newTypedArray(args, newTarget, r.newFloat32ArrayObject, proto)
-}
-
-func (r *Runtime) newFloat64Array(args []Value, newTarget, proto *Object) *Object {
-	return r._newTypedArray(args, newTarget, r.newFloat64ArrayObject, proto)
-}
-
 func (r *Runtime) createArrayBufferProto(val *Object) objectImpl {
 	b := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 	byteLengthProp := &valueProperty{
@@ -1443,16 +1383,12 @@ func (r *Runtime) createDataViewProto(val *Object) objectImpl {
 		getterFunc:   r.newNativeFunc(r.dataViewProto_getByteOffset, nil, "get byteOffset", nil, 0),
 	})
 	b._putProp("constructor", r.global.DataView, true, false, true)
-	b._putProp("getFloat32", r.newNativeFunc(r.dataViewProto_getFloat32, nil, "getFloat32", nil, 1), true, false, true)
-	b._putProp("getFloat64", r.newNativeFunc(r.dataViewProto_getFloat64, nil, "getFloat64", nil, 1), true, false, true)
 	b._putProp("getInt8", r.newNativeFunc(r.dataViewProto_getInt8, nil, "getInt8", nil, 1), true, false, true)
 	b._putProp("getInt16", r.newNativeFunc(r.dataViewProto_getInt16, nil, "getInt16", nil, 1), true, false, true)
 	b._putProp("getInt32", r.newNativeFunc(r.dataViewProto_getInt32, nil, "getInt32", nil, 1), true, false, true)
 	b._putProp("getUint8", r.newNativeFunc(r.dataViewProto_getUint8, nil, "getUint8", nil, 1), true, false, true)
 	b._putProp("getUint16", r.newNativeFunc(r.dataViewProto_getUint16, nil, "getUint16", nil, 1), true, false, true)
 	b._putProp("getUint32", r.newNativeFunc(r.dataViewProto_getUint32, nil, "getUint32", nil, 1), true, false, true)
-	b._putProp("setFloat32", r.newNativeFunc(r.dataViewProto_setFloat32, nil, "setFloat32", nil, 2), true, false, true)
-	b._putProp("setFloat64", r.newNativeFunc(r.dataViewProto_setFloat64, nil, "setFloat64", nil, 2), true, false, true)
 	b._putProp("setInt8", r.newNativeFunc(r.dataViewProto_setInt8, nil, "setInt8", nil, 2), true, false, true)
 	b._putProp("setInt16", r.newNativeFunc(r.dataViewProto_setInt16, nil, "setInt16", nil, 2), true, false, true)
 	b._putProp("setInt32", r.newNativeFunc(r.dataViewProto_setInt32, nil, "setInt32", nil, 2), true, false, true)
@@ -1591,9 +1527,4 @@ func (r *Runtime) initTypedArrays() {
 	r.global.Int32Array = r.newLazyObject(r.typedArrayCreator(r.newInt32Array, "Int32Array", 4))
 	r.addToGlobal("Int32Array", r.global.Int32Array)
 
-	r.global.Float32Array = r.newLazyObject(r.typedArrayCreator(r.newFloat32Array, "Float32Array", 4))
-	r.addToGlobal("Float32Array", r.global.Float32Array)
-
-	r.global.Float64Array = r.newLazyObject(r.typedArrayCreator(r.newFloat64Array, "Float64Array", 8))
-	r.addToGlobal("Float64Array", r.global.Float64Array)
 }
