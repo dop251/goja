@@ -159,7 +159,10 @@ func (r *Runtime) testPrg(p *Program, expectedResult Value, t *testing.T) {
 	vm.pc = 0
 	vm.prg.dumpCode(t.Logf)
 	vm.result = _undefined
-	vm.run()
+	ex := vm.runTry()
+	if ex != nil {
+		t.Fatalf("Exception: %v", ex)
+	}
 	v := vm.result
 	t.Logf("stack size: %d", len(vm.stack))
 	t.Logf("stashAllocs: %d", vm.stashAllocs)
@@ -5611,6 +5614,54 @@ func TestLexicalDeclInSwitch(t *testing.T) {
 	}
 	`
 	testScript(SCRIPT, _undefined, t)
+}
+
+func TestClassFieldSpecial(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		get;
+		set;
+		async;
+		static;
+	}
+	`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestClassMethodSpecial(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		get() {}
+		set() {}
+		async() {}
+		static() {}
+	}
+	`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestAsyncFunc(t *testing.T) {
+	const SCRIPT = `
+	async (x = true, y) => {};
+	async x => {};
+	let passed = false;
+	async function f() {
+		return true;
+	}
+	async function f1(arg = true) {
+		passed = await f();
+	}
+	f1().catch(e => {passed = e});
+	undefined;
+	`
+	vm := New()
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res := vm.Get("passed").Export(); res != true {
+		t.Fatal(res)
+	}
 }
 
 /*
