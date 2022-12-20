@@ -71,6 +71,11 @@ func (vm *vm) suspend(ectx *execCtx, tryStackLen, iterStackLen, refStackLen uint
 		l := len(vm.tryStack) - int(tryStackLen)
 		ectx.tryStack = append(ectx.tryStack[:0], vm.tryStack[l:]...)
 		vm.tryStack = vm.tryStack[:l]
+		for i := range ectx.tryStack {
+			tf := &ectx.tryStack[i]
+			tf.iterLen -= iterStackLen
+			tf.refLen -= refStackLen
+		}
 	}
 	if iterStackLen > 0 {
 		l := len(vm.iterStack) - int(iterStackLen)
@@ -90,6 +95,12 @@ func (vm *vm) resume(ctx *execCtx) {
 	vm.stack.expand(vm.sp + len(ctx.stack))
 	copy(vm.stack[vm.sp:], ctx.stack)
 	vm.sp += len(ctx.stack)
+	for i := range ctx.tryStack {
+		tf := &ctx.tryStack[i]
+		tf.callStackLen = uint32(len(vm.callStack))
+		tf.iterLen += uint32(len(vm.iterStack))
+		tf.refLen += uint32(len(vm.refStack))
+	}
 	vm.tryStack = append(vm.tryStack, ctx.tryStack...)
 	vm.iterStack = append(vm.iterStack, ctx.iterStack...)
 	vm.refStack = append(vm.refStack, ctx.refStack...)

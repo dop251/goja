@@ -702,12 +702,16 @@ func (g *generator) step() (res Value, resultType resultType, ex *Exception) {
 	return
 }
 
-func (g *generator) next(v Value) (Value, resultType, *Exception) {
+func (g *generator) enterNext() {
 	g.vm.pushCtx()
 	g.vm.pushTryFrame(tryPanicMarker, -1)
 	g.vm.callStack = append(g.vm.callStack, context{pc: -2}) // extra frame so that vm.run() halts after ret
 	g.storeLengths()
 	g.vm.resume(&g.ctx)
+}
+
+func (g *generator) next(v Value) (Value, resultType, *Exception) {
+	g.enterNext()
 	if v != nil {
 		g.vm.push(v)
 	}
@@ -718,8 +722,7 @@ func (g *generator) next(v Value) (Value, resultType, *Exception) {
 }
 
 func (g *generator) nextThrow(v Value) (Value, resultType, *Exception) {
-	g.enter()
-	g.vm.resume(&g.ctx)
+	g.enterNext()
 	ex := g.vm.handleThrow(v)
 	if ex != nil {
 		g.vm.popTryFrame()

@@ -2522,6 +2522,43 @@ func TestPanicPassthrough(t *testing.T) {
 	t.Fatal("Should not reach here")
 }
 
+func TestSuspendResumeRelStackLen(t *testing.T) {
+	const SCRIPT = `
+	let result;
+
+	async function f2() {
+		throw new Error("test");
+	}
+
+	async function f1() {
+		let a = [1];
+		for (let i of a) {
+			try {
+				await f2();
+			} catch {
+				return true;
+			}
+		}
+	}
+
+	async function f() {
+		let a = [1];
+		for (let i of a) {
+			return await f1();
+		}
+	}
+	f().then(v => {result = v});
+	`
+	vm := New()
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result := vm.Get("result").Export(); result != true {
+		t.Fatal(result)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

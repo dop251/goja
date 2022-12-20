@@ -1270,9 +1270,7 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 					self.scope.allowAwait = false
 				}()
 			}
-			if c, ok := left.(*ast.CallExpression); ok && len(self.errors) == 0 {
-				paramList = self.reinterpretSequenceAsArrowFuncParams(c.ArgumentList)
-			} else {
+			if _, ok := left.(*ast.CallExpression); ok {
 				self.restore(&state)
 				self.next() // skip "async"
 				paramList = self.parseFunctionParameterList()
