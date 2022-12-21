@@ -1413,11 +1413,18 @@ func (r *Runtime) RunScript(name, src string) (Value, error) {
 
 // RunProgram executes a pre-compiled (see Compile()) code in the global context.
 func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
+	vm := r.vm
+	recursive := len(vm.callStack) > 0
 	defer func() {
+		if recursive {
+			vm.popCtx()
+		} else {
+			vm.callStack = vm.callStack[:len(vm.callStack)-1]
+		}
 		if x := recover(); x != nil {
 			if ex, ok := x.(*uncatchableException); ok {
 				err = ex.err
-				if len(r.vm.callStack) == 0 {
+				if len(vm.callStack) == 0 {
 					r.leaveAbrupt()
 				}
 			} else {
@@ -1425,13 +1432,12 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 			}
 		}
 	}()
-	vm := r.vm
-	recursive := false
-	if len(vm.callStack) > 0 {
-		recursive = true
+	if recursive {
 		vm.pushCtx()
 		vm.stash = &r.global.stash
 		vm.sb = vm.sp - 1
+	} else {
+		vm.callStack = append(vm.callStack, context{})
 	}
 	vm.prg = p
 	vm.pc = 0
@@ -1443,12 +1449,8 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 		err = ex
 	}
 	if recursive {
-		vm.popCtx()
 		vm.clearStack()
 	} else {
-		vm.prg = nil
-		vm.pc = 0
-		vm.funcName = ""
 		r.leave()
 	}
 	return

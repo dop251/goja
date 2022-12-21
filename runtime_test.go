@@ -2559,6 +2559,42 @@ func TestSuspendResumeRelStackLen(t *testing.T) {
 	}
 }
 
+func TestNestedTopLevelConstructorCall(t *testing.T) {
+	r := New()
+	c := func(call ConstructorCall, rt *Runtime) *Object {
+		if _, err := rt.RunString("(5)"); err != nil {
+			panic(err)
+		}
+		return nil
+	}
+	if err := r.Set("C", c); err != nil {
+		panic(err)
+	}
+	if _, err := r.RunString("new C()"); err != nil {
+		panic(err)
+	}
+}
+
+func TestNestedTopLevelConstructorPanicAsync(t *testing.T) {
+	r := New()
+	c := func(call ConstructorCall, rt *Runtime) *Object {
+		c, ok := AssertFunction(rt.ToValue(func() {}))
+		if !ok {
+			panic("wat")
+		}
+		if _, err := c(Undefined()); err != nil {
+			panic(err)
+		}
+		return nil
+	}
+	if err := r.Set("C", c); err != nil {
+		panic(err)
+	}
+	if _, err := r.RunString("new C()"); err != nil {
+		panic(err)
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
