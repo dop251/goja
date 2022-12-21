@@ -606,3 +606,7 @@ func (r *Runtime) NewPromise() (promise *Promise, resolve func(result interface{
 func (r *Runtime) SetPromiseRejectionTracker(tracker PromiseRejectionTracker) {
 	r.promiseRejectionTracker = tracker
 }
+
+func (r *Runtime) SetAsyncContextTracker(tracker AsyncContextTracker) {
+	r.asyncContextTracker = tracker
+}

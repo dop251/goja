@@ -19,6 +19,11 @@ var (
 	resultAwaitMarker = NewSymbol("await")
 )
 
+type AsyncContextTracker interface {
+	Suspended() (trackingObject interface{})
+	Resumed(trackingObject interface{})
+}
+
 type funcObjectImpl interface {
 	source() valueString
 }
@@ -598,9 +603,15 @@ type asyncRunner struct {
 	vmCall     func(*vm, int)
 
 	onFulfilledFunc, onRejectedFunc Value
+
+	trackingObj interface{}
 }
 
 func (ar *asyncRunner) onFulfilled(call FunctionCall) Value {
+	if tracker := ar.f.runtime.asyncContextTracker; tracker != nil {
+		tracker.Resumed(ar.trackingObj)
+		ar.trackingObj = nil
+	}
 	arg := call.Argument(0)
 	res, resType, ex := ar.gen.next(arg)
 	ar.step(res, resType == resultNormal, ex)
@@ -608,6 +619,10 @@ func (ar *asyncRunner) onFulfilled(call FunctionCall) Value {
 }
 
 func (ar *asyncRunner) onRejected(call FunctionCall) Value {
+	if tracker := ar.f.runtime.asyncContextTracker; tracker != nil {
+		tracker.Resumed(ar.trackingObj)
+		ar.trackingObj = nil
+	}
 	reason := call.Argument(0)
 	res, resType, ex := ar.gen.nextThrow(reason)
 	ar.step(res, resType == resultNormal, ex)
@@ -638,6 +653,9 @@ func (ar *asyncRunner) step(res Value, done bool, ex *Exception) {
 	} else {
 		// await
 		r := ar.f.runtime
+		if tracker := r.asyncContextTracker; tracker != nil {
+			ar.trackingObj = tracker.Suspended()
+		}
 		promise := r.promiseResolve(r.global.Promise, res)
 		r.performPromiseThen(promise.self.(*Promise), ar.getOnFulfilledFunc(), ar.getOnRejectedFunc(), nil)
 	}

@@ -191,6 +191,7 @@ type Runtime struct {
 	jobQueue []func()
 
 	promiseRejectionTracker PromiseRejectionTracker
+	asyncContextTracker     AsyncContextTracker
 }
 
 type StackFrame struct {
