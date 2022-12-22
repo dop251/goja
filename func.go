@@ -19,6 +19,10 @@ var (
 	resultAwaitMarker = NewSymbol("await")
 )
 
+// AsyncContextTracker is a handler that allows to track async function's execution context. Every time an async
+// function is suspended on 'await', Suspended() is called. The trackingObject it returns is remembered and
+// the next time just before the context is resumed, Resumed is called with the same trackingObject as argument.
+// To register it call Runtime.SetAsyncContextTracker().
 type AsyncContextTracker interface {
 	Suspended() (trackingObject interface{})
 	Resumed(trackingObject interface{})

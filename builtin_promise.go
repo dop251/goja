@@ -583,19 +583,19 @@ func (r *Runtime) wrapPromiseReaction(fObj *Object) func(interface{}) {
 // In order to make use of this method you need an event loop such as the one in goja_nodejs (https://github.com/dop251/goja_nodejs)
 // where it can be used like this:
 //
-//	 loop := NewEventLoop()
-//	 loop.Start()
-//	 defer loop.Stop()
-//	 loop.RunOnLoop(func(vm *goja.Runtime) {
-//			p, resolve, _ := vm.NewPromise()
-//			vm.Set("p", p)
-//	     go func() {
-//	  		time.Sleep(500 * time.Millisecond)   // or perform any other blocking operation
-//				loop.RunOnLoop(func(*goja.Runtime) { // resolve() must be called on the loop, cannot call it here
-//					resolve(result)
-//				})
-//			}()
-//	 }
+//	loop := NewEventLoop()
+//	loop.Start()
+//	defer loop.Stop()
+//	loop.RunOnLoop(func(vm *goja.Runtime) {
+//	    p, resolve, _ := vm.NewPromise()
+//	    vm.Set("p", p)
+//	    go func() {
+//	        time.Sleep(500 * time.Millisecond)   // or perform any other blocking operation
+//	        loop.RunOnLoop(func(*goja.Runtime) { // resolve() must be called on the loop, cannot call it here
+//	            resolve(result)
+//	        })
+//	    }()
+//	}
 func (r *Runtime) NewPromise() (promise *Promise, resolve func(result interface{}), reject func(reason interface{})) {
 	p := r.newPromise(r.global.PromisePrototype)
 	resolveF, rejectF := p.createResolvingFunctions()
@@ -613,6 +613,9 @@ func (r *Runtime) SetPromiseRejectionTracker(tracker PromiseRejectionTracker) {
 	r.promiseRejectionTracker = tracker
 }
 
+// SetAsyncContextTracker registers a handler that allows to track async execution contexts. See AsyncContextTracker
+// documentation for more details. Setting it to nil disables the functionality.
+// This method (as Runtime in general) is not goroutine-safe.
 func (r *Runtime) SetAsyncContextTracker(tracker AsyncContextTracker) {
 	r.asyncContextTracker = tracker
 }
