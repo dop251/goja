@@ -2524,8 +2524,6 @@ func TestPanicPassthrough(t *testing.T) {
 
 func TestSuspendResumeRelStackLen(t *testing.T) {
 	const SCRIPT = `
-	let result;
-
 	async function f2() {
 		throw new Error("test");
 	}
@@ -2547,16 +2545,9 @@ func TestSuspendResumeRelStackLen(t *testing.T) {
 			return await f1();
 		}
 	}
-	f().then(v => {result = v});
+	return f();
 	`
-	vm := New()
-	_, err := vm.RunString(SCRIPT)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result := vm.Get("result").Export(); result != true {
-		t.Fatal(result)
-	}
+	testAsyncFunc(SCRIPT, valueTrue, t)
 }
 
 func TestNestedTopLevelConstructorCall(t *testing.T) {
@@ -2593,6 +2584,56 @@ func TestNestedTopLevelConstructorPanicAsync(t *testing.T) {
 	if _, err := r.RunString("new C()"); err != nil {
 		panic(err)
 	}
+}
+
+func TestAsyncFuncThrow(t *testing.T) {
+	const SCRIPT = `
+	class TestError extends Error {
+	}
+
+	async function f() {
+		throw new TestError();
+	}
+
+	async function f1() {
+		try {
+			await f();
+		} catch (e) {
+			assert.sameValue(e.constructor.name, TestError.name);
+			return;
+		}
+		throw new Error("No exception was thrown");
+	}
+	await f1();
+	return undefined;
+	`
+	testAsyncFuncWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestAsyncStacktrace(t *testing.T) {
+	// Do not reformat, assertions depend on the line and column numbers
+	const SCRIPT = `
+	let ex;
+	async function foo(x) {
+	  await bar(x);
+	}
+
+	async function bar(x) {
+	  await x;
+	  throw new Error("Let's have a look...");
+	}
+
+	try {
+		await foo(1);
+	} catch (e) {
+		assertStack(e, [
+			["test.js", "bar", 9, 10],
+			["test.js", "foo", 4, 13],
+			["test.js", "test", 13, 12],
+		]);
+	}
+	`
+	testAsyncFuncWithTestLibX(SCRIPT, _undefined, t)
 }
 
 /*

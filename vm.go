@@ -71,10 +71,12 @@ func (vm *vm) suspend(ectx *execCtx, tryStackLen, iterStackLen, refStackLen uint
 		l := len(vm.tryStack) - int(tryStackLen)
 		ectx.tryStack = append(ectx.tryStack[:0], vm.tryStack[l:]...)
 		vm.tryStack = vm.tryStack[:l]
+		sp := int32(vm.sb - 1)
 		for i := range ectx.tryStack {
 			tf := &ectx.tryStack[i]
 			tf.iterLen -= iterStackLen
 			tf.refLen -= refStackLen
+			tf.sp -= sp
 		}
 	}
 	if iterStackLen > 0 {
@@ -91,15 +93,17 @@ func (vm *vm) suspend(ectx *execCtx, tryStackLen, iterStackLen, refStackLen uint
 
 func (vm *vm) resume(ctx *execCtx) {
 	vm.restoreCtx(&ctx.context)
-	vm.sb = vm.sp + 1
-	vm.stack.expand(vm.sp + len(ctx.stack))
-	copy(vm.stack[vm.sp:], ctx.stack)
+	sp := vm.sp
+	vm.sb = sp + 1
+	vm.stack.expand(sp + len(ctx.stack))
+	copy(vm.stack[sp:], ctx.stack)
 	vm.sp += len(ctx.stack)
 	for i := range ctx.tryStack {
 		tf := &ctx.tryStack[i]
 		tf.callStackLen = uint32(len(vm.callStack))
 		tf.iterLen += uint32(len(vm.iterStack))
 		tf.refLen += uint32(len(vm.refStack))
+		tf.sp += int32(sp)
 	}
 	vm.tryStack = append(vm.tryStack, ctx.tryStack...)
 	vm.iterStack = append(vm.iterStack, ctx.iterStack...)
@@ -329,6 +333,8 @@ type vm struct {
 	interrupted   uint32
 	interruptVal  interface{}
 	interruptLock sync.Mutex
+
+	curAsyncRunner *asyncRunner
 }
 
 type instruction interface {
@@ -613,6 +619,31 @@ func (vm *vm) captureStack(stack []StackFrame, ctxOffset int) []StackFrame {
 			stack = append(stack, StackFrame{prg: vm.callStack[i].prg, pc: frame.pc, funcName: funcName})
 		}
 	}
+	if ctxOffset == 0 && vm.curAsyncRunner != nil {
+		stack = vm.captureAsyncStack(stack, vm.curAsyncRunner)
+	}
+	return stack
+}
+
+func (vm *vm) captureAsyncStack(stack []StackFrame, runner *asyncRunner) []StackFrame {
+	if promise, _ := runner.promiseCap.promise.self.(*Promise); promise != nil {
+		if len(promise.fulfillReactions) == 1 {
+			if r := promise.fulfillReactions[0].asyncRunner; r != nil {
+				ctx := &r.gen.ctx
+				if ctx.prg != nil || ctx.funcName != "" {
+					var funcName unistring.String
+					if prg := ctx.prg; prg != nil {
+						funcName = prg.funcName
+					} else {
+						funcName = ctx.funcName
+					}
+					stack = append(stack, StackFrame{prg: ctx.prg, pc: ctx.pc, funcName: funcName})
+				}
+				stack = vm.captureAsyncStack(stack, r)
+			}
+		}
+	}
+
 	return stack
 }
 

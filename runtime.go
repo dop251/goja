@@ -1452,6 +1452,8 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	if recursive {
 		vm.clearStack()
 	} else {
+		vm.prg = nil
+		vm.funcName = ""
 		r.leave()
 	}
 	return

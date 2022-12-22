@@ -38,9 +38,10 @@ type promiseCapability struct {
 }
 
 type promiseReaction struct {
-	capability *promiseCapability
-	typ        promiseReactionType
-	handler    *jobCallback
+	capability  *promiseCapability
+	typ         promiseReactionType
+	handler     *jobCallback
+	asyncRunner *asyncRunner
 }
 
 var typePromise = reflect.TypeOf((*Promise)(nil))
@@ -145,6 +146,24 @@ func (p *Promise) exportType() reflect.Type {
 
 func (p *Promise) export(*objectExportCtx) interface{} {
 	return p
+}
+
+func (p *Promise) addReactions(fulfillReaction *promiseReaction, rejectReaction *promiseReaction) {
+	r := p.val.runtime
+	switch p.state {
+	case PromiseStatePending:
+		p.fulfillReactions = append(p.fulfillReactions, fulfillReaction)
+		p.rejectReactions = append(p.rejectReactions, rejectReaction)
+	case PromiseStateFulfilled:
+		r.enqueuePromiseJob(r.newPromiseReactionJob(fulfillReaction, p.result))
+	default:
+		reason := p.result
+		if !p.handled {
+			r.trackPromiseRejection(p, PromiseRejectionHandle)
+		}
+		r.enqueuePromiseJob(r.newPromiseReactionJob(rejectReaction, reason))
+	}
+	p.handled = true
 }
 
 func (r *Runtime) newPromiseResolveThenableJob(p *Promise, thenable Value, then *jobCallback) func() {
@@ -297,20 +316,7 @@ func (r *Runtime) performPromiseThen(p *Promise, onFulfilled, onRejected Value, 
 		typ:        promiseReactionReject,
 		handler:    onRejectedJobCallback,
 	}
-	switch p.state {
-	case PromiseStatePending:
-		p.fulfillReactions = append(p.fulfillReactions, fulfillReaction)
-		p.rejectReactions = append(p.rejectReactions, rejectReaction)
-	case PromiseStateFulfilled:
-		r.enqueuePromiseJob(r.newPromiseReactionJob(fulfillReaction, p.result))
-	default:
-		reason := p.result
-		if !p.handled {
-			r.trackPromiseRejection(p, PromiseRejectionHandle)
-		}
-		r.enqueuePromiseJob(r.newPromiseReactionJob(rejectReaction, reason))
-	}
-	p.handled = true
+	p.addReactions(fulfillReaction, rejectReaction)
 	if resultCapability == nil {
 		return _undefined
 	}
