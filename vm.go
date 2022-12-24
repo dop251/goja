@@ -340,10 +340,10 @@ type instruction interface {
 }
 
 func intToValue(i int64) Value {
+	if idx := 256 + i; idx >= 0 && idx < 256 {
+		return intCache[idx]
+	}
 	if i >= -maxInt && i <= maxInt {
-		if i >= -128 && i <= 127 {
-			return intCache[i+128]
-		}
 		return valueInt(i)
 	}
 	return valueFloat(i)
