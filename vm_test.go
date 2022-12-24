@@ -33,7 +33,6 @@ func TestVM1(t *testing.T) {
 			setElem,
 			pop,
 			loadDynamic("v"),
-			halt,
 		},
 	}
 
@@ -96,7 +95,6 @@ func BenchmarkVmNOP2(b *testing.B) {
 		//loadVal(1).exec,
 		//add.exec,
 		jump(1).exec,
-		halt.exec,
 	}
 
 	r := &Runtime{}
@@ -108,9 +106,8 @@ func BenchmarkVmNOP2(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		vm.halt = false
 		vm.pc = 0
-		for !vm.halt {
+		for !vm.halted() {
 			prg[vm.pc](vm)
 		}
 		//vm.sp--
@@ -133,7 +130,6 @@ func BenchmarkVmNOP(b *testing.B) {
 		code: []instruction{
 			jump(1),
 			//jump(1),
-			halt,
 		},
 	}
 
@@ -159,7 +155,6 @@ func BenchmarkVm1(b *testing.B) {
 			loadVal(0),
 			loadVal(1),
 			add,
-			halt,
 		},
 	}
 

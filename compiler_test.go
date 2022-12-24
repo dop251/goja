@@ -129,6 +129,19 @@ const TESTLIBX = `
 		}
 		return assert._isSameValue(a, b);
 	}
+
+	function assertStack(e, expected) {
+		const lines = e.stack.split('\n');
+		assert.sameValue(lines.length, expected.length + 2, "Stack lengths mismatch");
+		let lnum = 1;
+		for (const [file, func, line, col] of expected) {
+			const expLine = func === "" ?
+				"\tat " + file + ":" + line + ":" + col + "(" :
+				"\tat " + func + " (" + file + ":" + line + ":" + col + "(";
+			assert.sameValue(lines[lnum].substring(0, expLine.length), expLine, "line " + lnum);
+			lnum++;
+		}
+	}
 `
 
 var (
@@ -154,13 +167,14 @@ func testLibX() *Program {
 }
 
 func (r *Runtime) testPrg(p *Program, expectedResult Value, t *testing.T) {
+	p.dumpCode(t.Logf)
+	v, err := r.RunProgram(p)
+	if err != nil {
+		if ex, ok := err.(*Exception); ok {
+			t.Fatalf("Exception: %v", ex.String())
+		}
+	}
 	vm := r.vm
-	vm.prg = p
-	vm.pc = 0
-	vm.prg.dumpCode(t.Logf)
-	vm.result = _undefined
-	vm.run()
-	v := vm.result
 	t.Logf("stack size: %d", len(vm.stack))
 	t.Logf("stashAllocs: %d", vm.stashAllocs)
 
@@ -214,6 +228,65 @@ func testScriptWithTestLib(script string, expectedResult Value, t *testing.T) {
 
 func testScriptWithTestLibX(script string, expectedResult Value, t *testing.T) {
 	New().testScriptWithTestLibX(script, expectedResult, t)
+}
+
+func (r *Runtime) testAsyncFunc(src string, expectedResult Value, t *testing.T) {
+	v, err := r.RunScript("test.js", "(async function test() {"+src+"\n})()")
+	if err != nil {
+		t.Fatal(err)
+	}
+	promise := v.Export().(*Promise)
+	switch s := promise.State(); s {
+	case PromiseStateFulfilled:
+		if res := promise.Result(); res == nil && expectedResult != nil || !res.SameAs(expectedResult) {
+			t.Fatalf("Result: %+v, expected: %+v", res, expectedResult)
+		}
+	case PromiseStateRejected:
+		res := promise.Result()
+		if resObj, ok := res.(*Object); ok {
+			if stack := resObj.Get("stack"); stack != nil {
+				t.Fatal(stack.String())
+			}
+		}
+		t.Fatal(res.String())
+	default:
+		t.Fatalf("Unexpected promise state: %v", s)
+	}
+}
+
+func (r *Runtime) testAsyncFuncWithTestLib(src string, expectedResult Value, t *testing.T) {
+	_, err := r.RunProgram(testLib())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r.testAsyncFunc(src, expectedResult, t)
+}
+
+func (r *Runtime) testAsyncFuncWithTestLibX(src string, expectedResult Value, t *testing.T) {
+	_, err := r.RunProgram(testLib())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = r.RunProgram(testLibX())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r.testAsyncFunc(src, expectedResult, t)
+}
+
+func testAsyncFunc(src string, expectedResult Value, t *testing.T) {
+	New().testAsyncFunc(src, expectedResult, t)
+}
+
+func testAsyncFuncWithTestLib(src string, expectedResult Value, t *testing.T) {
+	New().testAsyncFuncWithTestLib(src, expectedResult, t)
+}
+
+func testAsyncFuncWithTestLibX(src string, expectedResult Value, t *testing.T) {
+	New().testAsyncFuncWithTestLibX(src, expectedResult, t)
 }
 
 func TestEmptyProgram(t *testing.T) {
@@ -4481,7 +4554,7 @@ func TestDuplicateFunc(t *testing.T) {
 }
 
 func TestSrcLocations(t *testing.T) {
-	// Do not reformat, assertions depend on line and column numbers
+	// Do not reformat, assertions depend on the line and column numbers
 	const SCRIPT = `
 	let i = {
 		valueOf() {
@@ -4536,21 +4609,8 @@ func TestSrcLocations(t *testing.T) {
 						["test.js", "", 49, 4]
 						]);
 	}
-
-
-	function assertStack(e, expected) {
-		const lines = e.stack.split('\n');
-		let lnum = 1;
-		for (const [file, func, line, col] of expected) {
-			const expLine = func === "" ?
-				"\tat " + file + ":" + line + ":" + col + "(" :
-				"\tat " + func + " (" + file + ":" + line + ":" + col + "(";
-			assert.sameValue(lines[lnum].substring(0, expLine.length), expLine, "line " + lnum);
-			lnum++;
-		}
-	}
 	`
-	testScriptWithTestLib(SCRIPT, _undefined, t)
+	testScriptWithTestLibX(SCRIPT, _undefined, t)
 }
 
 func TestSrcLocationThrowLiteral(t *testing.T) {
@@ -5611,6 +5671,47 @@ func TestLexicalDeclInSwitch(t *testing.T) {
 	}
 	`
 	testScript(SCRIPT, _undefined, t)
+}
+
+func TestClassFieldSpecial(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		get;
+		set;
+		async;
+		static;
+	}
+	`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestClassMethodSpecial(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		get() {}
+		set() {}
+		async() {}
+		static() {}
+	}
+	`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestAsyncFunc(t *testing.T) {
+	const SCRIPT = `
+	async (x = true, y) => {};
+	async x => {};
+	let passed = false;
+	async function f() {
+		return true;
+	}
+	async function f1(arg = true) {
+		passed = await f();
+	}
+	await f1();
+	return passed;
+	`
+	testAsyncFunc(SCRIPT, valueTrue, t)
 }
 
 /*

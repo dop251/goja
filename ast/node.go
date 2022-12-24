@@ -55,6 +55,11 @@ type (
 		_pattern()
 	}
 
+	AwaitExpression struct {
+		Await    file.Idx
+		Argument Expression
+	}
+
 	ArrayLiteral struct {
 		LeftBracket  file.Idx
 		RightBracket file.Idx
@@ -138,6 +143,8 @@ type (
 		Source        string
 
 		DeclarationList []*VariableDeclaration
+
+		Async bool
 	}
 
 	ClassLiteral struct {
@@ -164,6 +171,7 @@ type (
 		Body            ConciseBody
 		Source          string
 		DeclarationList []*VariableDeclaration
+		Async           bool
 	}
 
 	Identifier struct {
@@ -292,6 +300,7 @@ type (
 
 func (*ArrayLiteral) _expressionNode()          {}
 func (*AssignExpression) _expressionNode()      {}
+func (*AwaitExpression) _expressionNode()       {}
 func (*BadExpression) _expressionNode()         {}
 func (*BinaryExpression) _expressionNode()      {}
 func (*BooleanLiteral) _expressionNode()        {}
@@ -624,6 +633,7 @@ type Program struct {
 
 func (self *ArrayLiteral) Idx0() file.Idx          { return self.LeftBracket }
 func (self *ArrayPattern) Idx0() file.Idx          { return self.LeftBracket }
+func (self *AwaitExpression) Idx0() file.Idx       { return self.Await }
 func (self *ObjectPattern) Idx0() file.Idx         { return self.LeftBrace }
 func (self *AssignExpression) Idx0() file.Idx      { return self.Left.Idx0() }
 func (self *BadExpression) Idx0() file.Idx         { return self.From }
@@ -698,6 +708,7 @@ func (self *ForIntoExpression) Idx0() file.Idx { return self.Expression.Idx0() }
 func (self *ArrayLiteral) Idx1() file.Idx          { return self.RightBracket + 1 }
 func (self *ArrayPattern) Idx1() file.Idx          { return self.RightBracket + 1 }
 func (self *AssignExpression) Idx1() file.Idx      { return self.Right.Idx1() }
+func (self *AwaitExpression) Idx1() file.Idx       { return self.Argument.Idx1() }
 func (self *BadExpression) Idx1() file.Idx         { return self.To }
 func (self *BinaryExpression) Idx1() file.Idx      { return self.Right.Idx1() }
 func (self *BooleanLiteral) Idx1() file.Idx        { return file.Idx(int(self.Idx) + len(self.Literal)) }

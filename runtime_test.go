@@ -2201,7 +2201,7 @@ func TestStacktraceLocationThrowFromCatch(t *testing.T) {
 	if len(stack) != 2 {
 		t.Fatalf("Unexpected stack len: %v", stack)
 	}
-	if frame := stack[0]; frame.funcName != "main" || frame.pc != 30 {
+	if frame := stack[0]; frame.funcName != "main" || frame.pc != 29 {
 		t.Fatalf("Unexpected stack frame 0: %#v", frame)
 	}
 	if frame := stack[1]; frame.funcName != "" || frame.pc != 7 {
@@ -2235,7 +2235,7 @@ func TestStacktraceLocationThrowFromGo(t *testing.T) {
 	if frame := stack[0]; !strings.HasSuffix(frame.funcName.String(), "TestStacktraceLocationThrowFromGo.func1") {
 		t.Fatalf("Unexpected stack frame 0: %#v", frame)
 	}
-	if frame := stack[1]; frame.funcName != "callee" || frame.pc != 1 {
+	if frame := stack[1]; frame.funcName != "callee" || frame.pc != 2 {
 		t.Fatalf("Unexpected stack frame 1: %#v", frame)
 	}
 	if frame := stack[2]; frame.funcName != "main" || frame.pc != 6 {
@@ -2500,6 +2500,142 @@ func TestErrorFormatSymbols(t *testing.T) {
 	}
 }
 
+func TestPanicPassthrough(t *testing.T) {
+	const panicString = "Test panic"
+	r := New()
+	r.Set("f", func() {
+		panic(panicString)
+	})
+	defer func() {
+		if x := recover(); x != nil {
+			if x != panicString {
+				t.Fatalf("Wrong panic value: %v", x)
+			}
+			if len(r.vm.callStack) > 0 {
+				t.Fatal("vm.callStack is not empty")
+			}
+		} else {
+			t.Fatal("No panic")
+		}
+	}()
+	_, _ = r.RunString("f()")
+	t.Fatal("Should not reach here")
+}
+
+func TestSuspendResumeRelStackLen(t *testing.T) {
+	const SCRIPT = `
+	async function f2() {
+		throw new Error("test");
+	}
+
+	async function f1() {
+		let a = [1];
+		for (let i of a) {
+			try {
+				await f2();
+			} catch {
+				return true;
+			}
+		}
+	}
+
+	async function f() {
+		let a = [1];
+		for (let i of a) {
+			return await f1();
+		}
+	}
+	return f();
+	`
+	testAsyncFunc(SCRIPT, valueTrue, t)
+}
+
+func TestNestedTopLevelConstructorCall(t *testing.T) {
+	r := New()
+	c := func(call ConstructorCall, rt *Runtime) *Object {
+		if _, err := rt.RunString("(5)"); err != nil {
+			panic(err)
+		}
+		return nil
+	}
+	if err := r.Set("C", c); err != nil {
+		panic(err)
+	}
+	if _, err := r.RunString("new C()"); err != nil {
+		panic(err)
+	}
+}
+
+func TestNestedTopLevelConstructorPanicAsync(t *testing.T) {
+	r := New()
+	c := func(call ConstructorCall, rt *Runtime) *Object {
+		c, ok := AssertFunction(rt.ToValue(func() {}))
+		if !ok {
+			panic("wat")
+		}
+		if _, err := c(Undefined()); err != nil {
+			panic(err)
+		}
+		return nil
+	}
+	if err := r.Set("C", c); err != nil {
+		panic(err)
+	}
+	if _, err := r.RunString("new C()"); err != nil {
+		panic(err)
+	}
+}
+
+func TestAsyncFuncThrow(t *testing.T) {
+	const SCRIPT = `
+	class TestError extends Error {
+	}
+
+	async function f() {
+		throw new TestError();
+	}
+
+	async function f1() {
+		try {
+			await f();
+		} catch (e) {
+			assert.sameValue(e.constructor.name, TestError.name);
+			return;
+		}
+		throw new Error("No exception was thrown");
+	}
+	await f1();
+	return undefined;
+	`
+	testAsyncFuncWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestAsyncStacktrace(t *testing.T) {
+	// Do not reformat, assertions depend on the line and column numbers
+	const SCRIPT = `
+	let ex;
+	async function foo(x) {
+	  await bar(x);
+	}
+
+	async function bar(x) {
+	  await x;
+	  throw new Error("Let's have a look...");
+	}
+
+	try {
+		await foo(1);
+	} catch (e) {
+		assertStack(e, [
+			["test.js", "bar", 9, 10],
+			["test.js", "foo", 4, 13],
+			["test.js", "test", 13, 12],
+		]);
+	}
+	`
+	testAsyncFuncWithTestLibX(SCRIPT, _undefined, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
@@ -2542,6 +2678,26 @@ func BenchmarkCallNative(b *testing.B) {
 	vm.Set("f", func(call FunctionCall) (ret Value) {
 		return
 	})
+
+	prg := MustCompile("test.js", "f(null)", true)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.RunProgram(prg)
+	}
+}
+
+func BenchmarkCallJS(b *testing.B) {
+	vm := New()
+	_, err := vm.RunString(`
+	function f() {
+		return 42;
+	}
+	`)
+
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	prg := MustCompile("test.js", "f(null)", true)
 
