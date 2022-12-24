@@ -1453,7 +1453,7 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 		vm.clearStack()
 	} else {
 		vm.prg = nil
-		vm.funcName = ""
+		vm.sb = -1
 		r.leave()
 	}
 	return

@@ -34,7 +34,6 @@ type stash struct {
 
 type context struct {
 	prg       *Program
-	funcName  unistring.String // only valid when prg is nil
 	stash     *stash
 	privEnv   *privateEnv
 	newTarget Value
@@ -312,7 +311,6 @@ func (r *unresolvedRef) refname() unistring.String {
 type vm struct {
 	r            *Runtime
 	prg          *Program
-	funcName     unistring.String // only valid when prg == nil
 	pc           int
 	stack        valueStack
 	sp, sb, args int
@@ -596,25 +594,37 @@ func (vm *vm) ClearInterrupt() {
 	atomic.StoreUint32(&vm.interrupted, 0)
 }
 
+func getFuncName(stack []Value, sb int) unistring.String {
+	if sb > 0 {
+		if f, ok := stack[sb-1].(*Object); ok {
+			if _, isProxy := f.self.(*proxyObject); isProxy {
+				return "proxy"
+			}
+			return nilSafe(f.self.getStr("name", nil)).string()
+		}
+	}
+	return ""
+}
+
 func (vm *vm) captureStack(stack []StackFrame, ctxOffset int) []StackFrame {
 	// Unroll the context stack
-	if vm.pc != -1 {
+	if vm.prg != nil || vm.sb > 0 {
 		var funcName unistring.String
 		if vm.prg != nil {
 			funcName = vm.prg.funcName
 		} else {
-			funcName = vm.funcName
+			funcName = getFuncName(vm.stack, vm.sb)
 		}
 		stack = append(stack, StackFrame{prg: vm.prg, pc: vm.pc, funcName: funcName})
 	}
 	for i := len(vm.callStack) - 1; i > ctxOffset-1; i-- {
 		frame := &vm.callStack[i]
-		if frame.prg != nil || frame.funcName != "" {
+		if frame.prg != nil || frame.sb > 0 {
 			var funcName unistring.String
 			if prg := frame.prg; prg != nil {
 				funcName = prg.funcName
 			} else {
-				funcName = frame.funcName
+				funcName = getFuncName(vm.stack, frame.sb)
 			}
 			stack = append(stack, StackFrame{prg: vm.callStack[i].prg, pc: frame.pc, funcName: funcName})
 		}
@@ -630,12 +640,12 @@ func (vm *vm) captureAsyncStack(stack []StackFrame, runner *asyncRunner) []Stack
 		if len(promise.fulfillReactions) == 1 {
 			if r := promise.fulfillReactions[0].asyncRunner; r != nil {
 				ctx := &r.gen.ctx
-				if ctx.prg != nil || ctx.funcName != "" {
+				if ctx.prg != nil || ctx.sb > 0 {
 					var funcName unistring.String
 					if prg := ctx.prg; prg != nil {
 						funcName = prg.funcName
 					} else {
-						funcName = ctx.funcName
+						funcName = getFuncName(ctx.stack, 1)
 					}
 					stack = append(stack, StackFrame{prg: ctx.prg, pc: ctx.pc, funcName: funcName})
 				}
@@ -676,8 +686,8 @@ func (vm *vm) handleThrow(arg interface{}) *Exception {
 		}
 		if int(tf.callStackLen) < len(vm.callStack) {
 			ctx := &vm.callStack[tf.callStackLen]
-			vm.prg, vm.funcName, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args =
-				ctx.prg, ctx.funcName, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args
+			vm.prg, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args =
+				ctx.prg, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args
 			vm.callStack = vm.callStack[:tf.callStackLen]
 		}
 		vm.sp = int(tf.sp)
@@ -788,8 +798,8 @@ func (vm *vm) peek() Value {
 }
 
 func (vm *vm) saveCtx(ctx *context) {
-	ctx.prg, ctx.stash, ctx.privEnv, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args, ctx.funcName =
-		vm.prg, vm.stash, vm.privEnv, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args, vm.funcName
+	ctx.prg, ctx.stash, ctx.privEnv, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args =
+		vm.prg, vm.stash, vm.privEnv, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args
 }
 
 func (vm *vm) pushCtx() {
@@ -806,8 +816,8 @@ func (vm *vm) pushCtx() {
 }
 
 func (vm *vm) restoreCtx(ctx *context) {
-	vm.prg, vm.funcName, vm.stash, vm.privEnv, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args =
-		ctx.prg, ctx.funcName, ctx.stash, ctx.privEnv, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args
+	vm.prg, vm.stash, vm.privEnv, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args =
+		ctx.prg, ctx.stash, ctx.privEnv, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args
 }
 
 func (vm *vm) popCtx() {

@@ -505,7 +505,7 @@ func (f *nativeFuncObject) vmCall(vm *vm, n int) {
 	if f.f != nil {
 		vm.pushCtx()
 		vm.prg = nil
-		vm.funcName = nilSafe(f.getStr("name", nil)).string()
+		vm.sb = vm.sp - n // so that [sb-1] points to the callee
 		ret := f.f(FunctionCall{
 			Arguments: vm.stack[vm.sp-n : vm.sp],
 			This:      vm.stack[vm.sp-n-2],
@@ -695,7 +695,7 @@ func (g *generator) storeLengths() {
 func (g *generator) enter() {
 	g.vm.pushCtx()
 	g.vm.pushTryFrame(tryPanicMarker, -1)
-	g.vm.prg, g.vm.funcName, g.vm.pc = nil, "", -2 // so that vm.run() halts after ret
+	g.vm.prg, g.vm.sb, g.vm.pc = nil, -1, -2 // so that vm.run() halts after ret
 	g.storeLengths()
 }
 
