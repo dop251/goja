@@ -1250,7 +1250,7 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 		if id, ok := left.(*ast.Identifier); ok {
 			paramList = &ast.ParameterList{
 				Opening: id.Idx,
-				Closing: id.Idx1(),
+				Closing: id.Idx1() - 1,
 				List: []*ast.Binding{{
 					Target: id,
 				}},
