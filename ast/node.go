@@ -727,11 +727,11 @@ func (self *NullLiteral) Idx1() file.Idx        { return file.Idx(int(self.Idx) 
 func (self *NumberLiteral) Idx1() file.Idx      { return file.Idx(int(self.Idx) + len(self.Literal)) }
 func (self *ObjectLiteral) Idx1() file.Idx      { return self.RightBrace + 1 }
 func (self *ObjectPattern) Idx1() file.Idx      { return self.RightBrace + 1 }
-func (self *ParameterList) Idx1() file.Idx      { return self.Closing }
+func (self *ParameterList) Idx1() file.Idx      { return self.Closing + 1 }
 func (self *RegExpLiteral) Idx1() file.Idx      { return file.Idx(int(self.Idx) + len(self.Literal)) }
 func (self *SequenceExpression) Idx1() file.Idx { return self.Sequence[len(self.Sequence)-1].Idx1() }
 func (self *StringLiteral) Idx1() file.Idx      { return file.Idx(int(self.Idx) + len(self.Literal)) }
-func (self *TemplateElement) Idx1() file.Idx    { return self.Idx }
+func (self *TemplateElement) Idx1() file.Idx    { return file.Idx(int(self.Idx) + len(self.Literal)) }
 func (self *TemplateLiteral) Idx1() file.Idx    { return self.CloseQuote + 1 }
 func (self *ThisExpression) Idx1() file.Idx     { return self.Idx + 4 }
 func (self *SuperExpression) Idx1() file.Idx    { return self.Idx + 5 }
@@ -806,7 +806,11 @@ func (self *PropertyKeyed) Idx1() file.Idx { return self.Value.Idx1() }
 func (self *ExpressionBody) Idx1() file.Idx { return self.Expression.Idx1() }
 
 func (self *VariableDeclaration) Idx1() file.Idx {
-	return self.Var
+	if len(self.List) > 0 {
+		return self.List[len(self.List)-1].Idx1()
+	}
+
+	return self.Var + 3
 }
 
 func (self *FieldDefinition) Idx1() file.Idx {
