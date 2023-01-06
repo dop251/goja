@@ -128,7 +128,7 @@ func (self *_parser) parseSuperProperty() ast.Expression {
 			Left: &ast.SuperExpression{
 				Idx: idx,
 			},
-			Identifier: ast.Identifier{
+			Identifier: &ast.Identifier{
 				Name: parsedLiteral,
 				Idx:  idIdx,
 			},
@@ -219,7 +219,6 @@ func (self *_parser) parseParenthesisedExpression() ast.Expression {
 }
 
 func (self *_parser) parseRegExpLiteral() *ast.RegExpLiteral {
-
 	offset := self.chrOffset - 1 // Opening slash already gotten
 	if self.token == token.QUOTIENT_ASSIGN {
 		offset -= 1 // =
@@ -514,7 +513,6 @@ func (self *_parser) parseObjectLiteral() *ast.ObjectLiteral {
 }
 
 func (self *_parser) parseArrayLiteral() *ast.ArrayLiteral {
-
 	idx0 := self.expect(token.LEFT_BRACKET)
 	var value []ast.Expression
 	for self.token != token.RIGHT_BRACKET && self.token != token.EOF {
@@ -627,7 +625,7 @@ func (self *_parser) parseDotMember(left ast.Expression) ast.Expression {
 		self.next()
 		return &ast.PrivateDotExpression{
 			Left: left,
-			Identifier: ast.PrivateIdentifier{
+			Identifier: &ast.PrivateIdentifier{
 				Identifier: ast.Identifier{
 					Idx:  idx,
 					Name: literal,
@@ -646,7 +644,7 @@ func (self *_parser) parseDotMember(left ast.Expression) ast.Expression {
 
 	return &ast.DotExpression{
 		Left: left,
-		Identifier: ast.Identifier{
+		Identifier: &ast.Identifier{
 			Idx:  idx,
 			Name: literal,
 		},
@@ -699,7 +697,6 @@ func (self *_parser) parseNewExpression() ast.Expression {
 }
 
 func (self *_parser) parseLeftHandSideExpression() ast.Expression {
-
 	var left ast.Expression
 	if self.token == token.NEW {
 		left = self.parseNewExpression()
@@ -724,7 +721,6 @@ L:
 }
 
 func (self *_parser) parseLeftHandSideExpressionAllowCall() ast.Expression {
-
 	allowIn := self.scope.allowIn
 	self.scope.allowIn = true
 	defer func() {
@@ -808,7 +804,6 @@ func (self *_parser) parsePostfixExpression() ast.Expression {
 }
 
 func (self *_parser) parseUnaryExpression() ast.Expression {
-
 	switch self.token {
 	case token.PLUS, token.MINUS, token.NOT, token.BITWISE_NOT:
 		fallthrough

@@ -36,7 +36,6 @@ func (self *_parser) parseStatementList() (list []ast.Statement) {
 }
 
 func (self *_parser) parseStatement() ast.Statement {
-
 	if self.token == token.EOF {
 		self.errorUnexpectedToken(self.token)
 		return &ast.BadStatement{From: self.idx, To: self.idx + 1}
@@ -128,7 +127,6 @@ func (self *_parser) parseStatement() ast.Statement {
 }
 
 func (self *_parser) parseTryStatement() ast.Statement {
-
 	node := &ast.TryStatement{
 		Try:  self.expect(token.TRY),
 		Body: self.parseBlockStatement(),
@@ -201,7 +199,6 @@ func (self *_parser) parseMaybeAsyncFunction(declaration bool) *ast.FunctionLite
 }
 
 func (self *_parser) parseFunction(declaration, async bool, start file.Idx) *ast.FunctionLiteral {
-
 	node := &ast.FunctionLiteral{
 		Function: start,
 		Async:    async,
@@ -528,7 +525,6 @@ func (self *_parser) parseWithStatement() ast.Statement {
 }
 
 func (self *_parser) parseCaseStatement() *ast.CaseStatement {
-
 	node := &ast.CaseStatement{
 		Case: self.idx,
 	}
@@ -566,7 +562,6 @@ func (self *_parser) parseIterationStatement() ast.Statement {
 }
 
 func (self *_parser) parseForIn(idx file.Idx, into ast.ForInto) *ast.ForInStatement {
-
 	// Already have consumed "<into> in"
 
 	source := self.parseExpression()
@@ -581,7 +576,6 @@ func (self *_parser) parseForIn(idx file.Idx, into ast.ForInto) *ast.ForInStatem
 }
 
 func (self *_parser) parseForOf(idx file.Idx, into ast.ForInto) *ast.ForOfStatement {
-
 	// Already have consumed "<into> of"
 
 	source := self.parseAssignmentExpression()
@@ -596,7 +590,6 @@ func (self *_parser) parseForOf(idx file.Idx, into ast.ForInto) *ast.ForOfStatem
 }
 
 func (self *_parser) parseFor(idx file.Idx, initializer ast.ForLoopInitializer) *ast.ForStatement {
-
 	// Already have consumed "<initializer> ;"
 
 	var test, update ast.Expression
@@ -682,7 +675,7 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 					}
 				} else {
 					initializer = &ast.ForLoopInitializerLexicalDecl{
-						LexicalDeclaration: ast.LexicalDeclaration{
+						LexicalDeclaration: &ast.LexicalDeclaration{
 							Idx:   idx,
 							Token: tok,
 							List:  list,
@@ -747,7 +740,6 @@ func (self *_parser) ensurePatternInit(list []*ast.Binding) {
 }
 
 func (self *_parser) parseVariableStatement() *ast.VariableStatement {
-
 	idx := self.expect(token.VAR)
 
 	list := self.parseVarDeclarationList(idx)

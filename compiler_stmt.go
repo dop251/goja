@@ -8,7 +8,6 @@ import (
 )
 
 func (c *compiler) compileStatement(v ast.Statement, needResult bool) {
-
 	switch v := v.(type) {
 	case *ast.BlockStatement:
 		c.compileBlockStatement(v, needResult)
@@ -263,7 +262,7 @@ func (c *compiler) compileLabeledForStatement(v *ast.ForStatement, needResult bo
 	case nil:
 		// no-op
 	case *ast.ForLoopInitializerLexicalDecl:
-		enterIterBlock = c.compileForHeadLexDecl(&init.LexicalDeclaration, needResult)
+		enterIterBlock = c.compileForHeadLexDecl(init.LexicalDeclaration, needResult)
 	case *ast.ForLoopInitializerVarDeclList:
 		for _, expr := range init.List {
 			c.compileVarBinding(expr)

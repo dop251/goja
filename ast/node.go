@@ -119,12 +119,12 @@ type (
 
 	DotExpression struct {
 		Left       Expression
-		Identifier Identifier
+		Identifier *Identifier
 	}
 
 	PrivateDotExpression struct {
 		Left       Expression
-		Identifier PrivateIdentifier
+		Identifier *PrivateIdentifier
 	}
 
 	OptionalChain struct {
@@ -564,7 +564,7 @@ type (
 	}
 
 	ForLoopInitializerLexicalDecl struct {
-		LexicalDeclaration LexicalDeclaration
+		LexicalDeclaration *LexicalDeclaration
 	}
 
 	ForInto interface {
@@ -752,6 +752,7 @@ func (self *UnaryExpression) Idx1() file.Idx {
 	}
 	return self.Operand.Idx1()
 }
+
 func (self *MetaProperty) Idx1() file.Idx {
 	return self.Property.Idx1()
 }
