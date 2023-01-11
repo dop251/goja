@@ -3236,9 +3236,10 @@ func TestObjectLiteralWithNumericKeys(t *testing.T) {
 	var keys1 = Object.keys(o1);
 	var o2 = {1e21: true};
 	var keys2 = Object.keys(o2);
+	let o3 = {0(){return true}};
 	keys.length === 1 && keys[0] === "1000" && 
 	keys1.length === 1 && keys1[0] === "1000" && o1[1e3] === true &&
-	keys2.length === 1 && keys2[0] === "1e+21";
+	keys2.length === 1 && keys2[0] === "1e+21" && o3[0]();
 	`
 	testScript(SCRIPT, valueTrue, t)
 }
@@ -5695,6 +5696,18 @@ func TestClassMethodSpecial(t *testing.T) {
 	}
 	`
 	testScript(SCRIPT, _undefined, t)
+}
+
+func TestClassMethodNumLiteral(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		0() {
+			return true;
+		}
+	}
+	new C()[0]();
+	`
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestAsyncFunc(t *testing.T) {
