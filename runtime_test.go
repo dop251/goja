@@ -1615,6 +1615,34 @@ func TestInterruptInWrappedFunction2Recover(t *testing.T) {
 	}
 }
 
+func TestInterruptInWrappedFunctionExpectInteruptError(t *testing.T) {
+	rt := New()
+	// this test panics as otherwise goja will recover and possibly loop
+	rt.Set("v", rt.ToValue(func() {
+		rt.Interrupt("here is the error")
+	}))
+
+	rt.Set("s", rt.ToValue(func(a Callable) (Value, error) {
+		return a(nil)
+	}))
+
+	_, err := rt.RunString(`
+        s(() =>{
+            v();
+        })
+	`)
+	if err == nil {
+		t.Fatal("expected error but got no error")
+	}
+	intErr := new(InterruptedError)
+	if !errors.As(err, &intErr) {
+		t.Fatalf("Wrong error type: %T", err)
+	}
+	if !strings.Contains(intErr.Error(), "here is the error") {
+		t.Fatalf("Wrong error message: %q", intErr.Error())
+	}
+}
+
 func TestRunLoopPreempt(t *testing.T) {
 	vm := New()
 	v, err := vm.RunString("(function() {for (;;) {}})")
