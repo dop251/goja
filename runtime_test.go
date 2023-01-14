@@ -1634,12 +1634,43 @@ func TestInterruptInWrappedFunctionExpectInteruptError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error but got no error")
 	}
-	intErr := new(InterruptedError)
+	var intErr *InterruptedError
 	if !errors.As(err, &intErr) {
 		t.Fatalf("Wrong error type: %T", err)
 	}
 	if !strings.Contains(intErr.Error(), "here is the error") {
 		t.Fatalf("Wrong error message: %q", intErr.Error())
+	}
+}
+
+func TestInterruptInWrappedFunctionExpectStackOverflowError(t *testing.T) {
+	rt := New()
+	rt.SetMaxCallStackSize(5)
+	// this test panics as otherwise goja will recover and possibly loop
+	rt.Set("v", rt.ToValue(func() {
+		_, err := rt.RunString(`
+		(function loop() { loop() })();
+		`)
+		if err != nil {
+			panic(err)
+		}
+	}))
+
+	rt.Set("s", rt.ToValue(func(a Callable) (Value, error) {
+		return a(nil)
+	}))
+
+	_, err := rt.RunString(`
+        s(() =>{
+            v();
+        })
+	`)
+	if err == nil {
+		t.Fatal("expected error but got no error")
+	}
+	var soErr *StackOverflowError
+	if !errors.As(err, &soErr) {
+		t.Fatalf("Wrong error type: %T", err)
 	}
 }
 
