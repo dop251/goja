@@ -2748,6 +2748,32 @@ func TestAsyncStacktrace(t *testing.T) {
 	testAsyncFuncWithTestLibX(SCRIPT, _undefined, t)
 }
 
+func TestPanicPropagation(t *testing.T) {
+	r := New()
+	r.Set("doPanic", func() {
+		panic(true)
+	})
+	v, err := r.RunString(`(function() {
+		doPanic();
+	})`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, ok := AssertFunction(v)
+	if !ok {
+		t.Fatal("not a function")
+	}
+	defer func() {
+		if x := recover(); x != nil {
+			if x != true {
+				t.Fatal("Invalid panic value")
+			}
+		}
+	}()
+	_, _ = f(nil)
+	t.Fatal("Expected panic")
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

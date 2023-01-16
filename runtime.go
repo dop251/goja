@@ -2465,7 +2465,7 @@ func AssertConstructor(v Value) (Constructor, bool) {
 func (r *Runtime) runWrapped(f func()) (err error) {
 	defer func() {
 		if x := recover(); x != nil {
-			if ex := asUncatchableException(x); x != nil {
+			if ex := asUncatchableException(x); ex != nil {
 				err = ex
 				if len(r.vm.callStack) == 0 {
 					r.leaveAbrupt()
