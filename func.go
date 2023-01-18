@@ -562,12 +562,20 @@ func (f *asyncFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
 	return f.Call, true
 }
 
+func (f *asyncFuncObject) export(*objectExportCtx) interface{} {
+	return f.Call
+}
+
 func (f *asyncArrowFuncObject) Call(call FunctionCall) Value {
 	return f.asyncCall(call, f.arrowFuncObject.vmCall)
 }
 
 func (f *asyncArrowFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
 	return f.Call, true
+}
+
+func (f *asyncArrowFuncObject) export(*objectExportCtx) interface{} {
+	return f.Call
 }
 
 func (f *asyncArrowFuncObject) vmCall(vm *vm, n int) {
@@ -580,6 +588,10 @@ func (f *asyncMethodFuncObject) Call(call FunctionCall) Value {
 
 func (f *asyncMethodFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
 	return f.Call, true
+}
+
+func (f *asyncMethodFuncObject) export(ctx *objectExportCtx) interface{} {
+	return f.Call
 }
 
 func (f *asyncMethodFuncObject) vmCall(vm *vm, n int) {
