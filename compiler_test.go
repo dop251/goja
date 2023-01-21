@@ -5727,6 +5727,28 @@ func TestAsyncFunc(t *testing.T) {
 	testAsyncFunc(SCRIPT, valueTrue, t)
 }
 
+func TestObjectLiteralComputedMethodKeys(t *testing.T) {
+	_, err := Compile("", `
+		({
+		    ["__proto__"]() {},
+		    ["__proto__"]() {}
+		})
+	`, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = Compile("", `
+		({
+		    get ["__proto__"]() {},
+		    get ["__proto__"]() {}
+		})
+	`, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := os.ReadFile("babel7.js")
