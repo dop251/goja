@@ -2662,6 +2662,22 @@ func TestSuspendResumeRelStackLen(t *testing.T) {
 	testAsyncFunc(SCRIPT, valueTrue, t)
 }
 
+func TestSuspendResumeStacks(t *testing.T) {
+	const SCRIPT = `
+async function f1() {
+	throw new Error();
+}
+async function f() {
+  try {
+	await f1();
+  } catch {}
+}
+
+result = await f();
+	`
+	testAsyncFunc(SCRIPT, _undefined, t)
+}
+
 func TestNestedTopLevelConstructorCall(t *testing.T) {
 	r := New()
 	c := func(call ConstructorCall, rt *Runtime) *Object {
