@@ -851,6 +851,9 @@ func (self *_parser) parseUnaryExpression() ast.Expression {
 					To:   self.idx,
 				}
 			}
+			if self.scope.inFuncParams {
+				self.error(idx, "Illegal await-expression in formal parameters of async function")
+			}
 			return &ast.AwaitExpression{
 				Await:    idx,
 				Argument: self.parseUnaryExpression(),

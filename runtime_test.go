@@ -2790,6 +2790,18 @@ func TestPanicPropagation(t *testing.T) {
 	t.Fatal("Expected panic")
 }
 
+func TestAwaitInParameters(t *testing.T) {
+	_, err := Compile("", `
+	async function g() {
+	    async function inner(a = 1 + await 1) {
+	    }
+	}
+	`, false)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
