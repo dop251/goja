@@ -20,12 +20,13 @@ var (
 )
 
 // AsyncContextTracker is a handler that allows to track async function's execution context. Every time an async
-// function is suspended on 'await', Suspended() is called. The trackingObject it returns is remembered and
+// function is entered, the Entered method is called. The trackingObject it returns is remembered and
 // the next time just before the context is resumed, Resumed is called with the same trackingObject as argument.
-// Completed is called when an async function returns or throws.
+// Suspended is called when the async function suspends on await. Completed is called when the async function returns or throws.
 // To register it call Runtime.SetAsyncContextTracker().
 type AsyncContextTracker interface {
-	Suspended() (trackingObject interface{})
+	Entered() (trackingObject interface{})
+	Suspended()
 	Resumed(trackingObject interface{})
 	Completed()
 }
@@ -669,7 +670,7 @@ func (ar *asyncRunner) step(res Value, done bool, ex *Exception) {
 
 	// await
 	if tracker := r.asyncContextTracker; tracker != nil {
-		ar.trackingObj = tracker.Suspended()
+		tracker.Suspended()
 	}
 	promise := r.promiseResolve(r.global.Promise, res)
 	promise.self.(*Promise).addReactions(&promiseReaction{
@@ -689,6 +690,9 @@ func (ar *asyncRunner) start(nArgs int) {
 	ar.promiseCap = r.newPromiseCapability(r.global.Promise)
 	sp := r.vm.sp
 	ar.gen.enter()
+	if tracker := r.asyncContextTracker; tracker != nil {
+		ar.trackingObj = tracker.Entered()
+	}
 	ar.vmCall(r.vm, nArgs)
 	res, resType, ex := ar.gen.step()
 	ar.step(res, resType == resultNormal, ex)

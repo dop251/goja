@@ -165,8 +165,12 @@ type testAsyncContextTracker struct {
 	groupNamePtr *string
 }
 
-func (s testAsyncContextTracker) Suspended() interface{} {
+func (s testAsyncContextTracker) Entered() interface{} {
 	return *s.groupNamePtr
+}
+
+func (s testAsyncContextTracker) Suspended() {
+	*s.groupNamePtr = ""
 }
 
 func (s testAsyncContextTracker) Resumed(trackingObj interface{}) {
