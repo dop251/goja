@@ -161,47 +161,88 @@ func ExampleAssertConstructor() {
 	// Output: Test
 }
 
+type testAsyncCtx struct {
+	group    string
+	refCount int
+}
+
 type testAsyncContextTracker struct {
-	groupNamePtr *string
+	ctx     *testAsyncCtx
+	logFunc func(...interface{})
+	resumed bool
 }
 
-func (s testAsyncContextTracker) Entered() interface{} {
-	return *s.groupNamePtr
+func (s *testAsyncContextTracker) Grab() interface{} {
+	ctx := s.ctx
+	if ctx != nil {
+		s.logFunc("Grab", ctx.group)
+		ctx.refCount++
+	}
+	return ctx
 }
 
-func (s testAsyncContextTracker) Suspended() {
-	*s.groupNamePtr = ""
+func (s *testAsyncContextTracker) Resumed(trackingObj interface{}) {
+	s.logFunc("Resumed", trackingObj)
+	if s.resumed {
+		panic("Nested Resumed() calls")
+	}
+	s.ctx = trackingObj.(*testAsyncCtx)
+	s.resumed = true
 }
 
-func (s testAsyncContextTracker) Resumed(trackingObj interface{}) {
-	*s.groupNamePtr = trackingObj.(string)
+func (s *testAsyncContextTracker) releaseCtx() {
+	s.ctx.refCount--
+	if s.ctx.refCount < 0 {
+		panic("refCount < 0")
+	}
+	if s.ctx.refCount == 0 {
+		s.logFunc(s.ctx.group, "is finished")
+	}
 }
 
-func (s testAsyncContextTracker) Completed() {
-	*s.groupNamePtr = ""
+func (s *testAsyncContextTracker) Exited() {
+	s.logFunc("Exited")
+	if s.ctx != nil {
+		s.releaseCtx()
+		s.ctx = nil
+	}
+	s.resumed = false
 }
 
 func TestAsyncContextTracker(t *testing.T) {
 	r := New()
-	var groupName string
+	var tracker testAsyncContextTracker
+	tracker.logFunc = t.Log
 
 	group := func(name string, asyncFunc func(FunctionCall) Value) Value {
-		prevGroupName := groupName
+		prevCtx := tracker.ctx
 		defer func() {
-			groupName = prevGroupName
+			t.Log("Returned", name)
+			tracker.releaseCtx()
+			tracker.ctx = prevCtx
 		}()
-		groupName = name
+		tracker.ctx = &testAsyncCtx{
+			group:    name,
+			refCount: 1,
+		}
+		t.Log("Set", name)
 		return asyncFunc(FunctionCall{})
 	}
-	r.SetAsyncContextTracker(testAsyncContextTracker{groupNamePtr: &groupName})
+	r.SetAsyncContextTracker(&tracker)
 	r.Set("group", group)
 	r.Set("check", func(expectedGroup, msg string) {
+		var groupName string
+		if tracker.ctx != nil {
+			groupName = tracker.ctx.group
+		}
 		if groupName != expectedGroup {
 			t.Fatalf("Unexpected group (%q), expected %q in %s", groupName, expectedGroup, msg)
 		}
+		t.Log("In", msg)
 	})
 
-	_, err := r.RunString(`
+	t.Run("", func(t *testing.T) {
+		_, err := r.RunString(`
 		group("1", async () => {
 		  check("1", "line A");
 		  await 3;
@@ -214,8 +255,55 @@ func TestAsyncContextTracker(t *testing.T) {
 		}).then(() => {
             check("", "line E");
 		})
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("", func(t *testing.T) {
+		_, err := r.RunString(`
+		group("some", async () => {
+			check("some", "line A");
+		    (async () => {
+				check("some", "line B");
+		        await 1;
+				check("some", "line C");
+		        await 2;
+				check("some", "line D");
+		    })();
+			check("some", "line E");
+		});
 	`)
-	if err != nil {
-		t.Fatal(err)
-	}
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("", func(t *testing.T) {
+		_, err := r.RunString(`
+	group("Main", async () => {
+		check("Main", "0.1");
+		await Promise.all([
+			group("A", async () => {
+				check("A", "1.1");
+				await 1;
+				check("A", "1.2");
+			}),
+			(async () => {
+				check("Main", "3.1");
+			})(),
+			group("B", async () => {
+				check("B", "2.1");
+				await 2;
+				check("B", "2.2");
+			})
+		]);
+		check("Main", "0.2");
+	});
+	`)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 }
