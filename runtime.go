@@ -1444,6 +1444,7 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	recursive := len(vm.callStack) > 0
 	defer func() {
 		if recursive {
+			vm.sp--
 			vm.popCtx()
 		} else {
 			vm.callStack = vm.callStack[:len(vm.callStack)-1]
@@ -1462,7 +1463,8 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	if recursive {
 		vm.pushCtx()
 		vm.stash = &r.global.stash
-		vm.sb = vm.sp - 1
+		vm.push(_undefined) // make sure the 'callee' value (stack[sb-1]) is set
+		vm.sb = vm.sp
 	} else {
 		vm.callStack = append(vm.callStack, context{})
 	}

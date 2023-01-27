@@ -239,6 +239,23 @@ func TestRecursiveRun(t *testing.T) {
 	}
 }
 
+func TestRecursiveRunCallee(t *testing.T) {
+	// Make sure that a recursive call to Run*() correctly sets the callee (i.e. stack[sb-1])
+	vm := New()
+	vm.Set("f", func() (Value, error) {
+		return vm.RunString("this; (() => 1)()")
+	})
+	res, err := vm.RunString(`
+		f(123, 123);
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.SameAs(valueInt(1)) {
+		t.Fatal(res)
+	}
+}
+
 func TestObjectGetSet(t *testing.T) {
 	const SCRIPT = `
 		input.test++;
