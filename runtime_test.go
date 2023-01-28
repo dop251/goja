@@ -211,7 +211,7 @@ func TestRecursiveRun(t *testing.T) {
 	// corruptions occur.
 	vm := New()
 	vm.Set("f", func() (Value, error) {
-		return vm.RunString("let x = 1; { let z = 100, z1 = 200, z2 = 300, z3 = 400; } x;")
+		return vm.RunString("let x = 1; { let z = 100, z1 = 200, z2 = 300, z3 = 400; x = x + z3} x;")
 	})
 	res, err := vm.RunString(`
 	function f1() {
@@ -234,7 +234,7 @@ func TestRecursiveRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !res.SameAs(valueInt(1)) {
+	if !res.SameAs(valueInt(401)) {
 		t.Fatal(res)
 	}
 }
