@@ -1169,7 +1169,10 @@ func (self *_parser) parseConditionalExpression() ast.Expression {
 
 	if self.token == token.QUESTION_MARK {
 		self.next()
+		allowIn := self.scope.allowIn
+		self.scope.allowIn = true
 		consequent := self.parseAssignmentExpression()
+		self.scope.allowIn = allowIn
 		self.expect(token.COLON)
 		return &ast.ConditionalExpression{
 			Test:       left,

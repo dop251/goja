@@ -190,9 +190,6 @@ var (
 
 		// FIXME bugs
 
-		// 'in' in a branch
-		"test/language/expressions/conditional/in-branch-1.js": true,
-
 		// Left-hand side as a CoverParenthesizedExpression
 		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
 
