@@ -157,6 +157,7 @@ var (
 		"test/language/expressions/class/elements/after-same-line-static-gen-rs-static-async-generator-method-privatename-identifier-alt.js":          true,
 		"test/language/expressions/class/elements/after-same-line-gen-rs-static-async-generator-method-privatename-identifier.js":                     true,
 		"test/language/expressions/class/elements/after-same-line-gen-rs-static-async-generator-method-privatename-identifier-alt.js":                 true,
+		"test/built-ins/GeneratorFunction/is-a-constructor.js":                                                                                        true,
 
 		// async iterator
 		"test/language/expressions/optional-chaining/iteration-statement-for-await-of.js": true,
@@ -274,31 +275,6 @@ func init() {
 		"test/language/expressions/class/elements/after-same-line-static-method-rs-static-async-generator-",
 
 		"test/language/eval-code/direct/async-gen-",
-
-		// generators
-		"test/language/eval-code/direct/gen-",
-		"test/built-ins/GeneratorFunction/",
-		"test/built-ins/Function/prototype/toString/generator-",
-		"test/language/statements/class/elements/private-static-generator-",
-		"test/language/statements/class/subclass/builtin-objects/GeneratorFunction/",
-		"test/language/statements/class/elements/wrapped-in-sc-rs-static-generator-",
-		"test/language/expressions/class/elements/wrapped-in-sc-rs-static-generator-",
-		"test/language/statements/class/elements/after-same-line-method-rs-static-generator-",
-		"test/language/expressions/class/elements/after-same-line-method-rs-static-generator-",
-		"test/language/statements/class/elements/after-same-line-static-method-rs-static-generator-",
-		"test/language/expressions/class/elements/after-same-line-static-method-rs-static-generator-",
-		"test/language/statements/class/elements/new-sc-line-method-rs-static-generator-",
-		"test/language/expressions/class/elements/new-sc-line-method-rs-static-generator-",
-		"test/language/statements/class/elements/new-no-sc-line-method-rs-static-generator-",
-		"test/language/expressions/class/elements/new-no-sc-line-method-rs-static-generator-",
-		"test/language/statements/class/elements/same-line-method-rs-static-generator-",
-		"test/language/expressions/class/elements/same-line-method-rs-static-generator-",
-		"test/language/statements/class/elements/regular-definitions-rs-static-generator-",
-		"test/language/expressions/class/elements/regular-definitions-rs-static-generator-",
-		"test/language/statements/class/elements/multiple-stacked-definitions-rs-static-generator-",
-		"test/language/expressions/class/elements/multiple-stacked-definitions-rs-static-generator-",
-		"test/language/statements/class/elements/multiple-definitions-rs-static-generator-",
-		"test/language/expressions/class/elements/multiple-definitions-rs-static-generator-",
 
 		// BigInt
 		"test/built-ins/TypedArrayConstructors/BigUint64Array/",
