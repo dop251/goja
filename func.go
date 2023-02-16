@@ -34,15 +34,22 @@ var (
 	yieldEmpty       = &yieldMarker{resultType: resultYield}
 )
 
-// AsyncContextTracker is a handler that allows to track async function's execution context. Every time an async
-// function is suspended on 'await', Suspended() is called. The trackingObject it returns is remembered and
-// the next time just before the context is resumed, Resumed is called with the same trackingObject as argument.
-// Completed is called when an async function returns or throws.
+// AsyncContextTracker is a handler that allows to track an async execution context to ensure it remains
+// consistent across all callback invocations.
+// Whenever a Promise reaction job is scheduled the Grab method is called. It is supposed to return the
+// current context. The same context will be supplied to the Resumed method before the reaction job is
+// executed. The Exited method is called after the reaction job is finished.
+// This means that for each invocation of the Grab method there will be exactly one subsequent invocation
+// of Resumed and then Exited methods (assuming the Promise is fulfilled or rejected). Also, the Resumed/Exited
+// calls cannot be nested, so Exited can simply clear the current context instead of popping from a stack.
+// Note, this works for both async functions and regular Promise.then()/Promise.catch() callbacks.
+// See TestAsyncContextTracker for more insight.
+//
 // To register it call Runtime.SetAsyncContextTracker().
 type AsyncContextTracker interface {
-	Suspended() (trackingObject interface{})
+	Grab() (trackingObject interface{})
 	Resumed(trackingObject interface{})
-	Completed()
+	Exited()
 }
 
 type funcObjectImpl interface {
@@ -664,15 +671,9 @@ type asyncRunner struct {
 	promiseCap *promiseCapability
 	f          *Object
 	vmCall     func(*vm, int)
-
-	trackingObj interface{}
 }
 
 func (ar *asyncRunner) onFulfilled(call FunctionCall) Value {
-	if tracker := ar.f.runtime.asyncContextTracker; tracker != nil {
-		tracker.Resumed(ar.trackingObj)
-		ar.trackingObj = nil
-	}
 	ar.gen.vm.curAsyncRunner = ar
 	defer func() {
 		ar.gen.vm.curAsyncRunner = nil
@@ -684,10 +685,6 @@ func (ar *asyncRunner) onFulfilled(call FunctionCall) Value {
 }
 
 func (ar *asyncRunner) onRejected(call FunctionCall) Value {
-	if tracker := ar.f.runtime.asyncContextTracker; tracker != nil {
-		tracker.Resumed(ar.trackingObj)
-		ar.trackingObj = nil
-	}
 	ar.gen.vm.curAsyncRunner = ar
 	defer func() {
 		ar.gen.vm.curAsyncRunner = nil
@@ -701,9 +698,6 @@ func (ar *asyncRunner) onRejected(call FunctionCall) Value {
 func (ar *asyncRunner) step(res Value, done bool, ex *Exception) {
 	r := ar.f.runtime
 	if done || ex != nil {
-		if tracker := r.asyncContextTracker; tracker != nil {
-			tracker.Completed()
-		}
 		if ex == nil {
 			ar.promiseCap.resolve(res)
 		} else {
@@ -713,9 +707,6 @@ func (ar *asyncRunner) step(res Value, done bool, ex *Exception) {
 	}
 
 	// await
-	if tracker := r.asyncContextTracker; tracker != nil {
-		ar.trackingObj = tracker.Suspended()
-	}
 	promise := r.promiseResolve(r.global.Promise, res)
 	promise.self.(*Promise).addReactions(&promiseReaction{
 		typ:         promiseReactionFulfill,
