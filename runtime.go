@@ -1495,6 +1495,9 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	if recursive {
 		vm.pushCtx()
 		vm.stash = &r.global.stash
+		vm.privEnv = nil
+		vm.newTarget = nil
+		vm.args = 0
 		sp := vm.sp
 		vm.stack.expand(sp + 1)
 		vm.stack[sp] = _undefined // 'callee'

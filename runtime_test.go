@@ -239,6 +239,31 @@ func TestRecursiveRun(t *testing.T) {
 	}
 }
 
+func TestRecursiveRunWithNArgs(t *testing.T) {
+	vm := New()
+	vm.Set("f", func() (Value, error) {
+		return vm.RunString(`
+		{
+			let a = 0;
+			let b = 1;
+			a = 2; // this used to to corrupt b, because its location on the stack was off by vm.args (1 in our case)
+			b;
+		}
+	`)
+	})
+	_, err := vm.RunString(`
+		(function(arg) { // need an ES function call with an argument to set vm.args
+			let res = f();
+			if (res !== 1) {
+				throw new Error(res);
+			}
+		})(123);
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRecursiveRunCallee(t *testing.T) {
 	// Make sure that a recursive call to Run*() correctly sets the callee (i.e. stack[sb-1])
 	vm := New()
