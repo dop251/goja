@@ -1372,8 +1372,9 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 	savedPrg := e.c.p
 	preambleLen := 8 // enter, boxThis, loadStack(0), initThis, createArgs, set, loadCallee, init
 	e.c.p = &Program{
-		src:  e.c.p.src,
-		code: e.c.newCode(preambleLen, 16),
+		src:    e.c.p.src,
+		code:   e.c.newCode(preambleLen, 16),
+		srcMap: []srcMapItem{{srcPos: e.offset}},
 	}
 	e.c.newScope()
 	s := e.c.scope
@@ -1731,6 +1732,7 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 		}
 	}
 	code[delta] = enter
+	e.c.p.srcMap[0].pc = delta
 	s.trimCode(delta)
 
 	strict = s.strict
@@ -2481,7 +2483,9 @@ func (c *compiler) evalConst(expr compiledExpr) (Value, *Exception) {
 	var savedPrg *Program
 	createdPrg := false
 	if c.evalVM.prg == nil {
-		c.evalVM.prg = &Program{}
+		c.evalVM.prg = &Program{
+			src: c.p.src,
+		}
 		savedPrg = c.p
 		c.p = c.evalVM.prg
 		createdPrg = true
