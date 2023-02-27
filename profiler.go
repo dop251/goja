@@ -155,7 +155,7 @@ func (pb *profBuffer) profile() *profile.Profile {
 		for pc, loc := range f.locs {
 			locId++
 			loc.ID = locId
-			pos := prg.src.Position(int(pc))
+			pos := prg.src.Position(prg.sourceOffset(int(pc)))
 			loc.Line = []profile.Line{
 				{
 					Function: &f.f,
