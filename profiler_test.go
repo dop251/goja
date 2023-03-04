@@ -13,8 +13,8 @@ func TestProfiler(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	vm := New()
 	go func() {
-		vm := New()
 		_, err := vm.RunScript("test123.js", `
 			const a = 2 + 2;
 			function loop() {
@@ -23,7 +23,9 @@ func TestProfiler(t *testing.T) {
 			loop();
 		`)
 		if err != nil {
-			panic(err)
+			if _, ok := err.(*InterruptedError); !ok {
+				panic(err)
+			}
 		}
 	}()
 
@@ -47,6 +49,7 @@ func TestProfiler(t *testing.T) {
 		}
 	}
 	if running {
-		t.Fatal("Still running")
+		t.Fatal("The profiler is still running")
 	}
+	vm.Interrupt(nil)
 }
