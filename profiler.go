@@ -267,6 +267,24 @@ func (p *profiler) stop() *profile.Profile {
 	return nil
 }
 
+/*
+StartProfile enables execution time profiling for all Runtimes within the current process.
+This works similar to pprof.StartCPUProfile and produces the same format which can be consumed by `go tool pprof`.
+There are, however, a few notable differences. Firstly, it's not a CPU profile, rather "execution time" profile.
+It measures the time the VM spends executing an instruction. If this instruction happens to be a call to a
+blocking Go function, the waiting time will be measured. Secondly, the 'cpu' sample isn't simply `count*period`,
+it's the time interval between when sampling was requested and when the instruction has finished. If a VM is still
+executing the same instruction when the time comes for the next sample, the sampling is skipped (i.e. `count` doesn't
+grow).
+
+If there are multiple functions with the same name, their names get a '.N' suffix, where N is a unique number,
+because otherwise the graph view merges them together (even if they are in different mappings). This includes
+"<anonymous>" functions.
+
+The sampling period is set to 10ms.
+
+It returns an error if profiling is already active.
+*/
 func StartProfile(w io.Writer) error {
 	err := globalProfiler.p.start()
 	if err != nil {
@@ -277,6 +295,9 @@ func StartProfile(w io.Writer) error {
 	return nil
 }
 
+/*
+StopProfile stops the current profile initiated by StartProfile, if any.
+*/
 func StopProfile() {
 	atomic.StoreInt32(&globalProfiler.enabled, 0)
 	pr := globalProfiler.p.stop()
