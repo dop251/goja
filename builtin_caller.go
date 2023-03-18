@@ -4,6 +4,7 @@ import (
 	"hash/maphash"
 	"reflect"
 	"strconv"
+	"unsafe"
 
 	"github.com/dop251/goja/unistring"
 )
@@ -60,6 +61,51 @@ func (r *Runtime) initCaller() {
 	o._putProp("GoAsyncRawNumber", _GoAsyncRawNumber, false, false, true)
 }
 
+// Set up the runner so that calling go functions asynchronously can called resolve/reject on the loop
+func (r *Runtime) SetRunOnLoop(runner func(f func(*Runtime))) {
+	r.runOnLoop = runner
+}
+
+// called f on the loop, must call SetRunOnLoop to set the runner before
+func (r *Runtime) RunOnLoop(f func(*Runtime)) {
+	r.runOnLoop(f)
+}
+
+func toValue64(v interface{}) interface{} {
+	if strconv.IntSize < 64 {
+		switch i := v.(type) {
+		case int64:
+			return Int64(i)
+		case uint64:
+			return Uint64(i)
+		case []int64:
+			return *(*[]Int64)(unsafe.Pointer(&i))
+		case []uint64:
+			return *(*[]Uint64)(unsafe.Pointer(&i))
+		}
+	} else {
+		switch i := v.(type) {
+		case int64:
+			return Int64(i)
+		case int:
+			return Int64(i)
+		case uint64:
+			return Uint64(i)
+		case uint:
+			return Uint64(i)
+		case []int64:
+			return *(*[]Int64)(unsafe.Pointer(&i))
+		case []int:
+			return *(*[]Int64)(unsafe.Pointer(&i))
+		case []uint64:
+			return *(*[]Uint64)(unsafe.Pointer(&i))
+		case []uint:
+			return *(*[]Uint64)(unsafe.Pointer(&i))
+		}
+	}
+	return v
+}
+
 type Int64 int64
 type Uint64 uint64
 
@@ -111,7 +157,7 @@ func (v Int64) Mod(o Int64) Int64 {
 func (v Uint64) Mod(o Uint64) Uint64 {
 	return v % o
 }
-func (v Int64) ABS() Int64 {
+func (v Int64) Abs() Int64 {
 	if v < 0 {
 		return -v
 	}
@@ -155,6 +201,22 @@ func (v Int64) Rsh(n int) Int64 {
 }
 func (v Uint64) Rsh(n int) Uint64 {
 	return v >> n
+}
+func (v Int64) Cmp(o Int64) int {
+	if v < o {
+		return -1
+	} else if v > o {
+		return 1
+	}
+	return 0
+}
+func (v Uint64) Cmp(o Uint64) int {
+	if v < o {
+		return -1
+	} else if v > o {
+		return 1
+	}
+	return 0
 }
 
 type valueGoCaller struct {

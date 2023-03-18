@@ -196,6 +196,7 @@ type Runtime struct {
 
 	promiseRejectionTracker PromiseRejectionTracker
 	asyncContextTracker     AsyncContextTracker
+	runOnLoop               func(func(*Runtime))
 }
 
 type StackFrame struct {
@@ -2060,63 +2061,91 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 		}
 
 		if style&4 != 0 {
-			promise, _, _ := r.NewPromise()
+			runner := r.runOnLoop
+			if runner == nil {
+				panic(r.NewGoError(errors.New(`runner nil, please call Runtime.SetRunOnLoop to set.`)))
+			}
+			promise, resolve, reject := r.NewPromise()
 			go func() {
-				value.Call(in)
+				out, err := func() (out []reflect.Value, err interface{}) {
+					defer func() {
+						if x := recover(); x != nil {
+							err = x
+						}
+					}()
+					out = value.Call(in)
+					return
+				}()
+				if err != nil {
+					reject(err)
+					return
+				}
+				value, err := r.wrapReflectFuncReturn(style, out)
+				if err == nil {
+					resolve(value)
+				} else {
+					reject(err)
+				}
 			}()
 			return r.ToValue(promise)
 		}
 		out := value.Call(in)
-		if len(out) == 0 {
-			return _undefined
+		value, err := r.wrapReflectFuncReturn(style, out)
+		if err != nil {
+			panic(err)
 		}
+		return value
+	}
+}
+func (r *Runtime) wrapReflectFuncReturn(style uint64, out []reflect.Value) (value Value, e interface{}) {
+	if len(out) == 0 {
+		value = _undefined
+		return
+	}
 
-		if style&1 == 0 {
-			if last := out[len(out)-1]; last.Type() == reflectTypeError {
-				if !last.IsNil() {
-					err := last.Interface().(error)
-					if _, ok := err.(*Exception); ok {
-						panic(err)
-					}
-					if isUncatchableException(err) {
-						panic(err)
-					}
-					panic(r.NewGoError(err))
+	if style&1 == 0 {
+		if last := out[len(out)-1]; last.Type() == reflectTypeError {
+			if !last.IsNil() {
+				err := last.Interface().(error)
+				if _, ok := err.(*Exception); ok {
+					e = err
+					return
 				}
-				out = out[:len(out)-1]
+				if isUncatchableException(err) {
+					e = err
+					return
+				}
+				e = r.NewGoError(err)
+				return
 			}
+			out = out[:len(out)-1]
 		}
-
-		switch len(out) {
-		case 0:
-			return _undefined
-		case 1:
-			if style&2 != 0 {
-				return r.toValue64(out[0].Interface())
-			}
-			return r.ToValue(out[0].Interface())
-		default:
-			s := make([]interface{}, len(out))
+	}
+	switch len(out) {
+	case 0:
+		value = _undefined
+	case 1:
+		if style&2 == 0 {
+			value = r.ToValue(out[0].Interface())
+		} else {
+			value = r.ToValue(toValue64(out[0].Interface()))
+		}
+	default:
+		s := make([]interface{}, len(out))
+		if style&2 == 0 {
 			for i, v := range out {
 				s[i] = v.Interface()
 			}
-			return r.ToValue(s)
+		} else {
+			for i, v := range out {
+				s[i] = toValue64(v.Interface())
+			}
 		}
+		value = r.ToValue(s)
 	}
+	return
 }
-func (r *Runtime) toValue64(v interface{}) Value {
-	switch i := v.(type) {
-	case int64:
-		return r.ToValue(Int64(i))
-	case int:
-		return r.ToValue(Int64(i))
-	case uint64:
-		return r.ToValue(Uint64(i))
-	case uint:
-		return r.ToValue(Uint64(i))
-	}
-	return r.ToValue(v)
-}
+
 func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCtx) error {
 	typ := dst.Type()
 
