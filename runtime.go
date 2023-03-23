@@ -197,6 +197,7 @@ type Runtime struct {
 	promiseRejectionTracker PromiseRejectionTracker
 	asyncContextTracker     AsyncContextTracker
 	customToValue func(*Runtime, interface{}) (Value, bool)
+	customExportTo func (*Runtime, Value, interface{}) (bool, error)
 }
 
 type StackFrame struct {
@@ -2403,7 +2404,27 @@ func (r *Runtime) ExportTo(v Value, target interface{}) error {
 	if tval.Kind() != reflect.Ptr || tval.IsNil() {
 		return errors.New("target must be a non-nil pointer")
 	}
+
+	if r.customExportTo != nil {
+		ok, err := r.customExportTo(r, v, target)
+		if err != nil {
+			return err
+		}
+		if ok {
+			return nil
+		}
+	}
+
 	return r.toReflectValue(v, tval.Elem(), &objectExportCtx{})
+}
+
+
+// SetCustomExportTo sets a custom ExportTo function.
+// The function return a bool indicating if the Value was converted into the target (true)
+// or the conversion must be delegated to the default ExportTo. This allows for custom ExportTo to delegate
+// conversion to the default ExportTo logic without entering in recursion loop.
+func (r *Runtime) SetCustomExportTo(converter func (*Runtime, Value, interface{}) (bool, error) ) {
+	r.customExportTo = converter
 }
 
 // GlobalObject returns the global object.

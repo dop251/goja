@@ -1011,6 +1011,34 @@ func TestRuntime_ExportToObject(t *testing.T) {
 	}
 }
 
+func TestRuntime_CustomExportToDuration(t *testing.T) {
+	vm := New()
+	vm.SetCustomExportTo(func(r *Runtime, v Value, target interface{}) (bool, error) {
+		tval := reflect.ValueOf(target).Elem()
+		switch tval.Interface().(type) {
+		case time.Duration:
+			duration, err := time.ParseDuration(v.String())
+			if err != nil {
+				return false, err
+			}
+			dval := reflect.ValueOf(duration)
+			tval.Set(dval)
+			return true, nil
+		default:
+			return false, nil
+		}
+	})
+
+	var d time.Duration
+	err := vm.ExportTo(vm.ToValue("1s"), &d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d != time.Second {
+		t.Fatalf("duration %s", d.String())
+	}
+}
+
 func ExampleAssertFunction() {
 	vm := New()
 	_, err := vm.RunString(`
