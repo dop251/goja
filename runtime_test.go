@@ -1039,6 +1039,28 @@ func TestRuntime_CustomExportToDuration(t *testing.T) {
 	}
 }
 
+func TestCustomToValueDurationField(t *testing.T) {
+	vm := New()
+	vm.SetCustomToValue(func(r *Runtime, i interface{}) (Value, bool) {
+		switch i := i.(type) {
+		case time.Duration:
+			return r.ToValue(i.String()), true
+		default:
+			return nil, false
+		}
+	})
+	s := struct{d time.Duration}{d: time.Second}
+	vm.Set("s", s)
+
+	v, err := vm.RunString("s.d === '1s'")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Export().(bool) != true {
+		t.Fatalf("Equals for golang duration to string failed")
+	}
+}
+
 func ExampleAssertFunction() {
 	vm := New()
 	_, err := vm.RunString(`
