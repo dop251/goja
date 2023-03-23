@@ -196,6 +196,7 @@ type Runtime struct {
 
 	promiseRejectionTracker PromiseRejectionTracker
 	asyncContextTracker     AsyncContextTracker
+	customToValue func(*Runtime, interface{}) (Value, bool)
 }
 
 type StackFrame struct {
@@ -1818,7 +1819,22 @@ Note that the underlying type is not lost, calling Export() returns the original
 reflect based types.
 */
 func (r *Runtime) ToValue(i interface{}) Value {
+	if r.customToValue != nil {
+		v, ok := r.customToValue(r, i)
+		if ok {
+			return v
+		}
+	}
+
 	return r.toValue(i, reflect.Value{})
+}
+
+// SetCustomToValue sets a custom ToValue function.
+// The function return the a Value and a bool indicating if the returned Value must be used (true)
+// or the conversion must be delegated to the default ToValue. This allows for custom ToValue to delegate
+// conversion to the default ToValue logic without entering in recursion loop.
+func (r *Runtime) SetCustomToValue(converter func (*Runtime, interface{}) (Value, bool)) {
+	r.customToValue = converter
 }
 
 func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {

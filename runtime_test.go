@@ -1089,6 +1089,28 @@ func TestToValueNil(t *testing.T) {
 	}
 }
 
+func TestCustomToValueDuration(t *testing.T) {
+	vm := New()
+	vm.SetCustomToValue(func(r *Runtime, i interface{}) (Value, bool) {
+		switch i := i.(type)  {
+		case time.Duration:
+			return r.ToValue(i.String()), true
+		default:
+			return  nil, false
+		}
+	})
+	vm.Set("duration", time.Second)
+
+	v, err := vm.RunString("duration === '1s'")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Export().(bool) != true {
+		t.Fatalf("Equals for golang duration to string failed")
+	}
+}
+
+
 func TestToValueFloat(t *testing.T) {
 	vm := New()
 	vm.Set("f64", float64(123))
