@@ -316,6 +316,8 @@ func init() {
 
 		"test/language/eval-code/direct/async-gen-",
 
+		"test/language/module-code/export-default-asyncgenerator-",
+
 		// generators
 		"test/language/eval-code/direct/gen-",
 		"test/built-ins/GeneratorFunction/",

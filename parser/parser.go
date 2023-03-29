@@ -216,6 +216,9 @@ func (self *_parser) parse() (*ast.Program, error) {
 	self.openScope()
 	defer self.closeScope()
 	self.next()
+	if self.opts.module {
+		self.scope.allowAwait = true
+	}
 	program := self.parseProgram()
 	if false {
 		self.errors.Sort()
