@@ -428,13 +428,14 @@ func (self *_parser) parseObjectProperty() ast.Property {
 	if value == nil {
 		return nil
 	}
-	if token.IsId(tkn) || tkn == token.STRING || tkn == token.ILLEGAL {
+	if token.IsId(tkn) || tkn == token.STRING || tkn == token.NUMBER || tkn == token.ILLEGAL {
 		switch {
 		case self.token == token.LEFT_PARENTHESIS:
 			return &ast.PropertyKeyed{
-				Key:   value,
-				Kind:  ast.PropertyKindMethod,
-				Value: self.parseMethodDefinition(keyStartIdx, ast.PropertyKindMethod, false),
+				Key:      value,
+				Kind:     ast.PropertyKindMethod,
+				Value:    self.parseMethodDefinition(keyStartIdx, ast.PropertyKindMethod, false),
+				Computed: tkn == token.ILLEGAL,
 			}
 		case self.token == token.COMMA || self.token == token.RIGHT_BRACE || self.token == token.ASSIGN: // shorthand property
 			if self.isBindingId(tkn) {
@@ -456,7 +457,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 				self.errorUnexpectedToken(self.token)
 			}
 		case (literal == "get" || literal == "set" || tkn == token.ASYNC) && self.token != token.COLON:
-			_, _, keyValue, _ := self.parseObjectPropertyKey()
+			_, _, keyValue, tkn1 := self.parseObjectPropertyKey()
 			if keyValue == nil {
 				return nil
 			}
@@ -473,9 +474,10 @@ func (self *_parser) parseObjectProperty() ast.Property {
 			}
 
 			return &ast.PropertyKeyed{
-				Key:   keyValue,
-				Kind:  kind,
-				Value: self.parseMethodDefinition(keyStartIdx, kind, async),
+				Key:      keyValue,
+				Kind:     kind,
+				Value:    self.parseMethodDefinition(keyStartIdx, kind, async),
+				Computed: tkn1 == token.ILLEGAL,
 			}
 		}
 	}
@@ -1314,7 +1316,7 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 		if id, ok := left.(*ast.Identifier); ok {
 			paramList = &ast.ParameterList{
 				Opening: id.Idx,
-				Closing: id.Idx1(),
+				Closing: id.Idx1() - 1,
 				List: []*ast.Binding{{
 					Target: id,
 				}},

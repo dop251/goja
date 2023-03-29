@@ -1615,6 +1615,65 @@ func TestInterruptInWrappedFunction2Recover(t *testing.T) {
 	}
 }
 
+func TestInterruptInWrappedFunctionExpectInteruptError(t *testing.T) {
+	rt := New()
+	// this test panics as otherwise goja will recover and possibly loop
+	rt.Set("v", rt.ToValue(func() {
+		rt.Interrupt("here is the error")
+	}))
+
+	rt.Set("s", rt.ToValue(func(a Callable) (Value, error) {
+		return a(nil)
+	}))
+
+	_, err := rt.RunString(`
+        s(() =>{
+            v();
+        })
+	`)
+	if err == nil {
+		t.Fatal("expected error but got no error")
+	}
+	var intErr *InterruptedError
+	if !errors.As(err, &intErr) {
+		t.Fatalf("Wrong error type: %T", err)
+	}
+	if !strings.Contains(intErr.Error(), "here is the error") {
+		t.Fatalf("Wrong error message: %q", intErr.Error())
+	}
+}
+
+func TestInterruptInWrappedFunctionExpectStackOverflowError(t *testing.T) {
+	rt := New()
+	rt.SetMaxCallStackSize(5)
+	// this test panics as otherwise goja will recover and possibly loop
+	rt.Set("v", rt.ToValue(func() {
+		_, err := rt.RunString(`
+		(function loop() { loop() })();
+		`)
+		if err != nil {
+			panic(err)
+		}
+	}))
+
+	rt.Set("s", rt.ToValue(func(a Callable) (Value, error) {
+		return a(nil)
+	}))
+
+	_, err := rt.RunString(`
+        s(() =>{
+            v();
+        })
+	`)
+	if err == nil {
+		t.Fatal("expected error but got no error")
+	}
+	var soErr *StackOverflowError
+	if !errors.As(err, &soErr) {
+		t.Fatalf("Wrong error type: %T", err)
+	}
+}
+
 func TestRunLoopPreempt(t *testing.T) {
 	vm := New()
 	v, err := vm.RunString("(function() {for (;;) {}})")
@@ -2687,6 +2746,32 @@ func TestAsyncStacktrace(t *testing.T) {
 	}
 	`
 	testAsyncFuncWithTestLibX(SCRIPT, _undefined, t)
+}
+
+func TestPanicPropagation(t *testing.T) {
+	r := New()
+	r.Set("doPanic", func() {
+		panic(true)
+	})
+	v, err := r.RunString(`(function() {
+		doPanic();
+	})`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, ok := AssertFunction(v)
+	if !ok {
+		t.Fatal("not a function")
+	}
+	defer func() {
+		if x := recover(); x != nil {
+			if x != true {
+				t.Fatal("Invalid panic value")
+			}
+		}
+	}()
+	_, _ = f(nil)
+	t.Fatal("Expected panic")
 }
 
 /*

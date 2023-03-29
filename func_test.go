@@ -160,3 +160,58 @@ func ExampleAssertConstructor() {
 	}
 	// Output: Test
 }
+
+type testAsyncContextTracker struct {
+	groupNamePtr *string
+}
+
+func (s testAsyncContextTracker) Suspended() interface{} {
+	return *s.groupNamePtr
+}
+
+func (s testAsyncContextTracker) Resumed(trackingObj interface{}) {
+	*s.groupNamePtr = trackingObj.(string)
+}
+
+func (s testAsyncContextTracker) Completed() {
+	*s.groupNamePtr = ""
+}
+
+func TestAsyncContextTracker(t *testing.T) {
+	r := New()
+	var groupName string
+
+	group := func(name string, asyncFunc func(FunctionCall) Value) Value {
+		prevGroupName := groupName
+		defer func() {
+			groupName = prevGroupName
+		}()
+		groupName = name
+		return asyncFunc(FunctionCall{})
+	}
+	r.SetAsyncContextTracker(testAsyncContextTracker{groupNamePtr: &groupName})
+	r.Set("group", group)
+	r.Set("check", func(expectedGroup, msg string) {
+		if groupName != expectedGroup {
+			t.Fatalf("Unexpected group (%q), expected %q in %s", groupName, expectedGroup, msg)
+		}
+	})
+
+	_, err := r.RunString(`
+		group("1", async () => {
+		  check("1", "line A");
+		  await 3;
+		  check("1", "line B");
+		  group("2", async () => {
+		     check("2", "line C");
+		     await 4;
+		     check("2", "line D");
+		 })
+		}).then(() => {
+            check("", "line E");
+		})
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

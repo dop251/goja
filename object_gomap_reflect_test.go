@@ -292,3 +292,18 @@ func TestGoMapReflectStruct(t *testing.T) {
 		t.Fatal(res)
 	}
 }
+
+func TestGoMapReflectElt(t *testing.T) {
+	type mapping map[string]interface{}
+
+	const SCRIPT = `a.s() && a.t === null && a.t1 === undefined;`
+
+	r := New()
+
+	r.Set("a", mapping{
+		"s": func() bool { return true },
+		"t": nil,
+	})
+
+	r.testScript(SCRIPT, valueTrue, t)
+}
