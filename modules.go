@@ -381,7 +381,7 @@ func (r *Runtime) GetActiveScriptOrModule() interface{} { // have some better ty
 	}
 	for i := len(r.vm.callStack) - 1; i >= 0; i-- {
 		prg := r.vm.callStack[i].prg
-		if prg.scriptOrModule != nil {
+		if prg != nil && prg.scriptOrModule != nil {
 			return prg.scriptOrModule
 		}
 	}

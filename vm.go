@@ -3,7 +3,6 @@ package goja
 import (
 	"fmt"
 	"math"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,6 +13,8 @@ import (
 
 const (
 	maxInt = 1 << 53
+
+	tryPanicMarker = -2
 )
 
 type valueStack []Value
@@ -40,6 +41,73 @@ type context struct {
 	result    Value
 	pc, sb    int
 	args      int
+}
+
+type tryFrame struct {
+	// holds an uncaught exception for the 'finally' block
+	exception *Exception
+
+	callStackLen, iterLen, refLen uint32
+
+	sp      int32
+	stash   *stash
+	privEnv *privateEnv
+
+	catchPos, finallyPos, finallyRet int32
+}
+
+type execCtx struct {
+	context
+	stack     []Value
+	tryStack  []tryFrame
+	iterStack []iterStackItem
+	refStack  []ref
+}
+
+func (vm *vm) suspend(ectx *execCtx, tryStackLen, iterStackLen, refStackLen uint32) {
+	vm.saveCtx(&ectx.context)
+	ectx.stack = append(ectx.stack[:0], vm.stack[vm.sb-1:vm.sp]...)
+	if tryStackLen > 0 {
+		l := len(vm.tryStack) - int(tryStackLen)
+		ectx.tryStack = append(ectx.tryStack[:0], vm.tryStack[l:]...)
+		vm.tryStack = vm.tryStack[:l]
+		sp := int32(vm.sb - 1)
+		for i := range ectx.tryStack {
+			tf := &ectx.tryStack[i]
+			tf.iterLen -= iterStackLen
+			tf.refLen -= refStackLen
+			tf.sp -= sp
+		}
+	}
+	if iterStackLen > 0 {
+		l := len(vm.iterStack) - int(iterStackLen)
+		ectx.iterStack = append(ectx.iterStack[:0], vm.iterStack[l:]...)
+		vm.iterStack = vm.iterStack[:l]
+	}
+	if refStackLen > 0 {
+		l := len(vm.refStack) - int(refStackLen)
+		ectx.refStack = append(ectx.refStack[:0], vm.refStack[l:]...)
+		vm.refStack = vm.refStack[:l]
+	}
+}
+
+func (vm *vm) resume(ctx *execCtx) {
+	vm.restoreCtx(&ctx.context)
+	sp := vm.sp
+	vm.sb = sp + 1
+	vm.stack.expand(sp + len(ctx.stack))
+	copy(vm.stack[sp:], ctx.stack)
+	vm.sp += len(ctx.stack)
+	for i := range ctx.tryStack {
+		tf := &ctx.tryStack[i]
+		tf.callStackLen = uint32(len(vm.callStack))
+		tf.iterLen += uint32(len(vm.iterStack))
+		tf.refLen += uint32(len(vm.refStack))
+		tf.sp += int32(sp)
+	}
+	vm.tryStack = append(vm.tryStack, ctx.tryStack...)
+	vm.iterStack = append(vm.iterStack, ctx.iterStack...)
+	vm.refStack = append(vm.refStack, ctx.refStack...)
 }
 
 type iterStackItem struct {
@@ -255,17 +323,19 @@ type vm struct {
 	callStack []context
 	iterStack []iterStackItem
 	refStack  []ref
+	tryStack  []tryFrame
 	newTarget Value
 	result    Value
 
 	maxCallStackSize int
 
 	stashAllocs int
-	halt        bool
 
 	interrupted   uint32
 	interruptVal  interface{}
 	interruptLock sync.Mutex
+
+	curAsyncRunner *asyncRunner
 }
 
 type instruction interface {
@@ -485,11 +555,14 @@ func (vm *vm) init() {
 	vm.maxCallStackSize = math.MaxInt32
 }
 
+func (vm *vm) halted() bool {
+	pc := vm.pc
+	return pc < 0 || pc >= len(vm.prg.code)
+}
+
 func (vm *vm) run() {
-	vm.halt = false
 	interrupted := false
-	ticks := 0
-	for !vm.halt {
+	for {
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
 			break
 		}
@@ -500,12 +573,11 @@ func (vm *vm) run() {
 			}
 			fmt.Print("\n")
 			//*/
-		vm.prg.code[vm.pc].exec(vm)
-		ticks++
-		if ticks > 10000 {
-			runtime.Gosched()
-			ticks = 0
+		pc := vm.pc
+		if pc < 0 || pc >= len(vm.prg.code) {
+			break
 		}
+		vm.prg.code[pc].exec(vm)
 	}
 
 	if interrupted {
@@ -545,100 +617,138 @@ func (vm *vm) captureStack(stack []StackFrame, ctxOffset int) []StackFrame {
 	}
 	for i := len(vm.callStack) - 1; i > ctxOffset-1; i-- {
 		frame := &vm.callStack[i]
-		if frame.pc != -1 {
+		if frame.prg != nil || frame.funcName != "" {
 			var funcName unistring.String
 			if prg := frame.prg; prg != nil {
 				funcName = prg.funcName
 			} else {
 				funcName = frame.funcName
 			}
-			stack = append(stack, StackFrame{prg: vm.callStack[i].prg, pc: frame.pc - 1, funcName: funcName})
+			stack = append(stack, StackFrame{prg: vm.callStack[i].prg, pc: frame.pc, funcName: funcName})
 		}
+	}
+	if ctxOffset == 0 && vm.curAsyncRunner != nil {
+		stack = vm.captureAsyncStack(stack, vm.curAsyncRunner)
 	}
 	return stack
 }
 
-func (vm *vm) try(f func()) (ex *Exception) {
-	var ctx context
-	vm.saveCtx(&ctx)
+func (vm *vm) captureAsyncStack(stack []StackFrame, runner *asyncRunner) []StackFrame {
+	if promise, _ := runner.promiseCap.promise.self.(*Promise); promise != nil {
+		if len(promise.fulfillReactions) == 1 {
+			if r := promise.fulfillReactions[0].asyncRunner; r != nil {
+				ctx := &r.gen.ctx
+				if ctx.prg != nil || ctx.funcName != "" {
+					var funcName unistring.String
+					if prg := ctx.prg; prg != nil {
+						funcName = prg.funcName
+					} else {
+						funcName = ctx.funcName
+					}
+					stack = append(stack, StackFrame{prg: ctx.prg, pc: ctx.pc, funcName: funcName})
+				}
+				stack = vm.captureAsyncStack(stack, r)
+			}
+		}
+	}
 
-	ctxOffset := len(vm.callStack)
-	sp := vm.sp
-	oldsp := vm.oldsp
-	vm.oldsp = sp
-	iterLen := len(vm.iterStack)
-	refLen := len(vm.refStack)
+	return stack
+}
+
+func (vm *vm) pushTryFrame(catchPos, finallyPos int32) {
+	vm.tryStack = append(vm.tryStack, tryFrame{
+		callStackLen: uint32(len(vm.callStack)),
+		iterLen:      uint32(len(vm.iterStack)),
+		refLen:       uint32(len(vm.refStack)),
+		sp:           int32(vm.sp),
+		stash:        vm.stash,
+		privEnv:      vm.privEnv,
+		catchPos:     catchPos,
+		finallyPos:   finallyPos,
+		finallyRet:   -1,
+	})
+}
+
+func (vm *vm) popTryFrame() {
+	vm.tryStack = vm.tryStack[:len(vm.tryStack)-1]
+}
+
+func (vm *vm) handleThrow(arg interface{}) *Exception {
+	ex := vm.exceptionFromValue(arg)
+	for len(vm.tryStack) > 0 {
+		tf := &vm.tryStack[len(vm.tryStack)-1]
+		if tf.catchPos == -1 && tf.finallyPos == -1 || ex == nil && tf.catchPos != tryPanicMarker {
+			tf.exception = nil
+			vm.popTryFrame()
+			continue
+		}
+		if int(tf.callStackLen) < len(vm.callStack) {
+			ctx := &vm.callStack[tf.callStackLen]
+			vm.prg, vm.funcName, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args = ctx.prg, ctx.funcName, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args
+			vm.callStack = vm.callStack[:tf.callStackLen]
+		}
+		vm.sp = int(tf.sp)
+		vm.stash = tf.stash
+		vm.privEnv = tf.privEnv
+
+		// Restore other stacks
+		iterTail := vm.iterStack[tf.iterLen:]
+		for i := range iterTail {
+			if iter := iterTail[i].iter; iter != nil {
+				_ = vm.try(func() {
+					iter.returnIter()
+				})
+			}
+			iterTail[i] = iterStackItem{}
+		}
+		vm.iterStack = vm.iterStack[:tf.iterLen]
+		refTail := vm.refStack[tf.refLen:]
+		for i := range refTail {
+			refTail[i] = nil
+		}
+		vm.refStack = vm.refStack[:tf.refLen]
+
+		if tf.catchPos == tryPanicMarker {
+			break
+		}
+
+		if tf.catchPos >= 0 {
+			// exception is caught
+			vm.push(ex.val)
+			vm.pc = int(tf.catchPos)
+			tf.catchPos = -1
+			return nil
+		}
+		if tf.finallyPos >= 0 {
+			// no 'catch' block, but there is a 'finally' block
+			tf.exception = ex
+			vm.pc = int(tf.finallyPos)
+			tf.finallyPos = -1
+			tf.finallyRet = -1
+			return nil
+		}
+	}
+	if ex == nil {
+		panic(arg)
+	}
+	return ex
+}
+
+// Calls to this method must be made from the run() loop and must be the last statement before 'return'.
+// In all other cases exceptions must be thrown using panic().
+func (vm *vm) throw(v interface{}) {
+	if ex := vm.handleThrow(v); ex != nil {
+		panic(ex)
+	}
+}
+
+func (vm *vm) try(f func()) (ex *Exception) {
+	vm.pushTryFrame(tryPanicMarker, -1)
+	defer vm.popTryFrame()
 
 	defer func() {
 		if x := recover(); x != nil {
-			defer func() {
-				vm.callStack = vm.callStack[:ctxOffset]
-				vm.restoreCtx(&ctx)
-				vm.sp = sp
-				vm.oldsp = oldsp
-
-				// Restore other stacks
-				iterTail := vm.iterStack[iterLen:]
-				for i := range iterTail {
-					if iter := iterTail[i].iter; iter != nil {
-						_ = vm.try(func() {
-							iter.returnIter()
-						})
-					}
-					iterTail[i] = iterStackItem{}
-				}
-				vm.iterStack = vm.iterStack[:iterLen]
-				refTail := vm.refStack[refLen:]
-				for i := range refTail {
-					refTail[i] = nil
-				}
-				vm.refStack = vm.refStack[:refLen]
-			}()
-			switch x1 := x.(type) {
-			case *Object:
-				ex = &Exception{
-					val: x1,
-				}
-				if er, ok := x1.self.(*errorObject); ok {
-					ex.stack = er.stack
-				}
-			case Value:
-				ex = &Exception{
-					val: x1,
-				}
-			case *Exception:
-				ex = x1
-			case *uncatchableException:
-				panic(x1)
-			case typeError:
-				ex = &Exception{
-					val: vm.r.NewTypeError(string(x1)),
-				}
-			case referenceError:
-				ex = &Exception{
-					val: vm.r.newError(vm.r.global.ReferenceError, string(x1)),
-				}
-			case rangeError:
-				ex = &Exception{
-					val: vm.r.newError(vm.r.global.RangeError, string(x1)),
-				}
-			case syntaxError:
-				ex = &Exception{
-					val: vm.r.newError(vm.r.global.SyntaxError, string(x1)),
-				}
-			default:
-				/*
-					if vm.prg != nil {
-						vm.prg.dumpCode(log.Printf)
-					}
-					log.Print("Stack: ", string(debug.Stack()))
-					panic(fmt.Errorf("Panic at %d: %v", vm.pc, x))
-				*/
-				panic(x)
-			}
-			if ex.stack == nil {
-				ex.stack = vm.captureStack(make([]StackFrame, 0, len(vm.callStack)+1), 0)
-			}
+			ex = vm.handleThrow(x)
 		}
 	}()
 
@@ -647,7 +757,26 @@ func (vm *vm) try(f func()) (ex *Exception) {
 }
 
 func (vm *vm) runTry() (ex *Exception) {
-	return vm.try(vm.run)
+	vm.pushTryFrame(tryPanicMarker, -1)
+	defer vm.popTryFrame()
+
+	for {
+		ex = vm.runTryInner()
+		if ex != nil || vm.halted() {
+			return
+		}
+	}
+}
+
+func (vm *vm) runTryInner() (ex *Exception) {
+	defer func() {
+		if x := recover(); x != nil {
+			ex = vm.handleThrow(x)
+		}
+	}()
+
+	vm.run()
+	return
 }
 
 func (vm *vm) push(v Value) {
@@ -691,11 +820,9 @@ func (vm *vm) popCtx() {
 	ctx := &vm.callStack[l]
 	vm.restoreCtx(ctx)
 
-	ctx.prg = nil
-	ctx.stash = nil
-	ctx.privEnv = nil
-	ctx.result = nil
-	ctx.newTarget = nil
+	if ctx.prg != nil {
+		*ctx = context{}
+	}
 
 	vm.callStack = vm.callStack[:l]
 }
@@ -817,7 +944,8 @@ func (l loadStackLex) exec(vm *vm) {
 	}
 	// fmt.Println(vm.stack, vm.sb, vm.args, l, p, *p)
 	if *p == nil {
-		panic(errAccessBeforeInit)
+		vm.throw(errAccessBeforeInit)
+		return
 	}
 	vm.push(*p)
 	vm.pc++
@@ -828,7 +956,8 @@ type loadStack1Lex int
 func (l loadStack1Lex) exec(vm *vm) {
 	p := &vm.stack[vm.sb+int(l)]
 	if *p == nil {
-		panic(errAccessBeforeInit)
+		vm.throw(errAccessBeforeInit)
+		return
 	}
 	vm.push(*p)
 	vm.pc++
@@ -1425,21 +1554,11 @@ func (_shr) exec(vm *vm) {
 	vm.pc++
 }
 
-type _halt struct{}
-
-var halt _halt
-
-func (_halt) exec(vm *vm) {
-	vm.halt = true
-	vm.pc++
-}
-
 type _notReallyYield struct{}
 
 var notReallyYield _notReallyYield
 
 func (_notReallyYield) exec(vm *vm) {
-	vm.halt = true
 	vm.pc++
 	mi := vm.r.modules[vm.r.GetActiveScriptOrModule().(ModuleRecord)].(*SourceTextModuleInstance)
 	if vm.sp > vm.oldsp {
@@ -1452,6 +1571,7 @@ func (_notReallyYield) exec(vm *vm) {
 	context := &context{}
 	vm.saveCtx(context)
 	mi.context = context
+	vm.pc = -1
 }
 
 type jump int32
@@ -2154,7 +2274,8 @@ func (g getProp) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
 	obj := v.baseObject(vm.r)
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
+		return
 	}
 	vm.stack[vm.sp-1] = nilSafe(obj.self.getStr(unistring.String(g), v))
 
@@ -2168,7 +2289,8 @@ func (g getPropRecv) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
 	obj := v.baseObject(vm.r)
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
+		return
 	}
 	vm.stack[vm.sp-2] = nilSafe(obj.self.getStr(unistring.String(g), recv))
 	vm.sp--
@@ -2182,7 +2304,8 @@ func (g getPropRecvCallee) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
 	obj := v.baseObject(vm.r)
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", g))
+		return
 	}
 
 	n := unistring.String(g)
@@ -2202,7 +2325,8 @@ func (g getPropCallee) exec(vm *vm) {
 	obj := v.baseObject(vm.r)
 	n := unistring.String(g)
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined or null", n))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined or null", n))
+		return
 	}
 	prop := obj.self.getStr(n, v)
 	if prop == nil {
@@ -2222,7 +2346,8 @@ func (_getElem) exec(vm *vm) {
 	obj := v.baseObject(vm.r)
 	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		return
 	}
 
 	vm.stack[vm.sp-2] = nilSafe(obj.get(propName, v))
@@ -2241,7 +2366,8 @@ func (_getElemRecv) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
 	obj := v.baseObject(vm.r)
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		return
 	}
 
 	vm.stack[vm.sp-3] = nilSafe(obj.get(propName, recv))
@@ -2259,7 +2385,8 @@ func (_getKey) exec(vm *vm) {
 	obj := v.baseObject(vm.r)
 	propName := vm.stack[vm.sp-1]
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		return
 	}
 
 	vm.stack[vm.sp-2] = nilSafe(obj.get(propName, v))
@@ -2277,7 +2404,8 @@ func (_getElemCallee) exec(vm *vm) {
 	obj := v.baseObject(vm.r)
 	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		return
 	}
 
 	prop := obj.get(propName, v)
@@ -2299,7 +2427,8 @@ func (_getElemRecvCallee) exec(vm *vm) {
 	obj := v.baseObject(vm.r)
 	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if obj == nil {
-		panic(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		return
 	}
 
 	prop := obj.get(propName, recv)
@@ -2371,7 +2500,8 @@ func (_pushArrayItem) exec(vm *vm) {
 	if arr.length < math.MaxUint32 {
 		arr.length++
 	} else {
-		panic(vm.r.newError(vm.r.global.RangeError, "Invalid array length"))
+		vm.throw(vm.r.newError(vm.r.global.RangeError, "Invalid array length"))
+		return
 	}
 	val := vm.stack[vm.sp-1]
 	arr.values = append(arr.values, val)
@@ -2392,7 +2522,8 @@ func (_pushArraySpread) exec(vm *vm) {
 		if arr.length < math.MaxUint32 {
 			arr.length++
 		} else {
-			panic(vm.r.newError(vm.r.global.RangeError, "Invalid array length"))
+			vm.throw(vm.r.newError(vm.r.global.RangeError, "Invalid array length"))
+			return
 		}
 		arr.values = append(arr.values, val)
 		arr.objCount++
@@ -2688,7 +2819,8 @@ func (g loadStashLex) exec(vm *vm) {
 
 	v := stash.getByIdx(idx)
 	if v == nil {
-		panic(errAccessBeforeInit)
+		vm.throw(errAccessBeforeInit)
+		return
 	}
 	vm.push(v)
 	vm.pc++
@@ -2760,7 +2892,8 @@ func (g *loadMixedLex) exec(vm *vm) {
 	if stash != nil {
 		v := stash.getByIdx(idx)
 		if v == nil {
-			panic(errAccessBeforeInit)
+			vm.throw(errAccessBeforeInit)
+			return
 		}
 		vm.push(v)
 	}
@@ -3023,8 +3156,8 @@ func (_getValue) exec(vm *vm) {
 	if v := ref.get(); v != nil {
 		vm.push(v)
 	} else {
-		vm.r.throwReferenceError(ref.refname())
-		panic("Unreachable")
+		vm.throw(vm.r.newReferenceError(ref.refname()))
+		return
 	}
 	vm.pc++
 }
@@ -3084,7 +3217,8 @@ func (n loadDynamic) exec(vm *vm) {
 	if val == nil {
 		val = vm.r.globalObject.self.getStr(name, nil)
 		if val == nil {
-			vm.r.throwReferenceError(name)
+			vm.throw(vm.r.newReferenceError(name))
+			return
 		}
 	}
 	vm.push(val)
@@ -3263,86 +3397,7 @@ func (numargs call) exec(vm *vm) {
 	n := int(numargs)
 	v := vm.stack[vm.sp-n-1] // callee
 	obj := vm.toCallee(v)
-repeat:
-	switch f := obj.self.(type) {
-	case *classFuncObject:
-		f.Call(FunctionCall{}) // throws
-	case *methodFuncObject:
-		vm.pc++
-		vm.pushCtx()
-		vm.args = n
-		vm.prg = f.prg
-		vm.stash = f.stash
-		vm.privEnv = f.privEnv
-		vm.pc = 0
-		vm.stack[vm.sp-n-1], vm.stack[vm.sp-n-2] = vm.stack[vm.sp-n-2], vm.stack[vm.sp-n-1]
-		return
-	case *funcObject:
-		vm.pc++
-		vm.pushCtx()
-		vm.args = n
-		vm.prg = f.prg
-		vm.stash = f.stash
-		vm.privEnv = f.privEnv
-		vm.pc = 0
-		vm.stack[vm.sp-n-1], vm.stack[vm.sp-n-2] = vm.stack[vm.sp-n-2], vm.stack[vm.sp-n-1]
-		return
-	case *arrowFuncObject:
-		vm.pc++
-		vm.pushCtx()
-		vm.args = n
-		vm.prg = f.prg
-		vm.stash = f.stash
-		vm.privEnv = f.privEnv
-		vm.pc = 0
-		vm.stack[vm.sp-n-1], vm.stack[vm.sp-n-2] = nil, vm.stack[vm.sp-n-1]
-		vm.newTarget = f.newTarget
-		return
-	case *nativeFuncObject:
-		vm._nativeCall(f, n)
-	case *wrappedFuncObject:
-		vm._nativeCall(&f.nativeFuncObject, n)
-	case *boundFuncObject:
-		vm._nativeCall(&f.nativeFuncObject, n)
-	case *proxyObject:
-		vm.pushCtx()
-		vm.prg = nil
-		vm.funcName = "proxy"
-		ret := f.apply(FunctionCall{This: vm.stack[vm.sp-n-2], Arguments: vm.stack[vm.sp-n : vm.sp]})
-		if ret == nil {
-			ret = _undefined
-		}
-		vm.stack[vm.sp-n-2] = ret
-		vm.popCtx()
-		vm.sp -= n + 1
-		vm.pc++
-	case *lazyObject:
-		obj.self = f.create(obj)
-		goto repeat
-	default:
-		vm.r.typeErrorResult(true, "Not a function: %s", obj.toString())
-	}
-}
-
-func (vm *vm) _nativeCall(f *nativeFuncObject, n int) {
-	if f.f != nil {
-		vm.pushCtx()
-		vm.prg = nil
-		vm.funcName = nilSafe(f.getStr("name", nil)).string()
-		ret := f.f(FunctionCall{
-			Arguments: vm.stack[vm.sp-n : vm.sp],
-			This:      vm.stack[vm.sp-n-2],
-		})
-		if ret == nil {
-			ret = _undefined
-		}
-		vm.stack[vm.sp-n-2] = ret
-		vm.popCtx()
-	} else {
-		vm.stack[vm.sp-n-2] = _undefined
-	}
-	vm.sp -= n + 1
-	vm.pc++
+	obj.self.vmCall(vm, n)
 }
 
 func (vm *vm) clearStack() {
@@ -3604,9 +3659,7 @@ func (_ret) exec(vm *vm) {
 	vm.stack[vm.sb-1] = vm.stack[vm.sp-1]
 	vm.sp = vm.sb
 	vm.popCtx()
-	if vm.pc < 0 {
-		vm.halt = true
-	}
+	vm.pc++
 }
 
 type cret uint32
@@ -3671,13 +3724,26 @@ func (n *newFunc) exec(vm *vm) {
 	vm.pc++
 }
 
+type newAsyncFunc struct {
+	newFunc
+}
+
+func (n *newAsyncFunc) exec(vm *vm) {
+	obj := vm.r.newAsyncFunc(n.name, n.length, n.strict)
+	obj.prg = n.prg
+	obj.stash = vm.stash
+	obj.privEnv = vm.privEnv
+	obj.src = n.source
+	vm.push(obj.val)
+	vm.pc++
+}
+
 type newMethod struct {
 	newFunc
 	homeObjOffset uint32
 }
 
-func (n *newMethod) exec(vm *vm) {
-	obj := vm.r.newMethod(n.name, n.length, n.strict)
+func (n *newMethod) _exec(vm *vm, obj *methodFuncObject) {
 	obj.prg = n.prg
 	obj.stash = vm.stash
 	obj.privEnv = vm.privEnv
@@ -3689,8 +3755,25 @@ func (n *newMethod) exec(vm *vm) {
 	vm.pc++
 }
 
+func (n *newMethod) exec(vm *vm) {
+	n._exec(vm, vm.r.newMethod(n.name, n.length, n.strict))
+}
+
+type newAsyncMethod struct {
+	newMethod
+}
+
+func (n *newAsyncMethod) exec(vm *vm) {
+	obj := vm.r.newAsyncMethod(n.name, n.length, n.strict)
+	n._exec(vm, &obj.methodFuncObject)
+}
+
 type newArrowFunc struct {
 	newFunc
+}
+
+type newAsyncArrowFunc struct {
+	newArrowFunc
 }
 
 func getFuncObject(v Value) *Object {
@@ -3711,17 +3794,20 @@ func getHomeObject(v Value) *Object {
 		switch fn := o.self.(type) {
 		case *methodFuncObject:
 			return fn.homeObject
+		case *asyncMethodFuncObject:
+			return fn.homeObject
 		case *classFuncObject:
 			return o.runtime.toObject(fn.getStr("prototype", nil))
 		case *arrowFuncObject:
+			return getHomeObject(fn.funcObj)
+		case *asyncArrowFuncObject:
 			return getHomeObject(fn.funcObj)
 		}
 	}
 	panic(newTypeError("Compiler bug: getHomeObject() on the wrong value: %T", v))
 }
 
-func (n *newArrowFunc) exec(vm *vm) {
-	obj := vm.r.newArrowFunc(n.name, n.length, n.strict)
+func (n *newArrowFunc) _exec(vm *vm, obj *arrowFuncObject) {
 	obj.prg = n.prg
 	obj.stash = vm.stash
 	obj.privEnv = vm.privEnv
@@ -3737,6 +3823,15 @@ type ambiguousImport unistring.String
 
 func (a ambiguousImport) exec(vm *vm) {
 	panic(vm.r.newError(vm.r.global.SyntaxError, "Ambiguous import for name %s", a))
+}
+
+func (n *newArrowFunc) exec(vm *vm) {
+	n._exec(vm, vm.r.newArrowFunc(n.name, n.length, n.strict))
+}
+
+func (n *newAsyncArrowFunc) exec(vm *vm) {
+	obj := vm.r.newAsyncArrowFunc(n.name, n.length, n.strict)
+	n._exec(vm, &obj.arrowFuncObject)
 }
 
 func (vm *vm) alreadyDeclared(name unistring.String) Value {
@@ -3904,7 +3999,8 @@ func (d *bindVars) exec(vm *vm) {
 	for _, name := range d.names {
 		for s := vm.stash; s != nil; s = s.outer {
 			if idx, exists := s.names[name]; exists && idx&maskVar == 0 {
-				panic(vm.alreadyDeclared(name))
+				vm.throw(vm.alreadyDeclared(name))
+				return
 			}
 			if s.isVariable() {
 				target = s
@@ -4284,44 +4380,61 @@ type try struct {
 }
 
 func (t try) exec(vm *vm) {
-	o := vm.pc
-	vm.pc++
-	ex := vm.runTry()
-	if ex != nil && t.catchOffset > 0 {
-		// run the catch block (in try)
-		vm.pc = o + int(t.catchOffset)
-		// TODO: if ex.val is an Error, set the stack property
-		vm.push(ex.val)
-		ex = vm.runTry()
+	var catchPos, finallyPos int32
+	if t.catchOffset > 0 {
+		catchPos = int32(vm.pc) + t.catchOffset
+	} else {
+		catchPos = -1
 	}
-
 	if t.finallyOffset > 0 {
-		pc := vm.pc
-		// Run finally
-		vm.pc = o + int(t.finallyOffset)
-		vm.run()
-		if vm.prg.code[vm.pc] == retFinally {
-			vm.pc = pc
-		} else {
-			// break or continue out of finally, dropping exception
-			ex = nil
-		}
+		finallyPos = int32(vm.pc) + t.finallyOffset
+	} else {
+		finallyPos = -1
 	}
+	vm.pushTryFrame(catchPos, finallyPos)
+	vm.pc++
+}
 
-	vm.halt = false
+type leaveTry struct{}
 
-	if ex != nil {
-		vm.pc = -1 // to prevent the current position from being captured in the stacktrace
-		panic(ex)
+func (leaveTry) exec(vm *vm) {
+	tf := &vm.tryStack[len(vm.tryStack)-1]
+	if tf.finallyPos >= 0 {
+		tf.finallyRet = int32(vm.pc + 1)
+		vm.pc = int(tf.finallyPos)
+		tf.finallyPos = -1
+		tf.catchPos = -1
+	} else {
+		vm.popTryFrame()
+		vm.pc++
 	}
 }
 
-type _retFinally struct{}
+type enterFinally struct{}
 
-var retFinally _retFinally
-
-func (_retFinally) exec(vm *vm) {
+func (enterFinally) exec(vm *vm) {
+	tf := &vm.tryStack[len(vm.tryStack)-1]
+	tf.finallyPos = -1
 	vm.pc++
+}
+
+type leaveFinally struct{}
+
+func (leaveFinally) exec(vm *vm) {
+	tf := &vm.tryStack[len(vm.tryStack)-1]
+	ex, ret := tf.exception, tf.finallyRet
+	tf.exception = nil
+	vm.popTryFrame()
+	if ex != nil {
+		vm.throw(ex)
+		return
+	} else {
+		if ret >= 0 {
+			vm.pc = int(ret)
+		} else {
+			vm.pc++
+		}
+	}
 }
 
 type _throw struct{}
@@ -4330,6 +4443,7 @@ var throw _throw
 
 func (_throw) exec(vm *vm) {
 	v := vm.stack[vm.sp-1]
+	var ex *Exception
 	if o, ok := v.(*Object); ok {
 		if e, ok := o.self.(*errorObject); ok {
 			if len(e.stack) > 0 {
@@ -4338,18 +4452,24 @@ func (_throw) exec(vm *vm) {
 				// avoid capturing the stack again by the reusing the stack from the Error.
 				// These stacks would be almost identical and the difference doesn't matter for debugging.
 				if frame0.prg == vm.prg && vm.pc-frame0.pc == 1 {
-					panic(&Exception{
+					ex = &Exception{
 						val:   v,
 						stack: e.stack,
-					})
+					}
 				}
 			}
 		}
 	}
-	panic(&Exception{
-		val:   v,
-		stack: vm.captureStack(make([]StackFrame, 0, len(vm.callStack)+1), 0),
-	})
+	if ex == nil {
+		ex = &Exception{
+			val:   v,
+			stack: vm.captureStack(make([]StackFrame, 0, len(vm.callStack)+1), 0),
+		}
+	}
+
+	if ex = vm.handleThrow(ex); ex != nil {
+		panic(ex)
+	}
 }
 
 type _newVariadic struct{}
@@ -4388,7 +4508,8 @@ func (s superCall) exec(vm *vm) {
 		cls, _ = fn.funcObj.self.(*classFuncObject)
 	}
 	if cls == nil {
-		panic(vm.r.NewTypeError("wrong callee type for super()"))
+		vm.throw(vm.r.NewTypeError("wrong callee type for super()"))
+		return
 	}
 	sp := vm.sp - int(s)
 	newTarget := vm.r.toObject(vm.newTarget)
@@ -4477,22 +4598,7 @@ func (_typeof) exec(vm *vm) {
 	case valueNull:
 		r = stringObjectC
 	case *Object:
-	repeat:
-		switch s := v.self.(type) {
-		case *classFuncObject, *methodFuncObject, *funcObject, *nativeFuncObject, *wrappedFuncObject, *boundFuncObject, *arrowFuncObject:
-			r = stringFunction
-		case *proxyObject:
-			if s.call == nil {
-				r = stringObjectC
-			} else {
-				r = stringFunction
-			}
-		case *lazyObject:
-			v.self = s.create(v)
-			goto repeat
-		default:
-			r = stringObjectC
-		}
+		r = v.self.typeOf()
 	case valueBool:
 		r = stringBoolean
 	case valueString:
@@ -4700,7 +4806,8 @@ func (jmp iterNext) exec(vm *vm) {
 		l := len(vm.iterStack) - 1
 		vm.iterStack[l] = iterStackItem{}
 		vm.iterStack = vm.iterStack[:l]
-		panic(ex.val)
+		vm.throw(ex.val)
+		return
 	}
 }
 
@@ -4717,7 +4824,8 @@ func (iterGetNextOrUndef) exec(vm *vm) {
 			l := len(vm.iterStack) - 1
 			vm.iterStack[l] = iterStackItem{}
 			vm.iterStack = vm.iterStack[:l]
-			panic(ex.val)
+			vm.throw(ex.val)
+			return
 		}
 	}
 	vm.push(nilSafe(value))
@@ -4743,7 +4851,7 @@ type _throwAssignToConst struct{}
 var throwAssignToConst _throwAssignToConst
 
 func (_throwAssignToConst) exec(vm *vm) {
-	panic(errAssignToConst)
+	vm.throw(errAssignToConst)
 }
 
 func (r *Runtime) copyDataProperties(target, source Value) {
@@ -5013,14 +5121,16 @@ func (c *newDerivedClass) exec(vm *vm) {
 	var superClass *Object
 	if o := vm.stack[vm.sp-1]; o != _null {
 		if sc, ok := o.(*Object); !ok || sc.self.assertConstructor() == nil {
-			panic(vm.r.NewTypeError("Class extends value is not a constructor or null"))
+			vm.throw(vm.r.NewTypeError("Class extends value is not a constructor or null"))
+			return
 		} else {
 			v := sc.self.getStr("prototype", nil)
 			if v != _null {
 				if o, ok := v.(*Object); ok {
 					protoParent = o
 				} else {
-					panic(vm.r.NewTypeError("Class extends value does not have valid prototype property"))
+					vm.throw(vm.r.NewTypeError("Class extends value does not have valid prototype property"))
+					return
 				}
 			}
 			superClass = sc
@@ -5057,7 +5167,8 @@ func (vm *vm) loadThis(v Value) {
 	if v != nil {
 		vm.push(v)
 	} else {
-		panic(vm.r.newError(vm.r.global.ReferenceError, "Must call super constructor in derived class before accessing 'this'"))
+		vm.throw(vm.r.newError(vm.r.global.ReferenceError, "Must call super constructor in derived class before accessing 'this'"))
+		return
 	}
 	vm.pc++
 }
@@ -5106,7 +5217,7 @@ type throwConst struct {
 }
 
 func (t throwConst) exec(vm *vm) {
-	panic(t.v)
+	vm.throw(t.v)
 }
 
 type resolveThisStack struct{}
@@ -5231,7 +5342,8 @@ func (d *definePrivateGetter) exec(vm *vm) {
 		methods[d.idx] = p
 	}
 	if p.getterFunc != nil {
-		panic(vm.r.NewTypeError("Private getter has already been declared"))
+		vm.throw(vm.r.NewTypeError("Private getter has already been declared"))
+		return
 	}
 	p.getterFunc = method
 	vm.sp--
@@ -5254,7 +5366,8 @@ func (d *definePrivateSetter) exec(vm *vm) {
 		methods[d.idx] = p
 	}
 	if p.setterFunc != nil {
-		panic(vm.r.NewTypeError("Private setter has already been declared"))
+		vm.throw(vm.r.NewTypeError("Private setter has already been declared"))
+		return
 	}
 	p.setterFunc = method
 	vm.sp--
@@ -5379,6 +5492,54 @@ func (vm *vm) setPrivateProp(base Value, name unistring.String, typ *privateEnvT
 	}
 }
 
+func (vm *vm) exceptionFromValue(x interface{}) *Exception {
+	var ex *Exception
+	switch x1 := x.(type) {
+	case *Object:
+		ex = &Exception{
+			val: x1,
+		}
+		if er, ok := x1.self.(*errorObject); ok {
+			ex.stack = er.stack
+		}
+	case Value:
+		ex = &Exception{
+			val: x1,
+		}
+	case *Exception:
+		ex = x1
+	case typeError:
+		ex = &Exception{
+			val: vm.r.NewTypeError(string(x1)),
+		}
+	case referenceError:
+		ex = &Exception{
+			val: vm.r.newError(vm.r.global.ReferenceError, string(x1)),
+		}
+	case rangeError:
+		ex = &Exception{
+			val: vm.r.newError(vm.r.global.RangeError, string(x1)),
+		}
+	case syntaxError:
+		ex = &Exception{
+			val: vm.r.newError(vm.r.global.SyntaxError, string(x1)),
+		}
+	default:
+		/*
+			if vm.prg != nil {
+				vm.prg.dumpCode(log.Printf)
+			}
+			log.Print("Stack: ", string(debug.Stack()))
+			panic(fmt.Errorf("Panic at %d: %v", vm.pc, x))
+		*/
+		return nil
+	}
+	if ex.stack == nil {
+		ex.stack = vm.captureStack(make([]StackFrame, 0, len(vm.callStack)+1), 0)
+	}
+	return ex
+}
+
 type setPrivatePropRes resolvedPrivateName
 
 func (p *setPrivatePropRes) _set(base Value, val Value, vm *vm) {
@@ -5474,4 +5635,11 @@ func (r *getPrivateRefId) exec(vm *vm) {
 	})
 	vm.sp--
 	vm.pc++
+}
+
+type await struct{}
+
+func (await) exec(vm *vm) {
+	vm.pc = -vm.pc             // this will terminate the run loop
+	vm.push(resultAwaitMarker) // a special marker value to indicate this is an await, not return
 }

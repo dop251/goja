@@ -10,9 +10,11 @@ type _scope struct {
 	allowIn           bool
 	allowLet          bool
 	allowImportExport bool
+	inAsync           bool
 	inIteration       bool
 	inSwitch          bool
 	inFunction        bool
+	allowAwait        bool
 	declarationList   []*ast.VariableDeclaration
 	importEntries     []*ast.ImportDeclaration
 	exportEntries     []*ast.ExportDeclaration

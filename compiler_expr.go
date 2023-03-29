@@ -113,6 +113,11 @@ type compiledIdentifierExpr struct {
 	name unistring.String
 }
 
+type compiledAwaitExpression struct {
+	baseCompiledExpr
+	arg compiledExpr
+}
+
 type funcType uint8
 
 const (
@@ -137,6 +142,7 @@ type compiledFunctionLiteral struct {
 	homeObjOffset   uint32
 	typ             funcType
 	isExpr          bool
+	isAsync         bool
 }
 
 type compiledBracketExpr struct {
@@ -308,6 +314,12 @@ func (c *compiler) compileExpression(v ast.Expression) compiledExpr {
 			expr: c.compileExpression(v.Expression),
 		}
 		r.init(c, v.Idx0())
+		return r
+	case *ast.AwaitExpression:
+		r := &compiledAwaitExpression{
+			arg: c.compileExpression(v.Argument),
+		}
+		r.init(c, v.Await)
 		return r
 	default:
 		c.assert(false, int(v.Idx0())-1, "Unknown expression type: %T", v)
@@ -1727,11 +1739,23 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	p, name, length, strict := e.compile()
 	switch e.typ {
 	case funcArrow:
-		e.c.emit(&newArrowFunc{newFunc: newFunc{prg: p, length: length, name: name, source: e.source, strict: strict}})
+		if e.isAsync {
+			e.c.emit(&newAsyncArrowFunc{newArrowFunc: newArrowFunc{newFunc: newFunc{prg: p, length: length, name: name, source: e.source, strict: strict}}})
+		} else {
+			e.c.emit(&newArrowFunc{newFunc: newFunc{prg: p, length: length, name: name, source: e.source, strict: strict}})
+		}
 	case funcMethod, funcClsInit:
-		e.c.emit(&newMethod{newFunc: newFunc{prg: p, length: length, name: name, source: e.source, strict: strict}, homeObjOffset: e.homeObjOffset})
+		if e.isAsync {
+			e.c.emit(&newAsyncMethod{newMethod: newMethod{newFunc: newFunc{prg: p, length: length, name: name, source: e.source, strict: strict}, homeObjOffset: e.homeObjOffset}})
+		} else {
+			e.c.emit(&newMethod{newFunc: newFunc{prg: p, length: length, name: name, source: e.source, strict: strict}, homeObjOffset: e.homeObjOffset})
+		}
 	case funcRegular:
-		e.c.emit(&newFunc{prg: p, length: length, name: name, source: e.source, strict: strict})
+		if e.isAsync {
+			e.c.emit(&newAsyncFunc{newFunc: newFunc{prg: p, length: length, name: name, source: e.source, strict: strict}})
+		} else {
+			e.c.emit(&newFunc{prg: p, length: length, name: name, source: e.source, strict: strict})
+		}
 	default:
 		e.c.throwSyntaxError(e.offset, "Unsupported func type: %v", e.typ)
 	}
@@ -1754,6 +1778,7 @@ func (c *compiler) compileFunctionLiteral(v *ast.FunctionLiteral, isExpr bool) *
 		isExpr:          isExpr,
 		typ:             funcRegular,
 		strict:          strictBody,
+		isAsync:         v.Async,
 	}
 	r.init(c, v.Idx0())
 	return r
@@ -2190,7 +2215,7 @@ func (e *compiledClassLiteral) compileFieldsAndStaticBlocks(elements []clsElemen
 			}
 		}
 	}
-	e.c.emit(halt)
+	// e.c.emit(halt)
 	if s.isDynamic() || thisBinding.useCount() > 0 {
 		if s.isDynamic() || thisBinding.inStash {
 			thisBinding.emitInitAt(1)
@@ -2269,6 +2294,7 @@ func (c *compiler) compileArrowFunctionLiteral(v *ast.ArrowFunctionLiteral) *com
 		isExpr:          true,
 		typ:             funcArrow,
 		strict:          strictBody,
+		isAsync:         v.Async,
 	}
 	r.init(c, v.Idx0())
 	return r
@@ -2459,7 +2485,6 @@ func (c *compiler) evalConst(expr compiledExpr) (Value, *Exception) {
 	}
 	savedPc := len(c.p.code)
 	expr.emitGetter(true)
-	c.emit(halt)
 	c.evalVM.pc = savedPc
 	ex := c.evalVM.runTry()
 	if createdPrg {
@@ -3551,5 +3576,13 @@ func (e *compiledOptional) emitGetter(putOnStack bool) {
 func (e *compiledDynamicImport) emitGetter(putOnStack bool) {
 	if putOnStack {
 		e.c.emit(dynamicImport)
+	}
+}
+
+func (e *compiledAwaitExpression) emitGetter(putOnStack bool) {
+	e.arg.emitGetter(true)
+	e.c.emit(await{})
+	if !putOnStack {
+		e.c.emit(pop)
 	}
 }

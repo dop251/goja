@@ -131,6 +131,9 @@ const (
 
 	LET
 	STATIC
+	ASYNC
+	AWAIT
+	YIELD
 )
 
 var token2string = [...]string{
@@ -213,6 +216,9 @@ var token2string = [...]string{
 	CASE:                        "case",
 	VOID:                        "void",
 	WITH:                        "with",
+	ASYNC:                       "async",
+	AWAIT:                       "await",
+	YIELD:                       "yield",
 	CONST:                       "const",
 	WHILE:                       "while",
 	BREAK:                       "break",
@@ -272,6 +278,9 @@ var keywordTable = map[string]_keyword{
 	},
 	"with": {
 		token: WITH,
+	},
+	"async": {
+		token: ASYNC,
 	},
 	"while": {
 		token: WHILE,
@@ -377,10 +386,10 @@ var keywordTable = map[string]_keyword{
 		strict: true,
 	},
 	"await": {
-		token: KEYWORD,
+		token: AWAIT,
 	},
 	"yield": {
-		token: KEYWORD,
+		token: YIELD,
 	},
 	"false": {
 		token: BOOLEAN,
