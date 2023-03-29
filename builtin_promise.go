@@ -222,7 +222,7 @@ func (r *Runtime) newPromise(proto *Object) *Promise {
 	o := &Object{runtime: r}
 
 	po := &Promise{}
-	po.class = classPromise
+	po.class = classObject
 	po.val = o
 	po.extensible = true
 	o.self = po

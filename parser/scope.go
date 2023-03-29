@@ -16,6 +16,7 @@ type _scope struct {
 	inFunction        bool
 	inAsync           bool
 	allowAwait        bool
+	allowYield        bool
 	declarationList   []*ast.VariableDeclaration
 	importEntries     []*ast.ImportDeclaration
 	exportEntries     []*ast.ExportDeclaration

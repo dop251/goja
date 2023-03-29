@@ -12,11 +12,26 @@ type resultType uint8
 const (
 	resultNormal resultType = iota
 	resultYield
+	resultYieldRes      // a yield that expects a value in return
+	resultYieldDelegate // yield*
+	resultYieldDelegateRes
 	resultAwait
 )
 
+// used both as an instruction and as a Value
+type yieldMarker struct {
+	valueNull
+	resultType resultType
+}
+
 var (
-	resultAwaitMarker = NewSymbol("await")
+	await = &yieldMarker{resultType: resultAwait}
+
+	yield            = &yieldMarker{resultType: resultYield}
+	yieldRes         = &yieldMarker{resultType: resultYieldRes}
+	yieldDelegate    = &yieldMarker{resultType: resultYieldDelegate}
+	yieldDelegateRes = &yieldMarker{resultType: resultYieldDelegateRes}
+	yieldEmpty       = &yieldMarker{resultType: resultYield}
 )
 
 // AsyncContextTracker is a handler that allows to track async function's execution context. Every time an async
@@ -55,6 +70,10 @@ type funcObject struct {
 	baseJsFuncObject
 }
 
+type generatorFuncObject struct {
+	baseJsFuncObject
+}
+
 type asyncFuncObject struct {
 	baseJsFuncObject
 }
@@ -73,6 +92,10 @@ type classFuncObject struct {
 type methodFuncObject struct {
 	baseJsFuncObject
 	homeObject *Object
+}
+
+type generatorMethodFuncObject struct {
+	methodFuncObject
 }
 
 type asyncMethodFuncObject struct {
@@ -104,6 +127,24 @@ type wrappedFuncObject struct {
 type boundFuncObject struct {
 	nativeFuncObject
 	wrapped *Object
+}
+
+type generatorState uint8
+
+const (
+	genStateUndefined generatorState = iota
+	genStateSuspendedStart
+	genStateExecuting
+	genStateSuspendedYield
+	genStateSuspendedYieldRes
+	genStateCompleted
+)
+
+type generatorObject struct {
+	baseObject
+	gen       generator
+	delegated *iteratorRecord
+	state     generatorState
 }
 
 func (f *nativeFuncObject) source() valueString {
@@ -532,7 +573,7 @@ func (f *boundFuncObject) hasInstance(v Value) bool {
 	return instanceOfOperator(v, f.wrapped)
 }
 
-func (f *baseJsFuncObject) asyncCall(call FunctionCall, vmCall func(*vm, int)) Value {
+func (f *baseJsFuncObject) prepareForVmCall(call FunctionCall) {
 	vm := f.val.runtime.vm
 	args := call.Arguments
 	vm.stack.expand(vm.sp + len(args) + 1)
@@ -548,11 +589,15 @@ func (f *baseJsFuncObject) asyncCall(call FunctionCall, vmCall func(*vm, int)) V
 		}
 		vm.sp++
 	}
+}
+
+func (f *baseJsFuncObject) asyncCall(call FunctionCall, vmCall func(*vm, int)) Value {
+	f.prepareForVmCall(call)
 	ar := &asyncRunner{
 		f:      f.val,
 		vmCall: vmCall,
 	}
-	ar.start(len(args))
+	ar.start(len(call.Arguments))
 	return ar.promiseCap.promise
 }
 
@@ -728,11 +773,15 @@ func (g *generator) step() (res Value, resultType resultType, ex *Exception) {
 		}
 	}
 	res = g.vm.pop()
-	if res == resultAwaitMarker {
-		resultType = resultAwait
+	if ym, ok := res.(*yieldMarker); ok {
+		resultType = ym.resultType
 		g.ctx = execCtx{}
 		g.vm.pc = -g.vm.pc + 1
-		res = g.vm.pop()
+		if res != yieldEmpty {
+			res = g.vm.pop()
+		} else {
+			res = nil
+		}
 		g.vm.suspend(&g.ctx, g.tryStackLen, g.iterStackLen, g.refStackLen)
 		g.vm.sp = g.vm.sb - 1
 		g.vm.callStack = g.vm.callStack[:len(g.vm.callStack)-1] // remove the frame with pc == -2, as ret would do
@@ -759,7 +808,7 @@ func (g *generator) next(v Value) (Value, resultType, *Exception) {
 	return res, done, ex
 }
 
-func (g *generator) nextThrow(v Value) (Value, resultType, *Exception) {
+func (g *generator) nextThrow(v interface{}) (Value, resultType, *Exception) {
 	g.enterNext()
 	ex := g.vm.handleThrow(v)
 	if ex != nil {
@@ -772,4 +821,290 @@ func (g *generator) nextThrow(v Value) (Value, resultType, *Exception) {
 	g.vm.popTryFrame()
 	g.vm.popCtx()
 	return res, resType, ex
+}
+
+func (g *generatorObject) init(vmCall func(*vm, int), nArgs int) {
+	g.baseObject.init()
+	vm := g.val.runtime.vm
+	g.gen.vm = vm
+
+	g.gen.enter()
+	vmCall(vm, nArgs)
+
+	_, _, ex := g.gen.step()
+
+	vm.popTryFrame()
+	if ex != nil {
+		panic(ex)
+	}
+
+	g.state = genStateSuspendedStart
+	vm.popCtx()
+}
+
+func (g *generatorObject) validate() {
+	if g.state == genStateExecuting {
+		panic(g.val.runtime.NewTypeError("Illegal generator state"))
+	}
+}
+
+func (g *generatorObject) step(res Value, resType resultType, ex *Exception) Value {
+	if ex != nil {
+		g.delegated = nil
+		g.state = genStateCompleted
+		panic(ex)
+	}
+	switch resType {
+	case resultYield:
+		g.state = genStateSuspendedYield
+		return g.val.runtime.createIterResultObject(res, false)
+	case resultYieldDelegate:
+		g.state = genStateSuspendedYield
+		return g.delegate(res)
+	case resultYieldRes:
+		g.state = genStateSuspendedYieldRes
+		return g.val.runtime.createIterResultObject(res, false)
+	case resultYieldDelegateRes:
+		g.state = genStateSuspendedYieldRes
+		return g.delegate(res)
+	case resultNormal:
+		g.state = genStateCompleted
+		return g.val.runtime.createIterResultObject(res, true)
+	default:
+		panic(g.val.runtime.NewTypeError("Runtime bug: unexpected result type: %v", resType))
+	}
+}
+
+func (g *generatorObject) delegate(v Value) Value {
+	ex := g.val.runtime.try(func() {
+		g.delegated = g.val.runtime.getIterator(v, nil)
+	})
+	if ex != nil {
+		g.delegated = nil
+		g.state = genStateCompleted
+		return g.step(g.gen.nextThrow(ex))
+	}
+	return g.next(_undefined)
+}
+
+func (g *generatorObject) tryCallDelegated(fn func() (Value, bool)) (ret Value, done bool) {
+	ex := g.val.runtime.try(func() {
+		ret, done = fn()
+	})
+	if ex != nil {
+		g.delegated = nil
+		g.state = genStateExecuting
+		return g.step(g.gen.nextThrow(ex)), false
+	}
+	return
+}
+
+func (g *generatorObject) callDelegated(method func(FunctionCall) Value, v Value) (Value, bool) {
+	res := g.val.runtime.toObject(method(FunctionCall{This: g.delegated.iterator, Arguments: []Value{v}}))
+	if iteratorComplete(res) {
+		g.delegated = nil
+		return iteratorValue(res), true
+	}
+	return res, false
+}
+
+func (g *generatorObject) next(v Value) Value {
+	g.validate()
+	if g.state == genStateCompleted {
+		return g.val.runtime.createIterResultObject(_undefined, true)
+	}
+	if g.delegated != nil {
+		res, done := g.tryCallDelegated(func() (Value, bool) {
+			return g.callDelegated(g.delegated.next, v)
+		})
+		if !done {
+			return res
+		} else {
+			v = res
+		}
+	}
+	if g.state != genStateSuspendedYieldRes {
+		v = nil
+	}
+	g.state = genStateExecuting
+	return g.step(g.gen.next(v))
+}
+
+func (g *generatorObject) throw(v Value) Value {
+	g.validate()
+	if g.state == genStateSuspendedStart {
+		g.state = genStateCompleted
+	}
+	if g.state == genStateCompleted {
+		panic(v)
+	}
+	if d := g.delegated; d != nil {
+		res, done := g.tryCallDelegated(func() (Value, bool) {
+			method := toMethod(g.delegated.iterator.self.getStr("throw", nil))
+			if method != nil {
+				return g.callDelegated(method, v)
+			}
+			g.delegated = nil
+			d.returnIter()
+			panic(g.val.runtime.NewTypeError("The iterator does not provide a 'throw' method"))
+		})
+		if !done {
+			return res
+		}
+		if g.state != genStateSuspendedYieldRes {
+			res = nil
+		}
+		g.state = genStateExecuting
+		return g.step(g.gen.next(res))
+	}
+	g.state = genStateExecuting
+	return g.step(g.gen.nextThrow(v))
+}
+
+func (g *generatorObject) _return(v Value) Value {
+	g.validate()
+	if g.state == genStateSuspendedStart {
+		g.state = genStateCompleted
+	}
+
+	if g.state == genStateCompleted {
+		return g.val.runtime.createIterResultObject(v, true)
+	}
+
+	if d := g.delegated; d != nil {
+		res, done := g.tryCallDelegated(func() (Value, bool) {
+			method := toMethod(g.delegated.iterator.self.getStr("return", nil))
+			if method != nil {
+				return g.callDelegated(method, v)
+			}
+			g.delegated = nil
+			return v, true
+		})
+		if !done {
+			return res
+		} else {
+			v = res
+		}
+	}
+
+	g.state = genStateExecuting
+
+	g.gen.enterNext()
+
+	vm := g.gen.vm
+	var ex *Exception
+	for len(vm.tryStack) > 0 {
+		tf := &vm.tryStack[len(vm.tryStack)-1]
+		if int(tf.callStackLen) != len(vm.callStack) {
+			break
+		}
+
+		if tf.finallyPos >= 0 {
+			vm.sp = int(tf.sp)
+			vm.stash = tf.stash
+			vm.privEnv = tf.privEnv
+			ex1 := vm.restoreStacks(tf.iterLen, tf.refLen)
+			if ex1 != nil {
+				ex = ex1
+				vm.popTryFrame()
+				continue
+			}
+
+			vm.pc = int(tf.finallyPos)
+			tf.catchPos = tryPanicMarker
+			tf.finallyPos = -1
+			tf.finallyRet = -2 // -1 would cause it to continue after leaveFinally
+			for {
+				ex1 := vm.runTryInner()
+				if ex1 != nil {
+					ex = ex1
+					vm.popTryFrame()
+					break
+				}
+				if vm.halted() {
+					break
+				}
+			}
+		} else {
+			vm.popTryFrame()
+		}
+	}
+
+	g.state = genStateCompleted
+
+	vm.popTryFrame()
+
+	if ex == nil {
+		ex = vm.restoreStacks(g.gen.iterStackLen, g.gen.refStackLen)
+	}
+
+	if ex != nil {
+		panic(ex)
+	}
+
+	vm.callStack = vm.callStack[:len(vm.callStack)-1]
+	vm.sp = vm.sb - 1
+	vm.popCtx()
+
+	return g.val.runtime.createIterResultObject(v, true)
+}
+
+func (f *baseJsFuncObject) generatorCall(vmCall func(*vm, int), nArgs int) Value {
+	o := &Object{runtime: f.val.runtime}
+
+	genObj := &generatorObject{
+		baseObject: baseObject{
+			class:      classObject,
+			val:        o,
+			extensible: true,
+		},
+	}
+	o.self = genObj
+	genObj.init(vmCall, nArgs)
+	genObj.prototype = o.runtime.getPrototypeFromCtor(f.val, nil, o.runtime.getGeneratorPrototype())
+	return o
+}
+
+func (f *baseJsFuncObject) generatorVmCall(vmCall func(*vm, int), nArgs int) {
+	vm := f.val.runtime.vm
+	vm.push(f.generatorCall(vmCall, nArgs))
+	vm.pc++
+}
+
+func (f *generatorFuncObject) vmCall(_ *vm, nArgs int) {
+	f.generatorVmCall(f.baseJsFuncObject.vmCall, nArgs)
+}
+
+func (f *generatorFuncObject) Call(call FunctionCall) Value {
+	f.prepareForVmCall(call)
+	return f.generatorCall(f.baseJsFuncObject.vmCall, len(call.Arguments))
+}
+
+func (f *generatorFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
+	return f.Call, true
+}
+
+func (f *generatorFuncObject) export(*objectExportCtx) interface{} {
+	return f.Call
+}
+
+func (f *generatorFuncObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
+	return nil
+}
+
+func (f *generatorMethodFuncObject) vmCall(_ *vm, nArgs int) {
+	f.generatorVmCall(f.methodFuncObject.vmCall, nArgs)
+}
+
+func (f *generatorMethodFuncObject) Call(call FunctionCall) Value {
+	f.prepareForVmCall(call)
+	return f.generatorCall(f.methodFuncObject.vmCall, len(call.Arguments))
+}
+
+func (f *generatorMethodFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
+	return f.Call, true
+}
+
+func (f *generatorMethodFuncObject) export(*objectExportCtx) interface{} {
+	return f.Call
 }

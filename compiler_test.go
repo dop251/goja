@@ -5749,6 +5749,60 @@ func TestObjectLiteralComputedMethodKeys(t *testing.T) {
 	}
 }
 
+func TestGeneratorFunc(t *testing.T) {
+	const SCRIPT = `
+	let trace = "";
+	function defParam() {
+		trace += "1";
+		return "def";
+	}
+	function* g(param = defParam()) {
+		const THREE = 3;
+		trace += "2";
+		assert.sameValue(Math.floor(yield 1), THREE);
+		return 42;
+	}
+	let iter = g();
+	assert.sameValue(trace, "1");
+
+	let next = iter.next();
+	assert.sameValue(next.value, 1);
+	assert.sameValue(next.done, false);
+
+	next = iter.next(Math.PI);
+	assert.sameValue(next.value, 42);
+	assert.sameValue(next.done, true);
+
+	assert.sameValue(trace, "12");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestGeneratorMethods(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		*g(param) {
+			yield 1;
+			yield 2;
+		}
+	}
+	let c = new C();
+	let iter = c.g();
+	let res = iter.next();
+	assert.sameValue(res.value, 1);
+	assert.sameValue(res.done, false);
+
+	res = iter.next();
+	assert.sameValue(res.value, 2);
+	assert.sameValue(res.done, false);
+
+	res = iter.next();
+	assert.sameValue(res.value, undefined);
+	assert.sameValue(res.done, true);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := os.ReadFile("babel7.js")
