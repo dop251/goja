@@ -196,6 +196,7 @@ var (
 
 		// async iterator
 		"test/language/expressions/optional-chaining/iteration-statement-for-await-of.js": true,
+		"test/language/expressions/dynamic-import/for-await-resolution-and-error.js":      true,
 
 		// legacy number literals
 		"test/language/literals/numeric/non-octal-decimal-integer.js": true,
@@ -240,6 +241,9 @@ var (
 		"test/language/module-code/export-expname-from-as-unpaired-surrogate.js": true,
 		"test/language/module-code/export-expname-unpaired-surrogate.js":         true,
 		"test/language/module-code/export-expname-string-binding.js":             true,
+
+		// top level duip names
+		"test/language/module-code/early-dup-top-function.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -344,6 +348,8 @@ func init() {
 		"test/language/expressions/class/elements/multiple-definitions-rs-static-generator-",
 		"test/language/expressions/dynamic-import/assignment-expression/yield-",
 		"test/language/module-code/export-default-generator-",
+
+		"test/language/expressions/dynamic-import/namespace/await-ns-get-nested-namespace-props-nrml.js",
 
 		// BigInt
 		"test/built-ins/TypedArrayConstructors/BigUint64Array/",

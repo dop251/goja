@@ -1078,6 +1078,15 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 			Idx:                idx,
 			LexicalDeclaration: self.parseLexicalDeclaration(self.token),
 		}
+	case token.ASYNC:
+		return &ast.ExportDeclaration{
+			Idx: idx,
+			HoistableDeclaration: &ast.HoistableDeclaration{
+				FunctionDeclaration: &ast.FunctionDeclaration{
+					Function: self.parseMaybeAsyncFunction(true),
+				},
+			},
+		}
 	case token.FUNCTION:
 		return &ast.ExportDeclaration{
 			Idx: idx,
@@ -1102,6 +1111,21 @@ func (self *_parser) parseExportDeclaration() *ast.ExportDeclaration {
 		var exp *ast.ExportDeclaration
 
 		switch self.token {
+		case token.ASYNC:
+			f := self.parseMaybeAsyncFunction(false)
+			if f.Name == nil {
+				f.Name = &ast.Identifier{Name: unistring.String("default"), Idx: f.Idx0()}
+			}
+			exp = &ast.ExportDeclaration{
+				Idx: idx,
+				HoistableDeclaration: &ast.HoistableDeclaration{
+					FunctionDeclaration: &ast.FunctionDeclaration{
+						Function:  f,
+						IsDefault: true,
+					},
+				},
+				IsDefault: true,
+			}
 		case token.FUNCTION:
 			f := self.parseFunction(false, false, idx)
 			if f.Name == nil {
