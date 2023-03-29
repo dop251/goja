@@ -1459,7 +1459,7 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 		vm.clearStack()
 	} else {
 		vm.prg = nil
-		vm.funcName = ""
+		vm.sb = -1
 		r.leave()
 	}
 	return
@@ -1507,7 +1507,6 @@ func (r *Runtime) continueRunProgram(_ *Program, context *context, stack valueSt
 	} else {
 		vm.stack = nil
 		vm.prg = nil
-		vm.funcName = ""
 		r.leave()
 	}
 	return

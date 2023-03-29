@@ -2246,6 +2246,59 @@ func TestStacktraceLocationThrowFromGo(t *testing.T) {
 	}
 }
 
+func TestStacktraceLocationThrowNativeInTheMiddle(t *testing.T) {
+	vm := New()
+	v, err := vm.RunString(`(function f1() {
+		throw new Error("test")
+	})`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var f1 func()
+	err = vm.ExportTo(v, &f1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f := func() {
+		f1()
+	}
+	vm.Set("f", f)
+	_, err = vm.RunString(`
+	function main() {
+		(function noop() {})();
+		return callee();
+	}
+	function callee() {
+		return f();
+	}
+	main();
+	`)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+	stack := err.(*Exception).stack
+	if len(stack) != 5 {
+		t.Fatalf("Unexpected stack len: %v", stack)
+	}
+	if frame := stack[0]; frame.funcName != "f1" || frame.pc != 7 {
+		t.Fatalf("Unexpected stack frame 0: %#v", frame)
+	}
+	if frame := stack[1]; !strings.HasSuffix(frame.funcName.String(), "TestStacktraceLocationThrowNativeInTheMiddle.func1") {
+		t.Fatalf("Unexpected stack frame 1: %#v", frame)
+	}
+	if frame := stack[2]; frame.funcName != "callee" || frame.pc != 2 {
+		t.Fatalf("Unexpected stack frame 2: %#v", frame)
+	}
+	if frame := stack[3]; frame.funcName != "main" || frame.pc != 6 {
+		t.Fatalf("Unexpected stack frame 3: %#v", frame)
+	}
+	if frame := stack[4]; frame.funcName != "" || frame.pc != 4 {
+		t.Fatalf("Unexpected stack frame 4: %#v", frame)
+	}
+}
+
 func TestStrToInt64(t *testing.T) {
 	if _, ok := strToInt64(""); ok {
 		t.Fatal("<empty>")
