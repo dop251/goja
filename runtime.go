@@ -1769,6 +1769,10 @@ Note that the underlying type is not lost, calling Export() returns the original
 reflect based types.
 */
 func (r *Runtime) ToValue(i interface{}) Value {
+	return r.toValue(i, reflect.Value{})
+}
+
+func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 	switch i := i.(type) {
 	case nil:
 		return _null
@@ -1785,7 +1789,6 @@ func (r *Runtime) ToValue(i interface{}) Value {
 	case Value:
 		return i
 	case string:
-		// return newStringValue(i)
 		if len(i) <= 16 {
 			if u := unistring.Scan(i); u != nil {
 				return &importedString{s: i, u: u, scanned: true}
@@ -1862,9 +1865,6 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		m.init()
 		return obj
 	case []interface{}:
-		if i == nil {
-			return _null
-		}
 		return r.newObjectGoSlice(&i).val
 	case *[]interface{}:
 		if i == nil {
@@ -1873,10 +1873,10 @@ func (r *Runtime) ToValue(i interface{}) Value {
 		return r.newObjectGoSlice(i).val
 	}
 
-	return r.reflectValueToValue(reflect.ValueOf(i))
-}
+	if !origValue.IsValid() {
+		origValue = reflect.ValueOf(i)
+	}
 
-func (r *Runtime) reflectValueToValue(origValue reflect.Value) Value {
 	value := origValue
 	for value.Kind() == reflect.Ptr {
 		value = value.Elem()

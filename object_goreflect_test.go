@@ -1520,3 +1520,42 @@ func TestGoReflectToPrimitive(t *testing.T) {
 		})
 	})
 }
+
+type testGoReflectFuncRt struct {
+}
+
+func (*testGoReflectFuncRt) M(call FunctionCall, r *Runtime) Value {
+	if r == nil {
+		panic(typeError("Runtime is nil"))
+	}
+	return call.Argument(0)
+}
+
+func (*testGoReflectFuncRt) C(call ConstructorCall, r *Runtime) *Object {
+	if r == nil {
+		panic(typeError("Runtime is nil in constructor"))
+	}
+	call.This.Set("r", call.Argument(0))
+	return nil
+}
+
+func TestGoReflectFuncWithRuntime(t *testing.T) {
+	vm := New()
+	var s testGoReflectFuncRt
+	vm.Set("s", &s)
+	res, err := vm.RunString("s.M(true)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != valueTrue {
+		t.Fatal(res)
+	}
+
+	res, err = vm.RunString("new s.C(true).r")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != valueTrue {
+		t.Fatal(res)
+	}
+}
