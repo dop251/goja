@@ -211,7 +211,7 @@ func TestRecursiveRun(t *testing.T) {
 	// corruptions occur.
 	vm := New()
 	vm.Set("f", func() (Value, error) {
-		return vm.RunString("let x = 1; { let z = 100, z1 = 200, z2 = 300, z3 = 400; } x;")
+		return vm.RunString("let x = 1; { let z = 100, z1 = 200, z2 = 300, z3 = 400; x = x + z3} x;")
 	})
 	res, err := vm.RunString(`
 	function f1() {
@@ -230,6 +230,23 @@ func TestRecursiveRun(t *testing.T) {
 		}
 	};
 	f1();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.SameAs(valueInt(401)) {
+		t.Fatal(res)
+	}
+}
+
+func TestRecursiveRunCallee(t *testing.T) {
+	// Make sure that a recursive call to Run*() correctly sets the callee (i.e. stack[sb-1])
+	vm := New()
+	vm.Set("f", func() (Value, error) {
+		return vm.RunString("this; (() => 1)()")
+	})
+	res, err := vm.RunString(`
+		f(123, 123);
 	`)
 	if err != nil {
 		t.Fatal(err)
@@ -2662,6 +2679,22 @@ func TestSuspendResumeRelStackLen(t *testing.T) {
 	testAsyncFunc(SCRIPT, valueTrue, t)
 }
 
+func TestSuspendResumeStacks(t *testing.T) {
+	const SCRIPT = `
+async function f1() {
+	throw new Error();
+}
+async function f() {
+  try {
+	await f1();
+  } catch {}
+}
+
+result = await f();
+	`
+	testAsyncFunc(SCRIPT, _undefined, t)
+}
+
 func TestNestedTopLevelConstructorCall(t *testing.T) {
 	r := New()
 	c := func(call ConstructorCall, rt *Runtime) *Object {
@@ -2772,6 +2805,18 @@ func TestPanicPropagation(t *testing.T) {
 	}()
 	_, _ = f(nil)
 	t.Fatal("Expected panic")
+}
+
+func TestAwaitInParameters(t *testing.T) {
+	_, err := Compile("", `
+	async function g() {
+	    async function inner(a = 1 + await 1) {
+	    }
+	}
+	`, false)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
 }
 
 /*
