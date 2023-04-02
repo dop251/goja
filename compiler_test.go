@@ -4610,6 +4610,17 @@ func TestSrcLocations(t *testing.T) {
 						["test.js", "", 49, 4]
 						]);
 	}
+
+	try {
+		let n;
+		n.field = {
+	        "key1": "test",
+	        "key2": {},
+		}
+	} catch(e) {
+		assertStack(e, [["test.js", "", 58, 5]
+						]);
+	}
 	`
 	testScriptWithTestLibX(SCRIPT, _undefined, t)
 }
