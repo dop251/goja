@@ -495,6 +495,21 @@ func ExampleObject_Delete() {
 	// Output: before: true, after: <nil>
 }
 
+func TestObjectEquality(t *testing.T) {
+	type CustomInt int
+	type S struct {
+		F CustomInt
+	}
+	vm := New()
+	vm.Set("s", S{})
+	// indexOf() and includes() use different equality checks (StrictEquals and SameValueZero respectively),
+	// but for objects they must behave the same. De-referencing s.F creates a new wrapper each time.
+	vm.testScriptWithTestLib(`
+	assert.sameValue([s.F].indexOf(s.F), 0, "indexOf");
+	assert([s.F].includes(s.F));
+	`, _undefined, t)
+}
+
 func BenchmarkPut(b *testing.B) {
 	v := &Object{}
 
