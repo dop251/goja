@@ -40,6 +40,14 @@ var (
 		{layout: "2006", dateOnly: true},
 		{layout: "2006-01", dateOnly: true},
 
+		{layout: "2006/01"},
+		{layout: "2006/01/02"},
+		{layout: "2006/01/02 15:04:05"},
+
+		{layout: "01/2006"},
+		{layout: "01/02/2006"},
+		{layout: "01/02/2006 15:04:05"},
+
 		{layout: "2006T15:04"},
 		{layout: "2006-01T15:04"},
 		{layout: "2006-01-02T15:04"},
