@@ -65,6 +65,19 @@ func TestQuoteMalformedSurrogatePair(t *testing.T) {
 	testScript(`JSON.stringify("\uD800")`, asciiString(`"\ud800"`), t)
 }
 
+func TestEOFWrapping(t *testing.T) {
+	vm := New()
+
+	_, err := vm.RunString("JSON.parse('{')")
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+
+	if !strings.Contains(err.Error(), "Unexpected end of JSON input") {
+		t.Fatalf("Error doesn't contain human-friendly wrapper: %v", err)
+	}
+}
+
 func BenchmarkJSONStringify(b *testing.B) {
 	b.StopTimer()
 	vm := New()
