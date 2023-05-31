@@ -765,7 +765,9 @@ func (o *Object) baseObject(*Runtime) *Object {
 //
 // For a DynamicObject or a DynamicArray, returns the underlying handler.
 //
-// For an array, returns its items as []interface{}.
+// For typed arrays it returns a slice of the corresponding type backed by the original data (i.e. it does not copy).
+//
+// For an untyped array, returns its items exported into a newly created []interface{}.
 //
 // In all other cases returns own enumerable non-symbol properties as map[string]interface{}.
 //

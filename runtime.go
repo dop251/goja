@@ -2369,6 +2369,9 @@ func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.
 // If an object has a 'length' property and is not a function it is treated as array-like. The resulting slice
 // will contain obj[0], ... obj[length-1].
 //
+// ArrayBuffer and ArrayBuffer-backed types (i.e. typed arrays and DataView) can be exported into []byte. The result
+// is backed by the original data, no copy is performed.
+//
 // For any other Object an error is returned.
 //
 // # Array types
