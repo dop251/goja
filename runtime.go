@@ -2616,18 +2616,6 @@ func (r *Runtime) toObject(v Value, args ...interface{}) *Object {
 	}
 }
 
-func (r *Runtime) toNumber(v Value) Value {
-	switch o := v.(type) {
-	case valueInt, valueFloat:
-		return v
-	case *Object:
-		if pvo, ok := o.self.(*primitiveValueObject); ok {
-			return r.toNumber(pvo.pValue)
-		}
-	}
-	panic(r.NewTypeError("Value is not a number: %s", v))
-}
-
 func (r *Runtime) speciesConstructor(o, defaultConstructor *Object) func(args []Value, newTarget *Object) *Object {
 	c := o.self.getStr("constructor", nil)
 	if c != nil && c != _undefined {

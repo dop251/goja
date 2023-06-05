@@ -223,7 +223,7 @@ func (o *objectGoArrayReflect) hasOwnPropertyStr(name unistring.String) bool {
 	if o._hasStr(name) || name == "length" {
 		return true
 	}
-	return o.objectGoReflect._has(name.String())
+	return o.objectGoReflect.hasOwnPropertyStr(name)
 }
 
 func (o *objectGoArrayReflect) defineOwnPropertyIdx(idx valueInt, descr PropertyDescriptor, throw bool) bool {
@@ -254,10 +254,6 @@ func (o *objectGoArrayReflect) defineOwnPropertyStr(name unistring.String, descr
 	}
 	o.val.runtime.typeErrorResult(throw, "Cannot define property '%s' on a Go slice", name)
 	return false
-}
-
-func (o *objectGoArrayReflect) toPrimitive() Value {
-	return o.toPrimitiveString()
 }
 
 func (o *objectGoArrayReflect) _deleteIdx(idx int) {
