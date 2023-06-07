@@ -1,6 +1,9 @@
 package goja
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 func TestUint16ArrayObject(t *testing.T) {
 	vm := New()
@@ -339,4 +342,175 @@ func TestTypedArrayGetInvalidIndex(t *testing.T) {
 	assert.sameValue(a["1"], undefined);
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestExportArrayBufferToBytes(t *testing.T) {
+	vm := New()
+	bb := []byte("test")
+	ab := vm.NewArrayBuffer(bb)
+	var b []byte
+	err := vm.ExportTo(vm.ToValue(ab), &b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(b, bb) {
+		t.Fatal("Not equal")
+	}
+
+	err = vm.ExportTo(vm.ToValue(123), &b)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestTypedArrayExport(t *testing.T) {
+	vm := New()
+
+	t.Run("uint8", func(t *testing.T) {
+		v, err := vm.RunString("new Uint8Array([1, 2])")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a, ok := v.Export().([]uint8); ok {
+			if len(a) != 2 || a[0] != 1 || a[1] != 2 {
+				t.Fatal(a)
+			}
+		} else {
+			t.Fatal("Wrong export type")
+		}
+		_, err = vm.RunString(`{
+		let a = new Uint8Array([1, 2]);
+		if (a[0] !== 1 || a[1] !== 2) {
+			throw new Error(a);
+		}
+		}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("uint8-slice", func(t *testing.T) {
+		v, err := vm.RunString(`{
+			const buf = new Uint8Array([1, 2]).buffer;
+			new Uint8Array(buf, 1, 1);
+		}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a, ok := v.Export().([]uint8); ok {
+			if len(a) != 1 || a[0] != 2 {
+				t.Fatal(a)
+			}
+		} else {
+			t.Fatal("Wrong export type")
+		}
+		_, err = vm.RunString(`{
+		let a = new Uint8Array([1, 2]);
+		if (a[0] !== 1 || a[1] !== 2) {
+			throw new Error(a);
+		}
+		}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("int8", func(t *testing.T) {
+		v, err := vm.RunString("new Int8Array([1, -2])")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a, ok := v.Export().([]int8); ok {
+			if len(a) != 2 || a[0] != 1 || a[1] != -2 {
+				t.Fatal(a)
+			}
+		} else {
+			t.Fatal("Wrong export type")
+		}
+	})
+
+	t.Run("uint16", func(t *testing.T) {
+		v, err := vm.RunString("new Uint16Array([1, 63000])")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a, ok := v.Export().([]uint16); ok {
+			if len(a) != 2 || a[0] != 1 || a[1] != 63000 {
+				t.Fatal(a)
+			}
+		} else {
+			t.Fatal("Wrong export type")
+		}
+	})
+
+	t.Run("int16", func(t *testing.T) {
+		v, err := vm.RunString("new Int16Array([1, -31000])")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a, ok := v.Export().([]int16); ok {
+			if len(a) != 2 || a[0] != 1 || a[1] != -31000 {
+				t.Fatal(a)
+			}
+		} else {
+			t.Fatal("Wrong export type")
+		}
+	})
+
+	t.Run("uint32", func(t *testing.T) {
+		v, err := vm.RunString("new Uint32Array([1, 123456])")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a, ok := v.Export().([]uint32); ok {
+			if len(a) != 2 || a[0] != 1 || a[1] != 123456 {
+				t.Fatal(a)
+			}
+		} else {
+			t.Fatal("Wrong export type")
+		}
+	})
+
+	t.Run("int32", func(t *testing.T) {
+		v, err := vm.RunString("new Int32Array([1, -123456])")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a, ok := v.Export().([]int32); ok {
+			if len(a) != 2 || a[0] != 1 || a[1] != -123456 {
+				t.Fatal(a)
+			}
+		} else {
+			t.Fatal("Wrong export type")
+		}
+	})
+
+	t.Run("float32", func(t *testing.T) {
+		v, err := vm.RunString("new Float32Array([1, -1.23456])")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a, ok := v.Export().([]float32); ok {
+			if len(a) != 2 || a[0] != 1 || a[1] != -1.23456 {
+				t.Fatal(a)
+			}
+		} else {
+			t.Fatal("Wrong export type")
+		}
+	})
+
+	t.Run("float64", func(t *testing.T) {
+		v, err := vm.RunString("new Float64Array([1, -1.23456789])")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a, ok := v.Export().([]float64); ok {
+			if len(a) != 2 || a[0] != 1 || a[1] != -1.23456789 {
+				t.Fatal(a)
+			}
+		} else {
+			t.Fatal("Wrong export type")
+		}
+	})
+
 }

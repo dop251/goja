@@ -718,10 +718,7 @@ func (o *Object) ToNumber() Value {
 }
 
 func (o *Object) SameAs(other Value) bool {
-	if other, ok := other.(*Object); ok {
-		return o == other
-	}
-	return false
+	return o.StrictEquals(other)
 }
 
 func (o *Object) Equals(other Value) bool {
@@ -741,7 +738,7 @@ func (o *Object) Equals(other Value) bool {
 
 func (o *Object) StrictEquals(other Value) bool {
 	if other, ok := other.(*Object); ok {
-		return o == other || o.self.equal(other.self)
+		return o == other || o != nil && other != nil && o.self.equal(other.self)
 	}
 	return false
 }
@@ -768,17 +765,15 @@ func (o *Object) baseObject(*Runtime) *Object {
 //
 // For a DynamicObject or a DynamicArray, returns the underlying handler.
 //
-// For an array, returns its items as []interface{}.
+// For typed arrays it returns a slice of the corresponding type backed by the original data (i.e. it does not copy).
+//
+// For an untyped array, returns its items exported into a newly created []interface{}.
 //
 // In all other cases returns own enumerable non-symbol properties as map[string]interface{}.
 //
 // This method will panic with an *Exception if a JavaScript exception is thrown in the process.
-func (o *Object) Export() (ret interface{}) {
-	o.runtime.tryPanic(func() {
-		ret = o.self.export(&objectExportCtx{})
-	})
-
-	return
+func (o *Object) Export() interface{} {
+	return o.self.export(&objectExportCtx{})
 }
 
 // ExportType returns the type of the value that is returned by Export().
