@@ -484,6 +484,31 @@ func TestGoSliceReflect111(t *testing.T) {
 	t.Log(a[0])
 }
 
+func TestGoSliceReflectExternalLenUpdate(t *testing.T) {
+	data := &[]int{1}
+
+	vm := New()
+	vm.Set("data", data)
+	vm.Set("append", func(a *[]int, v int) {
+		if a != data {
+			panic(vm.NewTypeError("a != data"))
+		}
+		*a = append(*a, v)
+	})
+
+	vm.testScriptWithTestLib(`
+		assert.sameValue(data.length, 1);
+
+        // modify with js
+        data.push(1);
+		assert.sameValue(data.length, 2);
+
+        // modify with go
+        append(data, 2);
+		assert.sameValue(data.length, 3);
+    `, _undefined, t)
+}
+
 func BenchmarkGoSliceReflectSet(b *testing.B) {
 	vm := New()
 	a := vm.ToValue([]int{1}).(*Object)

@@ -1914,12 +1914,12 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 		m.init()
 		return obj
 	case []interface{}:
-		return r.newObjectGoSlice(&i).val
+		return r.newObjectGoSlice(&i, false).val
 	case *[]interface{}:
 		if i == nil {
 			return _null
 		}
-		return r.newObjectGoSlice(i).val
+		return r.newObjectGoSlice(i, true).val
 	}
 
 	if !origValue.IsValid() {

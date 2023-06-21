@@ -60,12 +60,12 @@ func (o *objectGoArrayReflect) _init() {
 	o.objectGoReflect.init()
 	o.class = classArray
 	o.prototype = o.val.runtime.global.ArrayPrototype
-	o.updateLen()
 	o.baseObject._put("length", &o.lengthProp)
 }
 
 func (o *objectGoArrayReflect) init() {
 	o._init()
+	o.updateLen()
 	o.putIdx = o._putIdx
 }
 
@@ -114,6 +114,9 @@ func (o *objectGoArrayReflect) getStr(name unistring.String, receiver Value) Val
 	if idx := strToGoIdx(name); idx >= 0 && idx < o.fieldsValue.Len() {
 		ownProp = o._getIdx(idx)
 	} else if name == "length" {
+		if o.fieldsValue.Kind() == reflect.Slice {
+			o.updateLen()
+		}
 		ownProp = &o.lengthProp
 	} else {
 		ownProp = o.objectGoReflect.getOwnPropStr(name)
@@ -133,6 +136,9 @@ func (o *objectGoArrayReflect) getOwnPropStr(name unistring.String) Value {
 		return nil
 	}
 	if name == "length" {
+		if o.fieldsValue.Kind() == reflect.Slice {
+			o.updateLen()
+		}
 		return &o.lengthProp
 	}
 	return o.objectGoReflect.getOwnPropStr(name)

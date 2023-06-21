@@ -271,3 +271,28 @@ func TestGoSliceToString(t *testing.T) {
 		t.Fatal(exp)
 	}
 }
+
+func TestGoSliceExternalLenUpdate(t *testing.T) {
+	data := &[]interface{}{1}
+
+	vm := New()
+	vm.Set("data", data)
+	vm.Set("append", func(a *[]interface{}, v int) {
+		if a != data {
+			panic(vm.NewTypeError("a != data"))
+		}
+		*a = append(*a, v)
+	})
+
+	vm.testScriptWithTestLib(`
+		assert.sameValue(data.length, 1);
+
+        // modify with js
+        data.push(1);
+		assert.sameValue(data.length, 2);
+
+        // modify with go
+        append(data, 2);
+		assert.sameValue(data.length, 3);
+    `, _undefined, t)
+}
