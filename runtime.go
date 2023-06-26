@@ -2771,6 +2771,37 @@ func (ir *iteratorRecord) close() {
 	ir.next = nil
 }
 
+// ForOf is a Go equivalent of for-of loop. The function panics if an exception is thrown at any point
+// while iterating, including if the supplied value is not iterable
+// (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols#the_iterable_protocol).
+// When using outside of Runtime.Run (i.e. when calling directly from Go code, not from a JS function implemented
+// in Go) it must be enclosed in Try. See the example.
+func (r *Runtime) ForOf(iterable Value, step func(curValue Value) (continueIteration bool)) {
+	iter := r.getIterator(iterable, nil)
+	for {
+		value, ex := iter.step()
+		if ex != nil {
+			panic(ex)
+		}
+		if value != nil {
+			var continueIteration bool
+			ex := r.vm.try(func() {
+				continueIteration = step(value)
+			})
+			if ex != nil {
+				iter.returnIter()
+				panic(ex)
+			}
+			if !continueIteration {
+				iter.returnIter()
+				break
+			}
+		} else {
+			break
+		}
+	}
+}
+
 func (r *Runtime) createIterResultObject(value Value, done bool) Value {
 	o := r.NewObject()
 	o.self.setOwnStr("value", value, false)

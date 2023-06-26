@@ -2844,6 +2844,37 @@ func TestAwaitInParameters(t *testing.T) {
 	}
 }
 
+func ExampleRuntime_ForOf() {
+	r := New()
+	v, err := r.RunString(`
+		new Map().set("a", 1).set("b", 2);
+	`)
+	if err != nil {
+		panic(err)
+	}
+
+	var sb strings.Builder
+	ex := r.Try(func() {
+		r.ForOf(v, func(v Value) bool {
+			o := v.ToObject(r)
+			key := o.Get("0")
+			value := o.Get("1")
+
+			sb.WriteString(key.String())
+			sb.WriteString("=")
+			sb.WriteString(value.String())
+			sb.WriteString(",")
+
+			return true
+		})
+	})
+	if ex != nil {
+		panic(ex)
+	}
+	fmt.Println(sb.String())
+	// Output: a=1,b=2,
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
