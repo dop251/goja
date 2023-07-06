@@ -398,18 +398,44 @@ func TestArgsKeys(t *testing.T) {
 
 func TestIPowOverflow(t *testing.T) {
 	const SCRIPT = `
-	Math.pow(65536, 6)
+	assert.sameValue(Math.pow(65536, 6), 7.922816251426434e+28);
+	assert.sameValue(Math.pow(10, 19), 1e19);
+	assert.sameValue(Math.pow(2097151, 3), 9223358842721534000);
+	assert.sameValue(Math.pow(2097152, 3), 9223372036854776000);
+	assert.sameValue(Math.pow(-2097151, 3), -9223358842721534000);
+	assert.sameValue(Math.pow(-2097152, 3), -9223372036854776000);
+	assert.sameValue(Math.pow(9007199254740992, 0), 1);
+	assert.sameValue(Math.pow(-9007199254740992, 0), 1);
+	assert.sameValue(Math.pow(0, 0), 1);
 	`
 
-	testScript(SCRIPT, floatToValue(7.922816251426434e+28), t)
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
-func TestIPowZero(t *testing.T) {
-	const SCRIPT = `
-	Math.pow(0, 0)
-	`
+func TestIPow(t *testing.T) {
+	if res := ipow(-9223372036854775808, 1); res != -9223372036854775808 {
+		t.Fatal(res)
+	}
 
-	testScript(SCRIPT, intToValue(1), t)
+	if res := ipow(9223372036854775807, 1); res != 9223372036854775807 {
+		t.Fatal(res)
+	}
+
+	if res := ipow(-9223372036854775807, 1); res != -9223372036854775807 {
+		t.Fatal(res)
+	}
+
+	if res := ipow(9223372036854775807, 0); res != 1 {
+		t.Fatal(res)
+	}
+
+	if res := ipow(-9223372036854775807, 0); res != 1 {
+		t.Fatal(res)
+	}
+
+	if res := ipow(-9223372036854775808, 0); res != 1 {
+		t.Fatal(res)
+	}
 }
 
 func TestInterrupt(t *testing.T) {
