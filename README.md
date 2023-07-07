@@ -196,8 +196,8 @@ fmt.Println(res)
 - Using [Runtime.ExportTo()](https://pkg.go.dev/github.com/dop251/goja#Runtime.ExportTo):
 ```go
 const SCRIPT = `
-function f(param) {
-    return +param + 2;
+function sum(a, b) {
+    return +a + b;
 }
 `
 
@@ -207,13 +207,13 @@ if err != nil {
     panic(err)
 }
 
-var fn func(string) string
-err = vm.ExportTo(vm.Get("f"), &fn)
+var sum func(int, int) int
+err = vm.ExportTo(vm.Get("sum"), &sum)
 if err != nil {
     panic(err)
 }
 
-fmt.Println(fn("40")) // note, _this_ value in the function will be undefined.
+fmt.Println(sum(40, 2)) // note, _this_ value in the function will be undefined.
 // Output: 42
 ```
 
