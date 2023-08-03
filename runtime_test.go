@@ -302,6 +302,61 @@ func TestObjectGetSet(t *testing.T) {
 	}
 }
 
+func TestRuntime_ToValue_FromPrimitivePtr(t *testing.T) {
+	type tt struct {
+		scene  string
+		input  interface{}
+		expect interface{}
+	}
+
+	for _, next := range []tt{
+		{"BoolPtrNil", (*bool)(nil), nil},
+		{"BoolPtrFalse", new(bool), false},
+		{
+			"BoolPtrTrue",
+			func() interface{} {
+				b := new(bool)
+				*b = true
+				return b
+			}(),
+			true,
+		},
+		{"Int8PtrNil", (*int8)(nil), nil},
+		{"Int8Ptr", new(int8), int64(0)},
+		{"Int16PtrNil", (*int16)(nil), nil},
+		{"Int16Ptr", new(int16), int64(0)},
+		{"Int32PtrNil", (*int32)(nil), nil},
+		{"Int32Ptr", new(int32), int64(0)},
+		{"Int64PtrNil", (*int64)(nil), nil},
+		{"Int64Ptr", new(int64), int64(0)},
+		{"IntPtrNil", (*int)(nil), nil},
+		{"IntPtr", new(int), int64(0)},
+		{"Uint8PtrNil", (*uint8)(nil), nil},
+		{"Uint8Ptr", new(uint8), int64(0)},
+		{"Uint16PtrNil", (*uint16)(nil), nil},
+		{"Uint16Ptr", new(uint16), int64(0)},
+		{"Uint32PtrNil", (*uint32)(nil), nil},
+		{"Uint32Ptr", new(uint32), int64(0)},
+		{"Uint64PtrNil", (*uint64)(nil), nil},
+		{"Uint64Ptr", new(uint64), int64(0)},
+		{"UintPtrNil", (*uint)(nil), nil},
+		{"UintPtr", new(uint), int64(0)},
+		{"Float32PtrNil", (*float32)(nil), nil},
+		{"Float32Ptr", new(float32), int64(0)},
+		{"Float64PtrNil", (*float64)(nil), nil},
+		{"Float64Ptr", new(float64), int64(0)},
+	} {
+		t.Run(next.scene, func(t *testing.T) {
+			r := New()
+			val := r.ToValue(next.input)
+			export := val.Export()
+			if !reflect.DeepEqual(next.expect, export) {
+				t.Fatalf("Unexpected test value: %v (%T)", val, export)
+			}
+		})
+	}
+}
+
 func TestThrowFromNativeFunc(t *testing.T) {
 	const SCRIPT = `
 	var thrown;

@@ -1851,6 +1851,15 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 		} else {
 			return valueFalse
 		}
+	case *bool:
+		if i == nil {
+			return _null
+		}
+		if *i {
+			return valueTrue
+		} else {
+			return valueFalse
+		}
 	case func(FunctionCall) Value:
 		name := unistring.NewFromString(runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name())
 		return r.newNativeFunc(i, nil, name, nil, 0)
@@ -1869,35 +1878,102 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 		}, name, 0)
 	case int:
 		return intToValue(int64(i))
+	case *int:
+		if i == nil {
+			return _null
+		}
+		return intToValue(int64(*i))
 	case int8:
 		return intToValue(int64(i))
+	case *int8:
+		if i == nil {
+			return _null
+		}
+		return intToValue(int64(*i))
 	case int16:
 		return intToValue(int64(i))
+	case *int16:
+		if i == nil {
+			return _null
+		}
+		return intToValue(int64(*i))
 	case int32:
 		return intToValue(int64(i))
+	case *int32:
+		if i == nil {
+			return _null
+		}
+		return intToValue(int64(*i))
 	case int64:
 		return intToValue(i)
+	case *int64:
+		if i == nil {
+			return _null
+		}
+		return intToValue(*i)
 	case uint:
 		if uint64(i) <= math.MaxInt64 {
 			return intToValue(int64(i))
 		} else {
 			return floatToValue(float64(i))
 		}
+	case *uint:
+		if i == nil {
+			return _null
+		}
+		if uint64(*i) <= math.MaxInt64 {
+			return intToValue(int64(*i))
+		} else {
+			return floatToValue(float64(*i))
+		}
 	case uint8:
 		return intToValue(int64(i))
+	case *uint8:
+		if i == nil {
+			return _null
+		}
+		return intToValue(int64(*i))
 	case uint16:
 		return intToValue(int64(i))
+	case *uint16:
+		if i == nil {
+			return _null
+		}
+		return intToValue(int64(*i))
 	case uint32:
 		return intToValue(int64(i))
+	case *uint32:
+		if i == nil {
+			return _null
+		}
+		return intToValue(int64(*i))
 	case uint64:
 		if i <= math.MaxInt64 {
 			return intToValue(int64(i))
 		}
 		return floatToValue(float64(i))
+	case *uint64:
+		if i == nil {
+			return _null
+		}
+		if *i <= math.MaxInt64 {
+			return intToValue(int64(*i))
+		}
+		return floatToValue(float64(*i))
 	case float32:
 		return floatToValue(float64(i))
+	case *float32:
+		if i == nil {
+			return _null
+		}
+		return floatToValue(float64(*i))
 	case float64:
 		return floatToValue(i)
+	case *float64:
+		if i == nil {
+			return _null
+		}
+		return floatToValue(*i)
 	case map[string]interface{}:
 		if i == nil {
 			return _null
