@@ -3002,12 +3002,12 @@ func BenchmarkStringMapGet(b *testing.B) {
 }
 
 func BenchmarkValueStringMapGet(b *testing.B) {
-	m := make(map[valueString]Value)
+	m := make(map[String]Value)
 	for i := 0; i < 100; i++ {
 		m[asciiString(strconv.Itoa(i))] = intToValue(int64(i))
 	}
 	b.ResetTimer()
-	var key valueString = asciiString("50")
+	var key String = asciiString("50")
 	for i := 0; i < b.N; i++ {
 		if m[key] == nil {
 			b.Fatal()
