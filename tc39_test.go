@@ -196,13 +196,15 @@ var (
 		// Character \ missing from character class [\c]
 		"test/annexB/built-ins/RegExp/RegExp-invalid-control-escape-character-class.js": true,
 		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js":          true,
+
+		// Skip due to regexp named groups
+		"test/built-ins/String/prototype/replaceAll/searchValue-replacer-RegExp-call.js": true,
 	}
 
 	featuresBlackList = []string{
 		"async-iteration",
 		"Symbol.asyncIterator",
 		"BigInt",
-		"String.prototype.replaceAll",
 		"resizable-arraybuffer",
 		"regexp-named-groups",
 		"regexp-dotall",
