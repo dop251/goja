@@ -208,13 +208,15 @@ var (
 
 		// top level duip names
 		"test/language/module-code/early-dup-top-function.js": true,
+
+		// Skip due to regexp named groups
+		"test/built-ins/String/prototype/replaceAll/searchValue-replacer-RegExp-call.js": true,
 	}
 
 	featuresBlackList = []string{
 		"async-iteration",
 		"Symbol.asyncIterator",
 		"BigInt",
-		"String.prototype.replaceAll",
 		"resizable-arraybuffer",
 		"regexp-named-groups",
 		"regexp-dotall",

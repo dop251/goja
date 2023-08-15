@@ -1582,7 +1582,7 @@ func (c *compiler) assert(cond bool, offset int, msg string, args ...interface{}
 }
 
 func privateIdString(desc unistring.String) unistring.String {
-	return asciiString("#").concat(stringValueFromRaw(desc)).string()
+	return asciiString("#").Concat(stringValueFromRaw(desc)).string()
 }
 
 type privateName struct {

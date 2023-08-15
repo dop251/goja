@@ -197,8 +197,8 @@ func TestParserErr(t *testing.T) {
 
 		test("\n/* Some multiline\ncomment */\n)", "(anonymous): Line 4:1 Unexpected token )")
 
-		test("+1 ** 2", "(anonymous): Line 1:4 Unexpected token **")
-		test("typeof 1 ** 2", "(anonymous): Line 1:10 Unexpected token **")
+		test("+1 ** 2", "(anonymous): Line 1:4 Unary operator used immediately before exponentiation expression. Parenthesis must be used to disambiguate operator precedence")
+		test("typeof 1 ** 2", "(anonymous): Line 1:10 Unary operator used immediately before exponentiation expression. Parenthesis must be used to disambiguate operator precedence")
 
 		// TODO
 		//{ set 1 }
@@ -928,6 +928,20 @@ func TestParser(t *testing.T) {
 		}
 		`, nil)
 		is(len(program.Body), 1)
+
+		{
+			program := test(`(-2)**53`, nil)
+			st := program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression)
+			is(st.Operator, token.EXPONENT)
+			left := st.Left.(*ast.UnaryExpression)
+			is(left.Operator, token.MINUS)
+			op1 := left.Operand.(*ast.NumberLiteral)
+			is(op1.Literal, "2")
+
+			right := st.Right.(*ast.NumberLiteral)
+			is(right.Literal, "53")
+		}
+
 	})
 }
 
