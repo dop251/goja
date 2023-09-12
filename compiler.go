@@ -918,7 +918,7 @@ found:
 	s.bindings = s.bindings[:l]
 }
 
-func (c *compiler) compileModule(module *SourceTextModuleRecord) {
+func (c *compiler) compileModule(module *SourceTextModuleRecord) *compiledModule {
 	oldModule := c.module
 	c.module = module
 	oldResolve := c.hostResolveImportedModule
@@ -930,26 +930,31 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 	in := module.body
 	c.p.scriptOrModule = module
 	c.p.src = in.File
-	strict := true
-	inGlobal := false
-	eval := false
 
 	c.newScope()
 	scope := c.scope
 	scope.dynamic = true
-	scope.eval = eval
-	if !strict && len(in.Body) > 0 {
-		strict = c.isStrict(in.Body) != nil
+	scope.strict = true
+	c.newBlockScope()
+	scope = c.scope
+	scope.funcType = funcModule
+	// scope.variable = true
+	c.emit(&enterFunc{
+		funcType: funcModule,
+	})
+	c.block = &block{
+		outer: c.block,
+		typ:   blockScope,
+
+		// needResult: true,
 	}
-	scope.strict = strict
-	ownVarScope := eval && strict || true
-	ownLexScope := !inGlobal || eval
-	if ownVarScope {
-		c.newBlockScope()
-		scope = c.scope
-		scope.funcType = funcRegular
-		scope.variable = true
+	enter := &enterFuncBody{
+		funcType:    funcModule,
+		extensible:  true,
+		adjustStack: true,
 	}
+
+	c.emit(enter)
 	for _, in := range module.indirectExportEntries {
 		v, ambiguous := module.ResolveExport(in.exportName)
 		if v == nil || ambiguous {
@@ -958,143 +963,133 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 	}
 
 	for _, in := range module.importEntries {
-		importedModule, err := c.hostResolveImportedModule(module, in.moduleRequest)
-		if err != nil {
-			panic(fmt.Errorf("previously resolved module returned error %w", err))
-		}
-		if in.importName != "*" {
-			resolution, ambiguous := importedModule.ResolveExport(in.importName)
-			if resolution == nil || ambiguous {
-				c.compileAmbiguousImport(unistring.NewFromString(in.importName))
-				continue
-			}
-		}
-		b, _ := c.scope.bindName(unistring.NewFromString(in.localName))
-		b.inStash = true
-		b.isConst = true
+		c.compileImportEntry(in)
 	}
 	funcs := c.extractFunctions(in.Body)
 	c.createFunctionBindings(funcs)
-	numFuncs := len(scope.bindings)
-	if inGlobal && !ownVarScope {
-		if numFuncs == len(funcs) {
-			c.compileFunctionsGlobalAllUnique(funcs)
-		} else {
-			c.compileFunctionsGlobal(funcs)
-		}
-	}
 	c.compileDeclList(in.DeclarationList, false)
-	numVars := len(scope.bindings) - numFuncs
 	vars := make([]unistring.String, len(scope.bindings))
 	for i, b := range scope.bindings {
 		vars[i] = b.name
 	}
-	if len(vars) > 0 && !ownVarScope && ownLexScope {
-		if inGlobal {
-			c.emit(&bindGlobal{
-				vars:      vars[numFuncs:],
-				funcs:     vars[:numFuncs],
-				deletable: eval,
-			})
-		} else {
-			c.emit(&bindVars{names: vars, deletable: eval})
-		}
+	if len(vars) > 0 {
+		c.emit(&bindVars{names: vars, deletable: false})
 	}
-	var enter *enterBlock
-	if c.compileLexicalDeclarations(in.Body, ownVarScope || !ownLexScope) {
-		if ownLexScope {
-			c.block = &block{
-				outer:      c.block,
-				typ:        blockScope,
-				needResult: true,
-			}
-			enter = &enterBlock{}
-			c.emit(enter)
-		}
-	}
-
+	c.compileLexicalDeclarations(in.Body, true)
 	for _, exp := range in.Body {
 		if imp, ok := exp.(*ast.ImportDeclaration); ok {
 			c.compileImportDeclaration(imp)
 		}
 	}
 	for _, entry := range module.localExportEntries {
-		name := unistring.NewFromString(entry.localName)
-		b, ok := scope.boundNames[name]
-		if !ok {
-			if entry.localName != "default" {
-				// TODO fix index
-				c.throwSyntaxError(0, "exporting unknown binding: %q", name)
-			}
-			b, _ = scope.bindName(name)
-		}
-
-		b.inStash = true
-		b.markAccessPoint()
-
-		exportName := unistring.NewFromString(entry.localName)
-		callback := func(vm *vm, getter func() Value) {
-			vm.r.modules[module].(*SourceTextModuleInstance).exportGetters[exportName.String()] = getter
-		}
-
-		if entry.lex || !scope.boundNames[exportName].isVar {
-			c.emit(exportLex{callback: callback})
-		} else {
-			c.emit(export{callback: callback})
-		}
+		c.compileLocalExportEntry(entry)
 	}
 	for _, entry := range module.indirectExportEntries {
-		otherModule, err := c.hostResolveImportedModule(c.module, entry.moduleRequest)
-		if err != nil {
-			panic(fmt.Errorf("previously resolved module returned error %w", err))
-		}
-		if entry.importName == "*" {
-			continue
-		}
-		b, ambiguous := otherModule.ResolveExport(entry.importName)
-		if ambiguous || b == nil {
-			c.compileAmbiguousImport(unistring.NewFromString(entry.importName))
-			continue
-		}
+		c.compileIndirectExportEntry(entry)
+	}
 
-		exportName := unistring.NewFromString(entry.exportName).String()
-		importName := unistring.NewFromString(b.BindingName).String()
-		c.emit(exportIndirect{callback: func(vm *vm) {
-			m := vm.r.modules[module]
-			m2 := vm.r.modules[b.Module]
-			m.(*SourceTextModuleInstance).exportGetters[exportName] = func() Value {
-				return m2.GetBindingValue(importName)
-			}
-		}})
-	}
-	if len(scope.bindings) > 0 && !ownLexScope {
-		var lets, consts []unistring.String
-		for _, b := range c.scope.bindings[numFuncs+numVars:] {
-			if b.isConst {
-				consts = append(consts, b.name)
-			} else {
-				lets = append(lets, b.name)
-			}
-		}
-		c.emit(&bindGlobal{
-			vars:   vars[numFuncs:],
-			funcs:  vars[:numFuncs],
-			lets:   lets,
-			consts: consts,
-		})
-	}
-	if !inGlobal || ownVarScope {
-		c.compileFunctions(funcs)
-	}
-	// TODO figure something better 😬
-	c.emit(notReallyYield) // this to stop us execute once after we initialize globals
+	c.compileFunctions(funcs)
+
+	c.emit(&loadModulePromise{moduleCore: module})
+	c.emit(await) // this to stop us execute once after we initialize globals
+	c.emit(pop)
+
 	c.compileStatements(in.Body, true)
-	if enter != nil {
-		c.leaveScopeBlock(enter)
-		c.popScope()
-	}
+	c.emit(loadUndef)
+	c.emit(ret)
+	c.updateEnterBlock(&enter.enterBlock)
+	c.leaveScopeBlock(&enter.enterBlock)
+	c.popScope()
 
 	scope.finaliseVarAlloc(0)
+	m := &newModule{
+		moduleCore: module,
+		newAsyncFunc: newAsyncFunc{
+			newFunc: newFunc{
+				prg:    c.p,
+				name:   unistring.String(in.File.Name()),
+				source: in.File.Source(),
+				length: 0,
+				strict: true,
+			},
+		},
+	}
+	c.p = &Program{
+		src:            in.File,
+		scriptOrModule: m,
+	}
+	c.emit(_loadUndef{}, m, call(0), &setModulePromise{moduleCore: module})
+	return &compiledModule{}
+}
+
+func (c *compiler) compileImportEntry(in importEntry) {
+	importedModule, err := c.hostResolveImportedModule(c.module, in.moduleRequest)
+	if err != nil {
+		panic(fmt.Errorf("previously resolved module returned error %w", err))
+	}
+	if in.importName != "*" {
+		resolution, ambiguous := importedModule.ResolveExport(in.importName)
+		if resolution == nil || ambiguous {
+			c.compileAmbiguousImport(unistring.NewFromString(in.importName))
+			return
+		}
+	}
+	b, _ := c.scope.bindName(unistring.NewFromString(in.localName))
+	b.inStash = true
+	b.isConst = true
+}
+
+func (c *compiler) compileLocalExportEntry(entry exportEntry) {
+	name := unistring.NewFromString(entry.localName)
+	b, ok := c.scope.boundNames[name]
+	if !ok {
+		if entry.localName != "default" {
+			// TODO fix index
+			c.throwSyntaxError(0, "exporting unknown binding: %q", name)
+		}
+		b, _ = c.scope.bindName(name)
+	}
+
+	b.inStash = true
+	b.markAccessPoint()
+
+	exportName := unistring.NewFromString(entry.localName)
+	module := c.module
+	callback := func(vm *vm, getter func() Value) {
+		vm.r.modules[module].(*SourceTextModuleInstance).exportGetters[exportName.String()] = getter
+	}
+
+	if entry.lex || !c.scope.boundNames[exportName].isVar {
+		c.emit(exportLex{callback: callback})
+	} else {
+		c.emit(export{callback: callback})
+	}
+}
+
+func (c *compiler) compileIndirectExportEntry(entry exportEntry) {
+	otherModule, err := c.hostResolveImportedModule(c.module, entry.moduleRequest)
+	if err != nil {
+		panic(fmt.Errorf("previously resolved module returned error %w", err))
+	}
+	if entry.importName == "*" {
+		return
+	}
+	b, ambiguous := otherModule.ResolveExport(entry.importName)
+	if ambiguous || b == nil {
+		c.compileAmbiguousImport(unistring.NewFromString(entry.importName))
+		return
+	}
+
+	exportName := unistring.NewFromString(entry.exportName).String()
+	importName := unistring.NewFromString(b.BindingName).String()
+	module := c.module
+	c.emit(exportIndirect{callback: func(vm *vm) {
+		m := vm.r.modules[module]
+		m2 := vm.r.modules[b.Module]
+		m.(*SourceTextModuleInstance).exportGetters[exportName] = func() Value {
+			return m2.GetBindingValue(importName)
+		}
+	}})
 }
 
 func (c *compiler) compile(in *ast.Program, strict, inGlobal bool, evalVm *vm) {

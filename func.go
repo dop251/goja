@@ -696,6 +696,7 @@ func (ar *asyncRunner) onRejected(call FunctionCall) Value {
 }
 
 func (ar *asyncRunner) step(res Value, done bool, ex *Exception) {
+	// fmt.Printf("step(%v, %v, %v)\n", res, done, ex)
 	r := ar.f.runtime
 	if done || ex != nil {
 		if ex == nil {
@@ -765,9 +766,12 @@ func (g *generator) step() (res Value, resultType resultType, ex *Exception) {
 	}
 	res = g.vm.pop()
 	if ym, ok := res.(*yieldMarker); ok {
+		// fmt.Println("here")
 		resultType = ym.resultType
 		g.ctx = execCtx{}
 		g.vm.pc = -g.vm.pc + 1
+		// fmt.Println(res)
+		// fmt.Println(g.vm.stack)
 		if res != yieldEmpty {
 			res = g.vm.pop()
 		} else {
@@ -777,6 +781,7 @@ func (g *generator) step() (res Value, resultType resultType, ex *Exception) {
 		g.vm.sp = g.vm.sb - 1
 		g.vm.callStack = g.vm.callStack[:len(g.vm.callStack)-1] // remove the frame with pc == -2, as ret would do
 	}
+	// fmt.Println(res)
 	return
 }
 

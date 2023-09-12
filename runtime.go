@@ -609,6 +609,16 @@ func (r *Runtime) newAsyncFunc(name unistring.String, length int, strict bool) (
 	return
 }
 
+func (r *Runtime) newModule(name unistring.String, pcap *promiseCapability) (f *asyncFuncObject) {
+	f = &asyncFuncObject{}
+	r.initBaseJsFunction(&f.baseJsFuncObject, true)
+	f.class = classFunction
+	f.prototype = r.getAsyncFunctionPrototype()
+	f.val.self = f
+	f.init(name, intToValue(0))
+	return
+}
+
 func (r *Runtime) newGeneratorFunc(name unistring.String, length int, strict bool) (f *generatorFuncObject) {
 	f = &generatorFuncObject{}
 	r.initBaseJsFunction(&f.baseJsFuncObject, strict)
@@ -1527,53 +1537,6 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	} else {
 		vm.prg = nil
 		vm.sb = -1
-		r.leave()
-	}
-	return
-}
-
-// RunProgram executes a pre-compiled (see Compile()) code in the global context.
-func (r *Runtime) continueRunProgram(_ *Program, context *context, stack valueStack) (result Value, err error) {
-	defer func() {
-		if x := recover(); x != nil {
-			if ex, ok := x.(*uncatchableException); ok {
-				err = *ex
-				if len(r.vm.callStack) == 0 {
-					r.leaveAbrupt()
-				}
-			} else {
-				panic(x)
-			}
-		}
-	}()
-	vm := r.vm
-	recursive := false
-	if len(vm.callStack) > 0 {
-		recursive = true
-		vm.pushCtx()
-		vm.stash = &r.global.stash
-		vm.sb = vm.sp - 1
-	}
-	vm.result = _undefined
-	// sb := vm.sb
-	vm.restoreCtx(context)
-	vm.stack = stack
-	// vm.sb = sb
-	// fmt.Println("continue sb ", vm.sb, vm.callStack)
-	// fmt.Println("stack at continue", vm.stack)
-	ex := vm.runTry()
-	if ex == nil {
-		result = r.vm.result
-	} else {
-		err = ex
-	}
-	if recursive {
-		vm.popCtx()
-		vm.pc = 0
-		vm.clearStack()
-	} else {
-		vm.stack = nil
-		vm.prg = nil
 		r.leave()
 	}
 	return
@@ -2578,6 +2541,17 @@ func (r *Runtime) runWrapped(f func()) (err error) {
 	if len(r.vm.callStack) == 0 {
 		r.leave()
 	} else {
+		/*
+			fmt.Printf("code: ")
+			if r.vm.prg != nil {
+				for _, code := range r.vm.prg.code {
+					fmt.Printf("{%T: %#v},", code, code)
+				}
+			} else {
+				fmt.Print("no code")
+			}
+			fmt.Print("\n")
+		*/
 		r.vm.clearStack()
 	}
 	return

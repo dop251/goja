@@ -1,12 +1,15 @@
 package goja
 
 import (
-	"github.com/dop251/goja/unistring"
 	"reflect"
+
+	"github.com/dop251/goja/unistring"
 )
 
-type PromiseState int
-type PromiseRejectionOperation int
+type (
+	PromiseState              int
+	PromiseRejectionOperation int
+)
 
 type promiseReactionType int
 

@@ -929,7 +929,8 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 				identifier := unistring.NewFromString(value.BindingName).String()
 				localB.getIndirect = func(vm *vm) Value {
 					m := vm.r.modules[value.Module]
-					return m.GetBindingValue(identifier)
+					v := m.GetBindingValue(identifier)
+					return v
 				}
 			}
 		}

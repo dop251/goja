@@ -128,7 +128,7 @@ type evaluationState struct {
 	cycleRoot                map[ModuleInstance]CyclicModuleInstance
 	asyncEvaluation          map[CyclicModuleInstance]bool
 	asyncParentModules       map[CyclicModuleInstance][]CyclicModuleInstance
-	evaluationError          map[CyclicModuleInstance]error
+	evaluationError          map[CyclicModuleInstance]interface{}
 	topLevelCapability       map[CyclicModuleRecord]*promiseCapability
 }
 
@@ -141,7 +141,7 @@ func newEvaluationState() *evaluationState {
 		cycleRoot:                make(map[ModuleInstance]CyclicModuleInstance),
 		asyncEvaluation:          make(map[CyclicModuleInstance]bool),
 		asyncParentModules:       make(map[CyclicModuleInstance][]CyclicModuleInstance),
-		evaluationError:          make(map[CyclicModuleInstance]error),
+		evaluationError:          make(map[CyclicModuleInstance]interface{}),
 		topLevelCapability:       make(map[CyclicModuleRecord]*promiseCapability),
 	}
 }
@@ -165,8 +165,7 @@ func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostR
 			state.status[m] = Evaluated
 			state.evaluationError[m] = err
 		}
-		capability.reject(r.ToValue(err))
-
+		capability.reject(r.interfaceErrorToValue(err))
 	} else {
 		if !state.asyncEvaluation[r.modules[c].(CyclicModuleInstance)] {
 			state.topLevelCapability[c].resolve(_undefined)
@@ -180,7 +179,7 @@ func (r *Runtime) innerModuleEvaluation(
 	state *evaluationState,
 	m ModuleRecord, stack *[]CyclicModuleInstance, index uint,
 	resolve HostResolveImportedModuleFunc,
-) (idx uint, err error) {
+) (idx uint, ex error) {
 	if len(*stack) > 100000 {
 		panic("too deep dependancy stack of 100000")
 	}
@@ -198,11 +197,11 @@ func (r *Runtime) innerModuleEvaluation(
 	if _, ok = r.modules[m]; ok {
 		return index, nil
 	}
-	c, err = cr.Instantiate(r)
-	if err != nil {
+	c, ex = cr.Instantiate(r)
+	if ex != nil {
 		// state.evaluationError[cr] = err
 		// TODO handle this somehow - maybe just panic
-		return index, err
+		return index, ex
 	}
 
 	r.modules[m] = c
@@ -221,15 +220,15 @@ func (r *Runtime) innerModuleEvaluation(
 	*stack = append(*stack, c)
 	var requiredModule ModuleRecord
 	for _, required := range cr.RequestedModules() {
-		requiredModule, err = resolve(m, required)
-		if err != nil {
-			state.evaluationError[c] = err
-			return index, err
+		requiredModule, ex = resolve(m, required)
+		if ex != nil {
+			state.evaluationError[c] = ex
+			return index, ex
 		}
 		var requiredInstance ModuleInstance
-		index, err = r.innerModuleEvaluation(state, requiredModule, stack, index, resolve)
-		if err != nil {
-			return index, err
+		index, ex = r.innerModuleEvaluation(state, requiredModule, stack, index, resolve)
+		if ex != nil {
+			return index, ex
 		}
 		if requiredC, ok := requiredInstance.(CyclicModuleInstance); ok {
 			if state.status[requiredC] == Evaluating {
@@ -252,10 +251,10 @@ func (r *Runtime) innerModuleEvaluation(
 			r.executeAsyncModule(state, c)
 		}
 	} else {
-		c, err = c.ExecuteModule(r, nil, nil)
-		if err != nil {
+		c, ex = c.ExecuteModule(r, nil, nil)
+		if ex != nil {
 			// state.evaluationError[c] = err
-			return index, err
+			return index, ex
 		}
 	}
 
@@ -350,18 +349,18 @@ func (r *Runtime) gatherAvailableAncestors(state *evaluationState, c CyclicModul
 	}
 }
 
-func (r *Runtime) asyncModuleExecutionRejected(state *evaluationState, c CyclicModuleInstance, err error) {
+func (r *Runtime) asyncModuleExecutionRejected(state *evaluationState, c CyclicModuleInstance, ex interface{}) {
 	if state.status[c] == Evaluated {
 		return
 	}
-	state.evaluationError[c] = err
+	state.evaluationError[c] = ex
 	state.status[c] = Evaluated
 	for _, m := range state.asyncParentModules[c] {
-		r.asyncModuleExecutionRejected(state, m, err)
+		r.asyncModuleExecutionRejected(state, m, ex)
 	}
 	// TODO handle top level capabiltiy better
 	if cap := state.topLevelCapability[r.findModuleRecord(c).(CyclicModuleRecord)]; cap != nil {
-		cap.reject(r.ToValue(err))
+		cap.reject(r.interfaceErrorToValue(ex))
 	}
 }
 
@@ -437,19 +436,30 @@ func (r *Runtime) SetImportModuleDynamically(callback ImportModuleDynamicallyCal
 
 // TODO figure out the arguments
 func (r *Runtime) FinalizeDynamicImport(m ModuleRecord, pcap interface{}, err interface{}) {
+	// fmt.Println("FinalizeDynamicImport", m, pcap, err)
 	p := pcap.(*promiseCapability)
 	if err != nil {
-		switch x1 := err.(type) {
-		case *Exception:
-			p.reject(x1.val)
-		case *CompilerSyntaxError:
-			p.reject(r.builtin_new(r.global.SyntaxError, []Value{newStringValue(x1.Error())}))
-		case *CompilerReferenceError:
-			p.reject(r.newError(r.global.ReferenceError, x1.Message))
-		default:
-			p.reject(r.ToValue(err))
-		}
+		p.reject(r.interfaceErrorToValue(err))
 		return
 	}
+	// fmt.Println("resolve")
 	p.resolve(r.NamespaceObjectFor(m))
+}
+
+func (r *Runtime) interfaceErrorToValue(err interface{}) Value {
+	switch x1 := err.(type) {
+	case *Exception:
+		return x1.val
+	case *CompilerSyntaxError:
+		return r.builtin_new(r.global.SyntaxError, []Value{newStringValue(x1.Error())})
+	case *CompilerReferenceError:
+		return r.newError(r.global.ReferenceError, x1.Message)
+	case *Object:
+		if o, ok := x1.self.(*objectGoReflect); ok {
+			// TODO just not have this
+			return o.origValue.Interface().(*Exception).Value()
+			break
+		}
+	}
+	return r.ToValue(err)
 }

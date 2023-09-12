@@ -17,13 +17,27 @@ type SourceTextModuleInstance struct {
 	moduleRecord *SourceTextModuleRecord
 	// TODO figure out omething less idiotic
 	exportGetters map[string]func() Value
-	context       *context //  hacks haxx
-	stack         valueStack
+	pcap          *promiseCapability
+	asyncPromise  *Promise
 }
 
 func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime, res, rej func(interface{})) (CyclicModuleInstance, error) {
-	_, err := rt.continueRunProgram(s.moduleRecord.p, s.context, s.stack)
-	return s, err
+	ex := rt.runWrapped(func() { s.pcap.resolve(_undefined) })
+	if ex != nil {
+		return nil, ex
+	}
+	// TODO fix
+	promise := s.asyncPromise
+	switch promise.state {
+	case PromiseStateFulfilled:
+		return s, nil
+	case PromiseStateRejected:
+		return nil, rt.vm.exceptionFromValue(promise.result)
+	case PromiseStatePending:
+		fallthrough
+	default:
+		panic("this should not happen")
+	}
 }
 
 func (s *SourceTextModuleInstance) GetBindingValue(name string) Value {
@@ -424,7 +438,7 @@ func (module *SourceTextModuleRecord) InitializeEnvironment() (err error) {
 		}
 	}()
 
-	c.compileModule(module)
+	_ = c.compileModule(module)
 	module.p = c.p
 	return
 }
@@ -514,11 +528,16 @@ func (module *SourceTextModuleRecord) Instantiate(rt *Runtime) (CyclicModuleInst
 	mi := &SourceTextModuleInstance{
 		moduleRecord:  module,
 		exportGetters: make(map[string]func() Value),
+		pcap:          rt.newPromiseCapability(rt.global.Promise),
 	}
 	rt.modules[module] = mi
-	// TODO figure a better way
-	_, err := rt.RunProgram(mi.moduleRecord.p)
-	return mi, err
+	_, ex := rt.RunProgram(module.p)
+	if ex != nil {
+		mi.pcap.reject(rt.ToValue(ex))
+		return nil, ex
+	}
+
+	return mi, nil
 }
 
 func (module *SourceTextModuleRecord) Evaluate(rt *Runtime) *Promise {

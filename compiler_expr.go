@@ -134,7 +134,17 @@ const (
 	funcClsInit
 	funcCtor
 	funcDerivedCtor
+	funcModule
 )
+
+type compiledModule struct {
+	baseCompiledExpr
+	name            *ast.Identifier
+	body            []ast.Statement
+	source          string
+	declarationList []*ast.VariableDeclaration
+	functionsList   []*ast.VariableDeclaration
+}
 
 type compiledFunctionLiteral struct {
 	baseCompiledExpr

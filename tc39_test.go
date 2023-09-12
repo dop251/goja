@@ -506,18 +506,25 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 				m, err := hostResolveImportedModule(referencingScriptOrModule, specifier)
 
 				eventLoopQueue <- func() {
-					defer vm.RunString("") // haxx // maybe have leave in ffinalize :?!?!
-					if err == nil {
-						err = m.Link()
+					ex := vm.runWrapped(func() {
+						var ex interface{}
+						ex = err
 						if err == nil {
-							promise := m.Evaluate(vm)
-							// TODO fix
-							if promise.state != PromiseStateFulfilled {
-								err = promise.Result().Export().(error)
+							err = m.Link()
+							if err != nil {
+								ex = err
+							} else {
+								promise := m.Evaluate(vm)
+								if promise.state == PromiseStateRejected {
+									ex = promise.Result()
+								}
 							}
 						}
+						vm.FinalizeDynamicImport(m, pcap, ex)
+					})
+					if ex != nil {
+						vm.FinalizeDynamicImport(m, pcap, ex)
 					}
-					vm.FinalizeDynamicImport(m, pcap, err)
 				}
 			}()
 		}
@@ -762,9 +769,8 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 
 	early = false
 	promise := m.Evaluate(vm)
-	// TODO fix
 	if promise.state != PromiseStateFulfilled {
-		err = promise.Result().Export().(error)
+		err = vm.vm.exceptionFromValue(promise.Result())
 	}
 	return
 }

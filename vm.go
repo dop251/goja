@@ -312,7 +312,6 @@ type vm struct {
 	pc           int
 	stack        valueStack
 	sp, sb, args int
-	oldsp        int // haxx
 
 	stash     *stash
 	privEnv   *privateEnv
@@ -576,17 +575,18 @@ func (vm *vm) run() {
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
 			break
 		}
+		pc := vm.pc
+		if pc < 0 || pc >= len(vm.prg.code) {
+			break
+		}
 		/*
 			fmt.Printf("code: ")
 			for _, code := range vm.prg.code[vm.pc:] {
 				fmt.Printf("{%T: %#v},", code, code)
 			}
-			fmt.Print("\n")
+			fmt.Println()
+			fmt.Printf("running: %T: %#v\n", vm.prg.code[pc], vm.prg.code[pc])
 			//*/
-		pc := vm.pc
-		if pc < 0 || pc >= len(vm.prg.code) {
-			break
-		}
 		vm.prg.code[pc].exec(vm)
 	}
 
@@ -1003,7 +1003,11 @@ func (l loadStackLex) exec(vm *vm) {
 	} else {
 		p = &vm.stack[vm.sb+vm.args+int(l)]
 	}
-	// fmt.Println(vm.stack, vm.sb, vm.args, l, p, *p)
+	// fmt.Println(vm.stack[1:], vm.sb, vm.args, l)
+	// fmt.Println("*p=", *p)
+	if l == 1 {
+		// debug.PrintStack()
+	}
 	if *p == nil {
 		vm.throw(errAccessBeforeInit)
 		return
@@ -1613,26 +1617,6 @@ func (_shr) exec(vm *vm) {
 	vm.stack[vm.sp-2] = intToValue(int64(left >> (right & 0x1F)))
 	vm.sp--
 	vm.pc++
-}
-
-type _notReallyYield struct{}
-
-var notReallyYield _notReallyYield
-
-func (_notReallyYield) exec(vm *vm) {
-	vm.pc++
-	mi := vm.r.modules[vm.r.GetActiveScriptOrModule().(ModuleRecord)].(*SourceTextModuleInstance)
-	if vm.sp > vm.oldsp {
-		toCopy := vm.stack[vm.oldsp:]
-		mi.stack = make(valueStack, len(toCopy))
-		_ = copy(mi.stack, toCopy)
-		// fmt.Println("yield sb ", vm.sb, vm.args, mi.stack)
-	}
-	// fmt.Println("stack at yield", vm.stack)
-	context := &context{}
-	vm.saveCtx(context)
-	mi.context = context
-	vm.pc = -1
 }
 
 type jump int32
@@ -3278,6 +3262,7 @@ func (n loadDynamic) exec(vm *vm) {
 	if val == nil {
 		val = vm.r.globalObject.self.getStr(name, nil)
 		if val == nil {
+			// fmt.Println("here")
 			vm.throw(vm.r.newReferenceError(name))
 			return
 		}
@@ -3458,11 +3443,15 @@ func (numargs call) exec(vm *vm) {
 	n := int(numargs)
 	v := vm.stack[vm.sp-n-1] // callee
 	obj := vm.toCallee(v)
+
 	obj.self.vmCall(vm, n)
 }
 
 func (vm *vm) clearStack() {
 	sp := vm.sp
+	if sp > len(vm.stack) {
+		time.Sleep(time.Second)
+	}
 	stackTail := vm.stack[sp:]
 	for i := range stackTail {
 		stackTail[i] = nil
@@ -3693,11 +3682,15 @@ func (e *enterFuncBody) exec(vm *vm) {
 		}
 	}
 	sp := vm.sp
+	// // fmt.Println("sp", sp)
 	if e.adjustStack {
 		sp -= vm.args
 	}
+	// // fmt.Println("sp after", sp)
 	nsp := sp + int(e.stackSize)
+	// // fmt.Println("nsp after", nsp)
 	if e.stackSize > 0 {
+		// // fmt.Println("expand")
 		vm.stack.expand(nsp - 1)
 		vv := vm.stack[sp:nsp]
 		for i := range vv {
@@ -3807,6 +3800,41 @@ func (n *newAsyncFunc) exec(vm *vm) {
 	vm.pc++
 }
 
+type loadModulePromise struct {
+	moduleCore ModuleRecord
+}
+
+func (n *loadModulePromise) exec(vm *vm) {
+	mi := vm.r.modules[n.moduleCore].(*SourceTextModuleInstance)
+	vm.push(mi.pcap.promise)
+	vm.pc++
+}
+
+type newModule struct {
+	newAsyncFunc
+	moduleCore ModuleRecord
+}
+
+func (n *newModule) exec(vm *vm) {
+	obj := vm.r.newAsyncFunc(n.name, n.length, n.strict)
+	obj.prg = n.prg
+	obj.stash = vm.stash
+	obj.privEnv = vm.privEnv
+	obj.src = n.source
+	vm.push(obj.val)
+	vm.pc++
+}
+
+type setModulePromise struct {
+	moduleCore ModuleRecord
+}
+
+func (n *setModulePromise) exec(vm *vm) {
+	mi := vm.r.modules[n.moduleCore].(*SourceTextModuleInstance)
+	mi.asyncPromise = vm.pop().Export().(*Promise)
+	vm.pc++
+}
+
 type newGeneratorFunc struct {
 	newFunc
 }
@@ -3875,7 +3903,7 @@ func getFuncObject(v Value) *Object {
 		}
 		return o
 	}
-	if v == _undefined {
+	if v == _undefined || v == _null {
 		return nil
 	}
 	panic(typeError("Value is not an Object"))
@@ -4659,7 +4687,7 @@ func (_loadDynamicImport) exec(vm *vm) {
 
 		pcap := vm.r.newPromiseCapability(vm.r.global.Promise)
 		var specifierStr String
-		err := vm.r.runWrapped(func() {
+		err := vm.r.runWrapped(func() { // TODO use try
 			specifierStr = specifier.toString()
 		})
 		if err != nil {
@@ -5732,6 +5760,7 @@ func (r *getPrivateRefId) exec(vm *vm) {
 }
 
 func (y *yieldMarker) exec(vm *vm) {
+	// // fmt.Println("values", vm.stash.values)
 	vm.pc = -vm.pc // this will terminate the run loop
 	vm.push(y)     // marker so the caller knows it's a yield, not a return
 }

@@ -2,7 +2,10 @@ package goja
 
 import (
 	"fmt"
+	"io/fs"
+	"sync"
 	"testing"
+	"testing/fstest"
 )
 
 func TestSimpleModule(t *testing.T) {
@@ -12,8 +15,9 @@ func TestSimpleModule(t *testing.T) {
 		err error
 	}
 	type testCase struct {
-		a string
-		b string
+		fs fs.FS
+		a  string
+		b  string
 	}
 
 	testCases := map[string]testCase{
@@ -41,7 +45,7 @@ globalThis.s = b()
 globalThis.s = b()
 `,
 			b: `export let b = "something";
-        export function s (){
+        export function s(){
         globalThis.p()
           b = function() {globalThis.p(); return 5 };
         }`,
@@ -61,9 +65,10 @@ globalThis.s = b()
 		},
 		"default export arrow": {
 			a: `import b from "dep.js";
-globalThis.s = b()
+			globalThis.p();
+globalThis.s = b();
 `,
-			b: `export default () => {globalThis.p(); return 5 };`,
+			b: `globalThis.p(); export default () => {globalThis.p(); return 5 };`,
 		},
 		"default export with as": {
 			a: `import b from "dep.js";
@@ -79,14 +84,53 @@ globalThis.s = b()
 			b: `import { a } from "a.js";
            globalThis.s = a();`,
 		},
+		"dynamic import": {
+			a: `
+			globalThis.p();
+import("dep.js").then((imported) => {
+			globalThis.p()
+	globalThis.s = imported.default();
+});`,
+			b: `export default function() {globalThis.p(); return 5;}`,
+		},
+		"dynamic import error": {
+			a: ` do {
+  import('dep.js').catch(error => {
+			if (error.name == "SyntaxError") {
+globalThis.s = 5;
+			}
+  });
+} while (false);
+`,
+			b: `
+import { x } from "0-fixture.js";
+			`,
+			fs: &fstest.MapFS{
+				"0-fixture.js": &fstest.MapFile{
+					Data: []byte(`
+					export * from "1-fixture.js";
+					export * from "2-fixture.js"; 
+				`),
+				},
+				"1-fixture.js": &fstest.MapFile{
+					Data: []byte(`export var x`),
+				},
+				"2-fixture.js": &fstest.MapFile{
+					Data: []byte(`export var x`),
+				},
+			},
+		},
 	}
 	for name, cases := range testCases {
-		a, b := cases.a, cases.b
+		cases := cases
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+			mu := sync.Mutex{}
 			cache := make(map[string]cacheElement)
 			var hostResolveImportedModule func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
 			hostResolveImportedModule = func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error) {
+				mu.Lock()
+				defer mu.Unlock()
 				k, ok := cache[specifier]
 				if ok {
 					return k.m, k.err
@@ -94,11 +138,15 @@ globalThis.s = b()
 				var src string
 				switch specifier {
 				case "a.js":
-					src = a
+					src = cases.a
 				case "dep.js":
-					src = b
+					src = cases.b
 				default:
-					panic(specifier)
+					b, err := fs.ReadFile(cases.fs, specifier)
+					if err != nil {
+						panic(specifier)
+					}
+					src = string(b)
 				}
 				p, err := ParseModule(specifier, src, hostResolveImportedModule)
 				if err != nil {
@@ -109,19 +157,33 @@ globalThis.s = b()
 				return p, nil
 			}
 
+			linked := make(map[ModuleRecord]error)
+			linkMu := new(sync.Mutex)
+			link := func(m ModuleRecord) error {
+				linkMu.Lock()
+				defer linkMu.Unlock()
+				if err, ok := linked[m]; ok {
+					return err
+				}
+				err := m.Link()
+				linked[m] = err
+				return err
+			}
+
 			m, err := hostResolveImportedModule(nil, "a.js")
 			if err != nil {
 				t.Fatalf("got error %s", err)
 			}
 			p := m.(*SourceTextModuleRecord)
 
-			err = p.Link()
+			err = link(p)
 			if err != nil {
 				t.Fatalf("got error %s", err)
 			}
 
 			for i := 0; i < 10; i++ {
 				i := i
+				m := m
 				t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 					t.Parallel()
 					var err error
@@ -129,15 +191,55 @@ globalThis.s = b()
 					vm.Set("p", vm.ToValue(func() {
 						// fmt.Println("p called")
 					}))
-					vm.Set("l", func() {
+					vm.Set("l", func(v Value) {
+						fmt.Printf("%+v\n", v)
 						fmt.Println("l called")
-						fmt.Printf("iter stack ; %+v", vm.vm.iterStack)
+						fmt.Printf("iter stack ; %+v\n", vm.vm.iterStack)
 					})
 					if err != nil {
 						t.Fatalf("got error %s", err)
 					}
-					promise := m.Evaluate(vm)
+					eventLoopQueue := make(chan func(), 2) // the most basic and likely buggy event loop
+					vm.SetImportModuleDynamically(func(referencingScriptOrModule interface{}, specifierValue Value, pcap interface{}) {
+						specifier := specifierValue.String()
+
+						eventLoopQueue <- func() {
+							ex := vm.runWrapped(func() {
+								m, err := hostResolveImportedModule(referencingScriptOrModule, specifier)
+								var ex interface{}
+								if err == nil {
+									err = link(m)
+									if err != nil {
+										ex = err
+									} else {
+										promise := m.Evaluate(vm)
+										if promise.state == PromiseStateRejected {
+											ex = promise.Result()
+										}
+									}
+								}
+								vm.FinalizeDynamicImport(m, pcap, ex)
+							})
+							if ex != nil {
+								vm.FinalizeDynamicImport(m, pcap, ex)
+							}
+						}
+					})
+					var promise *Promise
+					eventLoopQueue <- func() {
+						promise = m.Evaluate(vm)
+					}
+				outer:
+					for {
+						select {
+						case fn := <-eventLoopQueue:
+							fn()
+						default:
+							break outer
+						}
+					}
 					if promise.state != PromiseStateFulfilled {
+						t.Fatalf("got %+v", promise.Result().Export())
 						err = promise.Result().Export().(error)
 						t.Fatalf("got error %s", err)
 					}
