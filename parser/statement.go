@@ -547,11 +547,10 @@ func (self *_parser) parseSwitchStatement() ast.Statement {
 }
 
 func (self *_parser) parseWithStatement() ast.Statement {
-	self.expect(token.WITH)
+	node := &ast.WithStatement{}
+	node.With = self.expect(token.WITH)
 	self.expect(token.LEFT_PARENTHESIS)
-	node := &ast.WithStatement{
-		Object: self.parseExpression(),
-	}
+	node.Object = self.parseExpression()
 	self.expect(token.RIGHT_PARENTHESIS)
 	self.scope.allowLet = false
 	node.Body = self.parseStatement()
