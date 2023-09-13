@@ -1105,6 +1105,12 @@ func TestPosition(t *testing.T) {
 		is(err, nil)
 		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.UnaryExpression)
 		is(parser.slice(node.Idx0(), node.Idx1()), "++a")
+
+		parser = newParser("", "xyz: x++")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.LabelledStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "xyz: x++")
 	})
 }
 

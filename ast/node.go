@@ -787,7 +787,7 @@ func (self *IfStatement) Idx1() file.Idx {
 	}
 	return self.Consequent.Idx1()
 }
-func (self *LabelledStatement) Idx1() file.Idx { return self.Colon + 1 }
+func (self *LabelledStatement) Idx1() file.Idx { return self.Statement.Idx1() }
 func (self *Program) Idx1() file.Idx           { return self.Body[len(self.Body)-1].Idx1() }
 func (self *ReturnStatement) Idx1() file.Idx   { return self.Return + 6 }
 func (self *SwitchStatement) Idx1() file.Idx   { return self.Body[len(self.Body)-1].Idx1() }
