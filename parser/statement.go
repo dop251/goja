@@ -837,10 +837,11 @@ func (self *_parser) parseDoWhileStatement() ast.Statement {
 }
 
 func (self *_parser) parseWhileStatement() ast.Statement {
-	self.expect(token.WHILE)
+	idx := self.expect(token.WHILE)
 	self.expect(token.LEFT_PARENTHESIS)
 	node := &ast.WhileStatement{
-		Test: self.parseExpression(),
+		While: idx,
+		Test:  self.parseExpression(),
 	}
 	self.expect(token.RIGHT_PARENTHESIS)
 	node.Body = self.parseIterationStatement()
