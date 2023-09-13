@@ -1087,6 +1087,14 @@ func TestPosition(t *testing.T) {
 		is(err, nil)
 		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.FunctionLiteral)
 		is(node.(*ast.FunctionLiteral).Source, "function(){ return abc; }")
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.FunctionLiteral).Body.List[0].(*ast.ReturnStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "return abc")
+
+		parser = newParser("", "(function(){ return; })")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.FunctionLiteral).Body.List[0].(*ast.ReturnStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "return")
 
 		parser = newParser("", "true ? 1 : 2")
 		program, err = parser.parse()
