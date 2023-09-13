@@ -384,9 +384,10 @@ type (
 	}
 
 	DoWhileStatement struct {
-		Do   file.Idx
-		Test Expression
-		Body Statement
+		Do               file.Idx
+		Test             Expression
+		Body             Statement
+		RightParenthesis file.Idx
 	}
 
 	EmptyStatement struct {
@@ -775,7 +776,7 @@ func (self *BranchStatement) Idx1() file.Idx     { return self.Idx }
 func (self *CaseStatement) Idx1() file.Idx       { return self.Consequent[len(self.Consequent)-1].Idx1() }
 func (self *CatchStatement) Idx1() file.Idx      { return self.Body.Idx1() }
 func (self *DebuggerStatement) Idx1() file.Idx   { return self.Debugger + 8 }
-func (self *DoWhileStatement) Idx1() file.Idx    { return self.Test.Idx1() }
+func (self *DoWhileStatement) Idx1() file.Idx    { return self.RightParenthesis + 1 }
 func (self *EmptyStatement) Idx1() file.Idx      { return self.Semicolon + 1 }
 func (self *ExpressionStatement) Idx1() file.Idx { return self.Expression.Idx1() }
 func (self *ForInStatement) Idx1() file.Idx      { return self.Body.Idx1() }

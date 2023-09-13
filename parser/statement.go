@@ -816,8 +816,8 @@ func (self *_parser) parseDoWhileStatement() ast.Statement {
 		self.scope.inIteration = inIteration
 	}()
 
-	self.expect(token.DO)
 	node := &ast.DoWhileStatement{}
+	node.Do = self.expect(token.DO)
 	if self.token == token.LEFT_BRACE {
 		node.Body = self.parseBlockStatement()
 	} else {
@@ -828,7 +828,7 @@ func (self *_parser) parseDoWhileStatement() ast.Statement {
 	self.expect(token.WHILE)
 	self.expect(token.LEFT_PARENTHESIS)
 	node.Test = self.parseExpression()
-	self.expect(token.RIGHT_PARENTHESIS)
+	node.RightParenthesis = self.expect(token.RIGHT_PARENTHESIS)
 	if self.token == token.SEMICOLON {
 		self.next()
 	}
