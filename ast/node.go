@@ -770,9 +770,14 @@ func (self *MetaProperty) Idx1() file.Idx {
 	return self.Property.Idx1()
 }
 
-func (self *BadStatement) Idx1() file.Idx        { return self.To }
-func (self *BlockStatement) Idx1() file.Idx      { return self.RightBrace + 1 }
-func (self *BranchStatement) Idx1() file.Idx     { return self.Idx }
+func (self *BadStatement) Idx1() file.Idx   { return self.To }
+func (self *BlockStatement) Idx1() file.Idx { return self.RightBrace + 1 }
+func (self *BranchStatement) Idx1() file.Idx {
+	if self.Label == nil {
+		return file.Idx(int(self.Idx) + len(self.Token.String()))
+	}
+	return self.Label.Idx1()
+}
 func (self *CaseStatement) Idx1() file.Idx       { return self.Consequent[len(self.Consequent)-1].Idx1() }
 func (self *CatchStatement) Idx1() file.Idx      { return self.Body.Idx1() }
 func (self *DebuggerStatement) Idx1() file.Idx   { return self.Debugger + 8 }
