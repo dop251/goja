@@ -669,8 +669,13 @@ func (self *TemplateElement) Idx0() file.Idx       { return self.Idx }
 func (self *TemplateLiteral) Idx0() file.Idx       { return self.OpenQuote }
 func (self *ThisExpression) Idx0() file.Idx        { return self.Idx }
 func (self *SuperExpression) Idx0() file.Idx       { return self.Idx }
-func (self *UnaryExpression) Idx0() file.Idx       { return self.Idx }
-func (self *MetaProperty) Idx0() file.Idx          { return self.Idx }
+func (self *UnaryExpression) Idx0() file.Idx {
+	if self.Postfix {
+		return self.Operand.Idx0()
+	}
+	return self.Idx
+}
+func (self *MetaProperty) Idx0() file.Idx { return self.Idx }
 
 func (self *BadStatement) Idx0() file.Idx        { return self.From }
 func (self *BlockStatement) Idx0() file.Idx      { return self.LeftBrace }

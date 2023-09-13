@@ -1093,6 +1093,18 @@ func TestPosition(t *testing.T) {
 		is(err, nil)
 		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.ConditionalExpression)
 		is(parser.slice(node.Idx0(), node.Idx1()), "true ? 1 : 2")
+
+		parser = newParser("", "a++")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.UnaryExpression)
+		is(parser.slice(node.Idx0(), node.Idx1()), "a++")
+
+		parser = newParser("", "++a")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.UnaryExpression)
+		is(parser.slice(node.Idx0(), node.Idx1()), "++a")
 	})
 }
 
