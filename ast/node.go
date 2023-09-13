@@ -728,7 +728,7 @@ func (self *BinaryExpression) Idx1() file.Idx      { return self.Right.Idx1() }
 func (self *BooleanLiteral) Idx1() file.Idx        { return file.Idx(int(self.Idx) + len(self.Literal)) }
 func (self *BracketExpression) Idx1() file.Idx     { return self.RightBracket + 1 }
 func (self *CallExpression) Idx1() file.Idx        { return self.RightParenthesis + 1 }
-func (self *ConditionalExpression) Idx1() file.Idx { return self.Test.Idx1() }
+func (self *ConditionalExpression) Idx1() file.Idx { return self.Alternate.Idx1() }
 func (self *DotExpression) Idx1() file.Idx         { return self.Identifier.Idx1() }
 func (self *PrivateDotExpression) Idx1() file.Idx  { return self.Identifier.Idx1() }
 func (self *FunctionLiteral) Idx1() file.Idx       { return self.Body.Idx1() }

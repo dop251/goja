@@ -1087,6 +1087,12 @@ func TestPosition(t *testing.T) {
 		is(err, nil)
 		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.FunctionLiteral)
 		is(node.(*ast.FunctionLiteral).Source, "function(){ return abc; }")
+
+		parser = newParser("", "true ? 1 : 2")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.ConditionalExpression)
+		is(parser.slice(node.Idx0(), node.Idx1()), "true ? 1 : 2")
 	})
 }
 
