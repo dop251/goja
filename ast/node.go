@@ -443,6 +443,7 @@ type (
 		Discriminant Expression
 		Default      int
 		Body         []*CaseStatement
+		RightBrace   file.Idx
 	}
 
 	ThrowStatement struct {
@@ -801,7 +802,7 @@ func (self *ReturnStatement) Idx1() file.Idx {
 	}
 	return self.Return + 6
 }
-func (self *SwitchStatement) Idx1() file.Idx { return self.Body[len(self.Body)-1].Idx1() }
+func (self *SwitchStatement) Idx1() file.Idx { return self.RightBrace + 1 }
 func (self *ThrowStatement) Idx1() file.Idx  { return self.Argument.Idx1() }
 func (self *TryStatement) Idx1() file.Idx {
 	if self.Finally != nil {

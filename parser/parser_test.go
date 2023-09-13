@@ -1150,6 +1150,20 @@ func TestPosition(t *testing.T) {
 		is(err, nil)
 		node = program.Body[0].(*ast.WithStatement)
 		is(parser.slice(node.Idx0(), node.Idx1()), "with (1) {}")
+
+		parser = newParser("", `switch (a) {
+	case 1: x--;
+	case 2:
+	default: x++;
+}`)
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.SwitchStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), `switch (a) {
+	case 1: x--;
+	case 2:
+	default: x++;
+}`)
 	})
 }
 

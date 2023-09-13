@@ -511,9 +511,10 @@ func (self *_parser) parseThrowStatement() ast.Statement {
 }
 
 func (self *_parser) parseSwitchStatement() ast.Statement {
-	self.expect(token.SWITCH)
+	idx := self.expect(token.SWITCH)
 	self.expect(token.LEFT_PARENTHESIS)
 	node := &ast.SwitchStatement{
+		Switch:       idx,
 		Discriminant: self.parseExpression(),
 		Default:      -1,
 	}
@@ -529,6 +530,7 @@ func (self *_parser) parseSwitchStatement() ast.Statement {
 
 	for index := 0; self.token != token.EOF; index++ {
 		if self.token == token.RIGHT_BRACE {
+			node.RightBrace = self.idx
 			self.next()
 			break
 		}
