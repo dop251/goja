@@ -510,7 +510,7 @@ func (r *Runtime) typedArrayProto_filter(call FunctionCall) Value {
 			}
 		}
 		c := r.speciesConstructorObj(o, ta.defaultCtor)
-		ab := r._newArrayBuffer(r.global.ArrayBufferPrototype, nil)
+		ab := r._newArrayBuffer(r.getArrayBufferPrototype(), nil)
 		ab.data = buf
 		kept := r.toConstructor(ta.defaultCtor)([]Value{ab.val}, ta.defaultCtor)
 		if c == ta.defaultCtor {
@@ -1215,7 +1215,7 @@ func (r *Runtime) typedArray_of(call FunctionCall) Value {
 }
 
 func (r *Runtime) allocateTypedArray(newTarget *Object, length int, taCtor typedArrayObjectCtor, proto *Object) *typedArrayObject {
-	buf := r._newArrayBuffer(r.global.ArrayBufferPrototype, nil)
+	buf := r._newArrayBuffer(r.getArrayBufferPrototype(), nil)
 	ta := taCtor(buf, 0, length, r.getPrototypeFromCtor(newTarget, nil, proto))
 	if length > 0 {
 		buf.data = allocByteSlice(length * ta.elemSize)
