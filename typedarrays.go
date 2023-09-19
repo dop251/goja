@@ -117,7 +117,7 @@ func (a ArrayBuffer) Detached() bool {
 // using this typed array will result in unaligned access which may cause performance degradation or runtime panics
 // on some architectures or configurations.
 func (r *Runtime) NewArrayBuffer(data []byte) ArrayBuffer {
-	buf := r._newArrayBuffer(r.global.ArrayBufferPrototype, nil)
+	buf := r._newArrayBuffer(r.getArrayBufferPrototype(), nil)
 	buf.data = data
 	return ArrayBuffer{
 		buf: buf,
