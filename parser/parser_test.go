@@ -1087,6 +1087,83 @@ func TestPosition(t *testing.T) {
 		is(err, nil)
 		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.FunctionLiteral)
 		is(node.(*ast.FunctionLiteral).Source, "function(){ return abc; }")
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.FunctionLiteral).Body.List[0].(*ast.ReturnStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "return abc")
+
+		parser = newParser("", "(function(){ return; })")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.FunctionLiteral).Body.List[0].(*ast.ReturnStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "return")
+
+		parser = newParser("", "true ? 1 : 2")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.ConditionalExpression)
+		is(parser.slice(node.Idx0(), node.Idx1()), "true ? 1 : 2")
+
+		parser = newParser("", "a++")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.UnaryExpression)
+		is(parser.slice(node.Idx0(), node.Idx1()), "a++")
+
+		parser = newParser("", "++a")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.UnaryExpression)
+		is(parser.slice(node.Idx0(), node.Idx1()), "++a")
+
+		parser = newParser("", "xyz: for (i = 0; i < 10; i++) { if (i == 5) continue xyz; }")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.LabelledStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "xyz: for (i = 0; i < 10; i++) { if (i == 5) continue xyz; }")
+		node = program.Body[0].(*ast.LabelledStatement).Statement.(*ast.ForStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "for (i = 0; i < 10; i++) { if (i == 5) continue xyz; }")
+		block := program.Body[0].(*ast.LabelledStatement).Statement.(*ast.ForStatement).Body.(*ast.BlockStatement)
+		node = block.List[0].(*ast.IfStatement).Consequent.(*ast.BranchStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "continue xyz")
+
+		parser = newParser("", "for (p in o) { break; }")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ForInStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "for (p in o) { break; }")
+		node = program.Body[0].(*ast.ForInStatement).Body.(*ast.BlockStatement).List[0].(*ast.BranchStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "break")
+
+		parser = newParser("", "while (i < 10) { i++; }")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.WhileStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "while (i < 10) { i++; }")
+
+		parser = newParser("", "do { i++; } while (i < 10 )")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.DoWhileStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "do { i++; } while (i < 10 )")
+
+		parser = newParser("", "with (1) {}")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.WithStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "with (1) {}")
+
+		parser = newParser("", `switch (a) {
+	case 1: x--;
+	case 2:
+	default: x++;
+}`)
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.SwitchStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), `switch (a) {
+	case 1: x--;
+	case 2:
+	default: x++;
+}`)
 	})
 }
 
