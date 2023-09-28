@@ -156,7 +156,7 @@ func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostR
 	stackInstance := []CyclicModuleInstance{}
 
 	state := newEvaluationState()
-	capability := r.newPromiseCapability(r.global.Promise)
+	capability := r.newPromiseCapability(r.getPromise())
 	state.topLevelCapability[c] = capability
 	// TODO fix abrupt result
 	_, err := r.innerModuleEvaluation(state, c, &stackInstance, 0, resolve)
@@ -451,9 +451,9 @@ func (r *Runtime) interfaceErrorToValue(err interface{}) Value {
 	case *Exception:
 		return x1.val
 	case *CompilerSyntaxError:
-		return r.builtin_new(r.global.SyntaxError, []Value{newStringValue(x1.Error())})
+		return r.builtin_new(r.getSyntaxError(), []Value{newStringValue(x1.Error())})
 	case *CompilerReferenceError:
-		return r.newError(r.global.ReferenceError, x1.Message)
+		return r.newError(r.getReferenceError(), x1.Message)
 	case *Object:
 		if o, ok := x1.self.(*objectGoReflect); ok {
 			// TODO just not have this

@@ -5814,6 +5814,18 @@ func TestGeneratorMethods(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestFunctionBodyClassDecl(t *testing.T) {
+	const SCRIPT = `
+	function as(requiredArgument = {}) {
+		class something { }
+	};
+	`
+	_, err := Compile("", SCRIPT, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := os.ReadFile("babel7.js")

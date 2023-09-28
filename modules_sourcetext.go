@@ -528,7 +528,7 @@ func (module *SourceTextModuleRecord) Instantiate(rt *Runtime) (CyclicModuleInst
 	mi := &SourceTextModuleInstance{
 		moduleRecord:  module,
 		exportGetters: make(map[string]func() Value),
-		pcap:          rt.newPromiseCapability(rt.global.Promise),
+		pcap:          rt.newPromiseCapability(rt.getPromise()),
 	}
 	rt.modules[module] = mi
 	_, ex := rt.RunProgram(module.p)

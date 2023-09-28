@@ -1454,6 +1454,8 @@ func (c *compiler) compileLexicalDeclarationsFuncBody(list []ast.Statement, call
 					c.createLexicalIdBindingFuncBody(name, isConst, offset, calleeBinding)
 				})
 			}
+		} else if cls, ok := st.(*ast.ClassDeclaration); ok {
+			c.createLexicalIdBindingFuncBody(cls.Class.Name.Name, false, int(cls.Class.Name.Idx)-1, calleeBinding)
 		}
 	}
 }
