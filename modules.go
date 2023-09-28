@@ -458,7 +458,6 @@ func (r *Runtime) interfaceErrorToValue(err interface{}) Value {
 		if o, ok := x1.self.(*objectGoReflect); ok {
 			// TODO just not have this
 			return o.origValue.Interface().(*Exception).Value()
-			break
 		}
 	}
 	return r.ToValue(err)
