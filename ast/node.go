@@ -707,6 +707,8 @@ type Program struct {
 	ImportEntries   []*ImportDeclaration
 	ExportEntries   []*ExportDeclaration
 
+	HasTLA bool
+
 	File *file.File
 }
 

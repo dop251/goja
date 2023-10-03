@@ -215,22 +215,8 @@ func TestNotSourceModulesBigTestDynamicImport(t *testing.T) {
 			m, err := resolver.resolve(referencingScriptOrModule, specifier)
 
 			eventLoopQueue <- func() {
-				defer vm.RunString("") // haxx // maybe have leave in ffinalize :?!?!
-				if err == nil {
-					err = m.Link()
-					if err == nil {
-						var promise *goja.Promise
-						if c, ok := m.(goja.CyclicModuleRecord); ok {
-							promise = vm.CyclicModuleRecordEvaluate(c, resolver.resolve)
-						} else {
-							promise = m.Evaluate(vm)
-						}
-						if promise.State() != goja.PromiseStateFulfilled {
-							err = promise.Result().Export().(error)
-						}
-					}
-				}
-				vm.FinalizeDynamicImport(m, promiseCapability, err)
+				defer vm.RunString("") // FIXME haxx // the specification kind of doesn't have a solutioo for htis it seems
+				vm.FinishLoadingImportModule(referencingScriptOrModule, specifierValue, promiseCapability, m, err)
 			}
 		}()
 	})
@@ -325,7 +311,7 @@ func (s *cyclicModuleImpl) Link() error {
 }
 
 func (s *cyclicModuleImpl) Evaluate(rt *goja.Runtime) *goja.Promise {
-	panic("this should never be called")
+	return rt.CyclicModuleRecordEvaluate(s, s.resolve)
 }
 
 func (s *cyclicModuleImpl) ResolveExport(exportName string, resolveset ...goja.ResolveSetElement) (*goja.ResolvedBinding, bool) {

@@ -2,6 +2,7 @@ package goja
 
 import (
 	"errors"
+	"sort"
 )
 
 type HostResolveImportedModuleFunc func(referencingScriptOrModule interface{}, specifier string) (ModuleRecord, error)
@@ -126,10 +127,12 @@ type evaluationState struct {
 	dfsAncestorIndex         map[ModuleInstance]uint
 	pendingAsyncDependancies map[ModuleInstance]uint
 	cycleRoot                map[ModuleInstance]CyclicModuleInstance
-	asyncEvaluation          map[CyclicModuleInstance]bool
+	asyncEvaluation          map[CyclicModuleInstance]uint64
 	asyncParentModules       map[CyclicModuleInstance][]CyclicModuleInstance
 	evaluationError          map[CyclicModuleInstance]interface{}
 	topLevelCapability       map[CyclicModuleRecord]*promiseCapability
+
+	asyncEvaluationCounter uint64
 }
 
 func newEvaluationState() *evaluationState {
@@ -139,7 +142,7 @@ func newEvaluationState() *evaluationState {
 		dfsAncestorIndex:         make(map[ModuleInstance]uint),
 		pendingAsyncDependancies: make(map[ModuleInstance]uint),
 		cycleRoot:                make(map[ModuleInstance]CyclicModuleInstance),
-		asyncEvaluation:          make(map[CyclicModuleInstance]bool),
+		asyncEvaluation:          make(map[CyclicModuleInstance]uint64),
 		asyncParentModules:       make(map[CyclicModuleInstance][]CyclicModuleInstance),
 		evaluationError:          make(map[CyclicModuleInstance]interface{}),
 		topLevelCapability:       make(map[CyclicModuleRecord]*promiseCapability),
@@ -155,9 +158,15 @@ func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostR
 	// TODO implement all the promise stuff
 	stackInstance := []CyclicModuleInstance{}
 
-	state := newEvaluationState()
+	if r.evaluationState == nil {
+		r.evaluationState = newEvaluationState()
+	}
+	if cap, ok := r.evaluationState.topLevelCapability[c]; ok {
+		return cap.promise.Export().(*Promise)
+	}
 	capability := r.newPromiseCapability(r.getPromise())
-	state.topLevelCapability[c] = capability
+	r.evaluationState.topLevelCapability[c] = capability
+	state := r.evaluationState
 	// TODO fix abrupt result
 	_, err := r.innerModuleEvaluation(state, c, &stackInstance, 0, resolve)
 	if err != nil {
@@ -167,11 +176,13 @@ func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostR
 		}
 		capability.reject(r.interfaceErrorToValue(err))
 	} else {
-		if !state.asyncEvaluation[r.modules[c].(CyclicModuleInstance)] {
+		if state.asyncEvaluation[r.modules[c].(CyclicModuleInstance)] == 0 {
 			state.topLevelCapability[c].resolve(_undefined)
 		}
 	}
-	// TODO handle completion
+	if len(r.vm.callStack) == 0 {
+		r.leave()
+	}
 	return state.topLevelCapability[c].promise.Export().(*Promise)
 }
 
@@ -225,11 +236,11 @@ func (r *Runtime) innerModuleEvaluation(
 			state.evaluationError[c] = ex
 			return index, ex
 		}
-		var requiredInstance ModuleInstance
 		index, ex = r.innerModuleEvaluation(state, requiredModule, stack, index, resolve)
 		if ex != nil {
 			return index, ex
 		}
+		requiredInstance := r.GetModuleInstance(requiredModule)
 		if requiredC, ok := requiredInstance.(CyclicModuleInstance); ok {
 			if state.status[requiredC] == Evaluating {
 				if ancestorIndex := state.dfsAncestorIndex[c]; state.dfsAncestorIndex[requiredC] > ancestorIndex {
@@ -239,14 +250,15 @@ func (r *Runtime) innerModuleEvaluation(
 				requiredC = state.cycleRoot[requiredC]
 				// check stuff
 			}
-			if state.asyncEvaluation[requiredC] {
+			if state.asyncEvaluation[requiredC] != 0 {
 				state.pendingAsyncDependancies[c]++
 				state.asyncParentModules[requiredC] = append(state.asyncParentModules[requiredC], c)
 			}
 		}
 	}
 	if state.pendingAsyncDependancies[c] > 0 || c.HasTLA() {
-		state.asyncEvaluation[c] = true
+		state.asyncEvaluationCounter++
+		state.asyncEvaluation[c] = state.asyncEvaluationCounter
 		if state.pendingAsyncDependancies[c] == 0 {
 			r.executeAsyncModule(state, c)
 		}
@@ -262,7 +274,7 @@ func (r *Runtime) innerModuleEvaluation(
 		for i := len(*stack) - 1; i >= 0; i-- {
 			requiredModuleInstance := (*stack)[i]
 			*stack = (*stack)[:i]
-			if !state.asyncEvaluation[requiredModuleInstance] {
+			if state.asyncEvaluation[requiredModuleInstance] == 0 {
 				state.status[requiredModuleInstance] = Evaluated
 			} else {
 				state.status[requiredModuleInstance] = Evaluating_Async
@@ -280,19 +292,23 @@ func (r *Runtime) executeAsyncModule(state *evaluationState, c CyclicModuleInsta
 	// implement https://262.ecma-international.org/13.0/#sec-execute-async-module
 	// TODO likely wrong
 	p, res, rej := r.NewPromise()
-	r.performPromiseThen(p, r.ToValue(func() {
+	r.performPromiseThen(p, r.ToValue(func(call FunctionCall) Value {
 		r.asyncModuleExecutionFulfilled(state, c)
-	}), r.ToValue(func(err error) {
+		return nil
+	}), r.ToValue(func(call FunctionCall) Value {
+		// we use this signature so that goja doesn't try to infer types and wrap them
+		err := call.Argument(0)
 		r.asyncModuleExecutionRejected(state, c, err)
+		return nil
 	}), nil)
-	c.ExecuteModule(r, res, rej)
+	_, _ = c.ExecuteModule(r, res, rej)
 }
 
 func (r *Runtime) asyncModuleExecutionFulfilled(state *evaluationState, c CyclicModuleInstance) {
 	if state.status[c] == Evaluated {
 		return
 	}
-	state.asyncEvaluation[c] = false
+	state.asyncEvaluation[c] = 0
 	// TODO fix this
 	for m, i := range r.modules {
 		if i == c {
@@ -304,6 +320,9 @@ func (r *Runtime) asyncModuleExecutionFulfilled(state *evaluationState, c Cyclic
 	}
 	execList := make([]CyclicModuleInstance, 0)
 	r.gatherAvailableAncestors(state, c, &execList)
+	sort.Slice(execList, func(i, j int) bool {
+		return state.asyncEvaluation[execList[i]] < state.asyncEvaluation[execList[j]]
+	})
 	// TODO sort? per when the modules got their AsyncEvaluation set ... somehow
 	for _, m := range execList {
 		if state.status[m] == Evaluated {
@@ -318,9 +337,9 @@ func (r *Runtime) asyncModuleExecutionFulfilled(state *evaluationState, c Cyclic
 				continue
 			}
 			state.status[m] = Evaluated
-			if cap := state.topLevelCapability[r.findModuleRecord(c).(CyclicModuleRecord)]; cap != nil {
+			if cap := state.topLevelCapability[r.findModuleRecord(result).(CyclicModuleRecord)]; cap != nil {
 				// TODO having the module instances going through Values and back is likely not a *great* idea
-				cap.resolve(r.ToValue(result))
+				cap.resolve(r.ToValue(_undefined))
 			}
 		}
 	}
@@ -434,18 +453,57 @@ func (r *Runtime) SetImportModuleDynamically(callback ImportModuleDynamicallyCal
 	r.importModuleDynamically = callback
 }
 
-// TODO figure out the arguments
-func (r *Runtime) FinalizeDynamicImport(m ModuleRecord, pcap interface{}, err interface{}) {
-	// fmt.Println("FinalizeDynamicImport", m, pcap, err)
-	p := pcap.(*promiseCapability)
-	if err != nil {
-		p.reject(r.interfaceErrorToValue(err))
-		return
+// TODO figure out whether Result should be an Option thing :shrug:
+func (r *Runtime) FinishLoadingImportModule(referrer interface{}, specifier Value, payload interface{}, result ModuleRecord, err interface{}) {
+	// https://262.ecma-international.org/14.0/#sec-FinishLoadingImportedModule
+	if err == nil {
+		// a. a. If referrer.[[LoadedModules]] contains a Record whose [[Specifier]] is specifier, then
+		//     i. i. Assert: That Record's [[Module]] is result.[[Value]].
+		// b. b. Else, append the Record { [[Specifier]]: specifier, [[Module]]: result.[[Value]] } to referrer.[[LoadedModules]].
 	}
-	// fmt.Println("resolve")
-	p.resolve(r.NamespaceObjectFor(m))
+	// 2. 2. If payload is a GraphLoadingState Record, then
+	//     a. a. Perform ContinueModuleLoading(payload, result).
+	// 3. 3. Else,
+	//     a. a. Perform ContinueDynamicImport(payload, result).
+	r.continueDynamicImport(payload.(*promiseCapability), result, err) // TODO better type inferance
 }
 
+func (r *Runtime) continueDynamicImport(promiseCapability *promiseCapability, result ModuleRecord, err interface{}) {
+	// https://262.ecma-international.org/14.0/#sec-ContinueDynamicImport
+	if err != nil {
+		promiseCapability.reject(r.interfaceErrorToValue(err))
+		return
+	}
+	// 2. 2. Let module be moduleCompletion.[[Value]].
+	module := result
+	// 3. 3. Let loadPromise be module.LoadRequestedModules().
+	loadPromise := r.promiseResolve(r.getPromise(), _undefined) // TODO fix
+
+	rejectionClosure := r.ToValue(func(call FunctionCall) Value {
+		promiseCapability.reject(call.Argument(0))
+		return nil
+	})
+	linkAndEvaluateClosure := r.ToValue(func(call FunctionCall) Value {
+		// a. a. Let link be Completion(module.Link()).
+		err := module.Link()
+		if err != nil {
+			promiseCapability.reject(r.interfaceErrorToValue(err))
+			return nil
+		}
+		evaluationPromise := module.Evaluate(r)
+		onFullfill := r.ToValue(func(call FunctionCall) Value {
+			namespace := r.NamespaceObjectFor(module)
+			promiseCapability.resolve(namespace)
+			return nil
+		})
+		r.performPromiseThen(evaluationPromise, onFullfill, rejectionClosure, nil)
+		return nil
+	})
+
+	r.performPromiseThen(loadPromise.Export().(*Promise), linkAndEvaluateClosure, rejectionClosure, nil)
+}
+
+// Drop this or make it more
 func (r *Runtime) interfaceErrorToValue(err interface{}) Value {
 	switch x1 := err.(type) {
 	case *Exception:

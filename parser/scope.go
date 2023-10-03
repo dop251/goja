@@ -20,6 +20,7 @@ type _scope struct {
 	declarationList   []*ast.VariableDeclaration
 	importEntries     []*ast.ImportDeclaration
 	exportEntries     []*ast.ExportDeclaration
+	hasTLA            bool
 
 	labels []unistring.String
 }

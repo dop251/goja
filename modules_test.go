@@ -206,22 +206,10 @@ import { x } from "0-fixture.js";
 						eventLoopQueue <- func() {
 							ex := vm.runWrapped(func() {
 								m, err := hostResolveImportedModule(referencingScriptOrModule, specifier)
-								var ex interface{}
-								if err == nil {
-									err = link(m)
-									if err != nil {
-										ex = err
-									} else {
-										promise := m.Evaluate(vm)
-										if promise.state == PromiseStateRejected {
-											ex = promise.Result()
-										}
-									}
-								}
-								vm.FinalizeDynamicImport(m, pcap, ex)
+								vm.FinishLoadingImportModule(referencingScriptOrModule, specifierValue, pcap, m, err)
 							})
 							if ex != nil {
-								vm.FinalizeDynamicImport(m, pcap, ex)
+								vm.FinishLoadingImportModule(referencingScriptOrModule, specifierValue, pcap, nil, ex)
 							}
 						}
 					})

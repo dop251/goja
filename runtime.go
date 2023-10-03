@@ -199,6 +199,7 @@ type Runtime struct {
 	getImportMetaProperties func(ModuleRecord) []MetaProperty
 	finalizeImportMeta      func(*Object, ModuleRecord)
 	importModuleDynamically ImportModuleDynamicallyCallback
+	evaluationState         *evaluationState
 
 	jobQueue []func()
 
@@ -551,16 +552,6 @@ func (r *Runtime) newAsyncFunc(name unistring.String, length int, strict bool) (
 	f.prototype = r.getAsyncFunctionPrototype()
 	f.val.self = f
 	f.init(name, intToValue(int64(length)))
-	return
-}
-
-func (r *Runtime) newModule(name unistring.String, pcap *promiseCapability) (f *asyncFuncObject) {
-	f = &asyncFuncObject{}
-	r.initBaseJsFunction(&f.baseJsFuncObject, true)
-	f.class = classFunction
-	f.prototype = r.getAsyncFunctionPrototype()
-	f.val.self = f
-	f.init(name, intToValue(0))
 	return
 }
 
@@ -1938,6 +1929,8 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 
 func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value {
 	return func(call FunctionCall) Value {
+		// fmt.Println("call=", call)
+		// fmt.Println("call.Arguments=", call.Arguments)
 		typ := value.Type()
 		nargs := typ.NumIn()
 		var in []reflect.Value

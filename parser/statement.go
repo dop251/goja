@@ -910,7 +910,11 @@ func (self *_parser) parseIfStatement() ast.Statement {
 func (self *_parser) parseSourceElements() (body []ast.Statement) {
 	for self.token != token.EOF {
 		self.scope.allowLet = true
-		self.scope.allowImportExport = true
+		if self.opts.module {
+			self.scope.allowImportExport = true
+			self.scope.allowAwait = true
+			self.scope.inAsync = true
+		}
 		body = append(body, self.parseStatement())
 	}
 
@@ -923,6 +927,7 @@ func (self *_parser) parseProgram() *ast.Program {
 		DeclarationList: self.scope.declarationList,
 		ImportEntries:   self.scope.importEntries,
 		ExportEntries:   self.scope.exportEntries,
+		HasTLA:          self.scope.hasTLA,
 		File:            self.file,
 	}
 	self.file.SetSourceMap(self.parseSourceMap())

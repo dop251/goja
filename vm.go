@@ -834,6 +834,8 @@ func (vm *vm) runTry() (ex *Exception) {
 func (vm *vm) runTryInner() (ex *Exception) {
 	defer func() {
 		if x := recover(); x != nil {
+			// fmt.Printf("x=%#v\n", x)
+			// debug.PrintStack()
 			ex = vm.handleThrow(x)
 		}
 	}()
@@ -4687,7 +4689,7 @@ func (_loadDynamicImport) exec(vm *vm) {
 
 		pcap := vm.r.newPromiseCapability(vm.r.getPromise())
 		var specifierStr String
-		err := vm.r.runWrapped(func() { // TODO use try
+		err := vm.r.try(func() {
 			specifierStr = specifier.toString()
 		})
 		if err != nil {
@@ -5650,10 +5652,10 @@ func (vm *vm) exceptionFromValue(x interface{}) *Exception {
 		/*
 			if vm.prg != nil {
 				vm.prg.dumpCode(log.Printf)
-			}
-			log.Print("Stack: ", string(debug.Stack()))
-			panic(fmt.Errorf("Panic at %d: %v", vm.pc, x))
-		*/
+				}
+				log.Print("Stack: ", string(debug.Stack()))
+				panic(fmt.Errorf("Panic at %d: %v", vm.pc, x))
+				//*/
 		return nil
 	}
 	if ex.stack == nil {

@@ -165,8 +165,11 @@ func (b *binding) emitGetAt(pos int) {
 }
 
 func (b *binding) emitGetP() {
-	if b.isVar && !b.isArg {
-		// no-op
+	if b.getIndirect != nil {
+		b.markAccessPoint()
+		b.scope.c.emit(loadIndirect(b.getIndirect), pop)
+	} else if b.isVar && !b.isArg {
+		// noop
 	} else {
 		// make sure TDZ is checked
 		b.markAccessPoint()

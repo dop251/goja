@@ -32,6 +32,7 @@ var (
 	yieldDelegate    = &yieldMarker{resultType: resultYieldDelegate}
 	yieldDelegateRes = &yieldMarker{resultType: resultYieldDelegateRes}
 	yieldEmpty       = &yieldMarker{resultType: resultYield}
+	yieldModuleInit  = &yieldMarker{resultType: resultYield}
 )
 
 // AsyncContextTracker is a handler that allows to track an async execution context to ensure it remains
@@ -700,7 +701,7 @@ func (ar *asyncRunner) onRejected(call FunctionCall) Value {
 }
 
 func (ar *asyncRunner) step(res Value, done bool, ex *Exception) {
-	// fmt.Printf("step(%v, %v, %v)\n", res, done, ex)
+	// fmt.Printf("(%v) -> step(%v, %v, %v)\n", ar.gen.ctx.prg.src.Name(), res, done, ex)
 	r := ar.f.runtime
 	if done || ex != nil {
 		if ex == nil {
@@ -722,6 +723,7 @@ func (ar *asyncRunner) step(res Value, done bool, ex *Exception) {
 		handler:     &jobCallback{callback: ar.onRejected},
 		asyncRunner: ar,
 	})
+	// fmt.Printf("promise = %#v\n", promise.self)
 }
 
 func (ar *asyncRunner) start(nArgs int) {
@@ -770,12 +772,9 @@ func (g *generator) step() (res Value, resultType resultType, ex *Exception) {
 	}
 	res = g.vm.pop()
 	if ym, ok := res.(*yieldMarker); ok {
-		// fmt.Println("here")
 		resultType = ym.resultType
 		g.ctx = execCtx{}
 		g.vm.pc = -g.vm.pc + 1
-		// fmt.Println(res)
-		// fmt.Println(g.vm.stack)
 		if res != yieldEmpty {
 			res = g.vm.pop()
 		} else {

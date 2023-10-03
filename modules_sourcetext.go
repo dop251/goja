@@ -22,22 +22,61 @@ type SourceTextModuleInstance struct {
 }
 
 func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime, res, rej func(interface{})) (CyclicModuleInstance, error) {
-	ex := rt.runWrapped(func() { s.pcap.resolve(_undefined) })
-	if ex != nil {
-		return nil, ex
+	// fmt.Println("ExecuteModule", s.moduleRecord.p.src.Name(), s.HasTLA())
+	//s.pcap.resolve(_undefined)
+	//*
+	// THis actually should just continue the execution instead of moving it off.
+	// Unfortunately this requires access to the asyncRunner
+	promiseP := s.pcap.promise.self.(*Promise)
+	// fmt.Println(promiseP.fulfillReactions)
+	// fmt.Println(promiseP)
+	if len(promiseP.fulfillReactions) == 1 {
+		// FIXME figure out how to do this ... better
+		promiseP.fulfill(_undefined)
+		rt.leave()
+		// ar := s.asyncRunner
+		// ar := promiseP.fulfillReactions[0].asyncRunner
+		// fmt.Println(ar)
+		// _ = ar.onFulfilled(FunctionCall{Arguments: []Value{_undefined}})
+	} else {
+		// fmt.Println("bad", s.moduleRecord.p.src.Name())
+		// debug.PrintStack()
 	}
-	// TODO fix
+	//*/
+
 	promise := s.asyncPromise
-	switch promise.state {
-	case PromiseStateFulfilled:
-		return s, nil
-	case PromiseStateRejected:
-		return nil, rt.vm.exceptionFromValue(promise.result)
-	case PromiseStatePending:
-		fallthrough
-	default:
-		panic("this should not happen")
+	if !s.HasTLA() {
+		if res != nil {
+			panic("wat")
+		}
+		switch s.asyncPromise.state {
+		case PromiseStateFulfilled:
+			return s, nil
+		case PromiseStateRejected:
+			return nil, rt.vm.exceptionFromValue(promise.result)
+		case PromiseStatePending:
+			// TODO !??!?
+			panic("wat now")
+			return s, nil
+		default:
+			panic("Somehow promise from a module execution is in invalid state")
+		}
 	}
+	if res == nil {
+		panic("bad")
+		return nil, nil
+	}
+	rt.performPromiseThen(s.asyncPromise, rt.ToValue(func(call FunctionCall) Value {
+		// fmt.Println("!!!!res")
+		res(call.Argument(0))
+		return nil
+	}), rt.ToValue(func(call FunctionCall) Value {
+		v := call.Argument(0)
+		// fmt.Printf("rej %#v\n", v)
+		rej(v)
+		return nil
+	}), nil)
+	return nil, nil
 }
 
 func (s *SourceTextModuleInstance) GetBindingValue(name string) Value {
@@ -49,7 +88,7 @@ func (s *SourceTextModuleInstance) GetBindingValue(name string) Value {
 }
 
 func (s *SourceTextModuleInstance) HasTLA() bool {
-	return false // TODO implement when TLA is added
+	return s.moduleRecord.hasTLA // TODO implement when TLA is added
 }
 
 type SourceTextModuleRecord struct {
@@ -57,6 +96,7 @@ type SourceTextModuleRecord struct {
 	p    *Program
 	// context
 	// importmeta
+	hasTLA                bool
 	requestedModules      []string
 	importEntries         []importEntry
 	localExportEntries    []exportEntry
@@ -352,6 +392,7 @@ func ModuleFromAST(body *ast.Program, resolveModule HostResolveImportedModuleFun
 		// realm isn't implement
 		// environment is undefined
 		// namespace is undefined
+		hasTLA:           body.HasTLA,
 		requestedModules: requestedModules,
 		// hostDefined TODO
 		body: body,
@@ -525,13 +566,16 @@ func (module *SourceTextModuleRecord) ResolveExport(exportName string, resolvese
 }
 
 func (module *SourceTextModuleRecord) Instantiate(rt *Runtime) (CyclicModuleInstance, error) {
+	// fmt.Println("Instantiate", module.p.src.Name())
 	mi := &SourceTextModuleInstance{
 		moduleRecord:  module,
 		exportGetters: make(map[string]func() Value),
 		pcap:          rt.newPromiseCapability(rt.getPromise()),
 	}
 	rt.modules[module] = mi
+	rt.vm.callStack = append(rt.vm.callStack, context{})
 	_, ex := rt.RunProgram(module.p)
+	rt.vm.callStack = rt.vm.callStack[:len(rt.vm.callStack)-1]
 	if ex != nil {
 		mi.pcap.reject(rt.ToValue(ex))
 		return nil, ex

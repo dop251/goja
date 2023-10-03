@@ -211,6 +211,20 @@ var (
 
 		// Skip due to regexp named groups
 		"test/built-ins/String/prototype/replaceAll/searchValue-replacer-RegExp-call.js": true,
+
+		// some export syntax taht isn't supported
+		"test/language/module-code/top-level-await/syntax/export-var-await-expr-this.js":             true,
+		"test/language/module-code/top-level-await/syntax/export-var-await-expr-null.js":             true,
+		"test/language/module-code/top-level-await/syntax/export-var-await-expr-identifier.js":       true,
+		"test/language/module-code/top-level-await/syntax/export-var-await-expr-template-literal.js": true,
+		"test/language/module-code/top-level-await/syntax/export-var-await-expr-regexp.js":           true,
+		"test/language/module-code/top-level-await/syntax/export-var-await-expr-new-expr.js":         true,
+		"test/language/module-code/top-level-await/syntax/export-var-await-expr-literal-number.js":   true,
+		"test/language/module-code/top-level-await/syntax/export-var-await-expr-obj-literal.js":      true,
+		"test/language/module-code/top-level-await/syntax/export-var-await-expr-literal-string.js":   true,
+		"test/language/module-code/top-level-await/syntax/export-var-await-expr-nested.js":           true,
+		"test/language/module-code/top-level-await/syntax/export-var-await-expr-func-expression.js":  true,
+		"test/language/module-code/top-level-await/syntax/export-var-await-expr-array-literal.js":    true,
 	}
 
 	featuresBlackList = []string{
@@ -237,7 +251,6 @@ var (
 		"ShadowRealm",
 		"SharedArrayBuffer",
 		"error-cause",
-		"top-level-await",
 		"decorators",
 		"regexp-v-flag",
 	}
@@ -456,7 +469,6 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	vm.Set("IgnorableTestError", ignorableTestError)
 	vm.RunProgram(ctx.sabStub)
 	var out []string
-	eventLoopQueue := make(chan func(), 2) // the most basic and likely buggy event loop
 	async := meta.hasFlag("async")
 
 	type cacheElement struct {
@@ -498,35 +510,14 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		return p, nil
 	}
 
+	eventLoopQueue := make(chan func(), 10)
 	dynamicImport := meta.hasFeature("dynamic-import")
 	if dynamicImport {
 		vm.importModuleDynamically = func(referencingScriptOrModule interface{}, specifierValue Value, pcap interface{}) {
+			// fmt.Printf("import(%s, %s, %s)\n", referencingScriptOrModule, specifierValue, pcap)
 			specifier := specifierValue.String()
-			go func() {
-				m, err := hostResolveImportedModule(referencingScriptOrModule, specifier)
-
-				eventLoopQueue <- func() {
-					ex := vm.runWrapped(func() {
-						var ex interface{}
-						ex = err
-						if err == nil {
-							err = m.Link()
-							if err != nil {
-								ex = err
-							} else {
-								promise := m.Evaluate(vm)
-								if promise.state == PromiseStateRejected {
-									ex = promise.Result()
-								}
-							}
-						}
-						vm.FinalizeDynamicImport(m, pcap, ex)
-					})
-					if ex != nil {
-						vm.FinalizeDynamicImport(m, pcap, ex)
-					}
-				}
-			}()
+			m, err := hostResolveImportedModule(referencingScriptOrModule, specifier)
+			vm.FinishLoadingImportModule(referencingScriptOrModule, specifierValue, pcap, m, err)
 		}
 	}
 	if async {
@@ -543,10 +534,51 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 
 	var err error
 	var early bool
+	var asyncError <-chan error
 	if meta.hasFlag("module") {
-		err, early = ctx.runTC39Module(name, src, meta.Includes, vm, hostResolveImportedModule)
+		err, early, asyncError = ctx.runTC39Module(name, src, meta.Includes, vm, hostResolveImportedModule)
 	} else {
 		err, early = ctx.runTC39Script(name, src, meta.Includes, vm)
+	}
+
+	if vm.vm.sp != 0 {
+		t.Fatalf("sp: %d", vm.vm.sp)
+	}
+
+	if l := len(vm.vm.iterStack); l > 0 {
+		t.Fatalf("iter stack is not empty: %d", l)
+	}
+	if async && err == nil {
+		for {
+			complete := false
+			for _, line := range out {
+				if strings.HasPrefix(line, "Test262:AsyncTestFailure:") {
+					t.Fatal(line)
+				} else if line == "Test262:AsyncTestComplete" {
+					complete = true
+				}
+			}
+			if complete {
+				break
+			}
+			for _, line := range out {
+				t.Log(line)
+			}
+			select {
+			case fn := <-eventLoopQueue:
+				fn()
+			case <-time.After(time.Millisecond * 5000):
+				t.Fatal("nothing happened in 5s :(")
+
+			}
+		}
+		if asyncError != nil {
+			select {
+			case err = <-asyncError:
+			case <-time.After(time.Millisecond * 5000):
+				t.Fatal("nothing happened in 5s :(")
+			}
+		}
 	}
 
 	if err != nil {
@@ -600,38 +632,6 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		if meta.Negative.Type != "" {
 			// vm.vm.prg.dumpCode(t.Logf)
 			t.Fatalf("%s: Expected error: %v", name, err)
-		}
-	}
-
-	if vm.vm.sp != 0 {
-		t.Fatalf("sp: %d", vm.vm.sp)
-	}
-
-	if l := len(vm.vm.iterStack); l > 0 {
-		t.Fatalf("iter stack is not empty: %d", l)
-	}
-	if async {
-		for {
-			complete := false
-			for _, line := range out {
-				if strings.HasPrefix(line, "Test262:AsyncTestFailure:") {
-					t.Fatal(line)
-				} else if line == "Test262:AsyncTestComplete" {
-					complete = true
-				}
-			}
-			if complete {
-				return
-			}
-			for _, line := range out {
-				t.Log(line)
-			}
-			select {
-			case fn := <-eventLoopQueue:
-				fn()
-			case <-time.After(time.Millisecond * 5000):
-				t.Fatal("nothing happened in 5s :(")
-			}
 		}
 	}
 }
@@ -738,7 +738,7 @@ func (ctx *tc39TestCtx) runFile(base, name string, vm *Runtime) error {
 	return err
 }
 
-func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *Runtime, hostResolveImportedModule HostResolveImportedModuleFunc) (err error, early bool) {
+func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *Runtime, hostResolveImportedModule HostResolveImportedModuleFunc) (err error, early bool, asyncError chan error) {
 	early = true
 	err = ctx.runFile(ctx.base, path.Join("harness", "assert.js"), vm)
 	if err != nil {
@@ -769,8 +769,22 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 
 	early = false
 	promise := m.Evaluate(vm)
-	if promise.state != PromiseStateFulfilled {
+
+	asyncError = make(chan error, 1)
+	if promise.state == PromiseStateRejected {
 		err = vm.vm.exceptionFromValue(promise.Result())
+	} else if promise.state == PromiseStatePending {
+		vm.performPromiseThen(promise, vm.ToValue(func(_ FunctionCall) Value {
+			close(asyncError)
+			return nil
+		}), vm.ToValue(func(call FunctionCall) Value {
+			asyncError <- vm.vm.exceptionFromValue(call.Argument(0))
+			close(asyncError)
+			return nil
+		}), nil)
+	} else {
+		// TODO ?!?!
+		close(asyncError)
 	}
 	return
 }
