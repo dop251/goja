@@ -47,7 +47,7 @@ func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime, res, rej func(inte
 	promise := s.asyncPromise
 	if !s.HasTLA() {
 		if res != nil {
-			panic("wat")
+			panic("goja bug where a not async module was executed as async on")
 		}
 		switch s.asyncPromise.state {
 		case PromiseStateFulfilled:
@@ -56,15 +56,13 @@ func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime, res, rej func(inte
 			return nil, rt.vm.exceptionFromValue(promise.result)
 		case PromiseStatePending:
 			// TODO !??!?
-			panic("wat now")
-			return s, nil
+			panic("goja bug where an sync module was not executed synchronously")
 		default:
 			panic("Somehow promise from a module execution is in invalid state")
 		}
 	}
 	if res == nil {
-		panic("bad")
-		return nil, nil
+		panic("goja bug where an async module was not executed as async")
 	}
 	rt.performPromiseThen(s.asyncPromise, rt.ToValue(func(call FunctionCall) Value {
 		// fmt.Println("!!!!res")
