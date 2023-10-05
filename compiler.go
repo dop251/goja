@@ -921,7 +921,7 @@ found:
 	s.bindings = s.bindings[:l]
 }
 
-func (c *compiler) compileModule(module *SourceTextModuleRecord) *compiledModule {
+func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 	oldModule := c.module
 	c.module = module
 	oldResolve := c.hostResolveImportedModule
@@ -1022,7 +1022,7 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) *compiledModule
 		scriptOrModule: m,
 	}
 	c.emit(_loadUndef{}, m, call(0), &setModulePromise{moduleCore: module})
-	return &compiledModule{}
+	return
 }
 
 func (c *compiler) compileImportEntry(in importEntry) {

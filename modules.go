@@ -456,11 +456,12 @@ func (r *Runtime) SetImportModuleDynamically(callback ImportModuleDynamicallyCal
 // TODO figure out whether Result should be an Option thing :shrug:
 func (r *Runtime) FinishLoadingImportModule(referrer interface{}, specifier Value, payload interface{}, result ModuleRecord, err interface{}) {
 	// https://262.ecma-international.org/14.0/#sec-FinishLoadingImportedModule
-	if err == nil {
-		// a. a. If referrer.[[LoadedModules]] contains a Record whose [[Specifier]] is specifier, then
-		//     i. i. Assert: That Record's [[Module]] is result.[[Value]].
-		// b. b. Else, append the Record { [[Specifier]]: specifier, [[Module]]: result.[[Value]] } to referrer.[[LoadedModules]].
-	}
+	// if err == nil {
+	// a. a. If referrer.[[LoadedModules]] contains a Record whose [[Specifier]] is specifier, then
+	//     i. i. Assert: That Record's [[Module]] is result.[[Value]].
+	// b. b. Else, append the Record { [[Specifier]]: specifier, [[Module]]: result.[[Value]] } to referrer.[[LoadedModules]].
+
+	// }
 	// 2. 2. If payload is a GraphLoadingState Record, then
 	//     a. a. Perform ContinueModuleLoading(payload, result).
 	// 3. 3. Else,

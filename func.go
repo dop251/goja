@@ -32,7 +32,6 @@ var (
 	yieldDelegate    = &yieldMarker{resultType: resultYieldDelegate}
 	yieldDelegateRes = &yieldMarker{resultType: resultYieldDelegateRes}
 	yieldEmpty       = &yieldMarker{resultType: resultYield}
-	yieldModuleInit  = &yieldMarker{resultType: resultYield}
 )
 
 // AsyncContextTracker is a handler that allows to track an async execution context to ensure it remains

@@ -38,11 +38,7 @@ func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime, res, rej func(inte
 		// ar := promiseP.fulfillReactions[0].asyncRunner
 		// fmt.Println(ar)
 		// _ = ar.onFulfilled(FunctionCall{Arguments: []Value{_undefined}})
-	} else {
-		// fmt.Println("bad", s.moduleRecord.p.src.Name())
-		// debug.PrintStack()
 	}
-	//*/
 
 	promise := s.asyncPromise
 	if !s.HasTLA() {
@@ -477,7 +473,7 @@ func (module *SourceTextModuleRecord) InitializeEnvironment() (err error) {
 		}
 	}()
 
-	_ = c.compileModule(module)
+	c.compileModule(module)
 	module.p = c.p
 	return
 }

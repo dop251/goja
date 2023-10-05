@@ -1005,11 +1005,6 @@ func (l loadStackLex) exec(vm *vm) {
 	} else {
 		p = &vm.stack[vm.sb+vm.args+int(l)]
 	}
-	// fmt.Println(vm.stack[1:], vm.sb, vm.args, l)
-	// fmt.Println("*p=", *p)
-	if l == 1 {
-		// debug.PrintStack()
-	}
 	if *p == nil {
 		vm.throw(errAccessBeforeInit)
 		return
