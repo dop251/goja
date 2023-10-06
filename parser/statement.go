@@ -98,13 +98,13 @@ func (self *_parser) parseStatement() ast.Statement {
 	case token.TRY:
 		return self.parseTryStatement()
 	case token.EXPORT:
-		if !allowImportExport {
-			self.error(self.idx, "export only allowed in global scope")
+		if !self.opts.module {
+			self.error(self.idx, "export not supported in script")
 			self.next()
 			return &ast.BadStatement{From: self.idx, To: self.idx + 1}
 		}
-		if !self.opts.module {
-			self.error(self.idx, "export not supported in script")
+		if !allowImportExport {
+			self.error(self.idx, "export only allowed in global scope")
 			self.next()
 			return &ast.BadStatement{From: self.idx, To: self.idx + 1}
 		}
