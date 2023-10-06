@@ -1022,7 +1022,6 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 		scriptOrModule: m,
 	}
 	c.emit(_loadUndef{}, m, call(0), &setModulePromise{moduleCore: module})
-	return
 }
 
 func (c *compiler) compileImportEntry(in importEntry) {
