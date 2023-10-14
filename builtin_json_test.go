@@ -2,6 +2,7 @@ package goja
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -75,6 +76,24 @@ func TestEOFWrapping(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "Unexpected end of JSON input") {
 		t.Fatalf("Error doesn't contain human-friendly wrapper: %v", err)
+	}
+}
+
+type testMarshalJSONErrorStruct struct {
+	e error
+}
+
+func (s *testMarshalJSONErrorStruct) MarshalJSON() ([]byte, error) {
+	return nil, s.e
+}
+
+func TestMarshalJSONError(t *testing.T) {
+	vm := New()
+	v := testMarshalJSONErrorStruct{e: errors.New("test error")}
+	vm.Set("v", &v)
+	_, err := vm.RunString("JSON.stringify(v)")
+	if !errors.Is(err, v.e) {
+		t.Fatalf("Unexpected error: %v", err)
 	}
 }
 
