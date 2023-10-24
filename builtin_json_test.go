@@ -48,6 +48,23 @@ func TestJSONMarshalObjectCircular(t *testing.T) {
 	}
 }
 
+func TestJSONStringifyCircularWrappedGo(t *testing.T) {
+	type CircularType struct {
+		Self *CircularType
+	}
+	vm := New()
+	v := CircularType{}
+	v.Self = &v
+	vm.Set("v", &v)
+	_, err := vm.RunString("JSON.stringify(v)")
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+	if !strings.HasPrefix(err.Error(), "TypeError: Converting circular structure to JSON") {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
 func TestJSONParseReviver(t *testing.T) {
 	// example from
 	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse
