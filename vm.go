@@ -4462,6 +4462,15 @@ func (_throw) exec(vm *vm) {
 	}
 
 	if ex = vm.handleThrow(ex); ex != nil {
+		// Get the full Error stacks
+		if o, ok := v.(*Object); ok {
+			if e, ok := o.self.(*errorObject); ok {
+				ex = &Exception{
+					val:   v,
+					stack: e.stack,
+				}
+			}
+		}
 		panic(ex)
 	}
 }
