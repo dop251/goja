@@ -2325,15 +2325,32 @@ func TestStacktraceLocationThrowFromCatch(t *testing.T) {
 		t.Fatal("Expected error")
 	}
 	stack := err.(*Exception).stack
-	if len(stack) != 2 {
+	if len(stack) != 3 {
 		t.Fatalf("Unexpected stack len: %v", stack)
 	}
-	if frame := stack[0]; frame.funcName != "main" || frame.pc != 29 {
+	if frame := stack[0]; frame.funcName != "f2" || frame.pc != 2 {
 		t.Fatalf("Unexpected stack frame 0: %#v", frame)
 	}
-	if frame := stack[1]; frame.funcName != "" || frame.pc != 7 {
+	if frame := stack[1]; frame.funcName != "main" || frame.pc != 15 {
 		t.Fatalf("Unexpected stack frame 1: %#v", frame)
 	}
+	if frame := stack[2]; frame.funcName != "" || frame.pc != 7 {
+		t.Fatalf("Unexpected stack frame 2: %#v", frame)
+	}
+}
+
+func TestErrorStackRethrow(t *testing.T) {
+	const SCRIPT = `
+	function f(e) {
+		throw e;
+	}
+	try {
+		f(new Error());
+	} catch(e) {
+		assertStack(e, [["test.js", "", 6, 5]]);
+	}
+	`
+	testScriptWithTestLibX(SCRIPT, _undefined, t)
 }
 
 func TestStacktraceLocationThrowFromGo(t *testing.T) {
