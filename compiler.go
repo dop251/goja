@@ -30,8 +30,9 @@ const (
 	maskVar       = 1 << 30
 	maskDeletable = 1 << 29
 	maskStrict    = maskDeletable
+	maskIndirect  = 1 << 28
 
-	maskTyp = maskConst | maskVar | maskDeletable
+	maskTyp = maskConst | maskVar | maskDeletable | maskIndirect
 )
 
 type varType byte
@@ -687,6 +688,8 @@ func (s *scope) finaliseVarAlloc(stackOffset int) (stashSize, stackSize int) {
 						switch i := (*ap).(type) {
 						case loadStack:
 							*ap = loadStash(idx)
+						case initIndirect:
+							*ap = initIndirect{idx: idx, getter: i.getter}
 						case export:
 							*ap = export{
 								idx:      idx,
@@ -894,6 +897,9 @@ func (s *scope) makeNamesMap() map[unistring.String]uint32 {
 		if b.isVar {
 			idx |= maskVar
 		}
+		if b.getIndirect != nil {
+			idx |= maskIndirect
+		}
 		names[b.name] = idx
 	}
 	return names
@@ -954,13 +960,12 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 
 		// needResult: true,
 	}
-	enter := &enterFuncBody{
+	var enter *enterBlock
+	c.emit(&enterFuncBody{
 		funcType:    funcModule,
 		extensible:  true,
 		adjustStack: true,
-	}
-
-	c.emit(enter)
+	})
 	for _, in := range module.indirectExportEntries {
 		v, ambiguous := module.ResolveExport(in.exportName)
 		if v == nil || ambiguous {
@@ -981,7 +986,15 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 	if len(vars) > 0 {
 		c.emit(&bindVars{names: vars, deletable: false})
 	}
-	c.compileLexicalDeclarations(in.Body, true)
+	if c.compileLexicalDeclarations(in.Body, true) {
+		c.block = &block{
+			outer:      c.block,
+			typ:        blockScope,
+			needResult: true,
+		}
+		enter = &enterBlock{}
+		c.emit(enter)
+	}
 	for _, exp := range in.Body {
 		if imp, ok := exp.(*ast.ImportDeclaration); ok {
 			c.compileImportDeclaration(imp)
@@ -1003,9 +1016,10 @@ func (c *compiler) compileModule(module *SourceTextModuleRecord) {
 	c.compileStatements(in.Body, true)
 	c.emit(loadUndef)
 	c.emit(ret)
-	c.updateEnterBlock(&enter.enterBlock)
-	c.leaveScopeBlock(&enter.enterBlock)
-	c.popScope()
+	if enter != nil {
+		c.leaveScopeBlock(enter)
+		c.popScope()
+	}
 
 	scope.finaliseVarAlloc(0)
 	m := &newModule{

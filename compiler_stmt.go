@@ -900,6 +900,9 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 					m := vm.r.modules[value.Module]
 					return m.GetBindingValue(identifier)
 				}
+				localB.markAccessPoint()
+				c.emit(initIndirect{getter: localB.getIndirect})
+
 			}
 		}
 
@@ -932,6 +935,8 @@ func (c *compiler) compileImportDeclaration(expr *ast.ImportDeclaration) {
 					v := m.GetBindingValue(identifier)
 					return v
 				}
+				localB.markAccessPoint()
+				c.emit(initIndirect{getter: localB.getIndirect})
 			}
 		}
 	}

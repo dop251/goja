@@ -27,6 +27,7 @@ type stash struct {
 	obj       *Object
 
 	outer *stash
+	vm    *vm
 
 	// If this is a top-level function stash, sets the type of the function. If set, dynamic var declarations
 	// created by direct eval go here.
@@ -456,6 +457,10 @@ func (s *stash) getByName(name unistring.String) (v Value, exists bool) {
 			} else {
 				v = _undefined
 			}
+		} else if idx&maskIndirect != 0 {
+			var f func(*vm) Value
+			_ = s.vm.r.ExportTo(v, &f)
+			v = f(s.vm)
 		}
 		return v, true
 	}
@@ -542,6 +547,7 @@ func (s *stash) deleteBinding(name unistring.String) {
 func (vm *vm) newStash() {
 	vm.stash = &stash{
 		outer: vm.stash,
+		vm:    vm, // TODO fix
 	}
 	vm.stashAllocs++
 }
@@ -2676,6 +2682,22 @@ func (s initStash) exec(vm *vm) {
 	vm.initLocal(int(s))
 }
 
+type initIndirect struct {
+	idx    uint32
+	getter func(vm *vm) Value
+}
+
+func (s initIndirect) exec(vm *vm) {
+	level := int(s.idx) >> 24
+	idx := uint32(s.idx & 0x00FFFFFF)
+	stash := vm.stash
+	for i := 0; i < level; i++ {
+		stash = stash.outer
+	}
+	stash.initByIdx(idx, vm.r.ToValue(s.getter))
+	vm.pc++
+}
+
 type initStashP uint32
 
 func (s initStashP) exec(vm *vm) {
@@ -3259,7 +3281,6 @@ func (n loadDynamic) exec(vm *vm) {
 	if val == nil {
 		val = vm.r.globalObject.self.getStr(name, nil)
 		if val == nil {
-			// fmt.Println("here")
 			vm.throw(vm.r.newReferenceError(name))
 			return
 		}

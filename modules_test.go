@@ -21,10 +21,24 @@ func TestSimpleModule(t *testing.T) {
 			`,
 			"dep.js": `export function b() { return 5 };`,
 		},
+		"function export eval": {
+			"a.js": `
+				import { b } from "dep.js";
+				eval("globalThis.s = b()");
+			`,
+			"dep.js": `export function b() { return 5 };`,
+		},
 		"let export": {
 			"a.js": `
 				import { b } from "dep.js";
 				globalThis.s = b()
+			`,
+			"dep.js": `export let b = function() {return 5 };`,
+		},
+		"let export eval": {
+			"a.js": `
+				import { b } from "dep.js";
+				eval("globalThis.s = b()");
 			`,
 			"dep.js": `export let b = function() {return 5 };`,
 		},
@@ -35,11 +49,32 @@ func TestSimpleModule(t *testing.T) {
 			`,
 			"dep.js": `export const b = function() { return 5 };`,
 		},
+		"const export eval": {
+			"a.js": `
+				import { b } from "dep.js";
+				eval("globalThis.s = b()")
+			`,
+			"dep.js": `export const b = function() { return 5 };`,
+		},
 		"let export with update": {
 			"a.js": `
-				import { s , b} from "dep.js";
+				import { s, b } from "dep.js";
 				s()
 				globalThis.s = b()
+			`,
+			"dep.js": `
+				export let b = "something";
+				export function s(){
+					b = function() {
+						return 5;
+					};
+				}`,
+		},
+		"let export with update eval": {
+			"a.js": `
+				import { s, b } from "dep.js";
+				s();
+				eval("globalThis.s = b();");
 			`,
 			"dep.js": `
 				export let b = "something";
@@ -56,11 +91,25 @@ func TestSimpleModule(t *testing.T) {
 			`,
 			"dep.js": `export default function() { return 5 };`,
 		},
+		"default export eval": {
+			"a.js": `
+				import b from "dep.js";
+				eval("globalThis.s = b()");
+			`,
+			"dep.js": `export default function() { return 5 };`,
+		},
 		"default loop": {
 			"a.js": `
 				import b from "a.js";
 				export default function() {return 5;};
 				globalThis.s = b()
+			`,
+		},
+		"default loop eval": {
+			"a.js": `
+				import b from "a.js";
+				export default function() {return 5;};
+				eval("globalThis.s = b()");
 			`,
 		},
 		"default export arrow": {
@@ -70,10 +119,27 @@ func TestSimpleModule(t *testing.T) {
 			`,
 			"dep.js": `export default () => {return 5 };`,
 		},
+		"default export arrow eval": {
+			"a.js": `
+				import b from "dep.js";
+				eval("globalThis.s = b();")
+			`,
+			"dep.js": `export default () => {return 5 };`,
+		},
 		"default export with as": {
 			"a.js": `
 				import b from "dep.js";
 				globalThis.s = b()
+			`,
+			"dep.js": `
+				function f() {return 5;};
+				export { f as default };
+			`,
+		},
+		"default export with as eval": {
+			"a.js": `
+				import b from "dep.js";
+				eval("globalThis.s = b()")
 			`,
 			"dep.js": `
 				function f() {return 5;};
@@ -90,10 +156,28 @@ func TestSimpleModule(t *testing.T) {
 				globalThis.s = a();
 			`,
 		},
+		"export usage before evaluation as eval": {
+			"a.js": `
+				import  "dep.js";
+				export function a() { return 5; }
+			`,
+			"dep.js": `
+				import { a } from "a.js";
+				eval("globalThis.s = a()");
+			`,
+		},
 		"dynamic import": {
 			"a.js": `
 				import("dep.js").then((imported) => {
 					globalThis.s = imported.default();
+				});
+			`,
+			"dep.js": `export default function() { return 5; }`,
+		},
+		"dynamic import eval": {
+			"a.js": `
+				import("dep.js").then((imported) => {
+					eval("globalThis.s = imported.default()");
 				});
 			`,
 			"dep.js": `export default function() { return 5; }`,
