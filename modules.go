@@ -150,8 +150,7 @@ func newEvaluationState() *evaluationState {
 }
 
 // TODO have resolve as part of runtime
-func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostResolveImportedModuleFunc,
-) *Promise {
+func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostResolveImportedModuleFunc) *Promise {
 	if r.modules == nil {
 		r.modules = make(map[ModuleRecord]ModuleInstance)
 	}
@@ -174,7 +173,8 @@ func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostR
 			state.status[m] = Evaluated
 			state.evaluationError[m] = err
 		}
-		capability.reject(r.interfaceErrorToValue(err))
+
+		capability.reject(r.ToValue(err))
 	} else {
 		if state.asyncEvaluation[r.modules[c].(CyclicModuleInstance)] == 0 {
 			state.topLevelCapability[c].resolve(_undefined)
@@ -190,7 +190,7 @@ func (r *Runtime) innerModuleEvaluation(
 	state *evaluationState,
 	m ModuleRecord, stack *[]CyclicModuleInstance, index uint,
 	resolve HostResolveImportedModuleFunc,
-) (idx uint, ex error) {
+) (idx uint, err error) {
 	if len(*stack) > 100000 {
 		panic("too deep dependancy stack of 100000")
 	}
@@ -208,11 +208,11 @@ func (r *Runtime) innerModuleEvaluation(
 	if _, ok = r.modules[m]; ok {
 		return index, nil
 	}
-	c, ex = cr.Instantiate(r)
-	if ex != nil {
+	c, err = cr.Instantiate(r)
+	if err != nil {
 		// state.evaluationError[cr] = err
 		// TODO handle this somehow - maybe just panic
-		return index, ex
+		return index, err
 	}
 
 	r.modules[m] = c
@@ -231,14 +231,14 @@ func (r *Runtime) innerModuleEvaluation(
 	*stack = append(*stack, c)
 	var requiredModule ModuleRecord
 	for _, required := range cr.RequestedModules() {
-		requiredModule, ex = resolve(m, required)
-		if ex != nil {
-			state.evaluationError[c] = ex
-			return index, ex
+		requiredModule, err = resolve(m, required)
+		if err != nil {
+			state.evaluationError[c] = err
+			return index, err
 		}
-		index, ex = r.innerModuleEvaluation(state, requiredModule, stack, index, resolve)
-		if ex != nil {
-			return index, ex
+		index, err = r.innerModuleEvaluation(state, requiredModule, stack, index, resolve)
+		if err != nil {
+			return index, err
 		}
 		requiredInstance := r.GetModuleInstance(requiredModule)
 		if requiredC, ok := requiredInstance.(CyclicModuleInstance); ok {
@@ -263,10 +263,10 @@ func (r *Runtime) innerModuleEvaluation(
 			r.executeAsyncModule(state, c)
 		}
 	} else {
-		c, ex = c.ExecuteModule(r, nil, nil)
-		if ex != nil {
-			// state.evaluationError[c] = err
-			return index, ex
+		c, err = c.ExecuteModule(r, nil, nil)
+		if err != nil {
+			state.evaluationError[c] = err
+			return index, err
 		}
 	}
 
@@ -290,7 +290,6 @@ func (r *Runtime) innerModuleEvaluation(
 
 func (r *Runtime) executeAsyncModule(state *evaluationState, c CyclicModuleInstance) {
 	// implement https://262.ecma-international.org/13.0/#sec-execute-async-module
-	// TODO likely wrong
 	p, res, rej := r.NewPromise()
 	r.performPromiseThen(p, r.ToValue(func(call FunctionCall) Value {
 		r.asyncModuleExecutionFulfilled(state, c)
@@ -323,7 +322,6 @@ func (r *Runtime) asyncModuleExecutionFulfilled(state *evaluationState, c Cyclic
 	sort.Slice(execList, func(i, j int) bool {
 		return state.asyncEvaluation[execList[i]] < state.asyncEvaluation[execList[j]]
 	})
-	// TODO sort? per when the modules got their AsyncEvaluation set ... somehow
 	for _, m := range execList {
 		if state.status[m] == Evaluated {
 			continue
@@ -339,7 +337,7 @@ func (r *Runtime) asyncModuleExecutionFulfilled(state *evaluationState, c Cyclic
 			state.status[m] = Evaluated
 			if cap := state.topLevelCapability[r.findModuleRecord(result).(CyclicModuleRecord)]; cap != nil {
 				// TODO having the module instances going through Values and back is likely not a *great* idea
-				cap.resolve(r.ToValue(_undefined))
+				cap.resolve(_undefined)
 			}
 		}
 	}
@@ -379,7 +377,7 @@ func (r *Runtime) asyncModuleExecutionRejected(state *evaluationState, c CyclicM
 	}
 	// TODO handle top level capabiltiy better
 	if cap := state.topLevelCapability[r.findModuleRecord(c).(CyclicModuleRecord)]; cap != nil {
-		cap.reject(r.interfaceErrorToValue(ex))
+		cap.reject(r.ToValue(ex))
 	}
 }
 
@@ -472,7 +470,7 @@ func (r *Runtime) FinishLoadingImportModule(referrer interface{}, specifier Valu
 func (r *Runtime) continueDynamicImport(promiseCapability *promiseCapability, result ModuleRecord, err interface{}) {
 	// https://262.ecma-international.org/14.0/#sec-ContinueDynamicImport
 	if err != nil {
-		promiseCapability.reject(r.interfaceErrorToValue(err))
+		promiseCapability.reject(r.ToValue(err))
 		return
 	}
 	// 2. 2. Let module be moduleCompletion.[[Value]].
@@ -488,7 +486,19 @@ func (r *Runtime) continueDynamicImport(promiseCapability *promiseCapability, re
 		// a. a. Let link be Completion(module.Link()).
 		err := module.Link()
 		if err != nil {
-			promiseCapability.reject(r.interfaceErrorToValue(err))
+			if err != nil {
+				switch x1 := err.(type) {
+				case *CompilerSyntaxError:
+					err = &Exception{
+						val: r.builtin_new(r.getSyntaxError(), []Value{newStringValue(x1.Error())}),
+					}
+				case *CompilerReferenceError:
+					err = &Exception{
+						val: r.newError(r.getReferenceError(), x1.Message),
+					} // TODO proper message
+				}
+			}
+			promiseCapability.reject(r.ToValue(err))
 			return nil
 		}
 		evaluationPromise := module.Evaluate(r)
@@ -502,22 +512,4 @@ func (r *Runtime) continueDynamicImport(promiseCapability *promiseCapability, re
 	})
 
 	r.performPromiseThen(loadPromise.Export().(*Promise), linkAndEvaluateClosure, rejectionClosure, nil)
-}
-
-// Drop this or make it more
-func (r *Runtime) interfaceErrorToValue(err interface{}) Value {
-	switch x1 := err.(type) {
-	case *Exception:
-		return x1.val
-	case *CompilerSyntaxError:
-		return r.builtin_new(r.getSyntaxError(), []Value{newStringValue(x1.Error())})
-	case *CompilerReferenceError:
-		return r.newError(r.getReferenceError(), x1.Message)
-	case *Object:
-		if o, ok := x1.self.(*objectGoReflect); ok {
-			// TODO just not have this
-			return o.origValue.Interface().(*Exception).Value()
-		}
-	}
-	return r.ToValue(err)
 }

@@ -3,6 +3,7 @@ package goja
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -840,8 +841,6 @@ func (vm *vm) runTry() (ex *Exception) {
 func (vm *vm) runTryInner() (ex *Exception) {
 	defer func() {
 		if x := recover(); x != nil {
-			// fmt.Printf("x=%#v\n", x)
-			// debug.PrintStack()
 			ex = vm.handleThrow(x)
 		}
 	}()
@@ -3704,11 +3703,8 @@ func (e *enterFuncBody) exec(vm *vm) {
 	if e.adjustStack {
 		sp -= vm.args
 	}
-	// // fmt.Println("sp after", sp)
 	nsp := sp + int(e.stackSize)
-	// // fmt.Println("nsp after", nsp)
 	if e.stackSize > 0 {
-		// // fmt.Println("expand")
 		vm.stack.expand(nsp - 1)
 		vv := vm.stack[sp:nsp]
 		for i := range vv {
@@ -4714,12 +4710,27 @@ func (_loadDynamicImport) exec(vm *vm) {
 			} else {
 				pcap.reject(vm.r.ToValue(err))
 			}
+			return pcap.promise
+		}
+		if vm.r.importModuleDynamically == nil {
+			pcap.reject(asciiString("dynamic modules not enabled in the host program"))
 		} else {
-			if vm.r.importModuleDynamically == nil {
-				pcap.reject(asciiString("dynamic modules not enabled in the host program"))
-			} else {
-				vm.r.importModuleDynamically(t, specifierStr, pcap)
-			}
+			pcapInput := vm.r.newPromiseCapability(vm.r.getPromise())
+			onFullfill := vm.r.ToValue(func(call FunctionCall) Value {
+				pcap.resolve(call.Argument(0))
+				return nil
+			})
+			rejectionClosure := vm.r.ToValue(func(call FunctionCall) Value {
+				v := call.Argument(0)
+				if v.ExportType() == reflect.TypeOf(&Exception{}) {
+					v = v.Export().(*Exception).Value()
+				}
+
+				pcap.reject(v)
+				return nil
+			})
+			vm.r.performPromiseThen(pcapInput.promise.Export().(*Promise), onFullfill, rejectionClosure, nil)
+			vm.r.importModuleDynamically(t, specifierStr, pcapInput)
 		}
 		return pcap.promise
 	}))
@@ -5665,13 +5676,6 @@ func (vm *vm) exceptionFromValue(x interface{}) *Exception {
 			val: vm.r.newError(vm.r.getSyntaxError(), string(x1)),
 		}
 	default:
-		/*
-			if vm.prg != nil {
-				vm.prg.dumpCode(log.Printf)
-				}
-				log.Print("Stack: ", string(debug.Stack()))
-				panic(fmt.Errorf("Panic at %d: %v", vm.pc, x))
-				//*/
 		return nil
 	}
 	if ex.stack == nil {

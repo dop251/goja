@@ -772,7 +772,10 @@ func (ctx *tc39TestCtx) runTC39Module(name, src string, includes []string, vm *R
 
 	asyncError = make(chan error, 1)
 	if promise.state == PromiseStateRejected {
-		err = vm.vm.exceptionFromValue(promise.Result())
+		ex := vm.ExportTo(promise.Result(), &err)
+		if ex != nil {
+			panic(ex)
+		}
 	} else if promise.state == PromiseStatePending {
 		vm.performPromiseThen(promise, vm.ToValue(func(_ FunctionCall) Value {
 			close(asyncError)

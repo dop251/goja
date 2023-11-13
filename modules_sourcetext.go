@@ -66,8 +66,7 @@ func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime, res, rej func(inte
 		return nil
 	}), rt.ToValue(func(call FunctionCall) Value {
 		v := call.Argument(0)
-		// fmt.Printf("rej %#v\n", v)
-		rej(v)
+		rej(rt.vm.exceptionFromValue(v))
 		return nil
 	}), nil)
 	return nil, nil
