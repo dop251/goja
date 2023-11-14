@@ -1104,9 +1104,8 @@ func (c *compiler) compileIndirectExportEntry(entry exportEntry) {
 	module := c.module
 	c.emit(exportIndirect{callback: func(vm *vm) {
 		m := vm.r.modules[module]
-		m2 := vm.r.modules[b.Module]
 		m.(*SourceTextModuleInstance).exportGetters[exportName] = func() Value {
-			return m2.GetBindingValue(importName)
+			return vm.r.modules[b.Module].GetBindingValue(importName)
 		}
 	}})
 }
