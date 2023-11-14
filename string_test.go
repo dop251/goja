@@ -149,6 +149,34 @@ func TestImportedString(t *testing.T) {
 	}
 }
 
+func TestStringFromUTF16(t *testing.T) {
+	s := StringFromUTF16([]uint16{})
+	if s.Length() != 0 || !s.SameAs(asciiString("")) {
+		t.Fatal(s)
+	}
+
+	s = StringFromUTF16([]uint16{0xD800})
+	if s.Length() != 1 || s.CharAt(0) != 0xD800 {
+		t.Fatal(s)
+	}
+
+	s = StringFromUTF16([]uint16{'A', 'B'})
+	if !s.SameAs(asciiString("AB")) {
+		t.Fatal(s)
+	}
+}
+
+func TestStringBuilder(t *testing.T) {
+	t.Run("writeUTF8String-switch", func(t *testing.T) {
+		var sb StringBuilder
+		sb.WriteUTF8String("Head")
+		sb.WriteUTF8String("1ábc")
+		if res := sb.String().String(); res != "Head1ábc" {
+			t.Fatal(res)
+		}
+	})
+}
+
 func BenchmarkASCIIConcat(b *testing.B) {
 	vm := New()
 

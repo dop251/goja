@@ -27,7 +27,7 @@ func TestGoReflectGet(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if s, ok := v.(valueString); ok {
+	if s, ok := v.(String); ok {
 		if s.String() != "42" {
 			t.Fatalf("Unexpected string: %s", s)
 		}
@@ -1557,5 +1557,39 @@ func TestGoReflectFuncWithRuntime(t *testing.T) {
 	}
 	if res != valueTrue {
 		t.Fatal(res)
+	}
+}
+
+func TestGoReflectDefaultToString(t *testing.T) {
+	var s testStringS
+	vm := New()
+	v := vm.ToValue(s).(*Object)
+	v.Delete("toString")
+	v.Delete("valueOf")
+	vm.Set("s", v)
+	_, err := vm.RunString(`
+		class S {
+			toString() {
+				return "X";
+			}
+		}
+
+		if (s.toString() !== "S") {
+			throw new Error(s.toString());
+		}
+		if (("" + s) !== "S") {
+			throw new Error("" + s);
+		}
+
+		Object.setPrototypeOf(s, S.prototype);
+		if (s.toString() !== "X") {
+			throw new Error(s.toString());
+		}
+		if (("" + s) !== "X") {
+			throw new Error("" + s);
+		}
+	`)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

@@ -323,3 +323,19 @@ func TestArrayFlatMap(t *testing.T) {
 	`
 	testScriptWithTestLibX(SCRIPT, _undefined, t)
 }
+
+func TestArrayProto(t *testing.T) {
+	const SCRIPT = `
+	const a = Array.prototype;
+	a.push(1, 2, 3, 4, 5);
+	assert.sameValue(a.length, 5);
+	assert.sameValue(a[0], 1);
+	a.length = 3;
+	assert.sameValue(a.length, 3);
+	assert(compareArray(a, [1, 2, 3]));
+	a.shift();
+	assert.sameValue(a.length, 2);
+	assert(compareArray(a, [2, 3]));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

@@ -2,6 +2,7 @@ package goja
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -47,6 +48,23 @@ func TestJSONMarshalObjectCircular(t *testing.T) {
 	}
 }
 
+func TestJSONStringifyCircularWrappedGo(t *testing.T) {
+	type CircularType struct {
+		Self *CircularType
+	}
+	vm := New()
+	v := CircularType{}
+	v.Self = &v
+	vm.Set("v", &v)
+	_, err := vm.RunString("JSON.stringify(v)")
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+	if !strings.HasPrefix(err.Error(), "TypeError: Converting circular structure to JSON") {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
 func TestJSONParseReviver(t *testing.T) {
 	// example from
 	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse
@@ -63,6 +81,37 @@ func TestJSONParseReviver(t *testing.T) {
 
 func TestQuoteMalformedSurrogatePair(t *testing.T) {
 	testScript(`JSON.stringify("\uD800")`, asciiString(`"\ud800"`), t)
+}
+
+func TestEOFWrapping(t *testing.T) {
+	vm := New()
+
+	_, err := vm.RunString("JSON.parse('{')")
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+
+	if !strings.Contains(err.Error(), "Unexpected end of JSON input") {
+		t.Fatalf("Error doesn't contain human-friendly wrapper: %v", err)
+	}
+}
+
+type testMarshalJSONErrorStruct struct {
+	e error
+}
+
+func (s *testMarshalJSONErrorStruct) MarshalJSON() ([]byte, error) {
+	return nil, s.e
+}
+
+func TestMarshalJSONError(t *testing.T) {
+	vm := New()
+	v := testMarshalJSONErrorStruct{e: errors.New("test error")}
+	vm.Set("v", &v)
+	_, err := vm.RunString("JSON.stringify(v)")
+	if !errors.Is(err, v.e) {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 }
 
 func BenchmarkJSONStringify(b *testing.B) {

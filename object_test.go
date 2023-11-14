@@ -619,7 +619,7 @@ func BenchmarkConv(b *testing.B) {
 }
 
 func BenchmarkToUTF8String(b *testing.B) {
-	var s valueString = asciiString("test")
+	var s String = asciiString("test")
 	for i := 0; i < b.N; i++ {
 		_ = s.String()
 	}
@@ -648,9 +648,9 @@ func BenchmarkAddString(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		var z Value
-		if xi, ok := x.(valueString); ok {
-			if yi, ok := y.(valueString); ok {
-				z = xi.concat(yi)
+		if xi, ok := x.(String); ok {
+			if yi, ok := y.(String); ok {
+				z = xi.Concat(yi)
 			}
 		}
 		if !z.StrictEquals(tst) {
