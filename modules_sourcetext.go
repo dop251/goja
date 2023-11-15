@@ -3,6 +3,7 @@ package goja
 import (
 	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/parser"
@@ -97,6 +98,8 @@ type SourceTextModuleRecord struct {
 	starExportEntries     []exportEntry
 
 	hostResolveImportedModule HostResolveImportedModuleFunc
+
+	once *sync.Once
 }
 
 type importEntry struct {
@@ -397,6 +400,7 @@ func ModuleFromAST(body *ast.Program, resolveModule HostResolveImportedModuleFun
 		starExportEntries:     starExportEntries,
 
 		hostResolveImportedModule: resolveModule,
+		once:                      &sync.Once{},
 	}
 
 	names := s.getExportedNamesWithotStars() // we use this as the other one loops but wee need to early errors here
@@ -460,20 +464,22 @@ func (module *SourceTextModuleRecord) GetExportedNames(exportStarSet ...ModuleRe
 }
 
 func (module *SourceTextModuleRecord) InitializeEnvironment() (err error) {
-	c := newCompiler()
-	defer func() {
-		if x := recover(); x != nil {
-			switch x1 := x.(type) {
-			case *CompilerSyntaxError:
-				err = x1
-			default:
-				panic(x)
+	module.once.Do(func() {
+		c := newCompiler()
+		defer func() {
+			if x := recover(); x != nil {
+				switch x1 := x.(type) {
+				case *CompilerSyntaxError:
+					err = x1
+				default:
+					panic(x)
+				}
 			}
-		}
-	}()
+		}()
 
-	c.compileModule(module)
-	module.p = c.p
+		c.compileModule(module)
+		module.p = c.p
+	})
 	return
 }
 
