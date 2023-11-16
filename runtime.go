@@ -753,6 +753,7 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, name unistring.St
 }
 
 func (r *Runtime) newWrappedFunc(value reflect.Value) *Object {
+
 	v := &Object{runtime: r}
 
 	f := &wrappedFuncObject{
@@ -1374,6 +1375,7 @@ func (r *Runtime) RunString(str string) (Value, error) {
 // RunScript executes the given string in the global context.
 func (r *Runtime) RunScript(name, src string) (Value, error) {
 	p, err := r.compile(name, src, false, true, nil)
+
 	if err != nil {
 		return nil, err
 	}
@@ -1941,8 +1943,6 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 
 func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value {
 	return func(call FunctionCall) Value {
-		// fmt.Println("call=", call)
-		// fmt.Println("call.Arguments=", call.Arguments)
 		typ := value.Type()
 		nargs := typ.NumIn()
 		var in []reflect.Value
@@ -2459,17 +2459,6 @@ func (r *Runtime) runWrapped(f func()) (err error) {
 	if len(r.vm.callStack) == 0 {
 		r.leave()
 	} else {
-		/*
-			fmt.Printf("code: ")
-			if r.vm.prg != nil {
-				for _, code := range r.vm.prg.code {
-					fmt.Printf("{%T: %#v},", code, code)
-				}
-			} else {
-				fmt.Print("no code")
-			}
-			fmt.Print("\n")
-		*/
 		r.vm.clearStack()
 	}
 	return

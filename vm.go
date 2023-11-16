@@ -586,14 +586,6 @@ func (vm *vm) run() {
 		if pc < 0 || pc >= len(vm.prg.code) {
 			break
 		}
-		/*
-			fmt.Printf("code: ")
-			for _, code := range vm.prg.code[vm.pc:] {
-				fmt.Printf("{%T: %#v},", code, code)
-			}
-			fmt.Println()
-			fmt.Printf("running: %T: %#v\n", vm.prg.code[pc], vm.prg.code[pc])
-			//*/
 		vm.prg.code[pc].exec(vm)
 	}
 
@@ -3699,7 +3691,6 @@ func (e *enterFuncBody) exec(vm *vm) {
 		}
 	}
 	sp := vm.sp
-	// // fmt.Println("sp", sp)
 	if e.adjustStack {
 		sp -= vm.args
 	}
@@ -5676,6 +5667,13 @@ func (vm *vm) exceptionFromValue(x interface{}) *Exception {
 			val: vm.r.newError(vm.r.getSyntaxError(), string(x1)),
 		}
 	default:
+		/*
+			if vm.prg != nil {
+				vm.prg.dumpCode(log.Printf)
+			}
+			log.Print("Stack: ", string(debug.Stack()))
+			panic(fmt.Errorf("Panic at %d: %v", vm.pc, x))
+		*/
 		return nil
 	}
 	if ex.stack == nil {
@@ -5782,7 +5780,6 @@ func (r *getPrivateRefId) exec(vm *vm) {
 }
 
 func (y *yieldMarker) exec(vm *vm) {
-	// // fmt.Println("values", vm.stash.values)
 	vm.pc = -vm.pc // this will terminate the run loop
 	vm.push(y)     // marker so the caller knows it's a yield, not a return
 }

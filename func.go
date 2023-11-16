@@ -700,7 +700,6 @@ func (ar *asyncRunner) onRejected(call FunctionCall) Value {
 }
 
 func (ar *asyncRunner) step(res Value, done bool, ex *Exception) {
-	// fmt.Printf("(%v) -> step(%v, %v, %v)\n", ar.gen.ctx.prg.src.Name(), res, done, ex)
 	r := ar.f.runtime
 	if done || ex != nil {
 		if ex == nil {
@@ -722,7 +721,6 @@ func (ar *asyncRunner) step(res Value, done bool, ex *Exception) {
 		handler:     &jobCallback{callback: ar.onRejected},
 		asyncRunner: ar,
 	})
-	// fmt.Printf("promise = %#v\n", promise.self)
 }
 
 func (ar *asyncRunner) start(nArgs int) {
@@ -783,7 +781,6 @@ func (g *generator) step() (res Value, resultType resultType, ex *Exception) {
 		g.vm.sp = g.vm.sb - 1
 		g.vm.callStack = g.vm.callStack[:len(g.vm.callStack)-1] // remove the frame with pc == -2, as ret would do
 	}
-	// fmt.Println(res)
 	return
 }
 

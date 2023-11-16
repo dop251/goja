@@ -222,6 +222,7 @@ func (self *_parser) peek() token.Token {
 }
 
 func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unistring.String, idx file.Idx) {
+
 	self.implicitSemicolon = false
 
 	for {
@@ -638,6 +639,7 @@ func (self *_parser) scanMantissa(base int) {
 }
 
 func (self *_parser) scanEscape(quote rune) (int, bool) {
+
 	var length, base uint32
 	chr := self.chr
 	switch chr {
@@ -1114,6 +1116,7 @@ func parseStringLiteral(literal string, length int, unicode, strict bool) (unist
 }
 
 func (self *_parser) scanNumericLiteral(decimalPoint bool) (token.Token, string) {
+
 	offset := self.chrOffset
 	tkn := token.NUMBER
 
