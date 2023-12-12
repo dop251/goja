@@ -154,7 +154,6 @@ func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostR
 	if r.modules == nil {
 		r.modules = make(map[ModuleRecord]ModuleInstance)
 	}
-	// TODO implement all the promise stuff
 	stackInstance := []CyclicModuleInstance{}
 
 	if r.evaluationState == nil {
@@ -166,7 +165,6 @@ func (r *Runtime) CyclicModuleRecordEvaluate(c CyclicModuleRecord, resolve HostR
 	capability := r.newPromiseCapability(r.getPromise())
 	r.evaluationState.topLevelCapability[c] = capability
 	state := r.evaluationState
-	// TODO fix abrupt result
 	_, err := r.innerModuleEvaluation(state, c, &stackInstance, 0, resolve)
 	if err != nil {
 		for _, m := range stackInstance {
@@ -412,7 +410,7 @@ func (r *Runtime) getImportMetaFor(m ModuleRecord) *Object {
 		return o
 	}
 	o := r.NewObject()
-	o.SetPrototype(nil)
+	_ = o.SetPrototype(nil)
 
 	var properties []MetaProperty
 	if r.getImportMetaProperties != nil {

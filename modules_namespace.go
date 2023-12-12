@@ -56,7 +56,7 @@ func (no *namespaceObject) stringKeys(all bool, accum []Value) []Value {
 		}
 		accum = append(accum, stringValueFromRaw(name))
 	}
-	// TODO optimize thsi
+	// TODO optimize this
 	sort.Slice(accum, func(i, j int) bool {
 		return accum[i].String() < accum[j].String()
 	})

@@ -630,7 +630,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		}
 	} else {
 		if meta.Negative.Type != "" {
-			// vm.vm.prg.dumpCode(t.Logf)
+			vm.vm.prg.dumpCode(t.Logf)
 			t.Fatalf("%s: Expected error: %v", name, err)
 		}
 	}

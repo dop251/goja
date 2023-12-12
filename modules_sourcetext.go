@@ -23,22 +23,10 @@ type SourceTextModuleInstance struct {
 }
 
 func (s *SourceTextModuleInstance) ExecuteModule(rt *Runtime, res, rej func(interface{})) (CyclicModuleInstance, error) {
-	// fmt.Println("ExecuteModule", s.moduleRecord.p.src.Name(), s.HasTLA())
-	//s.pcap.resolve(_undefined)
-	//*
-	// THis actually should just continue the execution instead of moving it off.
-	// Unfortunately this requires access to the asyncRunner
 	promiseP := s.pcap.promise.self.(*Promise)
-	// fmt.Println(promiseP.fulfillReactions)
-	// fmt.Println(promiseP)
 	if len(promiseP.fulfillReactions) == 1 {
-		// FIXME figure out how to do this ... better
-		promiseP.fulfill(_undefined)
-		rt.leave()
-		// ar := s.asyncRunner
-		// ar := promiseP.fulfillReactions[0].asyncRunner
-		// fmt.Println(ar)
-		// _ = ar.onFulfilled(FunctionCall{Arguments: []Value{_undefined}})
+		ar := promiseP.fulfillReactions[0].asyncRunner
+		_ = ar.onFulfilled(FunctionCall{Arguments: []Value{_undefined}})
 	}
 
 	promise := s.asyncPromise
