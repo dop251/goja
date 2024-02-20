@@ -1117,6 +1117,20 @@ func TestReturnOutOfTryNested(t *testing.T) {
 	testScript(SCRIPT, intToValue(1), t)
 }
 
+func TestReturnOutOfTryWithFinally(t *testing.T) {
+	const SCRIPT = `
+	function test() {
+		try {
+			return 'Hello, world!';
+		} finally {
+			const dummy = 'unexpected';
+		}
+	}
+	test();
+	`
+	testScript(SCRIPT, asciiString("Hello, world!"), t)
+}
+
 func TestContinueLoop(t *testing.T) {
 	const SCRIPT = `
 	function A() {

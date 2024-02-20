@@ -2331,7 +2331,7 @@ func TestStacktraceLocationThrowFromCatch(t *testing.T) {
 	if frame := stack[0]; frame.funcName != "f2" || frame.pc != 2 {
 		t.Fatalf("Unexpected stack frame 0: %#v", frame)
 	}
-	if frame := stack[1]; frame.funcName != "main" || frame.pc != 15 {
+	if frame := stack[1]; frame.funcName != "main" || frame.pc != 17 {
 		t.Fatalf("Unexpected stack frame 1: %#v", frame)
 	}
 	if frame := stack[2]; frame.funcName != "" || frame.pc != 7 {
