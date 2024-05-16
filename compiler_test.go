@@ -4,6 +4,9 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"unsafe"
+
+	"github.com/dop251/goja/unistring"
 )
 
 const TESTLIB = `
@@ -4697,9 +4700,15 @@ func TestBadObjectKey(t *testing.T) {
 
 func TestConstantFolding(t *testing.T) {
 	testValues := func(prg *Program, result Value, t *testing.T) {
-		if len(prg.values) != 1 || !prg.values[0].SameAs(result) {
+		values := make(map[unistring.String]struct{})
+		for _, ins := range prg.code {
+			if lv, ok := ins.(loadVal); ok {
+				values[lv.v.string()] = struct{}{}
+			}
+		}
+		if len(values) != 1 {
 			prg.dumpCode(t.Logf)
-			t.Fatalf("values: %v", prg.values)
+			t.Fatalf("values: %v", values)
 		}
 	}
 	f := func(src string, result Value, t *testing.T) {
@@ -4741,6 +4750,26 @@ func TestConstantFolding(t *testing.T) {
 	t.Run("return", func(t *testing.T) {
 		ff("function f() {return 1 + 2}; f()", valueInt(3), t)
 	})
+}
+
+func TestStringInterning(t *testing.T) {
+	const SCRIPT = `
+	const str1 = "Test";
+	function f() {
+		return "Test";
+	}
+	[str1, f()];
+	`
+	vm := New()
+	res, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	str1 := res.(*Object).Get("0").String()
+	str2 := res.(*Object).Get("1").String()
+	if unsafe.StringData(str1) != unsafe.StringData(str2) {
+		t.Fatal("not interned")
+	}
 }
 
 func TestAssignBeforeInit(t *testing.T) {
