@@ -1451,7 +1451,7 @@ func (r *Runtime) getTypedArray() *Object {
 	return ret
 }
 
-func (r *Runtime) createTypedArrayCtor(val *Object, ctor func(args []Value, newTarget, proto *Object) *Object, name unistring.String, bytesPerElement int) {
+func (r *Runtime) createTypedArrayCtor(val *Object, ctor func(args []Value, newTarget, proto *Object) *Object, name unistring.String, bytesPerElement int) *Object {
 	p := r.newBaseObject(r.getTypedArrayPrototype(), classObject)
 	o := r.newNativeConstructOnly(val, func(args []Value, newTarget *Object) *Object {
 		return ctor(args, newTarget, p.val)
@@ -1463,6 +1463,8 @@ func (r *Runtime) createTypedArrayCtor(val *Object, ctor func(args []Value, newT
 	bpe := intToValue(int64(bytesPerElement))
 	o._putProp("BYTES_PER_ELEMENT", bpe, false, false, false)
 	p._putProp("BYTES_PER_ELEMENT", bpe, false, false, false)
+
+	return p.val
 }
 
 func addTypedArrays(t *objectTemplate) {
@@ -1592,9 +1594,15 @@ func (r *Runtime) getUint8Array() *Object {
 	if ret == nil {
 		ret = &Object{runtime: r}
 		r.global.Uint8Array = ret
-		r.createTypedArrayCtor(ret, r.newUint8Array, "Uint8Array", 1)
+		p := r.createTypedArrayCtor(ret, r.newUint8Array, "Uint8Array", 1)
+		r.global.Uint8ArrayPrototype = p
 	}
 	return ret
+}
+
+func (r *Runtime) getUint8ArrayPrototype() *Object {
+	r.getUint8Array()
+	return r.global.Uint8ArrayPrototype
 }
 
 func (r *Runtime) getUint8ClampedArray() *Object {

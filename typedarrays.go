@@ -897,7 +897,6 @@ func (r *Runtime) _newTypedArrayObject(buf *arrayBufferObject, offset, length, e
 	o.self = a
 	a.init()
 	return a
-
 }
 
 func (r *Runtime) newUint8ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {

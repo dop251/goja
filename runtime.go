@@ -78,6 +78,8 @@ type global struct {
 	Float32Array      *Object
 	Float64Array      *Object
 
+	Uint8ArrayPrototype *Object
+
 	WeakSet *Object
 	WeakMap *Object
 	Map     *Object
@@ -1839,6 +1841,11 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 		obj.self = m
 		m.init()
 		return obj
+	case []uint8:
+		buf := r._newArrayBuffer(r.getArrayBufferPrototype(), nil)
+		buf.data = i
+		arr := r.newUint8ArrayObject(buf, 0, len(i), r.getUint8ArrayPrototype())
+		return arr.val
 	case []interface{}:
 		return r.newObjectGoSlice(&i, false).val
 	case *[]interface{}:
