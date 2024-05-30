@@ -20,7 +20,11 @@ func (r *Runtime) builtin_Object(args []Value, newTarget *Object) *Object {
 }
 
 func (r *Runtime) object_getPrototypeOf(call FunctionCall) Value {
-	o := call.Argument(0).ToObject(r)
+	t := call.Argument(0)
+	if t == _null || t == _undefined {
+		return _null
+	}
+	o := t.ToObject(r)
 	p := o.self.proto()
 	if p == nil {
 		return _null
