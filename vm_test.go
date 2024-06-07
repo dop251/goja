@@ -22,15 +22,14 @@ func TestVM1(t *testing.T) {
 	vm := r.vm
 
 	vm.prg = &Program{
-		src:    file.NewFile("dummy", "", 1),
-		values: []Value{valueInt(2), valueInt(3), asciiString("test")},
+		src: file.NewFile("dummy", "", 1),
 		code: []instruction{
 			&bindGlobal{vars: []unistring.String{"v"}},
 			newObject,
 			setGlobal("v"),
-			loadVal(2),
-			loadVal(1),
-			loadVal(0),
+			loadVal{asciiString("test")},
+			loadVal{valueInt(3)},
+			loadVal{valueInt(2)},
 			add,
 			setElem,
 			pop,
@@ -103,9 +102,7 @@ func BenchmarkVmNOP2(b *testing.B) {
 	r.init()
 
 	vm := r.vm
-	vm.prg = &Program{
-		values: []Value{intToValue(2), intToValue(3)},
-	}
+	vm.prg = &Program{}
 
 	for i := 0; i < b.N; i++ {
 		vm.pc = 0
@@ -152,10 +149,9 @@ func BenchmarkVm1(b *testing.B) {
 	//ins2 := loadVal1(1)
 
 	vm.prg = &Program{
-		values: []Value{valueInt(2), valueInt(3)},
 		code: []instruction{
-			loadVal(0),
-			loadVal(1),
+			loadVal{valueInt(2)},
+			loadVal{valueInt(3)},
 			add,
 		},
 	}
@@ -276,5 +272,14 @@ func BenchmarkAssertInt(b *testing.B) {
 		if i, ok := v.(valueInt); !ok || int64(i) != 42 {
 			b.Fatal()
 		}
+	}
+}
+
+func BenchmarkLoadVal(b *testing.B) {
+	var ins instruction
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ins = loadVal{valueInt(1)}
+		_ = ins
 	}
 }
