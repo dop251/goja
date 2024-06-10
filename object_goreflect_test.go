@@ -1593,3 +1593,75 @@ func TestGoReflectDefaultToString(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestGoReflectUnexportedEmbedStruct(t *testing.T) {
+	type privateEmbed struct {
+		A string
+	}
+	type PublicEmbed struct {
+		B string
+	}
+	type privateNested struct {
+		C string
+	}
+	type PublicNested struct {
+		D string
+	}
+	type Foo struct {
+		privateEmbed
+		PublicEmbed
+
+		privateNested privateNested
+		PublicNested  PublicNested
+
+		e string
+		F string
+	}
+
+	vm := New()
+	vm.Set("foo", Foo{
+		privateEmbed:  privateEmbed{A: "testA"},
+		PublicEmbed:   PublicEmbed{B: "testB"},
+		privateNested: privateNested{C: "testC"},
+		PublicNested:  PublicNested{D: "testD"},
+		e:             "testE",
+		F:             "testF",
+	})
+
+	scenarios := []struct {
+		expr     string
+		expected string
+	}{
+		{"foo.privateEmbed", "undefined"},
+		{"foo.A", "testA"},
+		// ---
+		{"foo.PublicEmbed", "[object Object]"},
+		{"foo.B", "testB"},
+		{"foo.PublicEmbed.B", "testB"},
+		// ---
+		{"foo.privateNested", "undefined"},
+		{"foo.C", "undefined"},
+		// ---
+		{"foo.PublicNested", "[object Object]"},
+		{"foo.D", "undefined"},
+		{"foo.PublicNested.D", "testD"},
+		// ---
+		{"foo.e", "undefined"},
+		{"foo.F", "testF"},
+	}
+
+	for _, s := range scenarios {
+		t.Run(s.expr, func(t *testing.T) {
+			v, err := vm.RunString(s.expr)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			vStr := v.String()
+
+			if vStr != s.expected {
+				t.Fatalf("Expected %q, got %q", s.expected, vStr)
+			}
+		})
+	}
+}
