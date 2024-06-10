@@ -411,6 +411,10 @@ func (e *Exception) Unwrap() error {
 	return nil
 }
 
+func (e *Exception) Stack() []StackFrame {
+	return e.stack
+}
+
 func (r *Runtime) createIterProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 
