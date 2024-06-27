@@ -495,6 +495,14 @@ func ExampleObject_Delete() {
 	// Output: before: true, after: <nil>
 }
 
+func ExampleObject_GetOwnPropertyNames() {
+	vm := New()
+	obj := vm.NewObject()
+	obj.DefineDataProperty("test", vm.ToValue(true), FLAG_TRUE, FLAG_TRUE, FLAG_FALSE) // define a non-enumerable property that Keys() would not return
+	fmt.Print(obj.GetOwnPropertyNames())
+	// Output: [test]
+}
+
 func TestObjectEquality(t *testing.T) {
 	type CustomInt int
 	type S struct {
