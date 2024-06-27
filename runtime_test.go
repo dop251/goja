@@ -941,8 +941,8 @@ func ExampleRuntime_ExportTo_funcThrow() {
 
 func ExampleRuntime_ExportTo_funcVariadic() {
 	const SCRIPT = `
-	function f() {
-		return Array.prototype.join.call(arguments, ",");
+	function f(...args) {
+		return args.join("#");
 	}
 	`
 	vm := New()
@@ -957,7 +957,57 @@ func ExampleRuntime_ExportTo_funcVariadic() {
 		panic(err)
 	}
 	fmt.Println(fn("a", "b", 42))
-	// Output: a,b,42
+	// Output: a#b#42
+}
+
+func TestRuntime_ExportTo_funcVariadic(t *testing.T) {
+	const SCRIPT = `
+	function f(...args) {
+		return args.join("#");
+	}
+	`
+	vm := New()
+	_, err := vm.RunString(SCRIPT)
+	if err != nil {
+		panic(err)
+	}
+
+	t.Run("no args", func(t *testing.T) {
+		var fn func(args ...any) string
+		err = vm.ExportTo(vm.Get("f"), &fn)
+		if err != nil {
+			panic(err)
+		}
+		res := fn()
+		if res != "" {
+			t.Fatal(res)
+		}
+	})
+
+	t.Run("non-variadic args", func(t *testing.T) {
+		var fn func(firstArg any, args ...any) string
+		err = vm.ExportTo(vm.Get("f"), &fn)
+		if err != nil {
+			panic(err)
+		}
+		res := fn("first")
+		if res != "first" {
+			t.Fatal(res)
+		}
+	})
+
+	t.Run("non-variadic and variadic args", func(t *testing.T) {
+		var fn func(firstArg any, args ...any) string
+		err = vm.ExportTo(vm.Get("f"), &fn)
+		if err != nil {
+			panic(err)
+		}
+		res := fn("first", "second")
+		if res != "first#second" {
+			t.Fatal(res)
+		}
+	})
+
 }
 
 func TestRuntime_ExportToFuncFail(t *testing.T) {

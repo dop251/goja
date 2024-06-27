@@ -2206,9 +2206,24 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 
 func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.Value) (results []reflect.Value) {
 	return func(args []reflect.Value) (results []reflect.Value) {
-		jsArgs := make([]Value, len(args))
-		for i, arg := range args {
-			jsArgs[i] = r.ToValue(arg.Interface())
+		var jsArgs []Value
+		if len(args) > 0 {
+			if typ.IsVariadic() {
+				varArg := args[len(args)-1]
+				args = args[:len(args)-1]
+				jsArgs = make([]Value, 0, len(args)+varArg.Len())
+				for _, arg := range args {
+					jsArgs = append(jsArgs, r.ToValue(arg.Interface()))
+				}
+				for i := 0; i < varArg.Len(); i++ {
+					jsArgs = append(jsArgs, r.ToValue(varArg.Index(i).Interface()))
+				}
+			} else {
+				jsArgs = make([]Value, len(args))
+				for i, arg := range args {
+					jsArgs[i] = r.ToValue(arg.Interface())
+				}
+			}
 		}
 
 		numOut := typ.NumOut()
