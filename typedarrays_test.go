@@ -23,6 +23,30 @@ func TestUint16ArrayObject(t *testing.T) {
 	}
 }
 
+func TestUint8ArrayConversion(t *testing.T) {
+	vm := New()
+	data := []byte{0xAA, 0xBB}
+	vm.Set("a", data)
+	_, err := vm.RunString(`
+	if (a.length !== 2 || a[0] !== 0xAA || a[1] !== 0xBB) {
+		throw new Error(a);
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ret, err := vm.RunString(`
+	Uint8Array.of(0xCC, 0xDD);
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data1 := ret.Export().([]byte)
+	if len(data1) != 2 || data1[0] != 0xCC || data1[1] != 0xDD {
+		t.Fatal(data1)
+	}
+}
+
 func TestArrayBufferGoWrapper(t *testing.T) {
 	vm := New()
 	data := []byte{0xAA, 0xBB}
