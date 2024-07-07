@@ -276,3 +276,13 @@ func TestValueStringBuilder(t *testing.T) {
 	})
 
 }
+
+func TestStringSplit(t *testing.T) {
+	const SCRIPT = `
+	assert(compareArray("".split("#",2), [""]));
+	assert(compareArray("".split("#"), [""]));
+	assert(compareArray("".split("",2), []));
+	assert(compareArray("".split(""), []));
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
