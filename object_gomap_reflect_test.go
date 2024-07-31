@@ -1,6 +1,8 @@
 package goja
 
 import (
+	"sort"
+	"strings"
 	"testing"
 )
 
@@ -306,4 +308,43 @@ func TestGoMapReflectElt(t *testing.T) {
 	})
 
 	r.testScript(SCRIPT, valueTrue, t)
+}
+
+func TestGoMapReflectKeyToString(t *testing.T) {
+	vm := New()
+
+	test := func(v any, t *testing.T) {
+		o1 := vm.ToValue(v).ToObject(vm)
+		keys := o1.Keys()
+		sort.Strings(keys)
+		if len(keys) != 2 || keys[0] != "1" || keys[1] != "2" {
+			t.Fatal(keys)
+		}
+
+		keys1 := o1.self.stringKeys(true, nil)
+		sort.Slice(keys1, func(a, b int) bool {
+			return strings.Compare(keys1[a].String(), keys1[b].String()) < 0
+		})
+		if len(keys1) != 2 || keys1[0] != asciiString("1") || keys1[1] != asciiString("2") {
+			t.Fatal(keys1)
+		}
+	}
+
+	t.Run("int", func(t *testing.T) {
+		m1 := map[int]any{
+			1: 2,
+			2: 3,
+		}
+		test(m1, t)
+	})
+
+	t.Run("CustomString", func(t *testing.T) {
+		type CustomString string
+		m2 := map[CustomString]any{
+			"1": 2,
+			"2": 3,
+		}
+		test(m2, t)
+	})
+
 }
