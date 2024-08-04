@@ -226,7 +226,6 @@ var (
 		"__setter__",
 		"ShadowRealm",
 		"SharedArrayBuffer",
-		"error-cause",
 		"decorators",
 		"regexp-v-flag",
 	}
