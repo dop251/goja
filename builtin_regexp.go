@@ -241,15 +241,7 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 		patternStr = convertRegexpToUtf16(patternStr)
 	}
 
-	var (
-		re2Str string
-		err1   error
-	)
-	if !dotAll {
-		re2Str, err1 = parser.TransformRegExp(patternStr)
-	} else {
-		err1 = parser.RegexpErrorIncompatible{}
-	}
+	re2Str, err1 := parser.TransformRegExpWithFlags(patternStr, dotAll)
 	if err1 == nil {
 		re2flags := ""
 		if multiline {
@@ -257,7 +249,6 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 		}
 		if dotAll {
 			re2flags += "s"
-			re2Str = strings.ReplaceAll(re2Str, parser.Re2Dot, ".")
 		}
 		if ignoreCase {
 			re2flags += "i"

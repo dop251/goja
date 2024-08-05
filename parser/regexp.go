@@ -40,9 +40,11 @@ type _RegExp_parser struct {
 
 	goRegexp   strings.Builder
 	passOffset int
+
+	dotAll bool // Enable dotAll mode
 }
 
-// TransformRegExp transforms a JavaScript pattern into  a Go "regexp" pattern.
+// TransformRegExpWithFlags transforms a JavaScript pattern into  a Go "regexp" pattern.
 //
 // re2 (Go) cannot do backtracking, so the presence of a lookahead (?=) (?!) or
 // backreference (\1, \2, ...) will cause an error.
@@ -55,7 +57,7 @@ type _RegExp_parser struct {
 //
 // If the pattern is invalid (not valid even in JavaScript), then this function
 // returns an empty string and a generic error.
-func TransformRegExp(pattern string) (transformed string, err error) {
+func TransformRegExpWithFlags(pattern string, dotAll bool) (transformed string, err error) {
 
 	if pattern == "" {
 		return "", nil
@@ -64,6 +66,7 @@ func TransformRegExp(pattern string) (transformed string, err error) {
 	parser := _RegExp_parser{
 		str:    pattern,
 		length: len(pattern),
+		dotAll: dotAll,
 	}
 	err = parser.parse()
 	if err != nil {
@@ -71,6 +74,10 @@ func TransformRegExp(pattern string) (transformed string, err error) {
 	}
 
 	return parser.ResultString(), nil
+}
+
+func TransformRegExp(pattern string) (transformed string, err error) {
+	return TransformRegExpWithFlags(pattern, false)
 }
 
 func (self *_RegExp_parser) ResultString() string {
@@ -147,6 +154,10 @@ func (self *_RegExp_parser) scan() {
 			self.error(true, "Unmatched ')'")
 			return
 		case '.':
+			if self.dotAll {
+				self.pass()
+				break
+			}
 			self.writeString(Re2Dot)
 			self.read()
 		default:
