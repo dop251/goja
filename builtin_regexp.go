@@ -241,7 +241,7 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 		patternStr = convertRegexpToUtf16(patternStr)
 	}
 
-	re2Str, err1 := parser.TransformRegExpWithFlags(patternStr, dotAll)
+	re2Str, err1 := parser.TransformRegExp(patternStr, dotAll)
 	if err1 == nil {
 		re2flags := ""
 		if multiline {

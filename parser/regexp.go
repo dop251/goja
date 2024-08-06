@@ -44,7 +44,7 @@ type _RegExp_parser struct {
 	dotAll bool // Enable dotAll mode
 }
 
-// TransformRegExpWithFlags transforms a JavaScript pattern into  a Go "regexp" pattern.
+// TransformRegExp transforms a JavaScript pattern into  a Go "regexp" pattern.
 //
 // re2 (Go) cannot do backtracking, so the presence of a lookahead (?=) (?!) or
 // backreference (\1, \2, ...) will cause an error.
@@ -57,7 +57,7 @@ type _RegExp_parser struct {
 //
 // If the pattern is invalid (not valid even in JavaScript), then this function
 // returns an empty string and a generic error.
-func TransformRegExpWithFlags(pattern string, dotAll bool) (transformed string, err error) {
+func TransformRegExp(pattern string, dotAll bool) (transformed string, err error) {
 
 	if pattern == "" {
 		return "", nil
@@ -74,10 +74,6 @@ func TransformRegExpWithFlags(pattern string, dotAll bool) (transformed string, 
 	}
 
 	return parser.ResultString(), nil
-}
-
-func TransformRegExp(pattern string) (transformed string, err error) {
-	return TransformRegExpWithFlags(pattern, false)
 }
 
 func (self *_RegExp_parser) ResultString() string {
