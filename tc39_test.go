@@ -207,7 +207,6 @@ var (
 		"BigInt",
 		"resizable-arraybuffer",
 		"regexp-named-groups",
-		"regexp-dotall",
 		"regexp-unicode-property-escapes",
 		"regexp-match-indices",
 		"legacy-regexp",

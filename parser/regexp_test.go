@@ -10,7 +10,7 @@ func TestRegExp(t *testing.T) {
 		{
 			// err
 			test := func(input string, expect interface{}) {
-				_, err := TransformRegExp(input)
+				_, err := TransformRegExp(input, false)
 				_, incompat := err.(RegexpErrorIncompatible)
 				is(incompat, false)
 				is(err, expect)
@@ -33,7 +33,7 @@ func TestRegExp(t *testing.T) {
 		{
 			// incompatible
 			test := func(input string, expectErr interface{}) {
-				_, err := TransformRegExp(input)
+				_, err := TransformRegExp(input, false)
 				_, incompat := err.(RegexpErrorIncompatible)
 				is(incompat, true)
 				is(err, expectErr)
@@ -54,7 +54,7 @@ func TestRegExp(t *testing.T) {
 		{
 			// err
 			test := func(input string, expect string) {
-				result, err := TransformRegExp(input)
+				result, err := TransformRegExp(input, false)
 				is(err, nil)
 				_, incompat := err.(RegexpErrorIncompatible)
 				is(incompat, false)
@@ -151,18 +151,18 @@ func TestRegExp(t *testing.T) {
 
 func TestTransformRegExp(t *testing.T) {
 	tt(t, func() {
-		pattern, err := TransformRegExp(`\s+abc\s+`)
+		pattern, err := TransformRegExp(`\s+abc\s+`, false)
 		is(err, nil)
 		is(pattern, `[`+WhitespaceChars+`]+abc[`+WhitespaceChars+`]+`)
 		is(regexp.MustCompile(pattern).MatchString("\t abc def"), true)
 	})
 	tt(t, func() {
-		pattern, err := TransformRegExp(`\u{1d306}`)
+		pattern, err := TransformRegExp(`\u{1d306}`, false)
 		is(err, nil)
 		is(pattern, `\x{1d306}`)
 	})
 	tt(t, func() {
-		pattern, err := TransformRegExp(`\u1234`)
+		pattern, err := TransformRegExp(`\u1234`, false)
 		is(err, nil)
 		is(pattern, `\x{1234}`)
 	})
@@ -173,7 +173,7 @@ func BenchmarkTransformRegExp(b *testing.B) {
 		b.ResetTimer()
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			_, _ = TransformRegExp(reStr)
+			_, _ = TransformRegExp(reStr, false)
 		}
 	}
 

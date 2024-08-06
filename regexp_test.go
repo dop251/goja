@@ -712,6 +712,15 @@ func TestRegexpConcurrentLiterals(t *testing.T) {
 	_, _ = vm.RunProgram(prg)
 }
 
+func TestRegexpDotAll(t *testing.T) {
+	const SCRIPT = `
+	var re = /./s;
+	re.test("\r") && re.test("\n")
+	`
+	testScript(SCRIPT, valueTrue, t)
+
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)
