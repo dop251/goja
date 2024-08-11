@@ -1,6 +1,8 @@
 package goja
 
 import (
+	"math/big"
+
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
@@ -1266,6 +1268,9 @@ func (e *compiledLiteral) emitGetter(putOnStack bool) {
 }
 
 func (e *compiledLiteral) constant() bool {
+	if _, ok := e.val.(valueBigInt); ok {
+		return false
+	}
 	return true
 }
 
@@ -3228,6 +3233,8 @@ func (c *compiler) compileNumberLiteral(v *ast.NumberLiteral) compiledExpr {
 		val = intToValue(num)
 	case float64:
 		val = floatToValue(num)
+	case *big.Int:
+		val = valueBigInt{num}
 	default:
 		c.assert(false, int(v.Idx)-1, "Unsupported number literal type: %T", v.Value)
 		panic("unreachable")

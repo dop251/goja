@@ -178,10 +178,6 @@ var (
 		"test/language/expressions/class/cpn-class-expr-computed-property-name-from-integer-separators.js":                true,
 		"test/language/expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-integer-separators.js": true,
 
-		// BigInt
-		"test/built-ins/Object/seal/seal-biguint64array.js": true,
-		"test/built-ins/Object/seal/seal-bigint64array.js":  true,
-
 		// Regexp
 		"test/language/literals/regexp/invalid-range-negative-lookbehind.js":    true,
 		"test/language/literals/regexp/invalid-range-lookbehind.js":             true,
@@ -204,7 +200,6 @@ var (
 	featuresBlackList = []string{
 		"async-iteration",
 		"Symbol.asyncIterator",
-		"BigInt",
 		"resizable-arraybuffer",
 		"regexp-named-groups",
 		"regexp-unicode-property-escapes",
@@ -272,10 +267,6 @@ func init() {
 		"test/language/expressions/class/elements/after-same-line-static-method-rs-static-async-generator-",
 
 		"test/language/eval-code/direct/async-gen-",
-
-		// BigInt
-		"test/built-ins/TypedArrayConstructors/BigUint64Array/",
-		"test/built-ins/TypedArrayConstructors/BigInt64Array/",
 
 		// restricted unicode regexp syntax
 		"test/language/literals/regexp/u-",

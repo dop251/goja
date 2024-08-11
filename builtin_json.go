@@ -281,8 +281,9 @@ func (ctx *_builtinJSON_stringifyContext) do(v Value) bool {
 func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 	value := nilSafe(holder.get(key, nil))
 
-	if object, ok := value.(*Object); ok {
-		if toJSON, ok := object.self.getStr("toJSON", nil).(*Object); ok {
+	switch value.(type) {
+	case *Object, valueBigInt:
+		if toJSON, ok := ctx.r.getVStr(value, "toJSON").(*Object); ok {
 			if c, ok := toJSON.self.assertCallable(); ok {
 				value = c(FunctionCall{
 					This:      value,
@@ -333,6 +334,10 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 					} else {
 						value = valueFalse
 					}
+				case classBigInt:
+					if o1.valueOf != nil {
+						value = o1.valueOf()
+					}
 				}
 			}
 		}
@@ -357,6 +362,8 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 		}
 	case valueNull:
 		ctx.buf.WriteString("null")
+	case valueBigInt:
+		ctx.r.typeErrorResult(true, "Do not know how to serialize a BigInt")
 	case *Object:
 		for _, object := range ctx.stack {
 			if value1.SameAs(object) {

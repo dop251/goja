@@ -20,6 +20,7 @@ const (
 	classFunction      = "Function"
 	classAsyncFunction = "AsyncFunction"
 	classNumber        = "Number"
+	classBigInt        = "BigInt"
 	classString        = "String"
 	classBoolean       = "Boolean"
 	classError         = "Error"

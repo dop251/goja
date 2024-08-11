@@ -2,6 +2,7 @@ package goja
 
 import (
 	"math"
+	"math/big"
 	"reflect"
 	"strconv"
 	"unsafe"
@@ -65,6 +66,8 @@ type uint32Array []byte
 type int32Array []byte
 type float32Array []byte
 type float64Array []byte
+type bigInt64Array []byte
+type bigUint64Array []byte
 
 type typedArrayObject struct {
 	baseObject
@@ -630,6 +633,138 @@ func (a *float64Array) exportType() reflect.Type {
 	return typeFloat64Array
 }
 
+func (a *bigInt64Array) toRaw(value Value) uint64 {
+	return toBigInt(value).i.Uint64()
+}
+
+func (a *bigInt64Array) ptr(idx int) *int64 {
+	p := unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(a)).Data)
+	return (*int64)(unsafe.Pointer(uintptr(p) + uintptr(idx)*8))
+}
+
+func (a *bigInt64Array) get(idx int) Value {
+	return valueBigInt{big.NewInt(*a.ptr(idx))}
+}
+
+func toBigInt64(v Value) *big.Int {
+	n := toBigInt(v).i
+	int64bit := n.Mod(n, big.NewInt(2).Exp(big.NewInt(2), big.NewInt(64), nil))
+	if int64bit.Cmp(big.NewInt(2).Exp(big.NewInt(2), big.NewInt(63), nil)) >= 0 {
+		return int64bit.Sub(int64bit, big.NewInt(2).Exp(big.NewInt(2), big.NewInt(64), nil))
+	}
+	return int64bit
+}
+
+func (a *bigInt64Array) set(idx int, value Value) {
+	*(a.ptr(idx)) = toBigInt64(value).Int64()
+}
+
+func (a *bigInt64Array) getRaw(idx int) uint64 {
+	return uint64(*a.ptr(idx))
+}
+
+func (a *bigInt64Array) setRaw(idx int, raw uint64) {
+	*(a.ptr(idx)) = int64(raw)
+}
+
+func (a *bigInt64Array) less(i, j int) bool {
+	return *(a.ptr(i)) < *(a.ptr(j))
+}
+
+func (a *bigInt64Array) swap(i, j int) {
+	pi, pj := a.ptr(i), a.ptr(j)
+	*pi, *pj = *pj, *pi
+}
+
+func (a *bigInt64Array) typeMatch(v Value) bool {
+	if _, ok := v.(valueBigInt); ok {
+		return true
+	}
+	return false
+}
+
+func (a *bigInt64Array) export(offset int, length int) interface{} {
+	var res []int64
+	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&res))
+	sliceHeader.Data = (*reflect.SliceHeader)(unsafe.Pointer(a)).Data + uintptr(offset)*8
+	sliceHeader.Len = length
+	sliceHeader.Cap = length
+	ret := make([]*big.Int, 0, length)
+	for _, v := range res {
+		ret = append(ret, big.NewInt(v))
+	}
+	return ret
+}
+
+var typeBigIntArray = reflect.TypeOf(([]*big.Int)(nil))
+
+func (a *bigInt64Array) exportType() reflect.Type {
+	return typeBigIntArray
+}
+
+func (a *bigUint64Array) toRaw(value Value) uint64 {
+	return toBigInt(value).i.Uint64()
+}
+
+func (a *bigUint64Array) ptr(idx int) *uint64 {
+	p := unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(a)).Data)
+	return (*uint64)(unsafe.Pointer(uintptr(p) + uintptr(idx)*8))
+}
+
+func (a *bigUint64Array) get(idx int) Value {
+	return valueBigInt{new(big.Int).SetUint64(*a.ptr(idx))}
+}
+
+func toBigUint64(v Value) *big.Int {
+	n := toBigInt(v).i
+	return n.Mod(n, big.NewInt(2).Exp(big.NewInt(2), big.NewInt(64), nil))
+}
+
+func (a *bigUint64Array) set(idx int, value Value) {
+	*(a.ptr(idx)) = toBigUint64(value).Uint64()
+}
+
+func (a *bigUint64Array) getRaw(idx int) uint64 {
+	return *a.ptr(idx)
+}
+
+func (a *bigUint64Array) setRaw(idx int, raw uint64) {
+	*(a.ptr(idx)) = raw
+}
+
+func (a *bigUint64Array) less(i, j int) bool {
+	return *(a.ptr(i)) < *(a.ptr(j))
+}
+
+func (a *bigUint64Array) swap(i, j int) {
+	pi, pj := a.ptr(i), a.ptr(j)
+	*pi, *pj = *pj, *pi
+}
+
+func (a *bigUint64Array) typeMatch(v Value) bool {
+	if _, ok := v.(valueBigInt); ok {
+		return true
+	}
+	return false
+}
+
+func (a *bigUint64Array) export(offset int, length int) interface{} {
+	var res []uint64
+	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&res))
+	sliceHeader.Data = (*reflect.SliceHeader)(unsafe.Pointer(a)).Data + uintptr(offset)*8
+	sliceHeader.Len = length
+	sliceHeader.Cap = length
+	ret := make([]*big.Int, 0, length)
+	for _, v := range res {
+		ret = append(ret, new(big.Int).SetUint64(v))
+	}
+	return ret
+}
+
+func (a *bigUint64Array) exportType() reflect.Type {
+	return typeBigIntArray
+}
+
 func (a *typedArrayObject) _getIdx(idx int) Value {
 	if 0 <= idx && idx < a.length {
 		if !a.viewedArrayBuf.ensureNotDetached(false) {
@@ -698,7 +833,12 @@ func (a *typedArrayObject) isValidIntegerIndex(idx int) bool {
 }
 
 func (a *typedArrayObject) _putIdx(idx int, v Value) {
-	v = v.ToNumber()
+	if a.defaultCtor == a.val.runtime.global.BigInt64Array ||
+		a.defaultCtor == a.val.runtime.global.BigUint64Array {
+		v = toBigInt(v)
+	} else {
+		v = v.ToNumber()
+	}
 	if a.isValidIntegerIndex(idx) {
 		a.typedArray.set(idx+a.offset, v)
 	}
@@ -715,7 +855,7 @@ func (a *typedArrayObject) setOwnStr(p unistring.String, v Value, throw bool) bo
 		return true
 	}
 	if idx == 0 {
-		v.ToNumber() // make sure it throws
+		toNumeric(v) // make sure it throws
 		return true
 	}
 	return a.baseObject.setOwnStr(p, v, throw)
@@ -938,6 +1078,14 @@ func (r *Runtime) newFloat64ArrayObject(buf *arrayBufferObject, offset, length i
 	return r._newTypedArrayObject(buf, offset, length, 8, r.global.Float64Array, (*float64Array)(&buf.data), proto)
 }
 
+func (r *Runtime) newBigInt64ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
+	return r._newTypedArrayObject(buf, offset, length, 8, r.global.BigInt64Array, (*bigInt64Array)(&buf.data), proto)
+}
+
+func (r *Runtime) newBigUint64ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
+	return r._newTypedArrayObject(buf, offset, length, 8, r.global.BigUint64Array, (*bigUint64Array)(&buf.data), proto)
+}
+
 func (o *dataViewObject) getIdxAndByteOrder(getIdx int, littleEndianVal Value, size int) (int, byteOrder) {
 	o.viewedArrayBuf.ensureNotDetached(true)
 	if getIdx+size > o.byteLen {
@@ -1023,6 +1171,52 @@ func (o *arrayBufferObject) setUint32(idx int, val uint32, byteOrder byteOrder) 
 		b := (*[4]byte)(unsafe.Pointer(&val))
 		d := o.data[idx : idx+4]
 		d[0], d[1], d[2], d[3] = b[3], b[2], b[1], b[0]
+	}
+}
+
+func (o *arrayBufferObject) getBigInt64(idx int, byteOrder byteOrder) *big.Int {
+	var b []byte
+	if byteOrder == nativeEndian {
+		b = o.data[idx : idx+8]
+	} else {
+		b = make([]byte, 8)
+		d := o.data[idx : idx+8]
+		b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7] = d[7], d[6], d[5], d[4], d[3], d[2], d[1], d[0]
+	}
+	return big.NewInt(*((*int64)(unsafe.Pointer(&b[0]))))
+}
+
+func (o *arrayBufferObject) getBigUint64(idx int, byteOrder byteOrder) *big.Int {
+	var b []byte
+	if byteOrder == nativeEndian {
+		b = o.data[idx : idx+8]
+	} else {
+		b = make([]byte, 8)
+		d := o.data[idx : idx+8]
+		b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7] = d[7], d[6], d[5], d[4], d[3], d[2], d[1], d[0]
+	}
+	return new(big.Int).SetUint64(*((*uint64)(unsafe.Pointer(&b[0]))))
+}
+
+func (o *arrayBufferObject) setBigInt64(idx int, val *big.Int, byteOrder byteOrder) {
+	if byteOrder == nativeEndian {
+		*(*int64)(unsafe.Pointer(&o.data[idx])) = val.Int64()
+	} else {
+		n := val.Int64()
+		b := (*[8]byte)(unsafe.Pointer(&n))
+		d := o.data[idx : idx+8]
+		d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7] = b[7], b[6], b[5], b[4], b[3], b[2], b[1], b[0]
+	}
+}
+
+func (o *arrayBufferObject) setBigUint64(idx int, val *big.Int, byteOrder byteOrder) {
+	if byteOrder == nativeEndian {
+		*(*uint64)(unsafe.Pointer(&o.data[idx])) = val.Uint64()
+	} else {
+		n := val.Uint64()
+		b := (*[8]byte)(unsafe.Pointer(&n))
+		d := o.data[idx : idx+8]
+		d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7] = b[7], b[6], b[5], b[4], b[3], b[2], b[1], b[0]
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"go/ast"
 	"hash/maphash"
 	"math"
+	"math/big"
 	"math/bits"
 	"math/rand"
 	"reflect"
@@ -33,6 +34,7 @@ var (
 	typeValue    = reflect.TypeOf((*Value)(nil)).Elem()
 	typeObject   = reflect.TypeOf((*Object)(nil))
 	typeTime     = reflect.TypeOf(time.Time{})
+	typeBigInt   = reflect.TypeOf((*big.Int)(nil))
 	typeBytes    = reflect.TypeOf(([]byte)(nil))
 )
 
@@ -53,6 +55,7 @@ type global struct {
 	Function *Object
 	String   *Object
 	Number   *Object
+	BigInt   *Object
 	Boolean  *Object
 	RegExp   *Object
 	Date     *Object
@@ -77,6 +80,8 @@ type global struct {
 	Int32Array        *Object
 	Float32Array      *Object
 	Float64Array      *Object
+	BigInt64Array     *Object
+	BigUint64Array    *Object
 
 	WeakSet *Object
 	WeakMap *Object
@@ -97,6 +102,7 @@ type global struct {
 	ObjectPrototype   *Object
 	ArrayPrototype    *Object
 	NumberPrototype   *Object
+	BigIntPrototype   *Object
 	StringPrototype   *Object
 	BooleanPrototype  *Object
 	FunctionPrototype *Object
@@ -830,7 +836,18 @@ func (r *Runtime) newPrimitiveObject(value Value, proto *Object, class string) *
 
 func (r *Runtime) builtin_Number(call FunctionCall) Value {
 	if len(call.Arguments) > 0 {
-		return call.Arguments[0].ToNumber()
+		switch t := call.Arguments[0].(type) {
+		case *Object:
+			primValue := t.toPrimitiveNumber()
+			if bigint, ok := primValue.(valueBigInt); ok {
+				return intToValue(bigint.ToInteger())
+			}
+			return primValue.ToNumber()
+		case valueBigInt:
+			return intToValue(t.ToInteger())
+		default:
+			return t.ToNumber()
+		}
 	} else {
 		return valueInt(0)
 	}
@@ -839,7 +856,19 @@ func (r *Runtime) builtin_Number(call FunctionCall) Value {
 func (r *Runtime) builtin_newNumber(args []Value, proto *Object) *Object {
 	var v Value
 	if len(args) > 0 {
-		v = args[0].ToNumber()
+		switch t := args[0].(type) {
+		case *Object:
+			primValue := t.toPrimitiveNumber()
+			if bigint, ok := primValue.(valueBigInt); ok {
+				v = intToValue(bigint.ToInteger())
+			} else {
+				v = primValue.ToNumber()
+			}
+		case valueBigInt:
+			v = intToValue(t.ToInteger())
+		default:
+			v = t.ToNumber()
+		}
 	} else {
 		v = intToValue(0)
 	}
@@ -1832,6 +1861,8 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 		return floatToValue(float64(i))
 	case float64:
 		return floatToValue(i)
+	case *big.Int:
+		return valueBigInt{i}
 	case map[string]interface{}:
 		if i == nil {
 			return _null

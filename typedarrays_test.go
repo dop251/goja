@@ -2,6 +2,7 @@ package goja
 
 import (
 	"bytes"
+	"math/big"
 	"testing"
 )
 
@@ -506,6 +507,34 @@ func TestTypedArrayExport(t *testing.T) {
 		}
 		if a, ok := v.Export().([]float64); ok {
 			if len(a) != 2 || a[0] != 1 || a[1] != -1.23456789 {
+				t.Fatal(a)
+			}
+		} else {
+			t.Fatal("Wrong export type")
+		}
+	})
+
+	t.Run("bigint64", func(t *testing.T) {
+		v, err := vm.RunString("new BigInt64Array([18446744073709551617n, 2n])")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a, ok := v.Export().([]*big.Int); ok {
+			if len(a) != 2 || a[0].Cmp(big.NewInt(1)) != 0 || a[1].Cmp(big.NewInt(2)) != 0 {
+				t.Fatal(a)
+			}
+		} else {
+			t.Fatal("Wrong export type")
+		}
+	})
+
+	t.Run("biguint64", func(t *testing.T) {
+		v, err := vm.RunString("new BigUint64Array([18446744073709551617n, 2n])")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a, ok := v.Export().([]*big.Int); ok {
+			if len(a) != 2 || a[0].Cmp(big.NewInt(1)) != 0 || a[1].Cmp(big.NewInt(2)) != 0 {
 				t.Fatal(a)
 			}
 		} else {

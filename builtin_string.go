@@ -1,12 +1,13 @@
 package goja
 
 import (
-	"github.com/dop251/goja/unistring"
 	"math"
 	"strings"
 	"sync"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/dop251/goja/unistring"
 
 	"github.com/dop251/goja/parser"
 	"golang.org/x/text/collate"
@@ -332,7 +333,7 @@ func (r *Runtime) stringproto_indexOf(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	value := call.This.toString()
 	target := call.Argument(0).toString()
-	pos := call.Argument(1).ToInteger()
+	pos := call.Argument(1).ToNumber().ToInteger()
 
 	if pos < 0 {
 		pos = 0

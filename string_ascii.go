@@ -239,6 +239,14 @@ func (s asciiString) Equals(other Value) bool {
 		return false
 	}
 
+	if o, ok := other.(valueBigInt); ok {
+		bigInt, err := stringToBigInt(s.toTrimmedUTF8())
+		if err != nil {
+			return false
+		}
+		return bigInt.Cmp(o.i) == 0
+	}
+
 	if o, ok := other.(*Object); ok {
 		return s.Equals(o.toPrimitive())
 	}
