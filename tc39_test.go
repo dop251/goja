@@ -179,8 +179,12 @@ var (
 		"test/language/expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-integer-separators.js": true,
 
 		// BigInt
-		"test/built-ins/Object/seal/seal-biguint64array.js": true,
-		"test/built-ins/Object/seal/seal-bigint64array.js":  true,
+		"test/built-ins/Object/seal/seal-biguint64array.js":                        true,
+		"test/built-ins/Object/seal/seal-bigint64array.js":                         true,
+		"test/built-ins/Array/prototype/toSorted/comparefn-not-a-function.js":      true,
+		"test/built-ins/TypedArray/prototype/toReversed/this-value-invalid.js":     true,
+		"test/built-ins/TypedArray/prototype/toSorted/comparefn-not-a-function.js": true,
+		"test/built-ins/TypedArray/prototype/toSorted/this-value-invalid.js":       true,
 
 		// Regexp
 		"test/language/literals/regexp/invalid-range-negative-lookbehind.js":    true,
