@@ -1,6 +1,8 @@
 package goja
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestArrayProtoProp(t *testing.T) {
 	const SCRIPT = `
@@ -336,6 +338,30 @@ func TestArrayProto(t *testing.T) {
 	a.shift();
 	assert.sameValue(a.length, 2);
 	assert(compareArray(a, [2, 3]));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestArrayToSpliced(t *testing.T) {
+	const SCRIPT = `
+	const a = [1, 2, 3];
+	a.push(4)
+	assert(compareArray(a, [1, 2, 3, 4]));
+	const b = a.toSpliced(2)
+	assert(compareArray(a, [1, 2, 3, 4]));
+	assert(compareArray(b, [1, 2]));
+	a.push(5)
+	const c = a.toSpliced(1, 2);
+	assert(compareArray(a, [1, 2, 3, 4, 5]));
+	assert(compareArray(c, [1, 4, 5]));
+	assert(compareArray(a.toSpliced(4, 2, 'a', 'b'), [1, 2, 3, 4, 'a', 'b']));
+	assert(compareArray(a, [1, 2, 3, 4, 5]));
+	assert(compareArray(a.toSpliced(-2, 2), [1, 2, 3]));
+	assert(compareArray(a, [1, 2, 3, 4, 5]));
+	assert(compareArray(a.toSpliced(2, 10), [1, 2]));
+	assert(compareArray(a, [1, 2, 3, 4, 5]));
+	assert(compareArray(a.toSpliced(1, 0, 'a'), [1, 'a', 2, 3, 4, 5]));
+	assert(compareArray(a, [1, 2, 3, 4, 5]));
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
