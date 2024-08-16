@@ -6,12 +6,14 @@ import (
 	"io"
 	"os"
 	"path"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"gopkg.in/yaml.v2"
 )
 
@@ -269,7 +271,14 @@ var (
 	}
 )
 
+var goVersion *semver.Version
+
 func init() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		goVersion = semver.MustParse(strings.TrimPrefix(info.GoVersion, "go"))
+	} else {
+		panic("Could not read build info")
+	}
 
 	skip := func(prefixes ...string) {
 		for _, prefix := range prefixes {
@@ -277,11 +286,17 @@ func init() {
 		}
 	}
 
-	skip(
-		// Go 1.16 only supports unicode 13
-		"test/language/identifiers/start-unicode-14.",
-		"test/language/identifiers/part-unicode-14.",
+	if goVersion.LessThan(semver.MustParse("1.21")) {
+		skip(
+			// Go <1.21 only supports Unicode 13
+			"test/language/identifiers/start-unicode-14.",
+			"test/language/identifiers/part-unicode-14.",
+			"test/language/identifiers/start-unicode-15.",
+			"test/language/identifiers/part-unicode-15.",
+		)
+	}
 
+	skip(
 		// generators and async generators (harness/hidden-constructors.js)
 		"test/built-ins/Async",
 
