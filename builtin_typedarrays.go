@@ -14,16 +14,24 @@ type typedArraySortCtx struct {
 	ta           *typedArrayObject
 	compare      func(FunctionCall) Value
 	needValidate bool
+	detached     bool
 }
 
 func (ctx *typedArraySortCtx) Len() int {
 	return ctx.ta.length
 }
 
-func (ctx *typedArraySortCtx) Less(i, j int) bool {
-	if ctx.needValidate {
-		ctx.ta.viewedArrayBuf.ensureNotDetached(true)
+func (ctx *typedArraySortCtx) checkDetached() {
+	if !ctx.detached && ctx.needValidate {
+		ctx.detached = !ctx.ta.viewedArrayBuf.ensureNotDetached(false)
 		ctx.needValidate = false
+	}
+}
+
+func (ctx *typedArraySortCtx) Less(i, j int) bool {
+	ctx.checkDetached()
+	if ctx.detached {
+		return false
 	}
 	offset := ctx.ta.offset
 	if ctx.compare != nil {
@@ -54,9 +62,9 @@ func (ctx *typedArraySortCtx) Less(i, j int) bool {
 }
 
 func (ctx *typedArraySortCtx) Swap(i, j int) {
-	if ctx.needValidate {
-		ctx.ta.viewedArrayBuf.ensureNotDetached(true)
-		ctx.needValidate = false
+	ctx.checkDetached()
+	if ctx.detached {
+		return
 	}
 	offset := ctx.ta.offset
 	ctx.ta.typedArray.swap(offset+i, offset+j)
@@ -146,7 +154,6 @@ func (r *Runtime) newDataView(args []Value, newTarget *Object) *Object {
 	if newTarget == nil {
 		panic(r.needNew("DataView"))
 	}
-	proto := r.getPrototypeFromCtor(newTarget, r.getDataView(), r.getDataViewPrototype())
 	var bufArg Value
 	if len(args) > 0 {
 		bufArg = args[0]
@@ -176,6 +183,14 @@ func (r *Runtime) newDataView(args []Value, newTarget *Object) *Object {
 		}
 	} else {
 		byteLen = len(buffer.data) - byteOffset
+	}
+	proto := r.getPrototypeFromCtor(newTarget, r.getDataView(), r.getDataViewPrototype())
+	buffer.ensureNotDetached(true)
+	if byteOffset > len(buffer.data) {
+		panic(r.newError(r.getRangeError(), "Start offset %d is outside the bounds of the buffer", byteOffset))
+	}
+	if byteOffset+byteLen > len(buffer.data) {
+		panic(r.newError(r.getRangeError(), "Invalid DataView length %d", byteLen))
 	}
 	o := &Object{runtime: r}
 	b := &dataViewObject{
@@ -1007,7 +1022,6 @@ func (r *Runtime) typedArrayProto_set(call FunctionCall) Value {
 			}
 			for i := 0; i < srcLen; i++ {
 				val := nilSafe(srcObj.self.getIdx(valueInt(i), nil))
-				ta.viewedArrayBuf.ensureNotDetached(true)
 				if ta.isValidIntegerIndex(i) {
 					ta.typedArray.set(targetOffset+i, val)
 				}
@@ -1270,7 +1284,7 @@ func (r *Runtime) typedArray_from(call FunctionCall) Value {
 			for idx, val := range values {
 				fc.Arguments[0], fc.Arguments[1] = val, intToValue(int64(idx))
 				val = mapFc(fc)
-				ta.typedArray.set(idx, val)
+				ta._putIdx(idx, val)
 			}
 		}
 		return ta.val
@@ -1417,8 +1431,6 @@ func (r *Runtime) _newTypedArrayFromTypedArray(src *typedArrayObject, newTarget 
 	src.viewedArrayBuf.ensureNotDetached(true)
 	l := src.length
 
-	arrayBuffer := r.getArrayBuffer()
-	dst.viewedArrayBuf.prototype = r.getPrototypeFromCtor(r.speciesConstructorObj(src.viewedArrayBuf.val, arrayBuffer), arrayBuffer, r.getArrayBufferPrototype())
 	dst.viewedArrayBuf.data = allocByteSlice(toIntStrict(int64(l) * int64(dst.elemSize)))
 	src.viewedArrayBuf.ensureNotDetached(true)
 	if src.defaultCtor == dst.defaultCtor {

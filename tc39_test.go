@@ -185,12 +185,26 @@ var (
 		"test/built-ins/TypedArray/prototype/toReversed/this-value-invalid.js":     true,
 		"test/built-ins/TypedArray/prototype/toSorted/comparefn-not-a-function.js": true,
 		"test/built-ins/TypedArray/prototype/toSorted/this-value-invalid.js":       true,
+		"test/built-ins/RegExp/prototype/sticky/this-val-non-obj.js":               true,
+		"test/built-ins/RegExp/prototype/source/this-val-non-obj.js":               true,
+		"test/built-ins/RegExp/prototype/multiline/this-val-non-obj.js":            true,
+		"test/built-ins/RegExp/prototype/ignoreCase/this-val-non-obj.js":           true,
+		"test/built-ins/RegExp/prototype/unicode/this-val-non-obj.js":              true,
+		"test/built-ins/RegExp/prototype/dotAll/this-val-non-obj.js":               true,
+		"test/built-ins/RegExp/prototype/global/this-val-non-obj.js":               true,
+		"test/built-ins/RegExp/prototype/flags/this-val-non-obj.js":                true,
+		"test/built-ins/Iterator/prototype/Symbol.iterator/return-val.js":          true,
+		"test/built-ins/DataView/prototype/setBigUint64/not-a-constructor.js":      true,
+		"test/built-ins/DataView/prototype/getBigUint64/not-a-constructor.js":      true,
 
 		// Regexp
 		"test/language/literals/regexp/invalid-range-negative-lookbehind.js":    true,
 		"test/language/literals/regexp/invalid-range-lookbehind.js":             true,
 		"test/language/literals/regexp/invalid-optional-negative-lookbehind.js": true,
 		"test/language/literals/regexp/invalid-optional-lookbehind.js":          true,
+
+		// unicode full case folding
+		"test/built-ins/RegExp/unicode_full_case_folding.js": true,
 
 		// FIXME bugs
 
@@ -203,6 +217,9 @@ var (
 
 		// Skip due to regexp named groups
 		"test/built-ins/String/prototype/replaceAll/searchValue-replacer-RegExp-call.js": true,
+
+		"test/built-ins/RegExp/nullable-quantifier.js":               true,
+		"test/built-ins/RegExp/lookahead-quantifier-match-groups.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -211,8 +228,11 @@ var (
 		"BigInt",
 		"resizable-arraybuffer",
 		"regexp-named-groups",
+		"regexp-duplicate-named-groups",
 		"regexp-unicode-property-escapes",
 		"regexp-match-indices",
+		"regexp-modifiers",
+		"RegExp.escape",
 		"legacy-regexp",
 		"tail-call-optimization",
 		"Temporal",
@@ -222,6 +242,7 @@ var (
 		"import.meta",
 		"Atomics",
 		"Atomics.waitAsync",
+		"Atomics.pause",
 		"FinalizationRegistry",
 		"WeakRef",
 		"numeric-separator-literal",
@@ -231,6 +252,20 @@ var (
 		"SharedArrayBuffer",
 		"decorators",
 		"regexp-v-flag",
+		"iterator-helpers",
+		"symbols-as-weakmap-keys",
+		"uint8array-base64",
+		"String.prototype.toWellFormed",
+		"explicit-resource-management",
+		"set-methods",
+		"promise-try",
+		"promise-with-resolvers",
+		"array-grouping",
+		"Math.sumPrecise",
+		"Float16Array",
+		"arraybuffer-transfer",
+		"Array.fromAsync",
+		"String.prototype.isWellFormed",
 	}
 )
 

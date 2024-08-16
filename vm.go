@@ -208,6 +208,48 @@ func (r *stashRefConst) set(v Value) {
 }
 
 type objRef struct {
+	base   *Object
+	name   Value
+	this   Value
+	strict bool
+
+	nameConverted bool
+}
+
+func (r *objRef) getKey() Value {
+	if !r.nameConverted {
+		r.name = toPropertyKey(r.name)
+		r.nameConverted = true
+	}
+	return r.name
+}
+
+func (r *objRef) get() Value {
+	return r.base.get(r.getKey(), r.this)
+}
+
+func (r *objRef) set(v Value) {
+	key := r.getKey()
+	if r.this != nil {
+		r.base.set(key, v, r.this, r.strict)
+	} else {
+		r.base.setOwn(key, v, r.strict)
+	}
+}
+
+func (r *objRef) init(v Value) {
+	if r.this != nil {
+		r.base.set(r.getKey(), v, r.this, r.strict)
+	} else {
+		r.base.setOwn(r.getKey(), v, r.strict)
+	}
+}
+
+func (r *objRef) refname() unistring.String {
+	return r.getKey().string()
+}
+
+type objStrRef struct {
 	base    *Object
 	name    unistring.String
 	this    Value
@@ -215,11 +257,11 @@ type objRef struct {
 	binding bool
 }
 
-func (r *objRef) get() Value {
+func (r *objStrRef) get() Value {
 	return r.base.self.getStr(r.name, r.this)
 }
 
-func (r *objRef) set(v Value) {
+func (r *objStrRef) set(v Value) {
 	if r.strict && r.binding && !r.base.self.hasOwnPropertyStr(r.name) {
 		panic(referenceError(fmt.Sprintf("%s is not defined", r.name)))
 	}
@@ -230,7 +272,7 @@ func (r *objRef) set(v Value) {
 	}
 }
 
-func (r *objRef) init(v Value) {
+func (r *objStrRef) init(v Value) {
 	if r.this != nil {
 		r.base.setStr(r.name, v, r.this, r.strict)
 	} else {
@@ -238,7 +280,7 @@ func (r *objRef) init(v Value) {
 	}
 }
 
-func (r *objRef) refname() unistring.String {
+func (r *objStrRef) refname() unistring.String {
 	return r.name
 }
 
@@ -465,7 +507,7 @@ func (s *stash) getByName(name unistring.String) (v Value, exists bool) {
 func (s *stash) getRefByName(name unistring.String, strict bool) ref {
 	if obj := s.obj; obj != nil {
 		if stashObjHas(obj, name) {
-			return &objRef{
+			return &objStrRef{
 				base:    obj,
 				name:    name,
 				strict:  strict,
@@ -1588,10 +1630,10 @@ var getElemRef _getElemRef
 
 func (_getElemRef) exec(vm *vm) {
 	obj := vm.stack[vm.sp-2].ToObject(vm.r)
-	propName := toPropertyKey(vm.stack[vm.sp-1])
+	propName := vm.stack[vm.sp-1]
 	vm.refStack = append(vm.refStack, &objRef{
 		base: obj,
-		name: propName.string(),
+		name: propName,
 	})
 	vm.sp -= 2
 	vm.pc++
@@ -1603,10 +1645,10 @@ var getElemRefRecv _getElemRefRecv
 
 func (_getElemRefRecv) exec(vm *vm) {
 	obj := vm.stack[vm.sp-1].ToObject(vm.r)
-	propName := toPropertyKey(vm.stack[vm.sp-2])
+	propName := vm.stack[vm.sp-2]
 	vm.refStack = append(vm.refStack, &objRef{
 		base: obj,
-		name: propName.string(),
+		name: propName,
 		this: vm.stack[vm.sp-3],
 	})
 	vm.sp -= 3
@@ -1619,10 +1661,10 @@ var getElemRefStrict _getElemRefStrict
 
 func (_getElemRefStrict) exec(vm *vm) {
 	obj := vm.stack[vm.sp-2].ToObject(vm.r)
-	propName := toPropertyKey(vm.stack[vm.sp-1])
+	propName := vm.stack[vm.sp-1]
 	vm.refStack = append(vm.refStack, &objRef{
 		base:   obj,
-		name:   propName.string(),
+		name:   propName,
 		strict: true,
 	})
 	vm.sp -= 2
@@ -1635,10 +1677,10 @@ var getElemRefRecvStrict _getElemRefRecvStrict
 
 func (_getElemRefRecvStrict) exec(vm *vm) {
 	obj := vm.stack[vm.sp-1].ToObject(vm.r)
-	propName := toPropertyKey(vm.stack[vm.sp-2])
+	propName := vm.stack[vm.sp-2]
 	vm.refStack = append(vm.refStack, &objRef{
 		base:   obj,
-		name:   propName.string(),
+		name:   propName,
 		this:   vm.stack[vm.sp-3],
 		strict: true,
 	})
@@ -1908,7 +1950,7 @@ func (d deletePropStrict) exec(vm *vm) {
 type getPropRef unistring.String
 
 func (p getPropRef) exec(vm *vm) {
-	vm.refStack = append(vm.refStack, &objRef{
+	vm.refStack = append(vm.refStack, &objStrRef{
 		base: vm.stack[vm.sp-1].ToObject(vm.r),
 		name: unistring.String(p),
 	})
@@ -1919,7 +1961,7 @@ func (p getPropRef) exec(vm *vm) {
 type getPropRefRecv unistring.String
 
 func (p getPropRefRecv) exec(vm *vm) {
-	vm.refStack = append(vm.refStack, &objRef{
+	vm.refStack = append(vm.refStack, &objStrRef{
 		this: vm.stack[vm.sp-2],
 		base: vm.stack[vm.sp-1].ToObject(vm.r),
 		name: unistring.String(p),
@@ -1931,7 +1973,7 @@ func (p getPropRefRecv) exec(vm *vm) {
 type getPropRefStrict unistring.String
 
 func (p getPropRefStrict) exec(vm *vm) {
-	vm.refStack = append(vm.refStack, &objRef{
+	vm.refStack = append(vm.refStack, &objStrRef{
 		base:   vm.stack[vm.sp-1].ToObject(vm.r),
 		name:   unistring.String(p),
 		strict: true,
@@ -1943,7 +1985,7 @@ func (p getPropRefStrict) exec(vm *vm) {
 type getPropRefRecvStrict unistring.String
 
 func (p getPropRefRecvStrict) exec(vm *vm) {
-	vm.refStack = append(vm.refStack, &objRef{
+	vm.refStack = append(vm.refStack, &objStrRef{
 		this:   vm.stack[vm.sp-2],
 		base:   vm.stack[vm.sp-1].ToObject(vm.r),
 		name:   unistring.String(p),
@@ -2330,11 +2372,11 @@ var getElem _getElem
 func (_getElem) exec(vm *vm) {
 	v := vm.stack[vm.sp-2]
 	obj := v.baseObject(vm.r)
-	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if obj == nil {
-		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", vm.stack[vm.sp-1]))
 		return
 	}
+	propName := toPropertyKey(vm.stack[vm.sp-1])
 
 	vm.stack[vm.sp-2] = nilSafe(obj.get(propName, v))
 
@@ -2348,13 +2390,13 @@ var getElemRecv _getElemRecv
 
 func (_getElemRecv) exec(vm *vm) {
 	recv := vm.stack[vm.sp-3]
-	propName := toPropertyKey(vm.stack[vm.sp-2])
 	v := vm.stack[vm.sp-1]
 	obj := v.baseObject(vm.r)
 	if obj == nil {
-		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", vm.stack[vm.sp-2]))
 		return
 	}
+	propName := toPropertyKey(vm.stack[vm.sp-2])
 
 	vm.stack[vm.sp-3] = nilSafe(obj.get(propName, recv))
 
@@ -2388,12 +2430,12 @@ var getElemCallee _getElemCallee
 func (_getElemCallee) exec(vm *vm) {
 	v := vm.stack[vm.sp-2]
 	obj := v.baseObject(vm.r)
-	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if obj == nil {
-		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", vm.stack[vm.sp-1]))
 		return
 	}
 
+	propName := toPropertyKey(vm.stack[vm.sp-1])
 	prop := obj.get(propName, v)
 	if prop == nil {
 		prop = memberUnresolved{valueUnresolved{r: vm.r, ref: propName.string()}}
@@ -2411,12 +2453,12 @@ func (_getElemRecvCallee) exec(vm *vm) {
 	recv := vm.stack[vm.sp-3]
 	v := vm.stack[vm.sp-2]
 	obj := v.baseObject(vm.r)
-	propName := toPropertyKey(vm.stack[vm.sp-1])
 	if obj == nil {
-		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", propName.String()))
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", vm.stack[vm.sp-1]))
 		return
 	}
 
+	propName := toPropertyKey(vm.stack[vm.sp-1])
 	prop := obj.get(propName, recv)
 	if prop == nil {
 		prop = memberUnresolved{valueUnresolved{r: vm.r, ref: propName.string()}}
@@ -2654,7 +2696,7 @@ func (s resolveVar1) exec(vm *vm) {
 		}
 	}
 
-	ref = &objRef{
+	ref = &objStrRef{
 		base:    vm.r.globalObject,
 		name:    name,
 		binding: true,
@@ -2708,9 +2750,6 @@ func (d deleteGlobal) exec(vm *vm) {
 	var ret bool
 	if vm.r.globalObject.self.hasPropertyStr(name) {
 		ret = vm.r.globalObject.self.deleteStr(name, false)
-		if ret {
-			delete(vm.r.global.varNames, name)
-		}
 	} else {
 		ret = true
 	}
@@ -2735,7 +2774,7 @@ func (s resolveVar1Strict) exec(vm *vm) {
 	}
 
 	if vm.r.globalObject.self.hasPropertyStr(name) {
-		ref = &objRef{
+		ref = &objStrRef{
 			base:    vm.r.globalObject,
 			name:    name,
 			binding: true,
@@ -3876,18 +3915,12 @@ func (vm *vm) checkBindVarsGlobal(names []unistring.String) {
 }
 
 func (vm *vm) createGlobalVarBindings(names []unistring.String, d bool) {
-	globalVarNames := vm.r.global.varNames
-	if globalVarNames == nil {
-		globalVarNames = make(map[unistring.String]struct{})
-		vm.r.global.varNames = globalVarNames
-	}
 	o := vm.r.globalObject.self
-	if bo, ok := o.(*baseObject); ok {
+	if bo, ok := o.(*templatedObject); ok {
 		for _, name := range names {
 			if !bo.hasOwnPropertyStr(name) && bo.extensible {
 				bo._putProp(name, _undefined, true, true, d)
 			}
-			globalVarNames[name] = struct{}{}
 		}
 	} else {
 		var cf Flag
@@ -3906,21 +3939,15 @@ func (vm *vm) createGlobalVarBindings(names []unistring.String, d bool) {
 				}, true)
 				o.setOwnStr(name, _undefined, false)
 			}
-			globalVarNames[name] = struct{}{}
 		}
 	}
 }
 
 func (vm *vm) createGlobalFuncBindings(names []unistring.String, d bool) {
-	globalVarNames := vm.r.global.varNames
-	if globalVarNames == nil {
-		globalVarNames = make(map[unistring.String]struct{})
-		vm.r.global.varNames = globalVarNames
-	}
 	o := vm.r.globalObject.self
 	b := vm.sp - len(names)
-	var shortcutObj *baseObject
-	if o, ok := o.(*baseObject); ok {
+	var shortcutObj *templatedObject
+	if o, ok := o.(*templatedObject); ok {
 		shortcutObj = o
 	}
 	for i, name := range names {
@@ -3948,7 +3975,6 @@ func (vm *vm) createGlobalFuncBindings(names []unistring.String, d bool) {
 				o.setOwnStr(name, desc.Value, false) // not a bug, see https://262.ecma-international.org/#sec-createglobalfunctionbinding
 			}
 		}
-		globalVarNames[name] = struct{}{}
 	}
 	vm.sp = b
 }
@@ -3978,9 +4004,6 @@ func (vm *vm) checkBindLexGlobal(names []unistring.String) {
 	o := vm.r.globalObject.self
 	s := &vm.r.global.stash
 	for _, name := range names {
-		if _, exists := vm.r.global.varNames[name]; exists {
-			goto fail
-		}
 		if _, exists := s.names[name]; exists {
 			goto fail
 		}

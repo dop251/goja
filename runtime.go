@@ -45,8 +45,7 @@ const (
 )
 
 type global struct {
-	stash    stash
-	varNames map[unistring.String]struct{}
+	stash stash
 
 	Object   *Object
 	Array    *Object
