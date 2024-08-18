@@ -1225,7 +1225,12 @@ func (r *Runtime) typedArrayProto_with(call FunctionCall) Value {
 		panic(r.newError(r.getRangeError(), "Invalid typed array index"))
 	}
 
-	numericValue := toNumeric(call.Argument(1))
+	var numericValue Value
+	if ta.typedArray.exportType() == typeBigInt64Array {
+		numericValue = toBigInt(call.Argument(1))
+	} else {
+		numericValue = call.Argument(1).ToNumber()
+	}
 
 	a := r.typedArrayCreate(ta.defaultCtor, intToValue(int64(length)))
 	for k := 0; k < length; k++ {

@@ -696,10 +696,10 @@ func (a *bigInt64Array) export(offset int, length int) interface{} {
 	return ret
 }
 
-var typeBigIntArray = reflect.TypeOf(([]*big.Int)(nil))
+var typeBigInt64Array = reflect.TypeOf(([]*big.Int)(nil))
 
 func (a *bigInt64Array) exportType() reflect.Type {
-	return typeBigIntArray
+	return typeBigInt64Array
 }
 
 func (a *bigUint64Array) toRaw(value Value) uint64 {
@@ -762,7 +762,7 @@ func (a *bigUint64Array) export(offset int, length int) interface{} {
 }
 
 func (a *bigUint64Array) exportType() reflect.Type {
-	return typeBigIntArray
+	return typeBigInt64Array
 }
 
 func (a *typedArrayObject) _getIdx(idx int) Value {
@@ -833,8 +833,7 @@ func (a *typedArrayObject) isValidIntegerIndex(idx int) bool {
 }
 
 func (a *typedArrayObject) _putIdx(idx int, v Value) {
-	if a.defaultCtor == a.val.runtime.global.BigInt64Array ||
-		a.defaultCtor == a.val.runtime.global.BigUint64Array {
+	if a.typedArray.exportType() == typeBigInt64Array {
 		v = toBigInt(v)
 	} else {
 		v = v.ToNumber()
