@@ -264,7 +264,7 @@ func (r *Runtime) bigint_asUintN(call FunctionCall) Value {
 		panic(r.NewTypeError("Invalid value: not (convertible to) a safe integer"))
 	}
 	bigint := toBigInt(call.Argument(1))
-	return valueBigInt{bigint.i.Mod(bigint.i, big.NewInt(2).Lsh(big.NewInt(1), uint(bits)))}
+	return valueBigInt{new(big.Int).Mod(bigint.i, big.NewInt(2).Lsh(big.NewInt(1), uint(bits)))}
 }
 
 var bigintTemplate *objectTemplate
