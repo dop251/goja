@@ -1211,6 +1211,7 @@ func (r *Runtime) typedArrayProto_with(call FunctionCall) Value {
 	if !ok {
 		panic(r.NewTypeError("%s is not a valid TypedArray", r.objectproto_toString(FunctionCall{This: call.This})))
 	}
+	ta.viewedArrayBuf.ensureNotDetached(true)
 	length := ta.length
 	relativeIndex := call.Argument(0).ToInteger()
 	var actualIndex int
@@ -1224,10 +1225,7 @@ func (r *Runtime) typedArrayProto_with(call FunctionCall) Value {
 		panic(r.newError(r.getRangeError(), "Invalid typed array index"))
 	}
 
-	// TODO BigInt
-	// 7. If O.[[ContentType]] is BIGINT, let numericValue be ? ToBigInt(value).
-	// 8. Else, let numericValue be ? ToNumber(value).
-	numericValue := call.Argument(1).ToNumber()
+	numericValue := toNumeric(call.Argument(1))
 
 	a := r.typedArrayCreate(ta.defaultCtor, intToValue(int64(length)))
 	for k := 0; k < length; k++ {
@@ -1248,6 +1246,7 @@ func (r *Runtime) typedArrayProto_toReversed(call FunctionCall) Value {
 	if !ok {
 		panic(r.NewTypeError("%s is not a valid TypedArray", r.objectproto_toString(FunctionCall{This: call.This})))
 	}
+	ta.viewedArrayBuf.ensureNotDetached(true)
 	length := ta.length
 
 	a := r.typedArrayCreate(ta.defaultCtor, intToValue(int64(length)))
@@ -1267,6 +1266,7 @@ func (r *Runtime) typedArrayProto_toSorted(call FunctionCall) Value {
 	if !ok {
 		panic(r.NewTypeError("%s is not a valid TypedArray", r.objectproto_toString(FunctionCall{This: call.This})))
 	}
+	ta.viewedArrayBuf.ensureNotDetached(true)
 
 	var compareFn func(FunctionCall) Value
 	arg := call.Argument(0)
