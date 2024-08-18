@@ -648,9 +648,13 @@ func (a *bigInt64Array) get(idx int) Value {
 
 func toBigInt64(v Value) *big.Int {
 	n := toBigInt(v).i
-	int64bit := new(big.Int).Mod(n, big.NewInt(2).Exp(big.NewInt(2), big.NewInt(64), nil))
-	if int64bit.Cmp(big.NewInt(2).Exp(big.NewInt(2), big.NewInt(63), nil)) >= 0 {
-		return int64bit.Sub(int64bit, big.NewInt(2).Exp(big.NewInt(2), big.NewInt(64), nil))
+
+	twoTo64 := new(big.Int).Lsh(big.NewInt(1), 64)
+	twoTo63 := new(big.Int).Lsh(big.NewInt(1), 63)
+
+	int64bit := new(big.Int).Mod(n, twoTo64)
+	if int64bit.Cmp(twoTo63) >= 0 {
+		return int64bit.Sub(int64bit, twoTo64)
 	}
 	return int64bit
 }
@@ -717,7 +721,7 @@ func (a *bigUint64Array) get(idx int) Value {
 
 func toBigUint64(v Value) *big.Int {
 	n := toBigInt(v).i
-	return new(big.Int).Mod(n, big.NewInt(2).Exp(big.NewInt(2), big.NewInt(64), nil))
+	return new(big.Int).Mod(n, new(big.Int).Lsh(big.NewInt(1), 64))
 }
 
 func (a *bigUint64Array) set(idx int, value Value) {

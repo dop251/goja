@@ -396,7 +396,7 @@ func (r *Runtime) dataViewProto_setUint32(call FunctionCall) Value {
 func (r *Runtime) dataViewProto_setBigInt64(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
 		idxVal := r.toIndex(call.Argument(0))
-		val := toBigInt(call.Argument(1)).i
+		val := toBigInt64(call.Argument(1))
 		idx, bo := dv.getIdxAndByteOrder(idxVal, call.Argument(2), 8)
 		dv.viewedArrayBuf.setBigInt64(idx, val, bo)
 		return _undefined
@@ -407,7 +407,7 @@ func (r *Runtime) dataViewProto_setBigInt64(call FunctionCall) Value {
 func (r *Runtime) dataViewProto_setBigUint64(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
 		idxVal := r.toIndex(call.Argument(0))
-		val := toBigInt(call.Argument(1)).i
+		val := toBigUint64(call.Argument(1))
 		idx, bo := dv.getIdxAndByteOrder(idxVal, call.Argument(2), 8)
 		dv.viewedArrayBuf.setBigUint64(idx, val, bo)
 		return _undefined

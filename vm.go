@@ -1542,7 +1542,7 @@ func (_mod) exec(vm *vm) {
 			case right.i.Cmp(big.NewInt(0)) == 0:
 				panic(vm.r.newError(vm.r.getRangeError(), "Division by zero"))
 			case left.i.Cmp(big.NewInt(0)) < 0:
-				abs := left.i.Abs(left.i)
+				abs := new(big.Int).Abs(left.i)
 				v := new(big.Int).Mod(abs, right.i)
 				result = valueBigInt{v.Neg(v)}
 			default:
@@ -4463,7 +4463,7 @@ func cmp(px, py Value) Value {
 				nx, _ := nx.Int(nil)
 				ret = nx.Cmp(ny.i) < 0
 			} else {
-				ret = nx.Cmp(big.NewFloat(0).SetInt(ny.i)) < 0
+				ret = nx.Cmp(new(big.Float).SetInt(ny.i)) < 0
 			}
 			goto end
 		}
@@ -4484,7 +4484,7 @@ func cmp(px, py Value) Value {
 				ny, _ := ny.Int(nil)
 				ret = nx.i.Cmp(ny) < 0
 			} else {
-				ret = big.NewFloat(0).SetInt(nx.i).Cmp(ny) < 0
+				ret = new(big.Float).SetInt(nx.i).Cmp(ny) < 0
 			}
 			goto end
 		case valueBigInt:
