@@ -109,8 +109,18 @@ func (v valueBigInt) baseObject(rt *Runtime) *Object {
 	return rt.getBigIntPrototype()
 }
 
-func (v valueBigInt) hash(*maphash.Hash) uint64 {
-	return v.i.Uint64()
+func (v valueBigInt) hash(hash *maphash.Hash) uint64 {
+	var sign byte
+	if v.i.Sign() < 0 {
+		sign = 0x01
+	} else {
+		sign = 0x00
+	}
+	_ = hash.WriteByte(sign)
+	_, _ = hash.Write(v.i.Bytes())
+	h := hash.Sum64()
+	hash.Reset()
+	return h
 }
 
 func toBigInt(value Value) valueBigInt {
