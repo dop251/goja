@@ -37,7 +37,7 @@ func (v valueBigInt) String() string {
 }
 
 func (v valueBigInt) ToFloat() float64 {
-	f, _ := v.i.Float64()
+	f, _ := new(big.Float).SetInt(v.i).Float64()
 	return f
 }
 
