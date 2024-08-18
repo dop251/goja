@@ -416,19 +416,6 @@ func floatToValue(f float64) (result Value) {
 	return valueFloat(f)
 }
 
-func assertInt64(v Value) (int64, bool) {
-	num := v.ToNumber()
-	if i, ok := num.(valueInt); ok {
-		return int64(i), true
-	}
-	if f, ok := num.(valueFloat); ok {
-		if i, ok := floatToInt(float64(f)); ok {
-			return i, true
-		}
-	}
-	return 0, false
-}
-
 func toNumeric(value Value) Value {
 	switch v := value.(type) {
 	case valueInt, valueBigInt:
