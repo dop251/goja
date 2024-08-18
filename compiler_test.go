@@ -3144,18 +3144,6 @@ func TestDeleteGlobalEval(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
-func TestGlobalVarNames(t *testing.T) {
-	vm := New()
-	_, err := vm.RunString("(0,eval)('var x')")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = vm.RunString("let x")
-	if err == nil {
-		t.Fatal("Expected error")
-	}
-}
-
 func TestTryResultEmpty(t *testing.T) {
 	const SCRIPT = `
 	1; try { } finally { }

@@ -2968,6 +2968,17 @@ func ExampleRuntime_ForOf() {
 	// Output: a=1,b=2,
 }
 
+func TestDestructAssignToSymbol(t *testing.T) {
+	const SCRIPT = `
+	const s = Symbol('s');
+	const target = {};
+
+	({a: target[s]} = {a: 42});
+	assert.sameValue(target[s], 42);
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

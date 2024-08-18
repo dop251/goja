@@ -15,16 +15,24 @@ type typedArraySortCtx struct {
 	ta           *typedArrayObject
 	compare      func(FunctionCall) Value
 	needValidate bool
+	detached     bool
 }
 
 func (ctx *typedArraySortCtx) Len() int {
 	return ctx.ta.length
 }
 
-func (ctx *typedArraySortCtx) Less(i, j int) bool {
-	if ctx.needValidate {
-		ctx.ta.viewedArrayBuf.ensureNotDetached(true)
+func (ctx *typedArraySortCtx) checkDetached() {
+	if !ctx.detached && ctx.needValidate {
+		ctx.detached = !ctx.ta.viewedArrayBuf.ensureNotDetached(false)
 		ctx.needValidate = false
+	}
+}
+
+func (ctx *typedArraySortCtx) Less(i, j int) bool {
+	ctx.checkDetached()
+	if ctx.detached {
+		return false
 	}
 	offset := ctx.ta.offset
 	if ctx.compare != nil {
@@ -55,9 +63,9 @@ func (ctx *typedArraySortCtx) Less(i, j int) bool {
 }
 
 func (ctx *typedArraySortCtx) Swap(i, j int) {
-	if ctx.needValidate {
-		ctx.ta.viewedArrayBuf.ensureNotDetached(true)
-		ctx.needValidate = false
+	ctx.checkDetached()
+	if ctx.detached {
+		return
 	}
 	offset := ctx.ta.offset
 	ctx.ta.typedArray.swap(offset+i, offset+j)
@@ -147,7 +155,6 @@ func (r *Runtime) newDataView(args []Value, newTarget *Object) *Object {
 	if newTarget == nil {
 		panic(r.needNew("DataView"))
 	}
-	proto := r.getPrototypeFromCtor(newTarget, r.getDataView(), r.getDataViewPrototype())
 	var bufArg Value
 	if len(args) > 0 {
 		bufArg = args[0]
@@ -177,6 +184,14 @@ func (r *Runtime) newDataView(args []Value, newTarget *Object) *Object {
 		}
 	} else {
 		byteLen = len(buffer.data) - byteOffset
+	}
+	proto := r.getPrototypeFromCtor(newTarget, r.getDataView(), r.getDataViewPrototype())
+	buffer.ensureNotDetached(true)
+	if byteOffset > len(buffer.data) {
+		panic(r.newError(r.getRangeError(), "Start offset %d is outside the bounds of the buffer", byteOffset))
+	}
+	if byteOffset+byteLen > len(buffer.data) {
+		panic(r.newError(r.getRangeError(), "Invalid DataView length %d", byteLen))
 	}
 	o := &Object{runtime: r}
 	b := &dataViewObject{
@@ -1045,7 +1060,6 @@ func (r *Runtime) typedArrayProto_set(call FunctionCall) Value {
 			}
 			for i := 0; i < srcLen; i++ {
 				val := nilSafe(srcObj.self.getIdx(valueInt(i), nil))
-				ta.viewedArrayBuf.ensureNotDetached(true)
 				if ta.isValidIntegerIndex(i) {
 					ta.typedArray.set(targetOffset+i, val)
 				}
@@ -1191,6 +1205,95 @@ func (r *Runtime) typedArrayProto_toStringTag(call FunctionCall) Value {
 	return _undefined
 }
 
+func (r *Runtime) typedArrayProto_with(call FunctionCall) Value {
+	o := call.This.ToObject(r)
+	ta, ok := o.self.(*typedArrayObject)
+	if !ok {
+		panic(r.NewTypeError("%s is not a valid TypedArray", r.objectproto_toString(FunctionCall{This: call.This})))
+	}
+	length := ta.length
+	relativeIndex := call.Argument(0).ToInteger()
+	var actualIndex int
+
+	if relativeIndex >= 0 {
+		actualIndex = toIntStrict(relativeIndex)
+	} else {
+		actualIndex = toIntStrict(int64(length) + relativeIndex)
+	}
+	if !ta.isValidIntegerIndex(actualIndex) {
+		panic(r.newError(r.getRangeError(), "Invalid typed array index"))
+	}
+
+	// TODO BigInt
+	// 7. If O.[[ContentType]] is BIGINT, let numericValue be ? ToBigInt(value).
+	// 8. Else, let numericValue be ? ToNumber(value).
+	numericValue := call.Argument(1).ToNumber()
+
+	a := r.typedArrayCreate(ta.defaultCtor, intToValue(int64(length)))
+	for k := 0; k < length; k++ {
+		var fromValue Value
+		if k == actualIndex {
+			fromValue = numericValue
+		} else {
+			fromValue = ta.typedArray.get(ta.offset + k)
+		}
+		a.typedArray.set(ta.offset+k, fromValue)
+	}
+	return a.val
+}
+
+func (r *Runtime) typedArrayProto_toReversed(call FunctionCall) Value {
+	o := call.This.ToObject(r)
+	ta, ok := o.self.(*typedArrayObject)
+	if !ok {
+		panic(r.NewTypeError("%s is not a valid TypedArray", r.objectproto_toString(FunctionCall{This: call.This})))
+	}
+	length := ta.length
+
+	a := r.typedArrayCreate(ta.defaultCtor, intToValue(int64(length)))
+
+	for k := 0; k < length; k++ {
+		from := length - k - 1
+		fromValue := ta.typedArray.get(ta.offset + from)
+		a.typedArray.set(ta.offset+k, fromValue)
+	}
+
+	return a.val
+}
+
+func (r *Runtime) typedArrayProto_toSorted(call FunctionCall) Value {
+	o := call.This.ToObject(r)
+	ta, ok := o.self.(*typedArrayObject)
+	if !ok {
+		panic(r.NewTypeError("%s is not a valid TypedArray", r.objectproto_toString(FunctionCall{This: call.This})))
+	}
+
+	var compareFn func(FunctionCall) Value
+	arg := call.Argument(0)
+	if arg != _undefined {
+		if arg, ok := arg.(*Object); ok {
+			compareFn, _ = arg.self.assertCallable()
+		}
+		if compareFn == nil {
+			panic(r.NewTypeError("The comparison function must be either a function or undefined"))
+		}
+	}
+
+	length := ta.length
+
+	a := r.typedArrayCreate(ta.defaultCtor, intToValue(int64(length)))
+	copy(a.viewedArrayBuf.data, ta.viewedArrayBuf.data)
+
+	ctx := typedArraySortCtx{
+		ta:      a,
+		compare: compareFn,
+	}
+
+	sort.Stable(&ctx)
+
+	return a.val
+}
+
 func (r *Runtime) newTypedArray([]Value, *Object) *Object {
 	panic(r.NewTypeError("Abstract class TypedArray not directly constructable"))
 }
@@ -1219,7 +1322,7 @@ func (r *Runtime) typedArray_from(call FunctionCall) Value {
 			for idx, val := range values {
 				fc.Arguments[0], fc.Arguments[1] = val, intToValue(int64(idx))
 				val = mapFc(fc)
-				ta.typedArray.set(idx, val)
+				ta._putIdx(idx, val)
 			}
 		}
 		return ta.val
@@ -1375,8 +1478,6 @@ func (r *Runtime) _newTypedArrayFromTypedArray(src *typedArrayObject, newTarget 
 	src.viewedArrayBuf.ensureNotDetached(true)
 	l := src.length
 
-	arrayBuffer := r.getArrayBuffer()
-	dst.viewedArrayBuf.prototype = r.getPrototypeFromCtor(r.speciesConstructorObj(src.viewedArrayBuf.val, arrayBuffer), arrayBuffer, r.getArrayBufferPrototype())
 	dst.viewedArrayBuf.data = allocByteSlice(toIntStrict(int64(l) * int64(dst.elemSize)))
 	src.viewedArrayBuf.ensureNotDetached(true)
 	if src.defaultCtor == dst.defaultCtor {
@@ -1602,6 +1703,9 @@ func createTypedArrayProtoTemplate() *objectTemplate {
 	t.putStr("sort", func(r *Runtime) Value { return r.methodProp(r.typedArrayProto_sort, "sort", 1) })
 	t.putStr("subarray", func(r *Runtime) Value { return r.methodProp(r.typedArrayProto_subarray, "subarray", 2) })
 	t.putStr("toLocaleString", func(r *Runtime) Value { return r.methodProp(r.typedArrayProto_toLocaleString, "toLocaleString", 0) })
+	t.putStr("with", func(r *Runtime) Value { return r.methodProp(r.typedArrayProto_with, "with", 2) })
+	t.putStr("toReversed", func(r *Runtime) Value { return r.methodProp(r.typedArrayProto_toReversed, "toReversed", 0) })
+	t.putStr("toSorted", func(r *Runtime) Value { return r.methodProp(r.typedArrayProto_toSorted, "toSorted", 1) })
 	t.putStr("toString", func(r *Runtime) Value { return valueProp(r.getArrayToString(), true, false, true) })
 	t.putStr("values", func(r *Runtime) Value { return valueProp(r.getTypedArrayValues(), true, false, true) })
 

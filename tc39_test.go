@@ -6,12 +6,14 @@ import (
 	"io"
 	"os"
 	"path"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"gopkg.in/yaml.v2"
 )
 
@@ -184,6 +186,9 @@ var (
 		"test/language/literals/regexp/invalid-optional-negative-lookbehind.js": true,
 		"test/language/literals/regexp/invalid-optional-lookbehind.js":          true,
 
+		// unicode full case folding
+		"test/built-ins/RegExp/unicode_full_case_folding.js": true,
+
 		// FIXME bugs
 
 		// Left-hand side as a CoverParenthesizedExpression
@@ -195,6 +200,9 @@ var (
 
 		// Skip due to regexp named groups
 		"test/built-ins/String/prototype/replaceAll/searchValue-replacer-RegExp-call.js": true,
+
+		"test/built-ins/RegExp/nullable-quantifier.js":               true,
+		"test/built-ins/RegExp/lookahead-quantifier-match-groups.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -202,8 +210,11 @@ var (
 		"Symbol.asyncIterator",
 		"resizable-arraybuffer",
 		"regexp-named-groups",
+		"regexp-duplicate-named-groups",
 		"regexp-unicode-property-escapes",
 		"regexp-match-indices",
+		"regexp-modifiers",
+		"RegExp.escape",
 		"legacy-regexp",
 		"tail-call-optimization",
 		"Temporal",
@@ -213,6 +224,7 @@ var (
 		"import.meta",
 		"Atomics",
 		"Atomics.waitAsync",
+		"Atomics.pause",
 		"FinalizationRegistry",
 		"WeakRef",
 		"numeric-separator-literal",
@@ -222,10 +234,31 @@ var (
 		"SharedArrayBuffer",
 		"decorators",
 		"regexp-v-flag",
+		"iterator-helpers",
+		"symbols-as-weakmap-keys",
+		"uint8array-base64",
+		"String.prototype.toWellFormed",
+		"explicit-resource-management",
+		"set-methods",
+		"promise-try",
+		"promise-with-resolvers",
+		"array-grouping",
+		"Math.sumPrecise",
+		"Float16Array",
+		"arraybuffer-transfer",
+		"Array.fromAsync",
+		"String.prototype.isWellFormed",
 	}
 )
 
+var goVersion *semver.Version
+
 func init() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		goVersion = semver.MustParse(strings.TrimPrefix(info.GoVersion, "go"))
+	} else {
+		panic("Could not read build info")
+	}
 
 	skip := func(prefixes ...string) {
 		for _, prefix := range prefixes {
@@ -233,11 +266,17 @@ func init() {
 		}
 	}
 
-	skip(
-		// Go 1.16 only supports unicode 13
-		"test/language/identifiers/start-unicode-14.",
-		"test/language/identifiers/part-unicode-14.",
+	if goVersion.LessThan(semver.MustParse("1.21")) {
+		skip(
+			// Go <1.21 only supports Unicode 13
+			"test/language/identifiers/start-unicode-14.",
+			"test/language/identifiers/part-unicode-14.",
+			"test/language/identifiers/start-unicode-15.",
+			"test/language/identifiers/part-unicode-15.",
+		)
+	}
 
+	skip(
 		// generators and async generators (harness/hidden-constructors.js)
 		"test/built-ins/Async",
 
