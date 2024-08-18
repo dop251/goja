@@ -634,7 +634,7 @@ func (a *float64Array) exportType() reflect.Type {
 }
 
 func (a *bigInt64Array) toRaw(value Value) uint64 {
-	return toBigInt(value).i.Uint64()
+	return toBigInt64(value).Uint64()
 }
 
 func (a *bigInt64Array) ptr(idx int) *int64 {
@@ -648,7 +648,7 @@ func (a *bigInt64Array) get(idx int) Value {
 
 func toBigInt64(v Value) *big.Int {
 	n := toBigInt(v).i
-	int64bit := n.Mod(n, big.NewInt(2).Exp(big.NewInt(2), big.NewInt(64), nil))
+	int64bit := new(big.Int).Mod(n, big.NewInt(2).Exp(big.NewInt(2), big.NewInt(64), nil))
 	if int64bit.Cmp(big.NewInt(2).Exp(big.NewInt(2), big.NewInt(63), nil)) >= 0 {
 		return int64bit.Sub(int64bit, big.NewInt(2).Exp(big.NewInt(2), big.NewInt(64), nil))
 	}
@@ -703,7 +703,7 @@ func (a *bigInt64Array) exportType() reflect.Type {
 }
 
 func (a *bigUint64Array) toRaw(value Value) uint64 {
-	return toBigInt(value).i.Uint64()
+	return toBigUint64(value).Uint64()
 }
 
 func (a *bigUint64Array) ptr(idx int) *uint64 {
@@ -717,7 +717,7 @@ func (a *bigUint64Array) get(idx int) Value {
 
 func toBigUint64(v Value) *big.Int {
 	n := toBigInt(v).i
-	return n.Mod(n, big.NewInt(2).Exp(big.NewInt(2), big.NewInt(64), nil))
+	return new(big.Int).Mod(n, big.NewInt(2).Exp(big.NewInt(2), big.NewInt(64), nil))
 }
 
 func (a *bigUint64Array) set(idx int, value Value) {
