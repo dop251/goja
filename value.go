@@ -220,8 +220,8 @@ func (i valueInt) Equals(other Value) bool {
 	switch o := other.(type) {
 	case valueInt:
 		return i == o
-	case valueBigInt:
-		return o.i.Cmp(big.NewInt(int64(i))) == 0
+	case *valueBigInt:
+		return (*big.Int)(o).Cmp(big.NewInt(int64(i))) == 0
 	case valueFloat:
 		return float64(i) == float64(o)
 	case String:
@@ -647,13 +647,13 @@ func (f valueFloat) Equals(other Value) bool {
 		return f == o
 	case valueInt:
 		return float64(f) == float64(o)
-	case valueBigInt:
+	case *valueBigInt:
 		if IsInfinity(f) || math.IsNaN(float64(f)) {
 			return false
 		}
 		if f := big.NewFloat(float64(f)); f.IsInt() {
 			i, _ := f.Int(nil)
-			return o.i.Cmp(i) == 0
+			return (*big.Int)(o).Cmp(i) == 0
 		}
 		return false
 	case String, valueBool:
@@ -741,7 +741,7 @@ func (o *Object) Equals(other Value) bool {
 	}
 
 	switch o1 := other.(type) {
-	case valueInt, valueFloat, valueBigInt, String, *Symbol:
+	case valueInt, valueFloat, *valueBigInt, String, *Symbol:
 		return o.toPrimitive().Equals(other)
 	case valueBool:
 		return o.Equals(o1.ToNumber())

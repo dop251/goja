@@ -1268,7 +1268,7 @@ func (e *compiledLiteral) emitGetter(putOnStack bool) {
 }
 
 func (e *compiledLiteral) constant() bool {
-	if _, ok := e.val.(valueBigInt); ok {
+	if _, ok := e.val.(*valueBigInt); ok {
 		return false
 	}
 	return true
@@ -3234,7 +3234,7 @@ func (c *compiler) compileNumberLiteral(v *ast.NumberLiteral) compiledExpr {
 	case float64:
 		val = floatToValue(num)
 	case *big.Int:
-		val = valueBigInt{num}
+		val = (*valueBigInt)(num)
 	default:
 		c.assert(false, int(v.Idx)-1, "Unsupported number literal type: %T", v.Value)
 		panic("unreachable")

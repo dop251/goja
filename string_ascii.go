@@ -4,6 +4,7 @@ import (
 	"hash/maphash"
 	"io"
 	"math"
+	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
@@ -246,12 +247,12 @@ func (s asciiString) Equals(other Value) bool {
 		return false
 	}
 
-	if o, ok := other.(valueBigInt); ok {
+	if o, ok := other.(*valueBigInt); ok {
 		bigInt, err := stringToBigInt(s.toTrimmedUTF8())
 		if err != nil {
 			return false
 		}
-		return bigInt.Cmp(o.i) == 0
+		return bigInt.Cmp((*big.Int)(o)) == 0
 	}
 
 	if o, ok := other.(*Object); ok {

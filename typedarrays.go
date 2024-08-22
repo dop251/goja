@@ -643,11 +643,11 @@ func (a *bigInt64Array) ptr(idx int) *int64 {
 }
 
 func (a *bigInt64Array) get(idx int) Value {
-	return valueBigInt{big.NewInt(*a.ptr(idx))}
+	return (*valueBigInt)(big.NewInt(*a.ptr(idx)))
 }
 
 func toBigInt64(v Value) *big.Int {
-	n := toBigInt(v).i
+	n := (*big.Int)(toBigInt(v))
 
 	twoTo64 := new(big.Int).Lsh(big.NewInt(1), 64)
 	twoTo63 := new(big.Int).Lsh(big.NewInt(1), 63)
@@ -681,7 +681,7 @@ func (a *bigInt64Array) swap(i, j int) {
 }
 
 func (a *bigInt64Array) typeMatch(v Value) bool {
-	if _, ok := v.(valueBigInt); ok {
+	if _, ok := v.(*valueBigInt); ok {
 		return true
 	}
 	return false
@@ -716,11 +716,11 @@ func (a *bigUint64Array) ptr(idx int) *uint64 {
 }
 
 func (a *bigUint64Array) get(idx int) Value {
-	return valueBigInt{new(big.Int).SetUint64(*a.ptr(idx))}
+	return (*valueBigInt)(new(big.Int).SetUint64(*a.ptr(idx)))
 }
 
 func toBigUint64(v Value) *big.Int {
-	n := toBigInt(v).i
+	n := (*big.Int)(toBigInt(v))
 	return new(big.Int).Mod(n, new(big.Int).Lsh(big.NewInt(1), 64))
 }
 
@@ -746,7 +746,7 @@ func (a *bigUint64Array) swap(i, j int) {
 }
 
 func (a *bigUint64Array) typeMatch(v Value) bool {
-	if _, ok := v.(valueBigInt); ok {
+	if _, ok := v.(*valueBigInt); ok {
 		return true
 	}
 	return false

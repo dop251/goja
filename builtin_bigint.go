@@ -12,67 +12,65 @@ import (
 	"github.com/dop251/goja/unistring"
 )
 
-type valueBigInt struct {
-	i *big.Int
+type valueBigInt big.Int
+
+func (v *valueBigInt) ToInteger() int64 {
+	return (*big.Int)(v).Int64()
 }
 
-func (v valueBigInt) ToInteger() int64 {
-	return v.i.Int64()
+func (v *valueBigInt) toString() String {
+	return asciiString((*big.Int)(v).String())
 }
 
-func (v valueBigInt) toString() String {
-	return asciiString(v.i.String())
-}
-
-func (v valueBigInt) string() unistring.String {
+func (v *valueBigInt) string() unistring.String {
 	return unistring.String(v.String())
 }
 
-func (v valueBigInt) ToString() Value {
+func (v *valueBigInt) ToString() Value {
 	return v
 }
 
-func (v valueBigInt) String() string {
-	return v.i.String()
+func (v *valueBigInt) String() string {
+	return (*big.Int)(v).String()
 }
 
-func (v valueBigInt) ToFloat() float64 {
-	f, _ := new(big.Float).SetInt(v.i).Float64()
+func (v *valueBigInt) ToFloat() float64 {
+	f, _ := new(big.Float).SetInt((*big.Int)(v)).Float64()
 	return f
 }
 
-func (v valueBigInt) ToNumber() Value {
+func (v *valueBigInt) ToNumber() Value {
 	panic(typeError("Cannot convert a BigInt value to a number"))
 }
 
-func (v valueBigInt) ToBoolean() bool {
-	return v.i.Sign() != 0
+func (v *valueBigInt) ToBoolean() bool {
+	return (*big.Int)(v).Sign() != 0
 }
 
-func (v valueBigInt) ToObject(r *Runtime) *Object {
+func (v *valueBigInt) ToObject(r *Runtime) *Object {
 	return r.newPrimitiveObject(v, r.getBigIntPrototype(), classBigInt)
 }
 
-func (v valueBigInt) SameAs(other Value) bool {
-	if o, ok := other.(valueBigInt); ok {
-		return v.i.Cmp(o.i) == 0
+func (v *valueBigInt) SameAs(other Value) bool {
+	if o, ok := other.(*valueBigInt); ok {
+		return (*big.Int)(v).Cmp((*big.Int)(o)) == 0
 	}
 	return false
 }
 
-func (v valueBigInt) Equals(other Value) bool {
+func (v *valueBigInt) Equals(other Value) bool {
 	switch o := other.(type) {
-	case valueBigInt:
-		return v.i.Cmp(o.i) == 0
+	case *valueBigInt:
+		return (*big.Int)(v).Cmp((*big.Int)(o)) == 0
 	case valueInt:
-		return v.i.Cmp(big.NewInt(int64(o))) == 0
+		return (*big.Int)(v).Cmp(big.NewInt(int64(o))) == 0
 	case valueFloat:
 		if IsInfinity(o) || math.IsNaN(float64(o)) {
 			return false
 		}
 		if f := big.NewFloat(float64(o)); f.IsInt() {
 			i, _ := f.Int(nil)
-			return v.i.Cmp(i) == 0
+			return (*big.Int)(v).Cmp(i) == 0
 		}
 		return false
 	case String:
@@ -80,50 +78,50 @@ func (v valueBigInt) Equals(other Value) bool {
 		if err != nil {
 			return false
 		}
-		return bigInt.Cmp(v.i) == 0
+		return bigInt.Cmp((*big.Int)(v)) == 0
 	case valueBool:
-		return v.i.Int64() == o.ToInteger()
+		return (*big.Int)(v).Int64() == o.ToInteger()
 	case *Object:
 		return v.Equals(o.toPrimitiveNumber())
 	}
 	return false
 }
 
-func (v valueBigInt) StrictEquals(other Value) bool {
-	o, ok := other.(valueBigInt)
+func (v *valueBigInt) StrictEquals(other Value) bool {
+	o, ok := other.(*valueBigInt)
 	if ok {
-		return v.i.Cmp(o.i) == 0
+		return (*big.Int)(v).Cmp((*big.Int)(o)) == 0
 	}
 	return false
 }
 
-func (v valueBigInt) Export() interface{} {
-	return v.i
+func (v *valueBigInt) Export() interface{} {
+	return new(big.Int).Set((*big.Int)(v))
 }
 
-func (v valueBigInt) ExportType() reflect.Type {
+func (v *valueBigInt) ExportType() reflect.Type {
 	return typeBigInt
 }
 
-func (v valueBigInt) baseObject(rt *Runtime) *Object {
+func (v *valueBigInt) baseObject(rt *Runtime) *Object {
 	return rt.getBigIntPrototype()
 }
 
-func (v valueBigInt) hash(hash *maphash.Hash) uint64 {
+func (v *valueBigInt) hash(hash *maphash.Hash) uint64 {
 	var sign byte
-	if v.i.Sign() < 0 {
+	if (*big.Int)(v).Sign() < 0 {
 		sign = 0x01
 	} else {
 		sign = 0x00
 	}
 	_ = hash.WriteByte(sign)
-	_, _ = hash.Write(v.i.Bytes())
+	_, _ = hash.Write((*big.Int)(v).Bytes())
 	h := hash.Sum64()
 	hash.Reset()
 	return h
 }
 
-func toBigInt(value Value) valueBigInt {
+func toBigInt(value Value) *valueBigInt {
 	// Undefined	Throw a TypeError exception.
 	// Null			Throw a TypeError exception.
 	// Boolean		Return 1n if prim is true and 0n if prim is false.
@@ -134,16 +132,16 @@ func toBigInt(value Value) valueBigInt {
 	//				3. Return n.
 	// Symbol		Throw a TypeError exception.
 	switch prim := value.(type) {
-	case valueBigInt:
+	case *valueBigInt:
 		return prim
 	case String:
 		bigInt, err := stringToBigInt(prim.toTrimmedUTF8())
 		if err != nil {
 			panic(syntaxError(fmt.Sprintf("Cannot convert %s to a BigInt", prim)))
 		}
-		return valueBigInt{bigInt}
+		return (*valueBigInt)(bigInt)
 	case valueBool:
-		return valueBigInt{big.NewInt(prim.ToInteger())}
+		return (*valueBigInt)(big.NewInt(prim.ToInteger()))
 	case *Symbol:
 		panic(typeError("Cannot convert Symbol to a BigInt"))
 	case *Object:
@@ -153,19 +151,19 @@ func toBigInt(value Value) valueBigInt {
 	}
 }
 
-func numberToBigInt(v Value) valueBigInt {
+func numberToBigInt(v Value) *valueBigInt {
 	switch v := toNumeric(v).(type) {
-	case valueBigInt:
+	case *valueBigInt:
 		return v
 	case valueInt:
-		return valueBigInt{big.NewInt(v.ToInteger())}
+		return (*valueBigInt)(big.NewInt(v.ToInteger()))
 	case valueFloat:
 		if IsInfinity(v) || math.IsNaN(float64(v)) {
 			panic(rangeError(fmt.Sprintf("Cannot convert %s to a BigInt", v)))
 		}
 		if f := big.NewFloat(float64(v)); f.IsInt() {
 			n, _ := f.Int(nil)
-			return valueBigInt{n}
+			return (*valueBigInt)(n)
 		}
 		panic(rangeError(fmt.Sprintf("Cannot convert %s to a BigInt", v)))
 	case *Object:
@@ -200,7 +198,7 @@ func stringToBigInt(str string) (*big.Int, error) {
 
 func (r *Runtime) thisBigIntValue(value Value) Value {
 	switch t := value.(type) {
-	case valueBigInt:
+	case *valueBigInt:
 		return t
 	case *Object:
 		switch t := t.self.(type) {
@@ -220,7 +218,7 @@ func (r *Runtime) bigintproto_valueOf(call FunctionCall) Value {
 }
 
 func (r *Runtime) bigintproto_toString(call FunctionCall) Value {
-	x := r.thisBigIntValue(call.This).(valueBigInt)
+	x := (*big.Int)(r.thisBigIntValue(call.This).(*valueBigInt))
 	radix := call.Argument(0)
 	var radixMV int
 
@@ -233,7 +231,7 @@ func (r *Runtime) bigintproto_toString(call FunctionCall) Value {
 		}
 	}
 
-	return asciiString(x.i.Text(radixMV))
+	return asciiString(x.Text(radixMV))
 }
 
 func (r *Runtime) bigint_asIntN(call FunctionCall) Value {
@@ -247,11 +245,11 @@ func (r *Runtime) bigint_asIntN(call FunctionCall) Value {
 	bigint := toBigInt(call.Argument(1))
 
 	twoToBits := new(big.Int).Lsh(big.NewInt(1), uint(bits))
-	mod := new(big.Int).Mod(bigint.i, twoToBits)
+	mod := new(big.Int).Mod((*big.Int)(bigint), twoToBits)
 	if bits > 0 && mod.Cmp(new(big.Int).Lsh(big.NewInt(1), uint(bits-1))) >= 0 {
-		return valueBigInt{mod.Sub(mod, twoToBits)}
+		return (*valueBigInt)(mod.Sub(mod, twoToBits))
 	} else {
-		return valueBigInt{mod}
+		return (*valueBigInt)(mod)
 	}
 }
 
@@ -263,8 +261,9 @@ func (r *Runtime) bigint_asUintN(call FunctionCall) Value {
 	if bits < 0 {
 		panic(r.NewTypeError("Invalid value: not (convertible to) a safe integer"))
 	}
-	bigint := toBigInt(call.Argument(1))
-	return valueBigInt{new(big.Int).Mod(bigint.i, new(big.Int).Lsh(big.NewInt(1), uint(bits)))}
+	bigint := (*big.Int)(toBigInt(call.Argument(1)))
+	ret := new(big.Int).Mod(bigint, new(big.Int).Lsh(big.NewInt(1), uint(bits)))
+	return (*valueBigInt)(ret)
 }
 
 var bigintTemplate *objectTemplate
@@ -296,13 +295,13 @@ func createBigIntTemplate() *objectTemplate {
 func (r *Runtime) builtin_BigInt(call FunctionCall) Value {
 	if len(call.Arguments) > 0 {
 		switch v := call.Argument(0).(type) {
-		case valueBigInt, valueInt, valueFloat, *Object:
+		case *valueBigInt, valueInt, valueFloat, *Object:
 			return numberToBigInt(v)
 		default:
 			return toBigInt(v)
 		}
 	}
-	return valueBigInt{big.NewInt(0)}
+	return (*valueBigInt)(big.NewInt(0))
 }
 
 func (r *Runtime) builtin_newBigInt(args []Value, newTarget *Object) *Object {
@@ -313,7 +312,7 @@ func (r *Runtime) builtin_newBigInt(args []Value, newTarget *Object) *Object {
 	if len(args) > 0 {
 		v = numberToBigInt(args[0])
 	} else {
-		v = valueBigInt{big.NewInt(0)}
+		v = (*valueBigInt)(big.NewInt(0))
 	}
 	return r.newPrimitiveObject(v, newTarget, classBigInt)
 }

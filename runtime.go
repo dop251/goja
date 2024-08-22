@@ -838,11 +838,11 @@ func (r *Runtime) builtin_Number(call FunctionCall) Value {
 		switch t := call.Arguments[0].(type) {
 		case *Object:
 			primValue := t.toPrimitiveNumber()
-			if bigint, ok := primValue.(valueBigInt); ok {
+			if bigint, ok := primValue.(*valueBigInt); ok {
 				return intToValue(bigint.ToInteger())
 			}
 			return primValue.ToNumber()
-		case valueBigInt:
+		case *valueBigInt:
 			return intToValue(t.ToInteger())
 		default:
 			return t.ToNumber()
@@ -858,12 +858,12 @@ func (r *Runtime) builtin_newNumber(args []Value, proto *Object) *Object {
 		switch t := args[0].(type) {
 		case *Object:
 			primValue := t.toPrimitiveNumber()
-			if bigint, ok := primValue.(valueBigInt); ok {
+			if bigint, ok := primValue.(*valueBigInt); ok {
 				v = intToValue(bigint.ToInteger())
 			} else {
 				v = primValue.ToNumber()
 			}
-		case valueBigInt:
+		case *valueBigInt:
 			v = intToValue(t.ToInteger())
 		default:
 			v = t.ToNumber()
@@ -1861,7 +1861,7 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 	case float64:
 		return floatToValue(i)
 	case *big.Int:
-		return valueBigInt{i}
+		return (*valueBigInt)(new(big.Int).Set(i))
 	case map[string]interface{}:
 		if i == nil {
 			return _null

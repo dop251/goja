@@ -9,7 +9,7 @@ func TestBigInt(t *testing.T) {
 	const SCRIPT = `0xabcdef0123456789abcdef0123n`
 	b := new(big.Int)
 	b.SetString("0xabcdef0123456789abcdef0123", 0)
-	testScript(SCRIPT, valueBigInt{b}, t)
+	testScript(SCRIPT, (*valueBigInt)(b), t)
 }
 
 func TestBigIntExportTo(t *testing.T) {
