@@ -15,7 +15,7 @@ import (
 type valueBigInt big.Int
 
 func (v *valueBigInt) ToInteger() int64 {
-	return (*big.Int)(v).Int64()
+	panic(typeError("Cannot convert a BigInt value to a number"))
 }
 
 func (v *valueBigInt) toString() String {

@@ -839,11 +839,11 @@ func (r *Runtime) builtin_Number(call FunctionCall) Value {
 		case *Object:
 			primValue := t.toPrimitiveNumber()
 			if bigint, ok := primValue.(*valueBigInt); ok {
-				return intToValue(bigint.ToInteger())
+				return intToValue((*big.Int)(bigint).Int64())
 			}
 			return primValue.ToNumber()
 		case *valueBigInt:
-			return intToValue(t.ToInteger())
+			return intToValue((*big.Int)(t).Int64())
 		default:
 			return t.ToNumber()
 		}
@@ -859,12 +859,12 @@ func (r *Runtime) builtin_newNumber(args []Value, proto *Object) *Object {
 		case *Object:
 			primValue := t.toPrimitiveNumber()
 			if bigint, ok := primValue.(*valueBigInt); ok {
-				v = intToValue(bigint.ToInteger())
+				v = intToValue((*big.Int)(bigint).Int64())
 			} else {
 				v = primValue.ToNumber()
 			}
 		case *valueBigInt:
-			v = intToValue(t.ToInteger())
+			v = intToValue((*big.Int)(t).Int64())
 		default:
 			v = t.ToNumber()
 		}
