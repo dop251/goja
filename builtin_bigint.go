@@ -15,7 +15,8 @@ import (
 type valueBigInt big.Int
 
 func (v *valueBigInt) ToInteger() int64 {
-	panic(typeError("Cannot convert a BigInt value to a number"))
+	v.ToNumber()
+	return 0
 }
 
 func (v *valueBigInt) toString() String {
@@ -35,8 +36,8 @@ func (v *valueBigInt) String() string {
 }
 
 func (v *valueBigInt) ToFloat() float64 {
-	f, _ := new(big.Float).SetInt((*big.Int)(v)).Float64()
-	return f
+	v.ToNumber()
+	return 0
 }
 
 func (v *valueBigInt) ToNumber() Value {

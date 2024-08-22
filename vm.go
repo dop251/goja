@@ -4441,6 +4441,9 @@ func cmp(px, py Value) Value {
 		}
 	}
 
+	px = toNumeric(px)
+	py = toNumeric(py)
+
 	switch nx := px.(type) {
 	case valueInt:
 		switch ny := py.(type) {
