@@ -1268,9 +1268,6 @@ func (e *compiledLiteral) emitGetter(putOnStack bool) {
 }
 
 func (e *compiledLiteral) constant() bool {
-	if _, ok := e.val.(*valueBigInt); ok {
-		return false
-	}
 	return true
 }
 
@@ -2451,7 +2448,7 @@ func (c *compiler) emitThrow(v Value) {
 	if o, ok := v.(*Object); ok {
 		t := nilSafe(o.self.getStr("name", nil)).toString().String()
 		switch t {
-		case "TypeError":
+		case "TypeError", "RangeError":
 			c.emit(loadDynamic(t))
 			msg := o.self.getStr("message", nil)
 			if msg != nil {
