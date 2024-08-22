@@ -473,9 +473,6 @@ func (r *Runtime) objectproto_toString(call FunctionCall) Value {
 			clsName = classArray
 		} else {
 			clsName = obj.self.className()
-			if clsName == classBigInt {
-				clsName = classObject
-			}
 		}
 		if tag := obj.self.getSym(SymToStringTag, nil); tag != nil {
 			if str, ok := tag.(String); ok {

@@ -49,7 +49,7 @@ func (v *valueBigInt) ToBoolean() bool {
 }
 
 func (v *valueBigInt) ToObject(r *Runtime) *Object {
-	return r.newPrimitiveObject(v, r.getBigIntPrototype(), classBigInt)
+	return r.newPrimitiveObject(v, r.getBigIntPrototype(), classObject)
 }
 
 func (v *valueBigInt) SameAs(other Value) bool {
@@ -206,7 +206,7 @@ func (r *Runtime) thisBigIntValue(value Value) Value {
 		case *primitiveValueObject:
 			return r.thisBigIntValue(t.pValue)
 		case *objectGoReflect:
-			if t.class == classBigInt && t.valueOf != nil {
+			if t.exportType() == typeBigInt && t.valueOf != nil {
 				return t.valueOf()
 			}
 		}
@@ -315,7 +315,7 @@ func (r *Runtime) builtin_newBigInt(args []Value, newTarget *Object) *Object {
 	} else {
 		v = (*valueBigInt)(big.NewInt(0))
 	}
-	return r.newPrimitiveObject(v, newTarget, classBigInt)
+	return r.newPrimitiveObject(v, newTarget, classObject)
 }
 
 func (r *Runtime) getBigInt() *Object {
@@ -336,13 +336,13 @@ func createBigIntProtoTemplate() *objectTemplate {
 	}
 
 	t.putStr("length", func(r *Runtime) Value { return valueProp(intToValue(0), false, false, true) })
-	t.putStr("name", func(r *Runtime) Value { return valueProp(asciiString(classBigInt), false, false, true) })
+	t.putStr("name", func(r *Runtime) Value { return valueProp(asciiString("BigInt"), false, false, true) })
 	t.putStr("constructor", func(r *Runtime) Value { return valueProp(r.getBigInt(), true, false, true) })
 
 	t.putStr("toLocaleString", func(r *Runtime) Value { return r.methodProp(r.bigintproto_toString, "toLocaleString", 0) })
 	t.putStr("toString", func(r *Runtime) Value { return r.methodProp(r.bigintproto_toString, "toString", 0) })
 	t.putStr("valueOf", func(r *Runtime) Value { return r.methodProp(r.bigintproto_valueOf, "valueOf", 0) })
-	t.putSym(SymToStringTag, func(r *Runtime) Value { return valueProp(asciiString(classBigInt), false, false, true) })
+	t.putSym(SymToStringTag, func(r *Runtime) Value { return valueProp(asciiString("BigInt"), false, false, true) })
 
 	return t
 }
@@ -363,7 +363,7 @@ func (r *Runtime) getBigIntPrototype() *Object {
 		ret = &Object{runtime: r}
 		r.global.BigIntPrototype = ret
 		o := r.newTemplatedObject(getBigIntProtoTemplate(), ret)
-		o.class = classBigInt
+		o.class = classObject
 	}
 	return ret
 }

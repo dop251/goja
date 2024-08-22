@@ -334,10 +334,9 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 					} else {
 						value = valueFalse
 					}
-				case classBigInt:
-					if o1.valueOf != nil {
-						value = o1.valueOf()
-					}
+				}
+				if o1.exportType() == typeBigInt {
+					value = o1.val.ordinaryToPrimitiveNumber()
 				}
 			}
 		}
