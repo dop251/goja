@@ -1226,7 +1226,8 @@ func (r *Runtime) typedArrayProto_with(call FunctionCall) Value {
 	}
 
 	var numericValue Value
-	if ta.typedArray.exportType() == typeBigInt64Array {
+	if ta.typedArray.exportType() == typeBigInt64Array ||
+		ta.typedArray.exportType() == typeBigUint64Array {
 		numericValue = toBigInt(call.Argument(1))
 	} else {
 		numericValue = call.Argument(1).ToNumber()

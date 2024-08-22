@@ -693,14 +693,10 @@ func (a *bigInt64Array) export(offset int, length int) interface{} {
 	sliceHeader.Data = (*reflect.SliceHeader)(unsafe.Pointer(a)).Data + uintptr(offset)*8
 	sliceHeader.Len = length
 	sliceHeader.Cap = length
-	ret := make([]*big.Int, 0, length)
-	for _, v := range res {
-		ret = append(ret, big.NewInt(v))
-	}
-	return ret
+	return res
 }
 
-var typeBigInt64Array = reflect.TypeOf(([]*big.Int)(nil))
+var typeBigInt64Array = reflect.TypeOf(([]int64)(nil))
 
 func (a *bigInt64Array) exportType() reflect.Type {
 	return typeBigInt64Array
@@ -758,15 +754,13 @@ func (a *bigUint64Array) export(offset int, length int) interface{} {
 	sliceHeader.Data = (*reflect.SliceHeader)(unsafe.Pointer(a)).Data + uintptr(offset)*8
 	sliceHeader.Len = length
 	sliceHeader.Cap = length
-	ret := make([]*big.Int, 0, length)
-	for _, v := range res {
-		ret = append(ret, new(big.Int).SetUint64(v))
-	}
-	return ret
+	return res
 }
 
+var typeBigUint64Array = reflect.TypeOf(([]uint64)(nil))
+
 func (a *bigUint64Array) exportType() reflect.Type {
-	return typeBigInt64Array
+	return typeBigUint64Array
 }
 
 func (a *typedArrayObject) _getIdx(idx int) Value {
@@ -837,7 +831,8 @@ func (a *typedArrayObject) isValidIntegerIndex(idx int) bool {
 }
 
 func (a *typedArrayObject) _putIdx(idx int, v Value) {
-	if a.typedArray.exportType() == typeBigInt64Array {
+	if a.typedArray.exportType() == typeBigInt64Array ||
+		a.typedArray.exportType() == typeBigUint64Array {
 		v = toBigInt(v)
 	} else {
 		v = v.ToNumber()

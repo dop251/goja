@@ -2,7 +2,6 @@ package goja
 
 import (
 	"bytes"
-	"math/big"
 	"testing"
 )
 
@@ -519,8 +518,8 @@ func TestTypedArrayExport(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if a, ok := v.Export().([]*big.Int); ok {
-			if len(a) != 2 || a[0].Cmp(big.NewInt(1)) != 0 || a[1].Cmp(big.NewInt(2)) != 0 {
+		if a, ok := v.Export().([]int64); ok {
+			if len(a) != 2 || a[0] != 1 || a[1] != 2 {
 				t.Fatal(a)
 			}
 		} else {
@@ -533,8 +532,8 @@ func TestTypedArrayExport(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if a, ok := v.Export().([]*big.Int); ok {
-			if len(a) != 2 || a[0].Cmp(big.NewInt(1)) != 0 || a[1].Cmp(big.NewInt(2)) != 0 {
+		if a, ok := v.Export().([]uint64); ok {
+			if len(a) != 2 || a[0] != 1 || a[1] != 2 {
 				t.Fatal(a)
 			}
 		} else {
