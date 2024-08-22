@@ -831,10 +831,10 @@ func (a *typedArrayObject) isValidIntegerIndex(idx int) bool {
 }
 
 func (a *typedArrayObject) _putIdx(idx int, v Value) {
-	if a.typedArray.exportType() == typeBigInt64Array ||
-		a.typedArray.exportType() == typeBigUint64Array {
+	switch a.typedArray.(type) {
+	case *bigInt64Array, *bigUint64Array:
 		v = toBigInt(v)
-	} else {
+	default:
 		v = v.ToNumber()
 	}
 	if a.isValidIntegerIndex(idx) {

@@ -1226,10 +1226,10 @@ func (r *Runtime) typedArrayProto_with(call FunctionCall) Value {
 	}
 
 	var numericValue Value
-	if ta.typedArray.exportType() == typeBigInt64Array ||
-		ta.typedArray.exportType() == typeBigUint64Array {
+	switch ta.typedArray.(type) {
+	case *bigInt64Array, *bigUint64Array:
 		numericValue = toBigInt(call.Argument(1))
-	} else {
+	default:
 		numericValue = call.Argument(1).ToNumber()
 	}
 
