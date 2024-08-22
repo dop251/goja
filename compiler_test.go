@@ -14,8 +14,17 @@ function $ERROR(message) {
 	throw new Error(message);
 }
 
-function Test262Error() {
+function Test262Error(message) {
+  this.message = message || "";
 }
+
+Test262Error.prototype.toString = function () {
+  return "Test262Error: " + this.message;
+};
+
+Test262Error.thrower = (message) => {
+  throw new Test262Error(message);
+};
 
 function assert(mustBeTrue, message) {
     if (mustBeTrue === true) {

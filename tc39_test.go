@@ -180,25 +180,6 @@ var (
 		"test/language/expressions/class/cpn-class-expr-computed-property-name-from-integer-separators.js":                true,
 		"test/language/expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-integer-separators.js": true,
 
-		// BigInt
-		"test/built-ins/Object/seal/seal-biguint64array.js":                        true,
-		"test/built-ins/Object/seal/seal-bigint64array.js":                         true,
-		"test/built-ins/Array/prototype/toSorted/comparefn-not-a-function.js":      true,
-		"test/built-ins/TypedArray/prototype/toReversed/this-value-invalid.js":     true,
-		"test/built-ins/TypedArray/prototype/toSorted/comparefn-not-a-function.js": true,
-		"test/built-ins/TypedArray/prototype/toSorted/this-value-invalid.js":       true,
-		"test/built-ins/RegExp/prototype/sticky/this-val-non-obj.js":               true,
-		"test/built-ins/RegExp/prototype/source/this-val-non-obj.js":               true,
-		"test/built-ins/RegExp/prototype/multiline/this-val-non-obj.js":            true,
-		"test/built-ins/RegExp/prototype/ignoreCase/this-val-non-obj.js":           true,
-		"test/built-ins/RegExp/prototype/unicode/this-val-non-obj.js":              true,
-		"test/built-ins/RegExp/prototype/dotAll/this-val-non-obj.js":               true,
-		"test/built-ins/RegExp/prototype/global/this-val-non-obj.js":               true,
-		"test/built-ins/RegExp/prototype/flags/this-val-non-obj.js":                true,
-		"test/built-ins/Iterator/prototype/Symbol.iterator/return-val.js":          true,
-		"test/built-ins/DataView/prototype/setBigUint64/not-a-constructor.js":      true,
-		"test/built-ins/DataView/prototype/getBigUint64/not-a-constructor.js":      true,
-
 		// Regexp
 		"test/language/literals/regexp/invalid-range-negative-lookbehind.js":    true,
 		"test/language/literals/regexp/invalid-range-lookbehind.js":             true,
@@ -227,7 +208,6 @@ var (
 	featuresBlackList = []string{
 		"async-iteration",
 		"Symbol.asyncIterator",
-		"BigInt",
 		"resizable-arraybuffer",
 		"regexp-named-groups",
 		"regexp-duplicate-named-groups",
@@ -326,10 +306,6 @@ func init() {
 		"test/language/expressions/class/elements/after-same-line-static-method-rs-static-async-generator-",
 
 		"test/language/eval-code/direct/async-gen-",
-
-		// BigInt
-		"test/built-ins/TypedArrayConstructors/BigUint64Array/",
-		"test/built-ins/TypedArrayConstructors/BigInt64Array/",
 
 		// restricted unicode regexp syntax
 		"test/language/literals/regexp/u-",

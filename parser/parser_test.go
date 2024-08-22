@@ -2,6 +2,7 @@ package parser
 
 import (
 	"errors"
+	"math/big"
 	"regexp"
 	"strings"
 	"testing"
@@ -1041,6 +1042,18 @@ func Test_parseNumberLiteral(t *testing.T) {
 		test("0", 0)
 
 		test("0x8000000000000000", float64(9.223372036854776e+18))
+
+		test("1n", big.NewInt(1))
+
+		test("-1n", big.NewInt(-1))
+
+		test("0x23n", big.NewInt(35))
+
+		test("0xabcdef01n", big.NewInt(2882400001))
+
+		var n big.Int
+		n.SetString("0xabcdef0123456789abcdef0123", 0)
+		test("0xabcdef0123456789abcdef0123n", &n)
 	})
 }
 

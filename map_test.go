@@ -3,6 +3,7 @@ package goja
 import (
 	"hash/maphash"
 	"math"
+	"math/big"
 	"strconv"
 	"testing"
 )
@@ -25,6 +26,8 @@ func TestMapHash(t *testing.T) {
 	testMapHashVal(floatToValue(1.2345), floatToValue(1.2345), true, t)
 	testMapHashVal(SymIterator, SymToStringTag, false, t)
 	testMapHashVal(SymIterator, SymIterator, true, t)
+	testMapHashVal((*valueBigInt)(big.NewInt(1)), (*valueBigInt)(big.NewInt(-1)), false, t)
+	testMapHashVal((*valueBigInt)(big.NewInt(1)), (*valueBigInt)(big.NewInt(1)), true, t)
 
 	// The following tests introduce indeterministic behaviour
 	//testMapHashVal(asciiString("Test"), asciiString("Test1"), false, t)
