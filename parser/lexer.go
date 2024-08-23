@@ -634,8 +634,12 @@ func (self *_parser) skipWhiteSpace() {
 }
 
 func (self *_parser) scanMantissa(base int) {
-	for digitValue(self.chr) < base {
+	for digitValue(self.chr) < base || self.chr == '_' {
+		afterUnderscore := self.chr == '_'
 		self.read()
+		if afterUnderscore && !isDigit(self.chr, base) {
+			self.error(self.chrOffset, "Only one underscore is allowed as numeric separator")
+		}
 	}
 }
 
