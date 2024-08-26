@@ -227,7 +227,6 @@ var (
 		"Atomics.pause",
 		"FinalizationRegistry",
 		"WeakRef",
-		"numeric-separator-literal",
 		"__getter__",
 		"__setter__",
 		"ShadowRealm",

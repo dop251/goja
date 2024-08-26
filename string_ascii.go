@@ -205,6 +205,12 @@ func (s asciiString) ToNumber() Value {
 		return _negativeInf
 	}
 
+	// Go allows underscores in numbers, when parsed as floats,
+	// as in s._toFloat(), but JS expect them to be interpreted as NaN.
+	if strings.Contains(string(s), "_") {
+		return _NaN
+	}
+
 	if i, err := s._toInt(); err == nil {
 		return intToValue(i)
 	}
