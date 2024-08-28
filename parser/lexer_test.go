@@ -264,6 +264,11 @@ Second line \
 			token.NUMBER, "12.3", 5,
 		)
 
+		test("1_000 1_000_000",
+			token.NUMBER, "1_000", 1,
+			token.NUMBER, "1_000_000", 7,
+		)
+
 		test(`1n`,
 			token.NUMBER, "1n", 1,
 		)

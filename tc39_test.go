@@ -169,17 +169,6 @@ var (
 		"test/language/literals/string/S7.8.4_A4.3_T2.js":             true,
 		"test/language/literals/string/S7.8.4_A4.3_T1.js":             true,
 
-		// integer separators
-		"test/language/expressions/object/cpn-obj-lit-computed-property-name-from-integer-separators.js":                  true,
-		"test/language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-integer-separators.js":      true,
-		"test/language/statements/class/cpn-class-decl-fields-computed-property-name-from-integer-separators.js":          true,
-		"test/language/statements/class/cpn-class-decl-computed-property-name-from-integer-separators.js":                 true,
-		"test/language/statements/class/cpn-class-decl-accessors-computed-property-name-from-integer-separators.js":       true,
-		"test/language/statements/class/cpn-class-decl-fields-methods-computed-property-name-from-integer-separators.js":  true,
-		"test/language/expressions/class/cpn-class-expr-fields-computed-property-name-from-integer-separators.js":         true,
-		"test/language/expressions/class/cpn-class-expr-computed-property-name-from-integer-separators.js":                true,
-		"test/language/expressions/class/cpn-class-expr-fields-methods-computed-property-name-from-integer-separators.js": true,
-
 		// Regexp
 		"test/language/literals/regexp/invalid-range-negative-lookbehind.js":    true,
 		"test/language/literals/regexp/invalid-range-lookbehind.js":             true,
@@ -227,7 +216,6 @@ var (
 		"Atomics.pause",
 		"FinalizationRegistry",
 		"WeakRef",
-		"numeric-separator-literal",
 		"__getter__",
 		"__setter__",
 		"ShadowRealm",

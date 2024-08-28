@@ -721,6 +721,32 @@ func TestRegexpDotAll(t *testing.T) {
 
 }
 
+func TestRegexpNumSeparators(t *testing.T) {
+	const SCRIPT = `
+	const re = /(?<=a)\u{65}_/u;
+	assert(re.test("ae_") && !re.test("e_"));
+
+	assert.throws(SyntaxError, () => {
+		new RegExp("(?<=a)\\u{6_5}", "u");
+	});
+
+	assert.throws(SyntaxError, () => {
+		new RegExp("a\\u{6_5}", "u");
+	});
+
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestRegexpUnicodeEscape(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue("u{0_2}".match(/\u{0_2}/)[0], "u{0_2}");
+	assert.sameValue("uu\x02".match(/\u{2}/u)[0], '\x02');
+	assert.sameValue("uu\x02".match(/\u{2}/)[0], "uu");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)
