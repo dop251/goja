@@ -2979,6 +2979,31 @@ func TestDestructAssignToSymbol(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestToNumber(t *testing.T) {
+	const SCRIPT = `
+	assert(isNaN(Number("+")));
+	assert(isNaN(Number("++")));
+	assert(isNaN(Number("-")));
+	assert(isNaN(Number("0xfp1")));
+	assert(isNaN(Number("0Xfp1")));
+	assert(isNaN(Number("+0xfp1")));
+	assert(isNaN(Number(" +0xfp1")));
+	assert(isNaN(Number(" + 0xfp1")));
+	assert(isNaN(Number(" 0xfp1")));
+	assert(isNaN(Number("-0xfp1")));
+	assert(isNaN(Number("- 0xfp1")));
+	assert(isNaN(Number(" - 0xfp1")));
+	assert.sameValue(Number("0."), 0);
+	assert.sameValue(Number(" "), 0);
+	assert.sameValue(Number(" Infinity"), Infinity);
+
+	let a = [1];
+	assert.sameValue(1, a.at("0xfp1"));
+	assert.sameValue(1, a.at(" 0xfp1"));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)

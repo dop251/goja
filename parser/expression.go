@@ -249,11 +249,6 @@ func (self *_parser) parseRegExpLiteral() *ast.RegExpLiteral {
 
 	literal := self.str[offset:endOffset]
 
-	// Unicode CodePoint sequence
-	if flags == "u" && strings.Contains(pattern, "_") {
-		self.error(offset, "Invalid Unicode escape sequence")
-	}
-
 	return &ast.RegExpLiteral{
 		Idx:     idx,
 		Literal: literal,
