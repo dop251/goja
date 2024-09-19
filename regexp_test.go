@@ -718,7 +718,14 @@ func TestRegexpDotAll(t *testing.T) {
 	re.test("\r") && re.test("\n")
 	`
 	testScript(SCRIPT, valueTrue, t)
+}
 
+func TestRegexpDotAllInGroup(t *testing.T) {
+	const SCRIPT = `
+	var re = /(.)/s;
+	re.test("\r") && re.test("\n")
+	`
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestRegexpNumSeparators(t *testing.T) {
