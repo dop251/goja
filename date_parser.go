@@ -20,6 +20,15 @@ func skip(sp *string, c byte) bool {
 	return false
 }
 
+func skipSpaces(sp *string) bool {
+	s := *sp
+	for len(s) > 0 && s[0] == ' ' {
+		s = s[1:]
+	}
+	*sp = s
+	return len(s) > 0
+}
+
 func skipUntil(sp *string, stopList string) {
 	s := *sp
 	for len(s) > 0 && !strings.ContainsRune(stopList, rune(s[0])) {
@@ -247,14 +256,7 @@ func parseDateOtherString(s string) (d date, ok bool) {
 	var nums [3]int
 	var numIndex int
 	var hasYear, hasMon, hasTime bool
-	for {
-		for len(s) > 0 && s[0] == ' ' {
-			s = s[1:]
-		}
-		n := len(s)
-		if n == 0 {
-			break
-		}
+	for skipSpaces(&s) {
 		c := s[0]
 		if c == '+' || c == '-' {
 			if hasTime && getTimeZoneOffset(&s, false, &d.timeZoneOffset) {
@@ -271,7 +273,7 @@ func parseDateOtherString(s string) (d date, ok bool) {
 					hasYear = true
 				}
 			}
-		} else if val := 0; getDigits(&s, 1, 9, &val) {
+		} else if n, val := len(s), 0; getDigits(&s, 1, 9, &val) {
 			if skip(&s, ':') {
 				// time part
 				d.hour = val
@@ -285,6 +287,21 @@ func parseDateOtherString(s string) (d date, ok bool) {
 					getMilliseconds(&s, &d.msec)
 				}
 				hasTime = true
+				if v := s; skipSpaces(&v) {
+					if match(&v, "pm") {
+						if d.hour < 12 {
+							d.hour += 12
+						}
+						s = v
+						continue
+					} else if match(&v, "am") {
+						if d.hour == 12 {
+							d.hour = 0
+						}
+						s = v
+						continue
+					}
+				}
 			} else if n-len(s) > 2 {
 				d.year = val
 				hasYear = true
@@ -307,16 +324,6 @@ func parseDateOtherString(s string) (d date, ok bool) {
 		} else if getMonth(&s, &d.month) {
 			hasMon = true
 			skipUntil(&s, "0123456789 -/(")
-		} else if hasTime && match(&s, "pm") {
-			if d.hour < 12 {
-				d.hour += 12
-			}
-			continue
-		} else if hasTime && match(&s, "am") {
-			if d.hour == 12 {
-				d.hour = 0
-			}
-			continue
 		} else if getTimeZoneAbbr(&s, &d.timeZoneOffset) {
 			if len(s) > 0 {
 				if c := s[0]; (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
