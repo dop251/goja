@@ -415,7 +415,6 @@ func parseDateOtherString(s string) (d date, ok bool) {
 	if d.month < 1 || d.day < 1 {
 		return
 	}
-	d.isLocal = d.isLocal && hasTime
 	ok = true
 	return
 }

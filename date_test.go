@@ -205,9 +205,9 @@ func TestDateParse(t *testing.T) {
 	testParse("Mon Jan 02 15:04:05 -0700 2006",							1136239445000);
 	testParse("Mon Jan 02 3:4 PM -0700 2006",							1136239440000);
 
-	testParse("December 04, 1986",	534038400000);
-	testParse("Dec 04, 1986",		534038400000);
-	testParse("Dec 4, 1986",		534038400000);
+	testParse("December 04, 1986",	534056400000);
+	testParse("Dec 04, 1986",		534056400000);
+	testParse("Dec 4, 1986",		534056400000);
 
 	testParse("2006-01-02T15:04:05.000Z",	1136214245000);
 	testParse("2006-06-02T15:04:05.000",	1149275045000);
