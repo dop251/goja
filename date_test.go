@@ -201,19 +201,25 @@ func TestDateParse(t *testing.T) {
 	testParse("Mon Jan 02 2006 15:04:05 GMT-0700 (GMT Standard Time)",	1136239445000);
 	testParse("Mon Jan 2 15:04:05 MST 2006",							1136239445000);
 	testParse("Mon Jan 02 15:04:05 MST 2006",							1136239445000);
+	testParse("Mon Jan  2 15:04:05 2006",								1136232245000);
 	testParse("Mon Jan 02 15:04:05 -0700 2006",							1136239445000);
+	testParse("Mon Jan 02 3:4 PM -0700 2006",							1136239440000);
 
-	testParse("December 04, 1986",	534038400000);
-	testParse("Dec 04, 1986",		534038400000);
-	testParse("Dec 4, 1986",		534038400000);
+	testParse("December 04, 1986",	534056400000);
+	testParse("Dec 04, 1986",		534056400000);
+	testParse("Dec 4, 1986",		534056400000);
 
 	testParse("2006-01-02T15:04:05.000Z",	1136214245000);
 	testParse("2006-06-02T15:04:05.000",	1149275045000);
 	testParse("2006-01-02T15:04:05",		1136232245000);
+	testParse("2006-01-02 15:04:05.123",	1136232245123);
 	testParse("2006-01-02",					1136160000000);
 	testParse("2006T15:04-0700",			1136153040000);
+	testParse("2006T15:04+07:00",			1136102640000);
 	testParse("2006T15:04Z",				1136127840000);
 	testParse("2019-01-01T12:00:00.52Z",	1546344000520);
+	testParse("2019-01T12:00:00.52Z",		1546344000520);
+	testParse("+002019-01-01T12:00:00.52Z",	1546344000520);
 
 	var d = new Date("Mon, 02 Jan 2006 15:04:05 MST");
 
