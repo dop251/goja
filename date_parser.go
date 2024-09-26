@@ -11,36 +11,30 @@ type date struct {
 	isLocal              bool
 }
 
-func skip(sp *string, c byte) bool {
-	s := *sp
+func skip(s string, c byte) (string, bool) {
 	if len(s) > 0 && s[0] == c {
-		*sp = s[1:]
-		return true
+		return s[1:], true
 	}
-	return false
+	return s, false
 }
 
-func skipSpaces(sp *string) bool {
-	s := *sp
+func skipSpaces(s string) string {
 	for len(s) > 0 && s[0] == ' ' {
 		s = s[1:]
 	}
-	*sp = s
-	return len(s) > 0
+	return s
 }
 
-func skipUntil(sp *string, stopList string) {
-	s := *sp
+func skipUntil(s string, stopList string) string {
 	for len(s) > 0 && !strings.ContainsRune(stopList, rune(s[0])) {
 		s = s[1:]
 	}
-	*sp = s
+	return s
 }
 
-func match(sp *string, lower string) bool {
-	s := *sp
+func match(s string, lower string) (string, bool) {
 	if len(s) < len(lower) {
-		return false
+		return s, false
 	}
 	for i := 0; i < len(lower); i++ {
 		c1 := s[i]
@@ -49,62 +43,60 @@ func match(sp *string, lower string) bool {
 			// switch to lower-case; 'a'-'A' is known to be a single bit
 			c1 |= 'a' - 'A'
 			if c1 != c2 || c1 < 'a' || c1 > 'z' {
-				return false
+				return s, false
 			}
 		}
 	}
-	*sp = s[len(lower):]
-	return true
+	return s[len(lower):], true
 }
 
-func getDigits(sp *string, minDigits, maxDigits int, val *int) bool {
-	s := *sp
-	var p, v int
-	for p < len(s) && p < maxDigits && s[p] >= '0' && s[p] <= '9' {
-		v = v*10 + int(s[p]-'0')
-		p++
+func getDigits(s string, minDigits, maxDigits int) (int, string, bool) {
+	var i, v int
+	for i < len(s) && i < maxDigits && s[i] >= '0' && s[i] <= '9' {
+		v = v*10 + int(s[i]-'0')
+		i++
 	}
-	if p < minDigits {
-		return false
+	if i < minDigits {
+		return 0, s, false
 	}
-	*sp, *val = s[p:], v
-	return true
+	return v, s[i:], true
 }
 
-func getMilliseconds(sp *string, val *int) {
-	s := *sp
+func getMilliseconds(s string) (int, string) {
 	mul, v := 100, 0
 	if len(s) > 0 && (s[0] == '.' || s[0] == ',') {
-		const P_START = 1
-		p := P_START
-		for p < len(s) && p-P_START < 9 && s[p] >= '0' && s[p] <= '9' {
-			v += int(s[p]-'0') * mul
+		const I_START = 1
+		i := I_START
+		for i < len(s) && i-I_START < 9 && s[i] >= '0' && s[i] <= '9' {
+			v += int(s[i]-'0') * mul
 			mul /= 10
-			p++
+			i++
 		}
-		if p > P_START {
+		if i > I_START {
 			// only consume the separator if digits are present
-			*sp, *val = s[p:], v
+			return v, s[i:]
 		}
 	}
+	return 0, s
 }
 
 // [+-]HH:mm or [+-]HHmm or Z
-func getTimeZoneOffset(sp *string, strict bool, offset *int) bool {
-	s := *sp
+func getTimeZoneOffset(s string, strict bool) (int, string, bool) {
 	if len(s) == 0 {
-		return false
+		return 0, s, false
 	}
-	var hh, mm, v int
-	sign, s := s[0], s[1:]
+	sign := s[0]
 	if sign == '+' || sign == '-' {
-		n := len(s)
-		if !getDigits(&s, 1, 9, &hh) {
-			return false
+		var hh, mm, v int
+		var ok bool
+		t := s[1:]
+		n := len(t)
+		if hh, t, ok = getDigits(t, 1, 9); !ok {
+			return 0, s, false
 		}
-		n -= len(s)
+		n -= len(t)
 		if strict && n != 2 && n != 4 {
-			return false
+			return 0, s, false
 		}
 		for n > 4 {
 			n -= 2
@@ -113,21 +105,23 @@ func getTimeZoneOffset(sp *string, strict bool, offset *int) bool {
 		if n > 2 {
 			mm = hh % 100
 			hh = hh / 100
-		} else if skip(&s, ':') && !getDigits(&s, 2, 2, &mm) {
-			return false
+		} else if t, ok = skip(t, ':'); ok {
+			if mm, t, ok = getDigits(t, 2, 2); !ok {
+				return 0, s, false
+			}
 		}
 		if hh > 23 || mm > 59 {
-			return false
+			return 0, s, false
 		}
 		v = hh*60 + mm
 		if sign == '-' {
 			v = -v
 		}
-	} else if sign != 'Z' {
-		return false
+		return v, t, true
+	} else if sign == 'Z' {
+		return 0, s[1:], true
 	}
-	*sp, *offset = s, v
-	return true
+	return 0, s, false
 }
 
 var tzAbbrs = []struct {
@@ -154,14 +148,13 @@ var tzAbbrs = []struct {
 	{"eest", +3 * 60}, // Eastern European Summer Time
 }
 
-func getTimeZoneAbbr(sp *string, offset *int) bool {
+func getTimeZoneAbbr(s string) (int, string, bool) {
 	for _, tzAbbr := range tzAbbrs {
-		if match(sp, tzAbbr.nameLower) {
-			*offset = tzAbbr.offset
-			return true
+		if s, ok := match(s, tzAbbr.nameLower); ok {
+			return tzAbbr.offset, s, true
 		}
 	}
-	return false
+	return 0, s, false
 }
 
 var monthNamesLower = []string{
@@ -179,126 +172,141 @@ var monthNamesLower = []string{
 	"dec",
 }
 
-func getMonth(sp *string, val *int) bool {
+func getMonth(s string) (int, string, bool) {
 	for i, monthNameLower := range monthNamesLower {
-		if match(sp, monthNameLower) {
-			*val = i + 1
-			return true
+		if s, ok := match(s, monthNameLower); ok {
+			return i + 1, s, true
 		}
 	}
-	return false
+	return 0, s, false
 }
 
-func parseDateISOString(s string) (d date, ok bool) {
+func parseDateISOString(s string) (date, bool) {
 	if len(s) == 0 {
-		return
+		return date{}, false
 	}
-	d.month = 1
-	d.day = 1
+	var d = date{month: 1, day: 1}
+	var ok bool
 
 	// year is either yyyy digits or [+-]yyyyyy
 	sign := s[0]
 	if sign == '-' || sign == '+' {
 		s = s[1:]
-		if !getDigits(&s, 6, 6, &d.year) {
-			return
+		if d.year, s, ok = getDigits(s, 6, 6); !ok {
+			return date{}, false
 		}
 		if sign == '-' {
 			if d.year == 0 {
 				// reject -000000
-				return
+				return date{}, false
 			}
 			d.year = -d.year
 		}
-	} else if !getDigits(&s, 4, 4, &d.year) {
-		return
+	} else if d.year, s, ok = getDigits(s, 4, 4); !ok {
+		return date{}, false
 	}
-	if skip(&s, '-') {
-		if !getDigits(&s, 2, 2, &d.month) || d.month < 1 {
-			return
+	if s, ok = skip(s, '-'); ok {
+		if d.month, s, ok = getDigits(s, 2, 2); !ok || d.month < 1 {
+			return date{}, false
 		}
-		if skip(&s, '-') {
-			if !getDigits(&s, 2, 2, &d.day) || d.day < 1 {
-				return
+		if s, ok = skip(s, '-'); ok {
+			if d.day, s, ok = getDigits(s, 2, 2); !ok || d.day < 1 {
+				return date{}, false
 			}
 		}
 	}
-	if skip(&s, 'T') {
-		if !getDigits(&s, 2, 2, &d.hour) || !skip(&s, ':') || !getDigits(&s, 2, 2, &d.min) {
-			return
+	if s, ok = skip(s, 'T'); ok {
+		if d.hour, s, ok = getDigits(s, 2, 2); !ok {
+			return date{}, false
 		}
-		if skip(&s, ':') {
-			if !getDigits(&s, 2, 2, &d.sec) {
-				return
+		if s, ok = skip(s, ':'); !ok {
+			return date{}, false
+		}
+		if d.min, s, ok = getDigits(s, 2, 2); !ok {
+			return date{}, false
+		}
+		if s, ok = skip(s, ':'); ok {
+			if d.sec, s, ok = getDigits(s, 2, 2); !ok {
+				return date{}, false
 			}
-			getMilliseconds(&s, &d.msec)
+			d.msec, s = getMilliseconds(s)
 		}
 		d.isLocal = true
 	}
 	// parse the time zone offset if present
 	if len(s) > 0 {
-		if !getTimeZoneOffset(&s, true, &d.timeZoneOffset) {
-			return
+		if d.timeZoneOffset, s, ok = getTimeZoneOffset(s, true); !ok {
+			return date{}, false
 		}
 		d.isLocal = false
 	}
 	// error if extraneous characters
-	ok = len(s) == 0
-	return
+	return d, len(s) == 0
 }
 
-func parseDateOtherString(s string) (d date, ok bool) {
-	d.year = 2001
-	d.month = 1
-	d.day = 1
-	d.isLocal = true
-
+func parseDateOtherString(s string) (date, bool) {
+	var d = date{
+		year:    2001,
+		month:   1,
+		day:     1,
+		isLocal: true,
+	}
 	var nums [3]int
 	var numIndex int
-	var hasYear, hasMon, hasTime bool
-	for skipSpaces(&s) {
+	var hasYear, hasMon, hasTime, ok bool
+	for {
+		s = skipSpaces(s)
+		if len(s) == 0 {
+			break
+		}
 		c := s[0]
+		n, val := len(s), 0
 		if c == '+' || c == '-' {
-			if hasTime && getTimeZoneOffset(&s, false, &d.timeZoneOffset) {
-				d.isLocal = false
-			} else {
+			if hasTime {
+				if val, s, ok = getTimeZoneOffset(s, false); ok {
+					d.timeZoneOffset = val
+					d.isLocal = false
+				}
+			}
+			if !hasTime || !ok {
 				s = s[1:]
-				if getDigits(&s, 1, 9, &d.year) {
+				if val, s, ok = getDigits(s, 1, 9); ok {
+					d.year = val
 					if c == '-' {
 						if d.year == 0 {
-							return
+							return date{}, false
 						}
 						d.year = -d.year
 					}
 					hasYear = true
 				}
 			}
-		} else if n, val := len(s), 0; getDigits(&s, 1, 9, &val) {
-			if skip(&s, ':') {
+		} else if val, s, ok = getDigits(s, 1, 9); ok {
+			if s, ok = skip(s, ':'); ok {
 				// time part
 				d.hour = val
-				if !getDigits(&s, 1, 2, &d.min) {
-					return
+				if d.min, s, ok = getDigits(s, 1, 2); !ok {
+					return date{}, false
 				}
-				if skip(&s, ':') {
-					if !getDigits(&s, 1, 2, &d.sec) {
-						return
+				if s, ok = skip(s, ':'); ok {
+					if d.sec, s, ok = getDigits(s, 1, 2); !ok {
+						return date{}, false
 					}
-					getMilliseconds(&s, &d.msec)
+					d.msec, s = getMilliseconds(s)
 				}
 				hasTime = true
-				if v := s; skipSpaces(&v) {
-					if match(&v, "pm") {
+				if t := skipSpaces(s); len(t) > 0 {
+					if t, ok = match(t, "pm"); ok {
 						if d.hour < 12 {
 							d.hour += 12
 						}
-						s = v
+						s = t
 						continue
-					} else if match(&v, "am") {
+					} else if t, ok = match(t, "am"); ok {
 						if d.hour == 12 {
 							d.hour = 0
 						}
-						s = v
+						s = t
 						continue
 					}
 				}
@@ -316,18 +324,20 @@ func parseDateOtherString(s string) (d date, ok bool) {
 				hasYear = true
 			} else {
 				if numIndex == 3 {
-					return
+					return date{}, false
 				}
 				nums[numIndex] = val
 				numIndex++
 			}
-		} else if getMonth(&s, &d.month) {
+		} else if val, s, ok = getMonth(s); ok {
+			d.month = val
 			hasMon = true
-			skipUntil(&s, "0123456789 -/(")
-		} else if getTimeZoneAbbr(&s, &d.timeZoneOffset) {
+			s = skipUntil(s, "0123456789 -/(")
+		} else if val, s, ok = getTimeZoneAbbr(s); ok {
+			d.timeZoneOffset = val
 			if len(s) > 0 {
 				if c := s[0]; (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
-					return
+					return date{}, false
 				}
 			}
 			d.isLocal = false
@@ -345,16 +355,16 @@ func parseDateOtherString(s string) (d date, ok bool) {
 				s = s[1:]
 			}
 			if level > 0 {
-				return
+				return date{}, false
 			}
 		} else if c == ')' {
-			return
+			return date{}, false
 		} else {
 			if hasYear || hasMon || hasTime || numIndex > 0 {
-				return
+				return date{}, false
 			}
 			// skip a word
-			skipUntil(&s, " -/(")
+			s = skipUntil(s, " -/(")
 		}
 		for len(s) > 0 && strings.ContainsRune("-/.,", rune(s[0])) {
 			s = s[1:]
@@ -368,13 +378,13 @@ func parseDateOtherString(s string) (d date, ok bool) {
 		n++
 	}
 	if n > 3 {
-		return
+		return date{}, false
 	}
 
 	switch numIndex {
 	case 0:
 		if !hasYear {
-			return
+			return date{}, false
 		}
 	case 1:
 		if hasMon {
@@ -410,11 +420,7 @@ func parseDateOtherString(s string) (d date, ok bool) {
 		d.month = nums[0]
 		d.day = nums[1]
 	default:
-		return
+		return date{}, false
 	}
-	if d.month < 1 || d.day < 1 {
-		return
-	}
-	ok = true
-	return
+	return d, d.month > 0 && d.day > 0
 }
