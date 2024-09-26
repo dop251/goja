@@ -39,7 +39,7 @@ func dateParse(date string) (t time.Time, ok bool) {
 		d.min > 59 ||
 		d.sec > 59 ||
 		// special case 24:00:00.000
-		(d.hour == 24 && d.min == 0 && d.sec == 0 && d.msec == 0) {
+		(d.hour == 24 && (d.min != 0 || d.sec != 0 || d.msec != 0)) {
 		ok = false
 		return
 	}

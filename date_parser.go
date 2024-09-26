@@ -289,13 +289,13 @@ func parseDateOtherString(s string) (d date, ok bool) {
 				d.year = val
 				hasYear = true
 			} else if val < 1 || val > 31 {
+				d.year = val
 				if val < 100 {
-					val += 1900
+					d.year += 1900
 				}
 				if val < 50 {
-					val += 100
+					d.year += 100
 				}
-				d.year = val
 				hasYear = true
 			} else {
 				if numIndex == 3 {
