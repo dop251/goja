@@ -5866,6 +5866,26 @@ func TestFunctionBodyClassDecl(t *testing.T) {
 	}
 }
 
+func TestNestedDestructArray(t *testing.T) {
+	const SCRIPT = `
+	var [
+		[ h = 0 ] = [ 0 ]
+	] = [];
+	assert.sameValue(h, 0);
+
+	var [
+		[ h1 = 1 ] = []
+	] = [];
+	assert.sameValue(h1, 1);
+
+	var [
+		[ h2 = 1 ] = []
+	] = [ [ 2 ] ];
+	assert.sameValue(h2, 2);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := os.ReadFile("babel7.js")
