@@ -1665,3 +1665,23 @@ func TestGoReflectUnexportedEmbedStruct(t *testing.T) {
 		})
 	}
 }
+
+func TestNestedSliceAddr(t *testing.T) {
+	type document struct {
+		Items []any
+	}
+
+	var d document
+	runtime := New()
+	runtime.Set("d", &d)
+
+	_, err := runtime.RunString(`
+	d.Items.push("Hello");
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Items) != 1 || d.Items[0] != "Hello" {
+		t.Fatal(d.Items)
+	}
+}
