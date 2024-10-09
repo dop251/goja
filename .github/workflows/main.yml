@@ -11,20 +11,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Install Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Check formatting
         run: diff -u <(echo -n) <(gofmt -d .)
         if: ${{ matrix.go-version == '1.x' }}
       - name: Run go vet
         run: go vet ./...
       - name: Run staticcheck
-        uses: dominikh/staticcheck-action@v1.3.0
+        uses: dominikh/staticcheck-action@v1.3.1
         with:
-          version: "2023.1.2"
+          version: "2024.1.1"
           install-go: false
           cache-key: ${{ matrix.go-version }}
         if: ${{ matrix.go-version == '1.x' }}
