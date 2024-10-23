@@ -595,14 +595,17 @@ func (r *Runtime) getPromise() *Object {
 	return ret
 }
 
-func (r *Runtime) wrapPromiseReaction(fObj *Object) func(interface{}) {
+func (r *Runtime) wrapPromiseReaction(fObj *Object) func(interface{}) error {
 	f, _ := AssertFunction(fObj)
-	return func(x interface{}) {
-		_, _ = f(nil, r.ToValue(x))
+	return func(x interface{}) error {
+		_, err := f(nil, r.ToValue(x))
+		return err
 	}
 }
 
 // NewPromise creates and returns a Promise and resolving functions for it.
+// The returned errors will be Interrupt errors that should be propagated upwards.
+// Exceptions are handle through [PromiseRejectionTracker].
 //
 // WARNING: The returned values are not goroutine-safe and must not be called in parallel with VM running.
 // In order to make use of this method you need an event loop such as the one in goja_nodejs (https://github.com/dop251/goja_nodejs)
@@ -621,7 +624,7 @@ func (r *Runtime) wrapPromiseReaction(fObj *Object) func(interface{}) {
 //	        })
 //	    }()
 //	}
-func (r *Runtime) NewPromise() (promise *Promise, resolve func(result interface{}), reject func(reason interface{})) {
+func (r *Runtime) NewPromise() (promise *Promise, resolve, reject func(reason interface{}) error) {
 	p := r.newPromise(r.getPromisePrototype())
 	resolveF, rejectF := p.createResolvingFunctions()
 	return p, r.wrapPromiseReaction(resolveF), r.wrapPromiseReaction(rejectF)
