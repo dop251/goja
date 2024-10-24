@@ -604,8 +604,8 @@ func (r *Runtime) wrapPromiseReaction(fObj *Object) func(interface{}) error {
 }
 
 // NewPromise creates and returns a Promise and resolving functions for it.
-// The returned errors will be Interrupt errors that should be propagated upwards.
-// Exceptions are handle through [PromiseRejectionTracker].
+// The returned errors will be uncatchable errors, such as InterruptedError or StackOverflowError, which should be propagated upwards.
+// Exceptions are handled through [PromiseRejectionTracker].
 //
 // WARNING: The returned values are not goroutine-safe and must not be called in parallel with VM running.
 // In order to make use of this method you need an event loop such as the one in goja_nodejs (https://github.com/dop251/goja_nodejs)
