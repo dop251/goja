@@ -620,7 +620,8 @@ func (r *Runtime) wrapPromiseReaction(fObj *Object) func(interface{}) error {
 //	    go func() {
 //	        time.Sleep(500 * time.Millisecond)   // or perform any other blocking operation
 //	        loop.RunOnLoop(func(*goja.Runtime) { // resolve() must be called on the loop, cannot call it here
-//	            resolve(result)
+//	            err := resolve(result)
+//	            // Handle uncatchable errors (e.g. by stopping the loop, panicking or setting a flag)
 //	        })
 //	    }()
 //	}
