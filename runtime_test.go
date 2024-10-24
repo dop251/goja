@@ -1792,6 +1792,43 @@ func TestInterruptInWrappedFunctionExpectStackOverflowError(t *testing.T) {
 	}
 }
 
+func TestInterruptWithPromises(t *testing.T) {
+	rt := New()
+	rt.SetMaxCallStackSize(5)
+	// this test panics as otherwise goja will recover and possibly loop
+	rt.Set("abort", rt.ToValue(func() {
+		// panic("waty")
+		rt.Interrupt("abort this")
+	}))
+	var queue = make(chan func() error, 10)
+	rt.Set("myPromise", func() Value {
+		p, resolve, _ := rt.NewPromise()
+		queue <- func() error {
+			return resolve("some value")
+		}
+
+		return rt.ToValue(p)
+	})
+
+	_, err := rt.RunString(`
+		let p = myPromise()
+		p.then(() => { abort() });
+	`)
+	if err != nil {
+		t.Fatal("expected noerror but got error")
+	}
+	f := <-queue
+	err = f()
+	if err == nil {
+		t.Fatal("expected error but got no error")
+	}
+	t.Log(err)
+	var soErr *InterruptedError
+	if !errors.As(err, &soErr) {
+		t.Fatalf("Wrong error type: %T", err)
+	}
+}
+
 func TestRunLoopPreempt(t *testing.T) {
 	vm := New()
 	v, err := vm.RunString("(function() {for (;;) {}})")
