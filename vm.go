@@ -376,6 +376,36 @@ type vm struct {
 	curAsyncRunner *asyncRunner
 
 	profTracker *profTracker
+	telemetry   *telemetry
+}
+
+type telemetry struct {
+	enabled              bool
+	instructionsExecuted int64
+	estimatedStackSize   int32
+}
+
+func (t *telemetry) recordInstruction(vm *vm, _ instruction) {
+
+	atomic.AddInt64(&t.instructionsExecuted, 1)
+
+	if t.enabled && t.instructionsExecuted%vm.r.threatholds.InspectNthInstruction == 0 {
+
+		var stackSize int32 = 0
+		for _, item := range vm.stack {
+			switch typed := item.(type) {
+			case asciiString:
+				stackSize += int32(typed.Length())
+			default:
+			}
+		}
+		atomic.StoreInt32(&t.estimatedStackSize, int32(stackSize))
+
+		if stackSize > vm.r.threatholds.StackMemory {
+			vm.r.threatholds.OnStackMemoryExhausted(vm.r)
+		}
+		vm.r.threatholds.OnInstructionExecuted(vm.r, t.instructionsExecuted)
+	}
 }
 
 type instruction interface {
@@ -596,6 +626,7 @@ func (vm *vm) init() {
 	vm.sb = -1
 	vm.stash = &vm.r.global.stash
 	vm.maxCallStackSize = math.MaxInt32
+	vm.telemetry = &telemetry{}
 }
 
 func (vm *vm) halted() bool {
@@ -607,6 +638,11 @@ func (vm *vm) run() {
 	if vm.profTracker != nil && !vm.runWithProfiler() {
 		return
 	}
+
+	// if vm.telemetry == nil {
+	// 	vm.telemetry = &telemetry{}
+	// }
+
 	count := 0
 	interrupted := false
 	for {
@@ -625,7 +661,9 @@ func (vm *vm) run() {
 		if pc < 0 || pc >= len(vm.prg.code) {
 			break
 		}
-		vm.prg.code[pc].exec(vm)
+		inst := vm.prg.code[pc]
+		inst.exec(vm)
+		vm.telemetry.recordInstruction(vm, inst)
 	}
 
 	if interrupted {

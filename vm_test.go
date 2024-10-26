@@ -1,10 +1,13 @@
 package goja
 
 import (
+	"fmt"
+	"strings"
+	"testing"
+
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
-	"testing"
 )
 
 func TestTaggedTemplateArgExport(t *testing.T) {
@@ -59,8 +62,29 @@ func TestEvalVar(t *testing.T) {
 	}
 	test();
 	`
-
 	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestMem(t *testing.T) {
+	const SCRIPT = `for(var x="X",a=[];;a.push(x+=x));`
+
+	v := New()
+	v.SetThretholds(Threatholds{
+		StackMemory: 1 * 1024 * 1024,
+		OnStackMemoryExhausted: func(vm *Runtime) {
+			vm.Interrupt("memory usage too high")
+		},
+		InspectNthInstruction: 100,
+		OnInstructionExecuted: func(vm *Runtime, n int64) {
+			fmt.Printf("Executed %d instructions\n", n)
+		},
+	})
+
+	_, err := v.RunScript("main.js", SCRIPT)
+	e := err.(*InterruptedError).Error()
+	if !strings.Contains(e, "memory usage too high") {
+		t.FailNow()
+	}
 }
 
 func TestResolveMixedStack1(t *testing.T) {

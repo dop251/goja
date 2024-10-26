@@ -177,6 +177,13 @@ type RandSource func() float64
 
 type Now func() time.Time
 
+type Threatholds struct {
+	StackMemory            int32
+	InspectNthInstruction  int64
+	OnStackMemoryExhausted func(vm *Runtime)
+	OnInstructionExecuted  func(vm *Runtime, n int64)
+}
+
 type Runtime struct {
 	global          global
 	globalObject    *Object
@@ -201,6 +208,8 @@ type Runtime struct {
 
 	promiseRejectionTracker PromiseRejectionTracker
 	asyncContextTracker     AsyncContextTracker
+
+	threatholds Threatholds
 }
 
 type StackFrame struct {
@@ -453,6 +462,12 @@ func (r *Runtime) init() {
 		r: r,
 	}
 	r.vm.init()
+	r.threatholds = Threatholds{
+		StackMemory:            math.MaxInt32,
+		OnStackMemoryExhausted: func(vm *Runtime) {},
+		InspectNthInstruction:  math.MaxInt64,
+		OnInstructionExecuted:  func(vm *Runtime, n int64) {},
+	}
 }
 
 func (r *Runtime) typeErrorResult(throw bool, args ...interface{}) {
@@ -2417,6 +2432,22 @@ func (r *Runtime) SetRandSource(source RandSource) {
 // If not called, the default time.Now() is used.
 func (r *Runtime) SetTimeSource(now Now) {
 	r.now = now
+}
+
+func (r *Runtime) SetThretholds(value Threatholds) {
+	r.vm.telemetry.enabled = true
+
+	r.threatholds.StackMemory = value.StackMemory
+	r.threatholds.InspectNthInstruction = value.InspectNthInstruction
+
+	if value.OnInstructionExecuted != nil {
+		r.threatholds.OnInstructionExecuted = value.OnInstructionExecuted
+	}
+
+	if value.OnStackMemoryExhausted != nil {
+		r.threatholds.OnStackMemoryExhausted = value.OnStackMemoryExhausted
+	}
+
 }
 
 // SetParserOptions sets parser options to be used by RunString, RunScript and eval() within the code.
