@@ -1,6 +1,8 @@
 package goja
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"math"
 	"math/big"
@@ -385,6 +387,21 @@ type telemetry struct {
 	estimatedStackSize   int32
 }
 
+func init() {
+	gob.Register(Object{})
+	gob.Register(arrayObject{})
+	gob.Register(valueInt(0))
+	gob.Register(valueBigInt{})
+	gob.Register(valueFloat(0))
+	gob.Register(valueBool(true))
+	gob.Register(valueNull{})
+	gob.Register(valueUndefined{})
+	gob.Register(Symbol{})
+	gob.Register(valueUnresolved{})
+	gob.Register(asciiString(""))
+	gob.Register([]unicodeString{})
+}
+
 func (t *telemetry) recordInstruction(vm *vm, _ instruction) {
 
 	atomic.AddInt64(&t.instructionsExecuted, 1)
@@ -396,7 +413,20 @@ func (t *telemetry) recordInstruction(vm *vm, _ instruction) {
 			switch typed := item.(type) {
 			case asciiString:
 				stackSize += int32(typed.Length())
+			case *Object:
+				switch subObject := typed.self.(type) {
+				case *arrayObject:
+					b := new(bytes.Buffer)
+					if err := gob.NewEncoder(b).Encode(subObject.values); err != nil {
+						fmt.Println(err)
+					}
+					stackSize += int32(b.Len())
+				default:
+					stackSize++
+				}
+				stackSize++
 			default:
+				stackSize++
 			}
 		}
 		atomic.StoreInt32(&t.estimatedStackSize, int32(stackSize))

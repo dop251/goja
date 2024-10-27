@@ -87,6 +87,73 @@ func TestMem(t *testing.T) {
 	}
 }
 
+func TestMem2(t *testing.T) {
+	const SCRIPT = `
+		var a = [];
+		for(;;a.push(123));
+	`
+
+	v := New()
+	v.SetThretholds(Threatholds{
+		StackMemory: 100 * 1024,
+		OnStackMemoryExhausted: func(vm *Runtime) {
+			vm.Interrupt("memory usage too high")
+		},
+		InspectNthInstruction: 100,
+		OnInstructionExecuted: func(vm *Runtime, n int64) {
+			if n > 50000000 {
+				vm.Interrupt("too many instructions")
+			}
+		},
+	})
+
+	_, err := v.RunScript("main.js", SCRIPT)
+	e := err.(*InterruptedError).Error()
+	if !strings.Contains(e, "memory usage too high") {
+		t.FailNow()
+	}
+}
+
+func TestMem3(t *testing.T) {
+	const SCRIPT = `
+		function fibonacci(n) {
+		if (n < 1) {
+			return 0;
+		}
+		if (n === 1) {
+			return 1;
+		}
+
+		return fibonacci(n - 2) + fibonacci(n - 1);
+		}
+
+		fibonacci(10000);
+	`
+
+	v := New()
+	v.SetMaxCallStackSize(1000)
+	v.SetThretholds(Threatholds{
+		StackMemory: 100 * 1024,
+		OnStackMemoryExhausted: func(vm *Runtime) {
+			vm.Interrupt("memory usage too high")
+		},
+		InspectNthInstruction: 100,
+		OnInstructionExecuted: func(vm *Runtime, n int64) {
+			if n > 50000000 {
+				vm.Interrupt("too many instructions")
+			}
+		},
+	})
+
+	_, err := v.RunScript("main.js", SCRIPT)
+	e, ok := err.(*InterruptedError)
+	if ok {
+		if !strings.Contains(e.Error(), "memory usage too high") {
+			t.FailNow()
+		}
+	}
+}
+
 func TestResolveMixedStack1(t *testing.T) {
 	const SCRIPT = `
 	function test(arg) {
