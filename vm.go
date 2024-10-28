@@ -1,7 +1,6 @@
 package goja
 
 import (
-	"bytes"
 	"encoding/gob"
 	"fmt"
 	"math"
@@ -402,6 +401,18 @@ func init() {
 	gob.Register([]unicodeString{})
 }
 
+type countingWriter struct {
+	BytesWritten int
+}
+
+// Write implements io.Writer.
+func (r *countingWriter) Write(p []byte) (n int, err error) {
+	n = len(p)
+	r.BytesWritten += n
+	return n, err
+
+}
+
 func (t *telemetry) recordInstruction(vm *vm, _ instruction) {
 
 	atomic.AddInt64(&t.instructionsExecuted, 1)
@@ -416,11 +427,11 @@ func (t *telemetry) recordInstruction(vm *vm, _ instruction) {
 			case *Object:
 				switch subObject := typed.self.(type) {
 				case *arrayObject:
-					b := new(bytes.Buffer)
+					b := &countingWriter{}
 					if err := gob.NewEncoder(b).Encode(subObject.values); err != nil {
 						fmt.Println(err)
 					}
-					stackSize += int32(b.Len())
+					stackSize += int32(b.BytesWritten)
 				default:
 					stackSize++
 				}
