@@ -192,17 +192,17 @@ func TestDateParse(t *testing.T) {
 		assert.sameValue(Date.parse(str), expected, str);
 	}
 
-	testParse("Mon, 02 Jan 2006 15:04:05 MST",							1136239445000);
+	testParse("Mon, 02 Jan 2006 MST",							1136239445000);
 	testParse("Tue, 22 Jun 2021 13:54:40 GMT",							1624370080000);
 	testParse("Tuesday, 22 Jun 2021 13:54:40 GMT",						1624370080000);
-	testParse("Mon, 02 Jan 2006 15:04:05 GMT-07:00 (MST)",				1136239445000);
-	testParse("Mon, 02 Jan 2006 15:04:05 -07:00 (MST)",					1136239445000);
-	testParse("Monday, 02 Jan 2006 15:04:05 -0700 (MST)",				1136239445000);
-	testParse("Mon Jan 02 2006 15:04:05 GMT-0700 (GMT Standard Time)",	1136239445000);
-	testParse("Mon Jan 2 15:04:05 MST 2006",							1136239445000);
-	testParse("Mon Jan 02 15:04:05 MST 2006",							1136239445000);
-	testParse("Mon Jan  2 15:04:05 2006",								1136232245000);
-	testParse("Mon Jan 02 15:04:05 -0700 2006",							1136239445000);
+	testParse("Mon, 02 Jan 2006 GMT-07:00 (MST)",				1136239445000);
+	testParse("Mon, 02 Jan 2006 -07:00 (MST)",					1136239445000);
+	testParse("Monday, 02 Jan 2006 -0700 (MST)",				1136239445000);
+	testParse("Mon Jan 02 2006 GMT-0700 (GMT Standard Time)",	1136239445000);
+	testParse("Mon Jan 2 MST 2006",							1136239445000);
+	testParse("Mon Jan 02 MST 2006",							1136239445000);
+	testParse("Mon Jan  2 2006",								1136232245000);
+	testParse("Mon Jan 02 -0700 2006",							1136239445000);
 	testParse("Mon Jan 02 3:4 PM -0700 2006",							1136239440000);
 
 	testParse("December 04, 1986",	534056400000);
@@ -212,7 +212,7 @@ func TestDateParse(t *testing.T) {
 	testParse("2006-01-02T15:04:05.000Z",	1136214245000);
 	testParse("2006-06-02T15:04:05.000",	1149275045000);
 	testParse("2006-01-02T15:04:05",		1136232245000);
-	testParse("2006-01-02 15:04:05.123",	1136232245123);
+	testParse("2006-01-02.123",	1136232245123);
 	testParse("2006-01-02",					1136160000000);
 	testParse("2006T15:04-0700",			1136153040000);
 	testParse("2006T15:04+07:00",			1136102640000);
@@ -221,19 +221,19 @@ func TestDateParse(t *testing.T) {
 	testParse("2019-01T12:00:00.52Z",		1546344000520);
 	testParse("+002019-01-01T12:00:00.52Z",	1546344000520);
 
-	var d = new Date("Mon, 02 Jan 2006 15:04:05 MST");
+	var d = new Date("Mon, 02 Jan 2006 MST");
 
 	assert.sameValue(d.getUTCHours(), 22,
-					"new Date(\"Mon, 02 Jan 2006 15:04:05 MST\").getUTCHours()");
+					"new Date(\"Mon, 02 Jan 2006 MST\").getUTCHours()");
 
 	assert.sameValue(d.getHours(), 17,
-					"new Date(\"Mon, 02 Jan 2006 15:04:05 MST\").getHours()");
+					"new Date(\"Mon, 02 Jan 2006 MST\").getHours()");
 
-	assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 zzz"), NaN,
-					 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 zzz\")");
+	assert.sameValue(Date.parse("Mon, 02 Jan 2006 zzz"), NaN,
+					 "Date.parse(\"Mon, 02 Jan 2006 zzz\")");
 
-	assert.sameValue(Date.parse("Mon, 02 Jan 2006 15:04:05 ZZZ"), NaN,
-					 "Date.parse(\"Mon, 02 Jan 2006 15:04:05 ZZZ\")");
+	assert.sameValue(Date.parse("Mon, 02 Jan 2006 ZZZ"), NaN,
+					 "Date.parse(\"Mon, 02 Jan 2006 ZZZ\")");
 
 	var minDateStr = "-271821-04-20T00:00:00.000Z";
 	var minDate = new Date(-8640000000000000);
@@ -619,5 +619,69 @@ testCasesNegative.forEach(function (s) {
     assertTrue(isNaN(Date.parse(s)), s + " is not NaN.");
 });
 `
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestDateToLocaleDateString(t *testing.T) {
+	const SCRIPT = `
+var locales = {
+	"cs-CZ": "2. 1. 2006",
+	"da-DK": "2.1.2006",
+	"de-AT": "2.1.2006",
+	"de-CH": "2.1.2006",
+	"de-DE": "2.1.2006",
+	"el-GR": "2/1/2006",
+	"en-AU": "02/01/2006",
+	"en-CA": "2006-01-02",
+	"en-GB": "02/01/2006",
+	"en-IE": "2/1/2006",
+	"en-IN": "2/1/2006",
+	"en-NZ": "2/01/2006",
+	"en-US": "1/2/2006",
+	"en-ZA": "2006/01/02",
+	"es-AR": "2/1/2006",
+	"es-CL": "02-01-2006",
+	"es-CO": "2/1/2006",
+	"es-ES": "2/1/2006",
+	"es-MX": "2/1/2006",
+	"es-US": "2/1/2006",
+	"fi-FI": "2.1.2006",
+	"fr-BE": "02/01/2006",
+	"fr-CA": "2006-01-02",
+	"fr-CH": "02.01.2006",
+	"fr-FR": "02/01/2006",
+	"he-IL": "2.1.2006",
+	"hi-IN": "2/1/2006",
+	"hu-HU": "2006. 01. 02.",
+	"id-ID": "2/1/2006",
+	"it-CH": "02/01/2006",
+	"it-IT": "02/01/2006",
+	"ja-JP": "2006/1/2",
+	"ko-KR": "2006. 1. 2.",
+	"nl-BE": "2/1/2006",
+	"nl-NL": "2-1-2006",
+	"no-NO": "2.1.2006",
+	"pl-PL": "2.01.2006",
+	"pt-BR": "02/01/2006",
+	"pt-PT": "02/01/2006",
+	"ro-RO": "02.01.2006",
+	"ru-RU": "02.01.2006",
+	"sk-SK": "2. 1. 2006",
+	"sv-SE": "2006-01-02",
+	"ta-IN": "2/1/2006",
+	"ta-LK": "2/1/2006",
+	"th-TH": "2/1/2006",
+	"tr-TR": "02.01.2006",
+	"zh-CN": "2006/1/2",
+	"zh-HK": "2/1/2006",
+	"zh-TW": "2006/1/2",
+};
+
+var testDateCase = new Date("2006-01-02T12:00:00");
+Object.keys(locales).forEach(key => {
+	assert.sameValue(testDateCase.toLocaleDateString(key), locales[key]);
+})
+assert.sameValue(testDateCase.toLocaleDateString(), "01/02/2006");
+	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }

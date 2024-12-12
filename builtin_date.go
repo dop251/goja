@@ -213,8 +213,18 @@ func (r *Runtime) dateproto_toLocaleString(call FunctionCall) Value {
 func (r *Runtime) dateproto_toLocaleDateString(call FunctionCall) Value {
 	obj := r.toObject(call.This)
 	if d, ok := obj.self.(*dateObject); ok {
+		dateLayout_GB := dateLayout_en_GB
+		if len(call.Arguments) > 0 {
+			locale := call.Argument(0).toString().String()
+			if localeVal, ok := datetimeLayout_locales_GB[locale]; !ok {
+				return stringInvalidDate
+			} else {
+				dateLayout_GB = localeVal
+			}
+		}
+
 		if d.isSet() {
-			return asciiString(d.time().Format(dateLayout_en_GB))
+			return asciiString(d.time().Format(dateLayout_GB))
 		} else {
 			return stringInvalidDate
 		}
