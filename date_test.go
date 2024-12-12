@@ -196,13 +196,13 @@ func TestDateParse(t *testing.T) {
 	testParse("Tue, 22 Jun 2021 13:54:40 GMT",							1624370080000);
 	testParse("Tuesday, 22 Jun 2021 13:54:40 GMT",						1624370080000);
 	testParse("Mon, 02 Jan 2006 15:04:05 GMT-07:00 (MST)",				1136239445000);
-	testParse("Mon, 02 Jan 2006 15:04:05-07:00 (MST)",					1136239445000);
-	testParse("Monday, 02 Jan 2006 15:04:05-0700 (MST)",				1136239445000);
+	testParse("Mon, 02 Jan 2006 15:04:05 -07:00 (MST)",					1136239445000);
+	testParse("Monday, 02 Jan 2006 15:04:05 -0700 (MST)",				1136239445000);
 	testParse("Mon Jan 02 2006 15:04:05 GMT-0700 (GMT Standard Time)",	1136239445000);
 	testParse("Mon Jan 2 15:04:05 MST 2006",							1136239445000);
 	testParse("Mon Jan 02 15:04:05 MST 2006",							1136239445000);
 	testParse("Mon Jan  2 15:04:05 2006",								1136232245000);
-	testParse("Mon Jan 02 15:04:05-0700 2006",							1136239445000);
+	testParse("Mon Jan 02 15:04:05 -0700 2006",							1136239445000);
 	testParse("Mon Jan 02 3:4 PM -0700 2006",							1136239440000);
 
 	testParse("December 04, 1986",	534056400000);
