@@ -105,7 +105,7 @@ it's not possible to pass object values between runtimes.
 ### Where is setTimeout()/setInterval()?
 
 setTimeout() and setInterval() are common functions to provide concurrent execution in ECMAScript environments, but the two functions are part of the ECMAScript standard.
-Browsers and NodeJS just happe to provide similar, but not identical, functions. The hosting application need to control the environment for concurrent execution, e.g. an event loop, and supply the functionality to script code.
+Browsers and NodeJS just happen to provide similar, but not identical, functions. The hosting application need to control the environment for concurrent execution, e.g. an event loop, and supply the functionality to script code.
 
 There is a [separate project](https://github.com/dop251/goja_nodejs) aimed at providing some NodeJS functionality,
 and it includes an event loop.
