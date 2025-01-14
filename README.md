@@ -104,13 +104,11 @@ it's not possible to pass object values between runtimes.
 
 ### Where is setTimeout()/setInterval()?
 
-setTimeout() and setInterval() are common functions to provide concurrent execution in ECMAScript environments, but the two functions are part of the ECMAScript standard.
+setTimeout() and setInterval() are common functions to provide concurrent execution in ECMAScript environments, but the two functions are not part of the ECMAScript standard.
 Browsers and NodeJS just happen to provide similar, but not identical, functions. The hosting application need to control the environment for concurrent execution, e.g. an event loop, and supply the functionality to script code.
 
 There is a [separate project](https://github.com/dop251/goja_nodejs) aimed at providing some NodeJS functionality,
 and it includes an event loop.
-
-**Note:**  While both browsers and NodeJS provide similar functionality, they have different interfaces. The returned handles are of different types. In a browser, the type is `number`, in NodeJS, it is an instance of `Timeout`. The v8 engine doesn't provide these functions either.
 
 ### Can you implement (feature X from ES6 or higher)?
 
