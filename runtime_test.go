@@ -1087,6 +1087,72 @@ func TestRuntime_ExportToObject(t *testing.T) {
 	}
 }
 
+func TestRuntime_SetGlobalObject(t *testing.T) {
+	vm := New()
+
+	_, err := vm.RunString(`var myVar = 123;`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldGlobalObject := vm.GlobalObject()
+
+	newGlobalObject, err := vm.RunString(`({oldGlobalReference:globalThis});`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vm.SetGlobalObject(newGlobalObject.(*Object))
+
+	if vm.GlobalObject() != newGlobalObject {
+		t.Fatal("Expected global object to be new object")
+	}
+
+	if vm.GlobalObject().Get("myVar") != nil {
+		t.Fatal("Expected myVar to be undefined")
+	}
+
+	oldGlobalReference := vm.GlobalObject().Get("oldGlobalReference")
+	if oldGlobalReference == nil {
+		t.Fatal("Expected oldGlobalReference to be defined")
+	}
+
+	if oldGlobalReference != oldGlobalObject {
+		t.Fatal("Expected reference to be to old global object")
+	}
+}
+
+func TestRuntime_SetGlobalObject_Proxy(t *testing.T) {
+	vm := New()
+
+	globalObject := vm.GlobalObject()
+
+	globalObjectProxy := vm.NewProxy(globalObject, &ProxyTrapConfig{
+		Get: func(target *Object, property string, receiver Value) (value Value) {
+			if target != globalObject {
+				t.Fatal("Expected target to be global object")
+			}
+
+			if property != "testing" {
+				t.Fatal("Expected property to be 'testing'")
+			}
+
+			return valueTrue
+		},
+	})
+
+	vm.SetGlobalObject(vm.ToValue(globalObjectProxy).(*Object))
+
+	ret, err := vm.RunString("testing")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ret != valueTrue {
+		t.Fatal("Expected return value to equal true")
+	}
+}
+
 func ExampleAssertFunction() {
 	vm := New()
 	_, err := vm.RunString(`
