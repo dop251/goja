@@ -63,6 +63,7 @@ func TestGetSourceFilename(t *testing.T) {
 		{"../test.js", "https://example.com/somewhere/else/base.js", "https://example.com/somewhere/test.js"},
 		{"\ntest.js", "base123.js", "test.js"},
 		{"\rtest2.js\t\n  ", "base123.js", "test2.js"},
+		{"z:/file.map", "a.js", "z:/file.map"},
 		// TODO find something that won't parse
 	}
 	for _, test := range tests {
