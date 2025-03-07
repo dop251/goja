@@ -209,7 +209,6 @@ var (
 		"Temporal",
 		"import-assertions",
 		"dynamic-import",
-		"logical-assignment-operators",
 		"import.meta",
 		"Atomics",
 		"Atomics.waitAsync",
