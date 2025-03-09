@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -2845,6 +2846,9 @@ func TestErrorFormatSymbols(t *testing.T) {
 	vm := New()
 	vm.Set("a", func() (Value, error) { return nil, errors.New("something %s %f") })
 	_, err := vm.RunString("a()")
+	if err == nil {
+		t.Fatal("expected error")
+	}
 	if !strings.Contains(err.Error(), "something %s %f") {
 		t.Fatalf("Wrong value %q", err.Error())
 	}
@@ -3105,6 +3109,12 @@ func TestToNumber(t *testing.T) {
 	assert.sameValue(1, a.at(" 0xfp1"));
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestToValueNilBigInt(t *testing.T) {
+	vm := New()
+	vm.Set("n", (*big.Int)(nil))
+	vm.testScript(`n === 0n`, valueTrue, t)
 }
 
 /*
