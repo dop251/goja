@@ -5886,6 +5886,85 @@ func TestNestedDestructArray(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestThisInStash(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		globalThis.x = () => this; // move 'this' to stash
+		
+		{
+            try {
+                throw new Error("boo!");
+            } catch (e) {
+                if (e.message !== 'boo!') {
+					throw new Error("unexpected exception value");
+				}
+            }
+        }
+	}
+
+	function f1() {
+		globalThis.x = () => this; // move 'this' to stash
+		var v; // introduce a stack variable
+
+		{
+            try {
+                throw new Error("boo!");
+            } catch (e) {
+                if (e.message !== 'boo!') {
+					throw new Error("unexpected exception value");
+				}
+            }
+        }
+	}
+
+	f();
+	f1();
+`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestThisInStashCtor(t *testing.T) {
+	const SCRIPT = `
+	class C extends Object {
+		constructor() {
+			super();
+			globalThis.x = () => this; // move 'this' to stash
+			{
+				try {
+					throw new Error("boo!");
+				} catch (e) {
+					if (e.message !== 'boo!') {
+						throw new Error("unexpected exception value");
+					}
+				}
+			}	
+		}
+	}
+
+	class C1 extends Object {
+		constructor() {
+			super();
+			globalThis.x = () => this; // move 'this' to stash
+			var v; // introduce a stack variable
+			{
+				try {
+					throw new Error("boo!");
+				} catch (e) {
+					if (e.message !== 'boo!') {
+						throw new Error("unexpected exception value");
+					}
+				}
+			}	
+		}
+	}
+
+	new C();
+	new C1();
+	undefined;
+`
+	testScript(SCRIPT, _undefined, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := os.ReadFile("babel7.js")
