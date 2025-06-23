@@ -5965,6 +5965,29 @@ func TestThisInStashCtor(t *testing.T) {
 	testScript(SCRIPT, _undefined, t)
 }
 
+func TestWrongThis(t *testing.T) {
+	const SCRIPT = `
+	class mine {
+		constructor (arg) {
+			this.field = arg
+		}
+
+		f(...argument) {
+			if (this.field != "something") {
+				throw "wrong " + this.field + " Object.keys:" + Object.keys(this)
+			}
+			let s = () => {
+				for (const arg of argument) arg.call()
+				return this.field
+			}
+		}
+	}
+	const a = new mine("something")
+	a.f({"SomeKey": "here"})
+`
+	testScript(SCRIPT, _undefined, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := os.ReadFile("babel7.js")
