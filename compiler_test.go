@@ -5965,6 +5965,62 @@ func TestThisInStashCtor(t *testing.T) {
 	testScript(SCRIPT, _undefined, t)
 }
 
+func TestWrongThisRest(t *testing.T) {
+	const SCRIPT = `
+	class mine {
+		constructor (arg) {
+			this.field = arg
+		}
+		f(...argument) {
+			if (this.field != "something") {
+				throw "wrong " + this.field + " Object.keys:" + Object.keys(this)
+			}
+			let s = () => {
+				for (const arg of argument) arg.call()
+				return this.field
+			}
+		}
+	}
+	const a = new mine("something")
+	a.f({"SomeKey": "here"})
+`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestWrongThisExtraArg(t *testing.T) {
+	const SCRIPT = `
+	class mine {
+		constructor (arg) {
+			this.field = arg
+		}
+		f() {
+			if (this.field != "something") {
+				throw "wrong " + this.field + " Object.keys:" + Object.keys(this)
+			}
+			globalThis.x = () => this.field;
+		}
+	}
+	const a = new mine("something")
+	a.f({"SomeKey": "here"}) // pass extra arg
+`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestWrongThisForwardRef(t *testing.T) {
+	const SCRIPT = `
+	const expectedThis = {};
+	function f(a = b + 1, b) { // forward ref argument to make sure args remain on stack
+		if (this != expectedThis) {
+			throw new Error("unexpected 'this'");
+		}
+		eval("true"); // make the scope dynamic which copies args to stash
+	}
+
+	f.call(expectedThis, 1, 2);
+`
+	testScript(SCRIPT, _undefined, t)
+}
+
 /*
 func TestBabel(t *testing.T) {
 	src, err := os.ReadFile("babel7.js")

@@ -1701,7 +1701,7 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 
 	stashSize, stackSize := s.finaliseVarAlloc(0)
 
-	if needInitThis && (s.numArgs > 0 && !s.argsInStash || stackSize > 0) {
+	if needInitThis && (!s.argsInStash || firstForwardRef != -1 || stackSize > 0) {
 		code[preambleLen-delta] = initStashP(code[preambleLen-delta].(initStash))
 		delta++
 		code[preambleLen-delta] = loadStack(0)
