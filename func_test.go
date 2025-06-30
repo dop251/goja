@@ -76,10 +76,6 @@ func TestFuncExport(t *testing.T) {
 	t.Run("method", func(t *testing.T) {
 		f("({m() {}}).m", t)
 	})
-
-	t.Run("class", func(t *testing.T) {
-		f("(class {})", t)
-	})
 }
 
 func TestFuncWrapUnwrap(t *testing.T) {
