@@ -3117,6 +3117,21 @@ func TestToValueNilBigInt(t *testing.T) {
 	vm.testScript(`n === 0n`, valueTrue, t)
 }
 
+func TestClassReexport(t *testing.T) {
+	vm := New()
+	vm.Set("m", map[string]any{})
+	vm.testScript(`
+	class C {
+		constructor() {
+			this.test = true;
+		}
+	}
+	m.C = C; // this does Export()
+	const c = new m.C() // 'm.C' does ToValue()
+	c instanceof C && c.test;
+	`, valueTrue, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
