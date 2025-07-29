@@ -628,6 +628,12 @@ func (vm *vm) run() {
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
 			break
 		}
+		
+		// Check debugger if enabled
+		if vm.r.debugger != nil && vm.r.debugger.checkBreakpoint(vm) {
+			vm.r.debugger.handlePause(vm)
+		}
+		
 		pc := vm.pc
 		if pc < 0 || pc >= len(vm.prg.code) {
 			break
@@ -661,6 +667,12 @@ func (vm *vm) runWithProfiler() bool {
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
 			return true
 		}
+		
+		// Check debugger if enabled
+		if vm.r.debugger != nil && vm.r.debugger.checkBreakpoint(vm) {
+			vm.r.debugger.handlePause(vm)
+		}
+		
 		pc := vm.pc
 		if pc < 0 || pc >= len(vm.prg.code) {
 			break

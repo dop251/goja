@@ -193,9 +193,10 @@ type Runtime struct {
 
 	fieldNameMapper FieldNameMapper
 
-	vm    *vm
-	hash  *maphash.Hash
-	idSeq uint64
+	vm       *vm
+	hash     *maphash.Hash
+	idSeq    uint64
+	debugger *Debugger
 
 	jobQueue []func()
 
@@ -946,6 +947,12 @@ func (r *Runtime) eval(srcVal String, direct, strict bool) Value {
 	vm.pc = 0
 	vm.args = 0
 	vm.result = _undefined
+	
+	// Resolve any pending breakpoints if debugger is enabled
+	if r.debugger != nil {
+		r.debugger.resolvePendingBreakpoints()
+	}
+	
 	vm.push(funcObj)
 	vm.sb = vm.sp
 	vm.push(nil) // this
@@ -1469,6 +1476,12 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	vm.prg = p
 	vm.pc = 0
 	vm.result = _undefined
+	
+	// Resolve any pending breakpoints if debugger is enabled
+	if r.debugger != nil {
+		r.debugger.resolvePendingBreakpoints()
+	}
+	
 	ex := vm.runTry()
 	if ex == nil {
 		result = r.vm.result
@@ -1483,6 +1496,20 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 		r.leave()
 	}
 	return
+}
+
+// GetDebugger returns the debugger for this runtime, creating one if it doesn't exist
+func (r *Runtime) GetDebugger() *Debugger {
+	if r.debugger == nil {
+		r.debugger = r.NewDebugger()
+	}
+	return r.debugger
+}
+
+// EnableDebugger enables the debugger for this runtime
+func (r *Runtime) EnableDebugger() *Debugger {
+	debugger := r.GetDebugger()
+	return debugger
 }
 
 // CaptureCallStack appends the current call stack frames to the stack slice (which may be nil) up to the specified depth.
