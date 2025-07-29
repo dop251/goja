@@ -193,10 +193,11 @@ type Runtime struct {
 
 	fieldNameMapper FieldNameMapper
 
-	vm       *vm
-	hash     *maphash.Hash
-	idSeq    uint64
-	debugger *Debugger
+	vm             *vm
+	hash           *maphash.Hash
+	idSeq          uint64
+	debugger       *Debugger
+	enhancedErrors bool
 
 	jobQueue []func()
 
@@ -1409,7 +1410,7 @@ func (r *Runtime) RunScript(name, src string) (Value, error) {
 	p, err := r.compile(name, src, false, true, nil)
 
 	if err != nil {
-		return nil, err
+		return nil, r.enhanceError(err)
 	}
 
 	return r.RunProgram(p)
@@ -1449,7 +1450,7 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 		}
 		if x := recover(); x != nil {
 			if ex := asUncatchableException(x); ex != nil {
-				err = ex
+				err = r.enhanceError(ex)
 				if len(vm.callStack) == 0 {
 					r.leaveAbrupt()
 				}
@@ -1486,7 +1487,7 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	if ex == nil {
 		result = r.vm.result
 	} else {
-		err = ex
+		err = r.enhanceError(ex)
 	}
 	if recursive {
 		vm.clearStack()
