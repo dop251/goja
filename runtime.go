@@ -947,12 +947,12 @@ func (r *Runtime) eval(srcVal String, direct, strict bool) Value {
 	vm.pc = 0
 	vm.args = 0
 	vm.result = _undefined
-	
+
 	// Resolve any pending breakpoints if debugger is enabled
 	if r.debugger != nil {
 		r.debugger.resolvePendingBreakpoints()
 	}
-	
+
 	vm.push(funcObj)
 	vm.sb = vm.sp
 	vm.push(nil) // this
@@ -1476,12 +1476,12 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	vm.prg = p
 	vm.pc = 0
 	vm.result = _undefined
-	
+
 	// Resolve any pending breakpoints if debugger is enabled
 	if r.debugger != nil {
 		r.debugger.resolvePendingBreakpoints()
 	}
-	
+
 	ex := vm.runTry()
 	if ex == nil {
 		result = r.vm.result
