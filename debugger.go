@@ -37,11 +37,11 @@ func (b *Breakpoint) ID() int {
 
 // DebuggerState represents the current state when paused
 type DebuggerState struct {
-	PC           int
-	SourcePos    Position
-	CallStack    []StackFrame
-	Breakpoint   *Breakpoint // Current breakpoint if stopped at one
-	StepMode     bool
+	PC         int
+	SourcePos  Position
+	CallStack  []StackFrame
+	Breakpoint *Breakpoint // Current breakpoint if stopped at one
+	StepMode   bool
 }
 
 // DebugHandler is called when the debugger pauses execution
@@ -66,7 +66,7 @@ type Debugger struct {
 	nextID      int
 	flags       DebugFlags
 	handler     DebugHandler
-	
+
 	// Internal state
 	pcBreakpoints map[int]*Breakpoint // PC to breakpoint mapping for fast lookup
 	stepDepth     int                 // Call stack depth for step over/out
@@ -93,9 +93,9 @@ func (d *Debugger) SetHandler(handler DebugHandler) {
 func (d *Debugger) AddBreakpoint(filename string, line, column int) int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	bp := &Breakpoint{
-		id:      d.nextID,
+		id: d.nextID,
 		SourcePos: Position{
 			Filename: filename,
 			Line:     line,
@@ -104,15 +104,15 @@ func (d *Debugger) AddBreakpoint(filename string, line, column int) int {
 		pc:      -1,
 		enabled: true,
 	}
-	
+
 	d.nextID++
 	d.breakpoints[bp.id] = bp
-	
+
 	// Try to resolve the breakpoint to a PC if we have a program loaded
 	if d.runtime.vm != nil && d.runtime.vm.prg != nil {
 		d.resolveBreakpoint(bp)
 	}
-	
+
 	return bp.id
 }
 
@@ -120,17 +120,17 @@ func (d *Debugger) AddBreakpoint(filename string, line, column int) int {
 func (d *Debugger) RemoveBreakpoint(id int) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	bp, exists := d.breakpoints[id]
 	if !exists {
 		return false
 	}
-	
+
 	delete(d.breakpoints, id)
 	if bp.pc >= 0 {
 		delete(d.pcBreakpoints, bp.pc)
 	}
-	
+
 	return true
 }
 
@@ -138,12 +138,12 @@ func (d *Debugger) RemoveBreakpoint(id int) bool {
 func (d *Debugger) EnableBreakpoint(id int, enabled bool) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	bp, exists := d.breakpoints[id]
 	if !exists {
 		return false
 	}
-	
+
 	bp.enabled = enabled
 	return true
 }
@@ -152,12 +152,12 @@ func (d *Debugger) EnableBreakpoint(id int, enabled bool) bool {
 func (d *Debugger) GetBreakpoints() []*Breakpoint {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	
+
 	result := make([]*Breakpoint, 0, len(d.breakpoints))
 	for _, bp := range d.breakpoints {
 		result = append(result, bp)
 	}
-	
+
 	return result
 }
 
@@ -165,7 +165,7 @@ func (d *Debugger) GetBreakpoints() []*Breakpoint {
 func (d *Debugger) SetStepMode(enabled bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	if enabled {
 		d.flags |= FlagStepMode
 		d.stepMode = DebugStepInto // Default to step into
@@ -178,7 +178,7 @@ func (d *Debugger) SetStepMode(enabled bool) {
 func (d *Debugger) Continue() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	d.flags &^= FlagPaused
 	d.stepMode = DebugContinue
 }
@@ -187,7 +187,7 @@ func (d *Debugger) Continue() {
 func (d *Debugger) StepOver() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	d.flags |= FlagStepMode
 	d.flags &^= FlagPaused
 	d.stepMode = DebugStepOver
@@ -198,7 +198,7 @@ func (d *Debugger) StepOver() {
 func (d *Debugger) StepInto() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	d.flags |= FlagStepMode
 	d.flags &^= FlagPaused
 	d.stepMode = DebugStepInto
@@ -208,7 +208,7 @@ func (d *Debugger) StepInto() {
 func (d *Debugger) StepOut() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	d.flags &^= FlagPaused
 	d.stepMode = DebugStepOut
 	d.stepDepth = len(d.runtime.vm.callStack) - 1
@@ -218,7 +218,7 @@ func (d *Debugger) StepOut() {
 func (d *Debugger) Pause() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	d.flags |= FlagPaused
 }
 
@@ -228,7 +228,7 @@ func (d *Debugger) resolveBreakpoint(bp *Breakpoint) {
 	if prg == nil || prg.src == nil {
 		return
 	}
-	
+
 	// Find the PC that corresponds to this source position
 	// We need to search through srcMap items
 	for pc := 0; pc < len(prg.code); pc++ {
@@ -252,7 +252,7 @@ func (d *Debugger) resolveBreakpoint(bp *Breakpoint) {
 func (d *Debugger) resolvePendingBreakpoints() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	for _, bp := range d.breakpoints {
 		if bp.pc < 0 {
 			d.resolveBreakpoint(bp)
@@ -264,19 +264,19 @@ func (d *Debugger) resolvePendingBreakpoints() {
 func (d *Debugger) checkBreakpoint(vm *vm) bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	
+
 	// Check if paused
 	if d.flags&FlagPaused != 0 {
 		return true
 	}
-	
+
 	// Check breakpoints
 	if bp, exists := d.pcBreakpoints[vm.pc]; exists && bp.enabled {
 		bp.hit++
 		d.flags |= FlagPaused
 		return true
 	}
-	
+
 	// Check step mode
 	if d.flags&FlagStepMode != 0 {
 		switch d.stepMode {
@@ -295,7 +295,7 @@ func (d *Debugger) checkBreakpoint(vm *vm) bool {
 			}
 		}
 	}
-	
+
 	return false
 }
 
@@ -304,19 +304,19 @@ func (d *Debugger) handlePause(vm *vm) {
 	d.mu.RLock()
 	handler := d.handler
 	d.mu.RUnlock()
-	
+
 	if handler == nil {
 		// No handler, just continue
 		d.Continue()
 		return
 	}
-	
+
 	// Build debug state
 	state := &DebuggerState{
-		PC:        vm.pc,
-		StepMode:  d.flags&FlagStepMode != 0,
+		PC:       vm.pc,
+		StepMode: d.flags&FlagStepMode != 0,
 	}
-	
+
 	// Get source position
 	if vm.prg != nil && vm.prg.srcMap != nil && vm.pc < len(vm.prg.srcMap) {
 		item := vm.prg.srcMap[vm.pc]
@@ -329,17 +329,17 @@ func (d *Debugger) handlePause(vm *vm) {
 			}
 		}
 	}
-	
+
 	// Get current breakpoint if any
 	d.mu.RLock()
 	if bp, exists := d.pcBreakpoints[vm.pc]; exists {
 		state.Breakpoint = bp
 	}
 	d.mu.RUnlock()
-	
+
 	// Capture call stack
 	state.CallStack = d.runtime.CaptureCallStack(0, nil)
-	
+
 	// Call handler and process command
 	cmd := handler(state)
 	switch cmd {
