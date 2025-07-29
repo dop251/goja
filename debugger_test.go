@@ -256,7 +256,7 @@ func TestDebuggerMultipleBreakpoints(t *testing.T) {
 
 	// Test disabling a breakpoint
 	debugger.EnableBreakpoint(bp1, false)
-	
+
 	// Test removing a breakpoint
 	if !debugger.RemoveBreakpoint(bp2) {
 		t.Error("Failed to remove breakpoint")
