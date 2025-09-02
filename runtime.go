@@ -193,6 +193,8 @@ type Runtime struct {
 
 	fieldNameMapper FieldNameMapper
 
+	exportOptions exportOptions
+
 	vm    *vm
 	hash  *maphash.Hash
 	idSeq uint64
@@ -2439,6 +2441,13 @@ func (r *Runtime) SetTimeSource(now Now) {
 // SetParserOptions sets parser options to be used by RunString, RunScript and eval() within the code.
 func (r *Runtime) SetParserOptions(opts ...parser.Option) {
 	r.parserOptions = opts
+}
+
+// SetExportOptions sets the export options for this Runtime.
+func (r *Runtime) SetExportOptions(opts ...ExportOptions) {
+	for _, o := range opts {
+		o(&r.exportOptions)
+	}
 }
 
 // SetMaxCallStackSize sets the maximum function call depth. When exceeded, a *StackOverflowError is thrown and
