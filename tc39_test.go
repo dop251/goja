@@ -88,9 +88,6 @@ var (
 		// floating point date calculations
 		"test/built-ins/Date/UTC/fp-evaluation-order.js": true,
 
-		// quantifier integer limit in regexp
-		"test/built-ins/RegExp/quantifier-integer-limit.js": true,
-
 		// GetFunctionRealm
 		"test/built-ins/Function/internals/Construct/base-ctor-revoked-proxy.js": true,
 
@@ -99,20 +96,6 @@ var (
 		"test/language/expressions/class/elements/private-setter-is-not-a-own-property.js": true,
 		"test/language/statements/class/elements/private-setter-is-not-a-own-property.js":  true,
 		"test/language/statements/class/elements/private-getter-is-not-a-own-property.js":  true,
-
-		// restricted unicode regexp syntax
-		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
-		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
-		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":            true,
-		"test/built-ins/RegExp/unicode_restricted_incomplete_quantifier.js":          true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape_x.js":              true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape_u.js":              true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape_c.js":              true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape_alpha.js":          true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape.js":                true,
-		"test/built-ins/RegExp/unicode_restricted_brackets.js":                       true,
-		"test/built-ins/RegExp/unicode_restricted_character_class_escape.js":         true,
-		"test/annexB/built-ins/RegExp/prototype/compile/pattern-string-invalid-u.js": true,
 
 		// Because goja parser works in UTF-8 it is not possible to pass strings containing invalid UTF-16 code points.
 		// This is mitigated by escaping them as \uXXXX, however because of this the RegExp source becomes
@@ -169,29 +152,13 @@ var (
 		"test/language/literals/string/S7.8.4_A4.3_T2.js":             true,
 		"test/language/literals/string/S7.8.4_A4.3_T1.js":             true,
 
-		// Regexp
-		"test/language/literals/regexp/invalid-range-negative-lookbehind.js":    true,
-		"test/language/literals/regexp/invalid-range-lookbehind.js":             true,
-		"test/language/literals/regexp/invalid-optional-negative-lookbehind.js": true,
-		"test/language/literals/regexp/invalid-optional-lookbehind.js":          true,
-
-		// unicode full case folding
-		"test/built-ins/RegExp/unicode_full_case_folding.js": true,
-
 		// FIXME bugs
 
 		// Left-hand side as a CoverParenthesizedExpression
 		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
 
-		// Character \ missing from character class [\c]
-		"test/annexB/built-ins/RegExp/RegExp-invalid-control-escape-character-class.js": true,
-		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js":          true,
-
 		// Skip due to regexp named groups
 		"test/built-ins/String/prototype/replaceAll/searchValue-replacer-RegExp-call.js": true,
-
-		"test/built-ins/RegExp/nullable-quantifier.js":               true,
-		"test/built-ins/RegExp/lookahead-quantifier-match-groups.js": true,
 	}
 
 	featuresBlackList = []string{
@@ -202,7 +169,6 @@ var (
 		"regexp-duplicate-named-groups",
 		"regexp-unicode-property-escapes",
 		"regexp-match-indices",
-		"regexp-modifiers",
 		"RegExp.escape",
 		"legacy-regexp",
 		"tail-call-optimization",

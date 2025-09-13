@@ -259,45 +259,6 @@ func TestRegexpUnicode(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
-func TestConvertRegexpToUnicode(t *testing.T) {
-	if s := convertRegexpToUnicode(`test\uD800\u0C00passed`); s != `test\uD800\u0C00passed` {
-		t.Fatal(s)
-	}
-	if s := convertRegexpToUnicode(`test\uD800\uDC00passed`); s != `test𐀀passed` {
-		t.Fatal(s)
-	}
-	if s := convertRegexpToUnicode(`test\u0023passed`); s != `test\u0023passed` {
-		t.Fatal(s)
-	}
-	if s := convertRegexpToUnicode(`test\u0passed`); s != `test\u0passed` {
-		t.Fatal(s)
-	}
-	if s := convertRegexpToUnicode(`test\uD800passed`); s != `test\uD800passed` {
-		t.Fatal(s)
-	}
-	if s := convertRegexpToUnicode(`test\uD800`); s != `test\uD800` {
-		t.Fatal(s)
-	}
-	if s := convertRegexpToUnicode(`test\uD80`); s != `test\uD80` {
-		t.Fatal(s)
-	}
-	if s := convertRegexpToUnicode(`\\uD800\uDC00passed`); s != `\\uD800\uDC00passed` {
-		t.Fatal(s)
-	}
-	if s := convertRegexpToUnicode(`testpassed`); s != `testpassed` {
-		t.Fatal(s)
-	}
-}
-
-func TestConvertRegexpToUtf16(t *testing.T) {
-	if s := convertRegexpToUtf16(`𐀀`); s != `\ud800\udc00` {
-		t.Fatal(s)
-	}
-	if s := convertRegexpToUtf16(`\𐀀`); s != `\\\ud800\udc00` {
-		t.Fatal(s)
-	}
-}
-
 func TestEscapeInvalidUtf16(t *testing.T) {
 	if s := escapeInvalidUtf16(asciiString("test")); s != "test" {
 		t.Fatal(s)
@@ -390,98 +351,98 @@ func TestRegexpEscapeSource(t *testing.T) {
 	testScript(SCRIPT, asciiString(`href="(.+?)(\/.*\/\S+?)\/"`), t)
 }
 
-func TestRegexpConsecutiveMatchCache(t *testing.T) {
-	const SCRIPT = `
-	(function test(unicode) {
-		var regex = new RegExp('t(e)(st(\\d?))', unicode?'gu':'g');
-		var string = 'test1test2';
-		var match;
-		var matches = [];
-		while (match = regex.exec(string)) {
-			matches.push(match);
-		}
-		var expectedMatches = [
-		  [
-			'test1',
-			'e',
-			'st1',
-			'1'
-		  ],
-		  [
-			'test2',
-			'e',
-			'st2',
-			'2'
-		  ]
-		];
-		expectedMatches[0].index = 0;
-		expectedMatches[0].input = 'test1test2';
-		expectedMatches[1].index = 5;
-		expectedMatches[1].input = 'test1test2';
-
-		assert(deepEqual(matches, expectedMatches), "#1");
-
-		// try the same regexp with a different string
-		regex.lastIndex = 0;
-		match = regex.exec(' test5');
-		var expectedMatch = [
-		  'test5',
-		  'e',
-		  'st5',
-		  '5'
-		];
-		expectedMatch.index = 1;
-		expectedMatch.input = ' test5';
-		assert(deepEqual(match, expectedMatch), "#2");
-		assert.sameValue(regex.lastIndex, 6, "#3");
-
-		// continue matching with a different string
-		match = regex.exec(' test5test6');
-		expectedMatch = [
-		  'test6',
-		  'e',
-		  'st6',
-		  '6'
-		];
-		expectedMatch.index = 6;
-		expectedMatch.input = ' test5test6';
-		assert(deepEqual(match, expectedMatch), "#4");
-		assert.sameValue(regex.lastIndex, 11, "#5");
-
-		match = regex.exec(' test5test6');
-		assert.sameValue(match, null, "#6");
-		return regex;
-	});
-	`
-	vm := New()
-	_, _ = vm.RunProgram(testLib())
-	_, _ = vm.RunProgram(testLibX())
-	v, err := vm.RunString(SCRIPT)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var f func(bool) (*Object, error)
-	err = vm.ExportTo(v, &f)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	regex, err := f(false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if regex.self.(*regexpObject).pattern.regexp2Wrapper.cache != nil {
-		t.Fatal("Cache is not nil (non-unicode)")
-	}
-
-	regex, err = f(true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if regex.self.(*regexpObject).pattern.regexp2Wrapper.cache != nil {
-		t.Fatal("Cache is not nil (unicode)")
-	}
-}
+// func TestRegexpConsecutiveMatchCache(t *testing.T) {
+// 	const SCRIPT = `
+// 	(function test(unicode) {
+// 		var regex = new RegExp('t(e)(st(\\d?))', unicode?'gu':'g');
+// 		var string = 'test1test2';
+// 		var match;
+// 		var matches = [];
+// 		while (match = regex.exec(string)) {
+// 			matches.push(match);
+// 		}
+// 		var expectedMatches = [
+// 		  [
+// 			'test1',
+// 			'e',
+// 			'st1',
+// 			'1'
+// 		  ],
+// 		  [
+// 			'test2',
+// 			'e',
+// 			'st2',
+// 			'2'
+// 		  ]
+// 		];
+// 		expectedMatches[0].index = 0;
+// 		expectedMatches[0].input = 'test1test2';
+// 		expectedMatches[1].index = 5;
+// 		expectedMatches[1].input = 'test1test2';
+//
+// 		assert(deepEqual(matches, expectedMatches), "#1");
+//
+// 		// try the same regexp with a different string
+// 		regex.lastIndex = 0;
+// 		match = regex.exec(' test5');
+// 		var expectedMatch = [
+// 		  'test5',
+// 		  'e',
+// 		  'st5',
+// 		  '5'
+// 		];
+// 		expectedMatch.index = 1;
+// 		expectedMatch.input = ' test5';
+// 		assert(deepEqual(match, expectedMatch), "#2");
+// 		assert.sameValue(regex.lastIndex, 6, "#3");
+//
+// 		// continue matching with a different string
+// 		match = regex.exec(' test5test6');
+// 		expectedMatch = [
+// 		  'test6',
+// 		  'e',
+// 		  'st6',
+// 		  '6'
+// 		];
+// 		expectedMatch.index = 6;
+// 		expectedMatch.input = ' test5test6';
+// 		assert(deepEqual(match, expectedMatch), "#4");
+// 		assert.sameValue(regex.lastIndex, 11, "#5");
+//
+// 		match = regex.exec(' test5test6');
+// 		assert.sameValue(match, null, "#6");
+// 		return regex;
+// 	});
+// 	`
+// 	vm := New()
+// 	_, _ = vm.RunProgram(testLib())
+// 	_, _ = vm.RunProgram(testLibX())
+// 	v, err := vm.RunString(SCRIPT)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	var f func(bool) (*Object, error)
+// 	err = vm.ExportTo(v, &f)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+//
+// 	regex, err := f(false)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	if regex.self.(*regexpObject).pattern.regexp2Wrapper.cache != nil {
+// 		t.Fatal("Cache is not nil (non-unicode)")
+// 	}
+//
+// 	regex, err = f(true)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	if regex.self.(*regexpObject).pattern.regexp2Wrapper.cache != nil {
+// 		t.Fatal("Cache is not nil (unicode)")
+// 	}
+// }
 
 func TestRegexpMatchAll(t *testing.T) {
 	const SCRIPT = `
@@ -687,15 +648,6 @@ func TestRegexpLookbehindAssertion(t *testing.T) {
 	assert(!re.test("-3"), "#4");
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
-}
-
-func TestRegexpInvalidUTF8(t *testing.T) {
-	vm := New()
-	// Note that normally vm.ToValue() would replace invalid UTF-8 sequences with RuneError
-	_, err := vm.New(vm.Get("RegExp"), asciiString([]byte{0xAD}))
-	if err == nil {
-		t.Fatal("Expected error")
-	}
 }
 
 // this should not cause data races when run with -race
