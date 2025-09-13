@@ -9,7 +9,7 @@ import (
 type regexpPattern struct {
 	src unicodeString
 
-	global, ignoreCase, multiline, dotAll, sticky, unicode, unicodeSets bool
+	global, ignoreCase, multiline, dotAll, sticky, unicode bool
 
 	re *regonaut.RegExpUtf16
 }
