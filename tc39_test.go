@@ -260,9 +260,6 @@ func init() {
 
 		"test/language/eval-code/direct/async-gen-",
 
-		// restricted unicode regexp syntax
-		"test/language/literals/regexp/u-",
-
 		// legacy octal escape in strings in strict mode
 		"test/language/literals/string/legacy-octal-",
 		"test/language/literals/string/legacy-non-octal-",
