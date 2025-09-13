@@ -2,11 +2,10 @@ package goja
 
 import (
 	"fmt"
+	"github.com/auvred/regonaut"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
-
-	"github.com/auvred/regonaut"
 )
 
 func (r *Runtime) newRegexpObject(proto *Object) *regexpObject {
@@ -702,8 +701,8 @@ func (r *Runtime) regexpproto_stdMatcherAll(call FunctionCall) Value {
 	matcher := r.toConstructor(c)([]Value{call.This, flags}, nil)
 	matcher.self.setOwnStr("lastIndex", valueInt(toLength(thisObj.self.getStr("lastIndex", nil))), true)
 	flagsStr := flags.String()
-	global := strings.ContainsRune(flagsStr, 'g')
-	fullUnicode := strings.ContainsRune(flagsStr, 'u') || strings.ContainsRune(flagsStr, 'v')
+	global := strings.Contains(flagsStr, "g")
+	fullUnicode := strings.Contains(flagsStr, "u")
 	return r.createRegExpStringIterator(matcher, s, global, fullUnicode)
 }
 
@@ -902,7 +901,7 @@ func (r *Runtime) regexpproto_stdSplitter(call FunctionCall) Value {
 		splitter = r.toConstructor(c)([]Value{rxObj, flags}, nil)
 		search = r.checkStdRegexp(splitter)
 		if search == nil {
-			return r.regexpproto_stdSplitterGeneric(splitter, s, limitValue, strings.ContainsRune(flagsStr, 'u') || strings.ContainsRune(flagsStr, 'v'))
+			return r.regexpproto_stdSplitterGeneric(splitter, s, limitValue, strings.Contains(flagsStr, "u"))
 		}
 	}
 
@@ -973,7 +972,7 @@ func (r *Runtime) regexpproto_stdReplacerGeneric(rxObj *Object, s, replaceStr St
 	var results []Value
 	flags := nilSafe(rxObj.self.getStr("flags", nil)).String()
 	isGlobal := strings.ContainsRune(flags, 'g')
-	isUnicode := strings.ContainsRune(flags, 'u') || strings.ContainsRune(flags, 'v')
+	isUnicode := strings.ContainsRune(flags, 'u')
 	if isGlobal {
 		results = r.getGlobalRegexpMatches(rxObj, s, isUnicode)
 	} else {

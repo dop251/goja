@@ -5,19 +5,13 @@ import (
 	"github.com/dop251/goja/unistring"
 )
 
-// Not goroutine-safe. Use regexpPattern.clone()
+// Safe for concurrent use by multiple goroutines.
 type regexpPattern struct {
 	src unicodeString
 
 	global, ignoreCase, multiline, dotAll, sticky, unicode bool
 
 	re *regonaut.RegExpUtf16
-}
-
-// TODO: regonaut's RegExp is safe for concurrent use
-// clone creates a copy of the regexpPattern which can be used concurrently.
-func (p *regexpPattern) clone() *regexpPattern {
-	return p
 }
 
 type regexpObject struct {
