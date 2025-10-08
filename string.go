@@ -65,6 +65,7 @@ type String interface {
 	utf16Reader() utf16Reader
 	utf16RuneReader() io.RuneReader
 	utf16Runes() []rune
+	toUnicode() unicodeString
 	index(String, int) int
 	lastIndex(String, int) int
 	toLower() String

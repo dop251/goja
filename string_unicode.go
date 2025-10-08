@@ -370,6 +370,10 @@ func (s unicodeString) utf16Runes() []rune {
 	return runes
 }
 
+func (s unicodeString) toUnicode() unicodeString {
+	return s
+}
+
 func (s unicodeString) ToInteger() int64 {
 	return 0
 }

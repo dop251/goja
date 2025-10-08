@@ -3068,12 +3068,13 @@ func (c *compiler) compileArrayLiteral(v *ast.ArrayLiteral) compiledExpr {
 
 func (e *compiledRegexpLiteral) emitGetter(putOnStack bool) {
 	if putOnStack {
-		pattern, err := compileRegexp(e.expr.Pattern, e.expr.Flags)
+		src := newStringValue(e.expr.Pattern)
+		pattern, err := compileRegexp(src, e.expr.Flags)
 		if err != nil {
 			e.c.throwSyntaxError(e.offset, err.Error())
 		}
 
-		e.c.emit(&newRegexp{pattern: pattern, src: newStringValue(e.expr.Pattern)})
+		e.c.emit(&newRegexp{pattern: pattern, src: src})
 	}
 }
 

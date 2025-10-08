@@ -269,6 +269,14 @@ func (i *importedString) utf16Runes() []rune {
 	return asciiString(i.s).utf16Runes()
 }
 
+func (i *importedString) toUnicode() unicodeString {
+	i.ensureScanned()
+	if i.u != nil {
+		return i.u
+	}
+	return asciiString(i.s).toUnicode()
+}
+
 func (i *importedString) index(v String, start int) int {
 	i.ensureScanned()
 	if i.u != nil {
