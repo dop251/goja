@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"bytes"
 	"testing"
 )
 
@@ -323,4 +324,46 @@ func TestTypedArrayDeleteUnconfigurable(t *testing.T) {
 	`
 
 	testScript(SCRIPT, _undefined, t)
+}
+
+func TestTypedArrayExportToBytes(t *testing.T) {
+	const SCRIPT = `
+	const arr = new Uint16Array(10);
+	arr[2] = 0xFFFF; // make sure it's not affected by the platform endianness
+	arr.subarray(2, 4);
+	`
+	vm := New()
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b []byte
+	err = vm.ExportTo(v, &b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(b, []byte{0xFF, 0xFF, 0, 0}) {
+		t.Fatal("unexpected value", b)
+	}
+}
+
+func TestDataViewExportToBytes(t *testing.T) {
+	const SCRIPT = `
+	const arr = new Uint16Array(10);
+	arr[2] = 0xFFFF;
+	new DataView(arr.buffer, 4, 4);
+	`
+	vm := New()
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b []byte
+	err = vm.ExportTo(v, &b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(b, []byte{0xFF, 0xFF, 0, 0}) {
+		t.Fatal("unexpected value", b)
+	}
 }
