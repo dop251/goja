@@ -1235,6 +1235,25 @@ var x = {};
 		is(err, nil)
 		is(count, 1)
 		is(requestedPath, "https://site.com/delme.js.map")
+
+		// Checks related to empty source maps.
+		emptySourceMapLoader := func(p string) ([]byte, error) {
+			count++
+			requestedPath = p
+			emptySourceMap := `{"version":3,"file":"delme.js","sourceRoot":"","sources":["../src/delme.ts"],"names":[],"mappings":""}`
+			return []byte(emptySourceMap), nil
+		}
+
+		// First, ensure that the expected error is produced for an empty source map.
+		_, err = ParseFile(nil, "delme.js", src, 0, WithSourceMapLoader(emptySourceMapLoader))
+		is(true, strings.Contains(err.Error(), errSourceMapEmptyString))
+
+		// Then, ensure WithSkipEmptySourceMaps bypasses the error.
+		count = 0
+		_, err = ParseFile(nil, "delme.js", src, 0, WithSourceMapLoader(emptySourceMapLoader), WithSkipEmptySourceMaps)
+		is(err, nil)
+		is(count, 1)
+		is(requestedPath, "delme.js.map")
 	})
 }
 
