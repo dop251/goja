@@ -585,6 +585,43 @@ func TestRegexpMatchAll(t *testing.T) {
 	}
 }
 
+// Ensure RegExp.prototype[@@replace] resets lastIndex to 0 for global regexes
+// both in the optimized (standard) path and the generic path.
+func TestRegExpReplaceResetsLastIndexGlobal(t *testing.T) {
+    const SCRIPT = `
+    // Standard path (engine-optimized RegExp). Use a simple pattern.
+    (function () {
+        var R = /x+/g;
+        var m = R.exec('xxxy');
+        if (R.lastIndex !== 3) throw new Error('std: exec lastIndex expected 3, got ' + R.lastIndex);
+        'xxxy'.replace(R, '{0}');
+        if (R.lastIndex !== 0) throw new Error('std: replace must reset lastIndex to 0, got ' + R.lastIndex);
+        var m2 = R.exec('xxxy');
+        if (!m2) throw new Error('std: exec after replace returned null');
+        if (R.lastIndex !== 3) throw new Error('std: exec lastIndex expected 3 after replace, got ' + R.lastIndex);
+    })();
+
+    // Generic path (non-standard RegExp prototype method)
+    (function () {
+        var origExec = RegExp.prototype.exec;
+        RegExp.prototype.exec = function(s) { return origExec.call(this, s); };
+        try {
+            var R = /x+/g;
+            R.exec('xxxy');
+            'xxxy'.replace(R, '{0}');
+            if (R.lastIndex !== 0) throw new Error('generic: replace must reset lastIndex to 0, got ' + R.lastIndex);
+            var m = R.exec('xxxy');
+            if (!m) throw new Error('generic: exec after replace returned null');
+        } finally {
+            RegExp.prototype.exec = origExec;
+        }
+    })();
+
+    true;
+    `
+    testScript(SCRIPT, valueTrue, t)
+}
+
 func TestRegexpOverrideSpecies(t *testing.T) {
 	const SCRIPT = `
 	Object.defineProperty(RegExp, Symbol.species, {
