@@ -1156,7 +1156,14 @@ func (r *Runtime) regexpproto_stdReplacerGeneric(rxObj *Object, s, replaceStr St
 	if nextSourcePosition < lengthS {
 		resultBuf.WriteString(s.Substring(nextSourcePosition, lengthS))
 	}
-	return resultBuf.String()
+	// Per ECMA-262, RegExp.prototype[@@replace] must set lastIndex to 0 for global
+	// regexes after the replacement operation completes.
+	// See: https://tc39.es/ecma262/#sec-regexp.prototype-@@replace
+	res := resultBuf.String()
+	if isGlobal {
+		rxObj.self.setOwnStr("lastIndex", intToValue(0), true)
+	}
+	return res
 }
 
 func writeSubstitution(s String, position int, numCaptures int, getCapture func(int) String, replaceStr String, buf *StringBuilder) {
@@ -1239,7 +1246,12 @@ func (r *Runtime) regexpproto_stdReplacer(call FunctionCall) Value {
 		rx.updateLastIndex(index, nil, nil)
 	}
 
-	return stringReplace(s, found, replaceStr, rcall)
+	// Perform replacement and then reset lastIndex for global regexes
+	result := stringReplace(s, found, replaceStr, rcall)
+	if rx.pattern.global {
+		rx.setOwnStr("lastIndex", intToValue(0), true)
+	}
+	return result
 }
 
 func (r *Runtime) regExpStringIteratorProto_next(call FunctionCall) Value {
