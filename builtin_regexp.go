@@ -2,11 +2,12 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dop251/goja/parser"
 	"regexp"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/dop251/goja/parser"
 )
 
 func (r *Runtime) newRegexpObject(proto *Object) *regexpObject {
@@ -762,16 +763,15 @@ func (r *Runtime) regexpproto_stdMatcher(call FunctionCall) Value {
 		return r.regexpproto_stdMatcherGeneric(thisObj, s)
 	}
 	if rx.pattern.global {
+		rx.setOwnStr("lastIndex", intToValue(0), true)
 		res := rx.pattern.findAllSubmatchIndex(s, 0, -1, rx.pattern.sticky)
 		if len(res) == 0 {
-			rx.setOwnStr("lastIndex", intToValue(0), true)
 			return _null
 		}
 		a := make([]Value, 0, len(res))
 		for _, result := range res {
 			a = append(a, s.Substring(result[0], result[1]))
 		}
-		rx.setOwnStr("lastIndex", intToValue(int64(res[len(res)-1][1])), true)
 		return r.newArrayValues(a)
 	} else {
 		return rx.exec(s)
@@ -1226,17 +1226,16 @@ func (r *Runtime) regexpproto_stdReplacer(call FunctionCall) Value {
 	find := 1
 	if rx.pattern.global {
 		find = -1
-		rx.setOwnStr("lastIndex", intToValue(0), true)
 	} else {
 		index = rx.getLastIndex()
 	}
 	found := rx.pattern.findAllSubmatchIndex(s, toIntStrict(index), find, rx.pattern.sticky)
-	if len(found) > 0 {
-		if !rx.updateLastIndex(index, found[0], found[len(found)-1]) {
-			found = nil
+	if rx.pattern.global || rx.pattern.sticky {
+		var newLastIndex int64
+		if !rx.pattern.global && len(found) > 0 {
+			newLastIndex = int64(found[len(found)-1][1])
 		}
-	} else {
-		rx.updateLastIndex(index, nil, nil)
+		rx.setOwnStr("lastIndex", intToValue(newLastIndex), true)
 	}
 
 	return stringReplace(s, found, replaceStr, rcall)
