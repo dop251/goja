@@ -130,6 +130,44 @@ func TestTimezoneOffset(t *testing.T) {
 	testScript(SCRIPT, intToValue(-60), t)
 }
 
+func TestLocaleTime(t *testing.T) {
+	const SCRIPT = `
+	var d = new Date(Date.UTC(2012, 11, 20, 3, 0, 0));
+	d.toLocaleString("en-GB");
+	`
+
+	l := time.Local
+	defer func() {
+		time.Local = l
+	}()
+	var err error
+	time.Local, err = time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testScript(SCRIPT, asciiString("12/20/2012, 03:00:00"), t)
+}
+
+func TestLocaleTimeZones(t *testing.T) {
+	const SCRIPT = `
+	var d = new Date(Date.UTC(2012, 11, 20, 3, 0, 0));
+	d.toLocaleString("en-GB", { timeZone: "Europe/Berlin" });
+	`
+
+	l := time.Local
+	defer func() {
+		time.Local = l
+	}()
+	var err error
+	time.Local, err = time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testScript(SCRIPT, asciiString("12/20/2012, 04:00:00"), t)
+}
+
 func TestDateValueOf(t *testing.T) {
 	const SCRIPT = `
 	var d9 = new Date(1.23e15);
