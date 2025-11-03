@@ -1,8 +1,10 @@
 package goja
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
+	"regexp/syntax"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -242,8 +244,8 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 		patternStr = convertRegexpToUtf16(patternStr)
 	}
 
-	re2Str, err1 := parser.TransformRegExp(patternStr, dotAll, unicode)
-	if err1 == nil {
+	re2Str, err := parser.TransformRegExp(patternStr, dotAll, unicode)
+	if err == nil {
 		re2flags := ""
 		if multiline {
 			re2flags += "m"
@@ -260,15 +262,22 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 
 		pattern, err1 := regexp.Compile(re2Str)
 		if err1 != nil {
-			err = fmt.Errorf("Invalid regular expression (re2): %s (%v)", re2Str, err1)
-			return
+			var syntaxError *syntax.Error
+			if !errors.As(err1, &syntaxError) || syntaxError.Code != syntax.ErrInvalidRepeatSize {
+				err = fmt.Errorf("Invalid regular expression (re2): %s (%v)", re2Str, err1)
+				return
+			}
+		} else {
+			wrapper = (*regexpWrapper)(pattern)
 		}
-		wrapper = (*regexpWrapper)(pattern)
 	} else {
-		if _, incompat := err1.(parser.RegexpErrorIncompatible); !incompat {
-			err = err1
+		var incompat parser.RegexpErrorIncompatible
+		if !errors.As(err, &incompat) {
 			return
 		}
+	}
+
+	if wrapper == nil {
 		wrapper2, err = compileRegexp2(patternStr, multiline, dotAll, ignoreCase, unicode)
 		if err != nil {
 			err = fmt.Errorf("Invalid regular expression (regexp2): %s (%v)", patternStr, err)

@@ -779,6 +779,14 @@ func TestRegExpLastIndex(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestRegExpRepeatCount(t *testing.T) {
+	const SCRIPT = `
+	const re = /^0x[0-9a-fA-F]{0,4096}$/;
+	re.test("0xABCD");
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)
