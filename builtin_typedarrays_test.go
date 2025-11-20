@@ -367,3 +367,19 @@ func TestDataViewExportToBytes(t *testing.T) {
 		t.Fatal("unexpected value", b)
 	}
 }
+
+func TestTypedArraySubarraySet(t *testing.T) {
+	const SCRIPT = `
+	const u = new Uint8Array(4)
+	const s = u.subarray(1, 4);
+	s.set([1,2,3], 0);
+	if (s.length !== 3) {
+		throw new Error("s.length=" + s.length + ", expected 3");
+	}
+	if (s[0] !== 1 || s[1] !== 2 || s[2] !== 3) {
+		throw new Error("s=[" + s.join(",") + "], expected [1,2,3]");
+	}
+	`
+
+	testScript(SCRIPT, _undefined, t)
+}
