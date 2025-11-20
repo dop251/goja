@@ -930,6 +930,12 @@ func TestParser(t *testing.T) {
 		`, nil)
 		is(len(program.Body), 1)
 
+		test("function f() { if (true) { return class A {} } let A; if (true) { A = class A {} } }", nil)
+		test("function f() { if (true) return class A {} }", nil)
+		test("function f() { let A; if (true) A = class A {} }", nil)
+		test("function f() { if (false) {} else return class A {} }", nil)
+		test("function f() { let A; if (false) {} else A = class A {} }", nil)
+
 		{
 			program := test(`(-2)**53`, nil)
 			st := program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression)
