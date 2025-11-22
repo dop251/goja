@@ -314,6 +314,26 @@ func TestExportToSliceNonIterable(t *testing.T) {
 	}
 }
 
+func TestExportDropUndefinedKeys(t *testing.T) {
+	vm := New()
+	vm.SetExportOptions(WithDropUndefinedKeys())
+
+	o := vm.NewObject()
+	o.Set("foo", vm.ToValue("bar"))
+	o.Set("baz", _undefined)
+	var a map[string]any
+	err := vm.ExportTo(o, &a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a) != 1 {
+		t.Fatalf("a: %v", a)
+	}
+	if a["foo"] != "bar" {
+		t.Fatalf("Unexpected a[foo]: %v", a["foo"])
+	}
+}
+
 func ExampleRuntime_ExportTo_iterableToSlice() {
 	vm := New()
 	v, err := vm.RunString(`

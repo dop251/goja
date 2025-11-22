@@ -967,6 +967,9 @@ func (o *baseObject) export(ctx *objectExportCtx) interface{} {
 		itemNameStr := itemName.String()
 		v := o.val.self.getStr(itemName.string(), nil)
 		if v != nil {
+			if IsUndefined(v) && o.val.runtime.exportOptions.dropUndefinedKeys {
+				continue
+			}
 			m[itemNameStr] = exportValue(v, ctx)
 		} else {
 			m[itemNameStr] = nil
@@ -1821,4 +1824,17 @@ func (i *privateId) String() string {
 
 func (i *privateId) string() unistring.String {
 	return privateIdString(i.name)
+}
+
+type exportOptions struct {
+	dropUndefinedKeys bool
+}
+
+type ExportOptions func(*exportOptions)
+
+// WithDropUndefinedKeys configures object exports to drop undefined keys instead of converting to nil.
+func WithDropUndefinedKeys() ExportOptions {
+	return func(opts *exportOptions) {
+		opts.dropUndefinedKeys = true
+	}
 }
