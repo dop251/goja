@@ -202,7 +202,7 @@ func (d *dateObject) withTimeZoneOpts(r *Runtime, call FunctionCall) time.Time {
 	t := d.time()
 	if arg1 := call.Argument(1); arg1 != _undefined {
 		opts := r.toObject(arg1)
-		if tz := opts.Get("timeZone"); tz != _undefined {
+		if tz := opts.Get("timeZone"); tz != nil && tz != _undefined {
 			if loc, err := time.LoadLocation(tz.String()); err == nil {
 				return t.In(loc)
 			}
