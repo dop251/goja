@@ -198,11 +198,25 @@ func (r *Runtime) dateproto_toTimeString(call FunctionCall) Value {
 	panic(r.NewTypeError("Method Date.prototype.toTimeString is called on incompatible receiver"))
 }
 
+func (d *dateObject) withTimeZoneOpts(r *Runtime, call FunctionCall) time.Time {
+	t := d.time()
+	if arg1 := call.Argument(1); arg1 != _undefined {
+		opts := r.toObject(arg1)
+		if tz := opts.Get("timeZone"); tz != nil && tz != _undefined {
+			if loc, err := time.LoadLocation(tz.String()); err == nil {
+				return t.In(loc)
+			}
+		}
+	}
+	return t
+}
+
 func (r *Runtime) dateproto_toLocaleString(call FunctionCall) Value {
 	obj := r.toObject(call.This)
 	if d, ok := obj.self.(*dateObject); ok {
 		if d.isSet() {
-			return asciiString(d.time().Format(datetimeLayout_en_GB))
+			t := d.withTimeZoneOpts(r, call)
+			return asciiString(t.Format(datetimeLayout_en_GB))
 		} else {
 			return stringInvalidDate
 		}
@@ -214,7 +228,8 @@ func (r *Runtime) dateproto_toLocaleDateString(call FunctionCall) Value {
 	obj := r.toObject(call.This)
 	if d, ok := obj.self.(*dateObject); ok {
 		if d.isSet() {
-			return asciiString(d.time().Format(dateLayout_en_GB))
+			t := d.withTimeZoneOpts(r, call)
+			return asciiString(t.Format(dateLayout_en_GB))
 		} else {
 			return stringInvalidDate
 		}
@@ -226,7 +241,8 @@ func (r *Runtime) dateproto_toLocaleTimeString(call FunctionCall) Value {
 	obj := r.toObject(call.This)
 	if d, ok := obj.self.(*dateObject); ok {
 		if d.isSet() {
-			return asciiString(d.time().Format(timeLayout_en_GB))
+			t := d.withTimeZoneOpts(r, call)
+			return asciiString(t.Format(timeLayout_en_GB))
 		} else {
 			return stringInvalidDate
 		}
@@ -989,9 +1005,9 @@ func createDateProtoTemplate() *objectTemplate {
 	t.putStr("toString", func(r *Runtime) Value { return r.methodProp(r.dateproto_toString, "toString", 0) })
 	t.putStr("toDateString", func(r *Runtime) Value { return r.methodProp(r.dateproto_toDateString, "toDateString", 0) })
 	t.putStr("toTimeString", func(r *Runtime) Value { return r.methodProp(r.dateproto_toTimeString, "toTimeString", 0) })
-	t.putStr("toLocaleString", func(r *Runtime) Value { return r.methodProp(r.dateproto_toLocaleString, "toLocaleString", 0) })
-	t.putStr("toLocaleDateString", func(r *Runtime) Value { return r.methodProp(r.dateproto_toLocaleDateString, "toLocaleDateString", 0) })
-	t.putStr("toLocaleTimeString", func(r *Runtime) Value { return r.methodProp(r.dateproto_toLocaleTimeString, "toLocaleTimeString", 0) })
+	t.putStr("toLocaleString", func(r *Runtime) Value { return r.methodProp(r.dateproto_toLocaleString, "toLocaleString", 2) })
+	t.putStr("toLocaleDateString", func(r *Runtime) Value { return r.methodProp(r.dateproto_toLocaleDateString, "toLocaleDateString", 2) })
+	t.putStr("toLocaleTimeString", func(r *Runtime) Value { return r.methodProp(r.dateproto_toLocaleTimeString, "toLocaleTimeString", 2) })
 	t.putStr("valueOf", func(r *Runtime) Value { return r.methodProp(r.dateproto_valueOf, "valueOf", 0) })
 	t.putStr("getTime", func(r *Runtime) Value { return r.methodProp(r.dateproto_getTime, "getTime", 0) })
 	t.putStr("getFullYear", func(r *Runtime) Value { return r.methodProp(r.dateproto_getFullYear, "getFullYear", 0) })
