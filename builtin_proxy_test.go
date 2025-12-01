@@ -1273,3 +1273,13 @@ func TestProxyEnumerableSymbols(t *testing.T) {
 
 	testScriptWithTestLib(SCRIPT, valueTrue, t)
 }
+
+func TestProxyUnicodeProps(t *testing.T) {
+	const SCRIPT = `
+    const proxy = new Proxy({}, {
+		ownKeys: () => ["â"]
+	});
+	compareArray(Reflect.ownKeys(proxy), ["â"]);
+	`
+	testScriptWithTestLib(SCRIPT, valueTrue, t)
+}
