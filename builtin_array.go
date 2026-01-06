@@ -182,7 +182,7 @@ func (r *Runtime) arrayproto_pop(call FunctionCall) Value {
 func (r *Runtime) pushToStringStack(o *Object) bool {
 	// Check for circular reference in the toString stack
 	for _, obj := range r.toStringStack {
-		if o.SameAs(obj) {
+		if o == obj {
 			// Circular reference detected
 			return true
 		}
@@ -193,8 +193,10 @@ func (r *Runtime) pushToStringStack(o *Object) bool {
 	return false
 }
 
-// popToStringStack removes an object from the toString stack.
-func (r *Runtime) popToStringStack() {
+// popFromStringStack removes an object from the toString stack.
+func (r *Runtime) popFromStringStack() {
+	// Set the last element to nil to allow GC to collect it
+	r.toStringStack[len(r.toStringStack)-1] = nil
 	r.toStringStack = r.toStringStack[:len(r.toStringStack)-1]
 }
 
@@ -206,7 +208,7 @@ func (r *Runtime) arrayproto_join(call FunctionCall) Value {
 		// This matches the behavior of mainstream JavaScript engines (V8, SpiderMonkey)
 		return stringEmpty
 	}
-	defer r.popToStringStack()
+	defer r.popFromStringStack()
 
 	l := int(toLength(o.self.getStr("length", nil)))
 	var sep String
@@ -284,7 +286,7 @@ func (r *Runtime) arrayproto_toLocaleString(call FunctionCall) Value {
 		// Circular reference detected, return empty string to avoid infinite recursion
 		return stringEmpty
 	}
-	defer r.popToStringStack()
+	defer r.popFromStringStack()
 
 	var buf StringBuilder
 	if a := r.checkStdArrayObj(array); a != nil {
