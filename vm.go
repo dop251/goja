@@ -121,6 +121,22 @@ type ref interface {
 	refname() unistring.String
 }
 
+// refScopeType returns the ScopeType for a ref, used by the OnVariableSet hook.
+// Returns ScopeLocal for local/closure variables, ScopeGlobal for global bindings.
+func refScopeType(r ref) ScopeType {
+	switch v := r.(type) {
+	case *stashRef, *stashRefLex, *stashRefConst:
+		return ScopeLocal
+	case *objStrRef:
+		if v.binding {
+			return ScopeGlobal
+		}
+		return ScopeLocal // Property access, default to local
+	default:
+		return ScopeLocal
+	}
+}
+
 type stashRef struct {
 	n   unistring.String
 	v   *[]Value
@@ -632,6 +648,18 @@ func (vm *vm) run() {
 		if pc < 0 || pc >= len(vm.prg.code) {
 			break
 		}
+		// Runtime hook - only cost when hook attached
+		if h := vm.r.runtimeHook; h != nil {
+			if h.OnInstruction(vm.r, pc) == HookResultPause {
+				// Pause execution until Resume is called
+				vm.r.debugPausedMutex.Lock()
+				vm.r.debugPaused = true
+				for vm.r.debugPaused {
+					vm.r.debugPausedCond.Wait()
+				}
+				vm.r.debugPausedMutex.Unlock()
+			}
+		}
 		vm.prg.code[pc].exec(vm)
 	}
 
@@ -664,6 +692,18 @@ func (vm *vm) runWithProfiler() bool {
 		pc := vm.pc
 		if pc < 0 || pc >= len(vm.prg.code) {
 			break
+		}
+		// Runtime hook - only cost when hook attached
+		if h := vm.r.runtimeHook; h != nil {
+			if h.OnInstruction(vm.r, pc) == HookResultPause {
+				// Pause execution until Resume is called
+				vm.r.debugPausedMutex.Lock()
+				vm.r.debugPaused = true
+				for vm.r.debugPaused {
+					vm.r.debugPausedCond.Wait()
+				}
+				vm.r.debugPausedMutex.Unlock()
+			}
 		}
 		vm.prg.code[pc].exec(vm)
 		req := atomic.LoadInt32(&pt.req)
@@ -799,6 +839,29 @@ func (vm *vm) restoreStacks(iterLen, refLen uint32) (ex *Exception) {
 
 func (vm *vm) handleThrow(arg interface{}) *Exception {
 	ex := vm.exceptionFromValue(arg)
+
+	// Call the exception hook if attached
+	if h := vm.r.runtimeHook; h != nil && ex != nil {
+		// Determine if exception will be caught by checking tryStack
+		caught := false
+		for i := len(vm.tryStack) - 1; i >= 0; i-- {
+			tf := &vm.tryStack[i]
+			if tf.catchPos >= 0 && tf.catchPos != tryPanicMarker {
+				caught = true
+				break
+			}
+		}
+		if h.OnException(vm.r, ex, caught) == HookResultPause {
+			// Hook requested pause
+			vm.r.debugPausedMutex.Lock()
+			vm.r.debugPaused = true
+			for vm.r.debugPaused {
+				vm.r.debugPausedCond.Wait()
+			}
+			vm.r.debugPausedMutex.Unlock()
+		}
+	}
+
 	for len(vm.tryStack) > 0 {
 		tf := &vm.tryStack[len(vm.tryStack)-1]
 		if tf.catchPos == -1 && tf.finallyPos == -1 || ex == nil && tf.catchPos != tryPanicMarker {
@@ -934,6 +997,39 @@ func (vm *vm) popCtx() {
 	}
 
 	vm.callStack = vm.callStack[:l]
+}
+
+// callFunctionEnterHook calls OnFunctionEnter if a hook is attached.
+// Should be called after vmCall sets up the new function context.
+func (vm *vm) callFunctionEnterHook(nArgs int) {
+	if h := vm.r.runtimeHook; h != nil {
+		var funcName string
+		if vm.prg != nil {
+			funcName = vm.prg.funcName.String()
+		}
+		// Get arguments from stack
+		args := make([]Value, nArgs)
+		// Arguments are at positions vm.sp-nArgs to vm.sp-1
+		// But after vmCall, sp points to args+2 (this and callee swapped)
+		// Actually the args are at vm.sb+2 to vm.sb+2+nArgs-1
+		argStart := vm.sb + 2
+		for i := 0; i < nArgs && argStart+i < vm.sp; i++ {
+			args[i] = vm.stack[argStart+i]
+		}
+		h.OnFunctionEnter(vm.r, funcName, args)
+	}
+}
+
+// callFunctionExitHook calls OnFunctionExit if a hook is attached.
+// Should be called before returning from a function.
+func (vm *vm) callFunctionExitHook(result Value) {
+	if h := vm.r.runtimeHook; h != nil {
+		var funcName string
+		if vm.prg != nil {
+			funcName = vm.prg.funcName.String()
+		}
+		h.OnFunctionExit(vm.r, funcName, result)
+	}
 }
 
 func (vm *vm) toCallee(v Value) *Object {
@@ -2893,14 +2989,22 @@ type initGlobalP unistring.String
 
 func (s initGlobalP) exec(vm *vm) {
 	vm.sp--
-	vm.r.global.stash.initByName(unistring.String(s), vm.stack[vm.sp])
+	value := vm.stack[vm.sp]
+	vm.r.global.stash.initByName(unistring.String(s), value)
+	if h := vm.r.runtimeHook; h != nil {
+		h.OnVariableSet(vm.r, string(s), value, ScopeGlobal)
+	}
 	vm.pc++
 }
 
 type initGlobal unistring.String
 
 func (s initGlobal) exec(vm *vm) {
-	vm.r.global.stash.initByName(unistring.String(s), vm.stack[vm.sp])
+	value := vm.stack[vm.sp]
+	vm.r.global.stash.initByName(unistring.String(s), value)
+	if h := vm.r.runtimeHook; h != nil {
+		h.OnVariableSet(vm.r, string(s), value, ScopeGlobal)
+	}
 	vm.pc++
 }
 
@@ -3402,7 +3506,11 @@ func (_putValue) exec(vm *vm) {
 	ref := vm.refStack[l]
 	vm.refStack[l] = nil
 	vm.refStack = vm.refStack[:l]
-	ref.set(vm.stack[vm.sp-1])
+	value := vm.stack[vm.sp-1]
+	ref.set(value)
+	if h := vm.r.runtimeHook; h != nil {
+		h.OnVariableSet(vm.r, ref.refname().String(), value, refScopeType(ref))
+	}
 	vm.pc++
 }
 
@@ -3426,7 +3534,11 @@ func (_putValueP) exec(vm *vm) {
 	ref := vm.refStack[l]
 	vm.refStack[l] = nil
 	vm.refStack = vm.refStack[:l]
-	ref.set(vm.stack[vm.sp-1])
+	value := vm.stack[vm.sp-1]
+	ref.set(value)
+	if h := vm.r.runtimeHook; h != nil {
+		h.OnVariableSet(vm.r, ref.refname().String(), value, refScopeType(ref))
+	}
 	vm.sp--
 	vm.pc++
 }
@@ -3440,7 +3552,11 @@ func (_initValueP) exec(vm *vm) {
 	ref := vm.refStack[l]
 	vm.refStack[l] = nil
 	vm.refStack = vm.refStack[:l]
-	ref.init(vm.stack[vm.sp-1])
+	value := vm.stack[vm.sp-1]
+	ref.init(value)
+	if h := vm.r.runtimeHook; h != nil {
+		h.OnVariableSet(vm.r, ref.refname().String(), value, refScopeType(ref))
+	}
 	vm.sp--
 	vm.pc++
 }
@@ -3640,6 +3756,8 @@ func (numargs call) exec(vm *vm) {
 	v := vm.stack[vm.sp-n-1] // callee
 	obj := vm.toCallee(v)
 	obj.self.vmCall(vm, n)
+	// Call function enter hook after vmCall sets up the context
+	vm.callFunctionEnterHook(n)
 }
 
 func (vm *vm) clearStack() {
@@ -3898,7 +4016,10 @@ func (_ret) exec(vm *vm) {
 	// this -2 <- sb
 	// retval -1
 
-	vm.stack[vm.sb-1] = vm.stack[vm.sp-1]
+	retval := vm.stack[vm.sp-1]
+	// Call function exit hook before returning
+	vm.callFunctionExitHook(retval)
+	vm.stack[vm.sb-1] = retval
 	vm.sp = vm.sb
 	vm.popCtx()
 	vm.pc++
