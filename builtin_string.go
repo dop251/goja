@@ -524,7 +524,7 @@ func (r *Runtime) _stringPad(call FunctionCall, start bool) Value {
 		return asciiString(sb.String())
 	}
 	var sb unicodeStringBuilder
-	sb.ensureStarted(toIntStrict(maxLength))
+	sb.Grow(toIntStrict(maxLength))
 	if !start {
 		sb.writeString(s)
 	}
