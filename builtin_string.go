@@ -577,7 +577,7 @@ func (r *Runtime) stringproto_repeat(call FunctionCall) Value {
 	}
 
 	var sb unicodeStringBuilder
-	sb.Grow(u.Length() * num)
+	sb.ensureStarted(u.Length() * num)
 	for i := 0; i < num; i++ {
 		sb.writeUnicodeString(u)
 	}

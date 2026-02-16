@@ -192,3 +192,59 @@ func BenchmarkASCIIConcat(b *testing.B) {
 		}
 	}
 }
+
+func TestUnicodeRepeat(t *testing.T) {
+	testCases := []struct {
+		name     string
+		script   string
+		expected string
+	}{
+		{
+			name: "Unicode character only",
+			script: `
+				var str = "★";
+				str.repeat(3);
+			`,
+			expected: "★★★",
+		},
+		{
+			name: "Mixed unicode",
+			script: `
+				var str = "a★b★c";
+				str.repeat(2);
+			`,
+			expected: "a★b★ca★b★c",
+		},
+		{
+			name: "Single unicode char repeated once",
+			script: `
+				var str = "★";
+				str.repeat(1);
+			`,
+			expected: "★",
+		},
+		{
+			name: "Unicode with surrogate pairs",
+			script: `
+				var str = "𝐀𝐁";
+				str.repeat(2);
+			`,
+			expected: "𝐀𝐁𝐀𝐁",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			v, err := vm.RunString(tc.script)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result := v.String()
+			if result != tc.expected {
+				t.Fatalf("Expected '%s' but got '%s'. Length expected: %d, got: %d",
+					tc.expected, result, len([]rune(tc.expected)), len([]rune(result)))
+			}
+		})
+	}
+}
