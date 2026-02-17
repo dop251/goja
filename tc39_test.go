@@ -192,6 +192,138 @@ var (
 
 		"test/built-ins/RegExp/nullable-quantifier.js":               true,
 		"test/built-ins/RegExp/lookahead-quantifier-match-groups.js": true,
+
+		// Fixed in https://github.com/grafana/sobek/pull/115
+		"test/built-ins/GeneratorPrototype/return/try-finally-set-property-within-try.js": true,
+
+		// TypedArray internals
+		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-reflect-set.js":                            true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-proto.js":                    true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-not-object.js":               true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-prototype-chain-set.js":        true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-reflect-set.js":                true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-valid-index-reflect-set.js":                     true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-canonical-invalid-index-prototype-chain-set.js": true,
+		"test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-canonical-invalid-index-reflect-set.js":         true,
+		"test/built-ins/TypedArray/prototype/with/value-throw-completion.js":                                               true,
+		"test/built-ins/TypedArray/prototype/slice/speciesctor-return-same-buffer-with-offset.js":                          true,
+
+		// String prototype (cstm-* and regexp)
+		"test/built-ins/String/prototype/split/cstm-split-on-string-primitive.js":            true,
+		"test/built-ins/String/prototype/split/cstm-split-on-number-primitive.js":            true,
+		"test/built-ins/String/prototype/split/cstm-split-on-boolean-primitive.js":           true,
+		"test/built-ins/String/prototype/split/cstm-split-on-bigint-primitive.js":            true,
+		"test/built-ins/String/prototype/search/cstm-search-on-string-primitive.js":          true,
+		"test/built-ins/String/prototype/search/cstm-search-on-number-primitive.js":          true,
+		"test/built-ins/String/prototype/search/cstm-search-on-boolean-primitive.js":         true,
+		"test/built-ins/String/prototype/search/cstm-search-on-bigint-primitive.js":          true,
+		"test/built-ins/String/prototype/replaceAll/cstm-replaceall-on-number-primitive.js":  true,
+		"test/built-ins/String/prototype/replaceAll/cstm-replaceall-on-bigint-primitive.js":  true,
+		"test/built-ins/String/prototype/replace/cstm-replace-on-string-primitive.js":        true,
+		"test/built-ins/String/prototype/replace/cstm-replace-on-number-primitive.js":        true,
+		"test/built-ins/String/prototype/replaceAll/cstm-replaceall-on-string-primitive.js":  true,
+		"test/built-ins/String/prototype/replace/cstm-replace-on-boolean-primitive.js":       true,
+		"test/built-ins/String/prototype/replaceAll/cstm-replaceall-on-boolean-primitive.js": true,
+		"test/built-ins/String/prototype/replace/regexp-capture-by-index.js":                 true,
+		"test/built-ins/String/prototype/replace/cstm-replace-on-bigint-primitive.js":        true,
+		"test/built-ins/String/prototype/match/cstm-matcher-on-number-primitive.js":            true,
+		"test/built-ins/String/prototype/match/cstm-matcher-on-bigint-primitive.js":            true,
+		"test/built-ins/String/prototype/match/cstm-matcher-on-boolean-primitive.js":            true,
+		"test/built-ins/String/prototype/match/cstm-matcher-on-string-primitive.js":            true,
+		"test/built-ins/String/prototype/matchAll/cstm-matchall-on-number-primitive.js":      true,
+		"test/built-ins/String/prototype/matchAll/cstm-matchall-on-bigint-primitive.js":      true,
+		"test/built-ins/String/prototype/matchAll/cstm-matchall-on-string-primitive.js":      true,
+
+		// RegExp CharacterClassEscapes
+		"test/built-ins/RegExp/CharacterClassEscapes/character-class-word-class-escape-positive-cases.js":           true,
+		"test/built-ins/RegExp/CharacterClassEscapes/character-class-word-class-escape-negative-cases.js":           true,
+		"test/built-ins/RegExp/CharacterClassEscapes/character-class-whitespace-class-escape-negative-cases.js":     true,
+		"test/built-ins/RegExp/CharacterClassEscapes/character-class-whitespace-class-escape-positive-cases.js":     true,
+		"test/built-ins/RegExp/CharacterClassEscapes/character-class-non-word-class-escape-positive-cases.js":       true,
+		"test/built-ins/RegExp/CharacterClassEscapes/character-class-non-word-class-escape-negative-cases.js":       true,
+		"test/built-ins/RegExp/CharacterClassEscapes/character-class-non-whitespace-class-escape-negative-cases.js": true,
+		"test/built-ins/RegExp/CharacterClassEscapes/character-class-non-digit-class-escape-positive-cases.js":      true,
+		"test/built-ins/RegExp/CharacterClassEscapes/character-class-non-digit-class-escape-negative-cases.js":      true,
+		"test/built-ins/RegExp/CharacterClassEscapes/character-class-digit-class-escape-positive-cases.js":          true,
+		"test/built-ins/RegExp/CharacterClassEscapes/character-class-digit-class-escape-negative-cases.js":          true,
+		"test/built-ins/RegExp/CharacterClassEscapes/character-class-non-whitespace-class-escape-positive-cases.js": true,
+
+		// JSON (rawJSON, reviver)
+		"test/built-ins/JSON/isRawJSON/not-a-constructor.js":                        true,
+		"test/built-ins/JSON/isRawJSON/length.js":                                   true,
+		"test/built-ins/JSON/isRawJSON/prop-desc.js":                                true,
+		"test/built-ins/JSON/isRawJSON/basic.js":                                    true,
+		"test/built-ins/JSON/isRawJSON/name.js":                                     true,
+		"test/built-ins/JSON/isRawJSON/builtin.js":                                  true,
+		"test/built-ins/JSON/parse/reviver-forward-modifies-object.js":              true,
+		"test/built-ins/JSON/parse/reviver-context-source-primitive-literal.js":     true,
+		"test/built-ins/JSON/parse/reviver-context-source-object-literal.js":        true,
+		"test/built-ins/JSON/parse/reviver-context-source-array-literal.js":         true,
+		"test/built-ins/JSON/parse/reviver-call-args-after-forward-modification.js": true,
+
+		// Error.isError
+		"test/built-ins/Error/isError/symbols.js":                                   true,
+		"test/built-ins/Error/isError/primitives.js":                                true,
+		"test/built-ins/Error/isError/prop-desc.js":                                 true,
+		"test/built-ins/Error/isError/name.js":                                      true,
+		"test/built-ins/Error/isError/is-a-constructor.js":                          true,
+		"test/built-ins/Error/isError/fake-errors.js":                               true,
+		"test/built-ins/Error/isError/errors.js":                                    true,
+		"test/built-ins/Error/isError/non-error-objects.js":                         true,
+		"test/built-ins/Error/isError/error-subclass.js":                            true,
+		"test/built-ins/Error/isError/bigints.js":                                   true,
+		"test/built-ins/Error/error-message-tostring-symbol.js":                     true,
+		"test/built-ins/NativeErrors/nativeerror-tostring-message-throws-symbol.js": true,
+
+		// Object, Array, AggregateError
+		"test/built-ins/Object/prototype/setPrototypeOf-with-non-circular-values.js":           true,
+		"test/built-ins/Object/prototype/setPrototypeOf-with-non-circular-values-__proto__.js": true,
+		"test/built-ins/Array/prototype/flat/non-numeric-depth-should-not-throw.js":            true,
+		"test/built-ins/AggregateError/errors-iterabletolist.js":                               true,
+
+		// Language tests (class, with, module, expressions, identifiers)
+		"test/language/statements/class/subclass/private-class-field-on-nonextensible-return-override.js":                                   true,
+		"test/language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js":                         true,
+		"test/language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js":                         true,
+		"test/language/statements/class/elements/private-class-field-on-nonextensible-objects.js":                                           true,
+		"test/language/statements/with/set-mutable-binding-idref-compound-assign-with-proxy-env.js":                                         true,
+		"test/language/statements/with/set-mutable-binding-binding-deleted-with-typed-array-in-proto-chain.js":                              true,
+		"test/language/statements/with/set-mutable-binding-idref-with-proxy-env.js":                                                         true,
+		"test/language/statements/with/get-binding-value-idref-with-proxy-env.js":                                                           true,
+		"test/language/statements/with/get-binding-value-call-with-proxy-env.js":                                                            true,
+		"test/language/statements/with/get-mutable-binding-binding-deleted-in-get-unscopables-strict-mode.js":                               true,
+		"test/language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-export-star-as-from-and-import-star-as-and-export.js": true,
+		"test/language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-import-star-as-and-export.js":                         true,
+		"test/language/module-code/top-level-await/pending-async-dep-from-cycle.js":                                                         true,
+		"test/language/module-code/top-level-await/module-graphs-does-not-hang.js":                                                          true,
+		"test/language/expressions/less-than-or-equal/S11.8.3_A4.12_T1.js":                                                                  true,
+		"test/language/expressions/less-than/S11.8.1_A4.12_T1.js":                                                                           true,
+		"test/language/expressions/greater-than-or-equal/S11.8.4_A4.12_T1.js":                                                               true,
+		"test/language/expressions/greater-than/S11.8.2_A4.12_T1.js":                                                                        true,
+		"test/language/identifiers/part-unicode-17.0.0.js":                                                                                  true,
+		"test/language/identifiers/part-unicode-17.0.0-escaped.js":                                                                          true,
+		"test/language/identifiers/part-unicode-17.0.0-class.js":                                                                            true,
+		"test/language/identifiers/part-unicode-17.0.0-class-escaped.js":                                                                    true,
+		"test/language/identifiers/part-unicode-16.0.0.js":                                                                                  true,
+		"test/language/identifiers/part-unicode-16.0.0-escaped.js":                                                                          true,
+		"test/language/identifiers/part-unicode-16.0.0-class.js":                                                                            true,
+		"test/language/identifiers/part-unicode-16.0.0-class-escaped.js":                                                                    true,
+		"test/language/identifiers/part-unicode-15.1.0.js":                                                                                  true,
+		"test/language/identifiers/part-unicode-15.1.0-escaped.js":                                                                          true,
+		"test/language/identifiers/part-unicode-15.1.0-class.js":                                                                            true,
+		"test/language/identifiers/part-unicode-15.1.0-class-escaped.js":                                                                    true,
+		"test/language/identifiers/start-unicode-17.0.0.js":                                                                                 true,
+		"test/language/identifiers/start-unicode-17.0.0-escaped.js":                                                                         true,
+		"test/language/identifiers/start-unicode-17.0.0-class.js":                                                                           true,
+		"test/language/identifiers/start-unicode-17.0.0-class-escaped.js":                                                                   true,
+		"test/language/identifiers/start-unicode-16.0.0.js":                                                                                 true,
+		"test/language/identifiers/start-unicode-16.0.0-class.js":                                                                           true,
+		"test/language/identifiers/start-unicode-15.1.0.js":                                                                                 true,
+		"test/language/identifiers/start-unicode-15.1.0-escaped.js":                                                                         true,
+		"test/language/identifiers/start-unicode-15.1.0-class.js":                                                                           true,
+		"test/language/identifiers/start-unicode-15.1.0-class-escaped.js":                                                                   true,
+		"test/language/identifiers/start-unicode-16.0.0-class-escaped.js":                                                                   true,
+		"test/language/identifiers/start-unicode-16.0.0-escaped.js":                                                                         true,
 	}
 
 	featuresBlackList = []string{
@@ -220,6 +352,11 @@ var (
 		"ShadowRealm",
 		"SharedArrayBuffer",
 		"decorators",
+		"immutable-arraybuffer",
+		"joint-iteration",
+		"iterator-sequencing",
+
+		"regexp-duplicate-named-groups",
 		"regexp-v-flag",
 		"iterator-helpers",
 		"symbols-as-weakmap-keys",
@@ -235,6 +372,10 @@ var (
 		"arraybuffer-transfer",
 		"Array.fromAsync",
 		"String.prototype.isWellFormed",
+
+		"source-phase-imports",
+		"import-attributes",
+		"import-defer",
 	}
 )
 
@@ -305,6 +446,13 @@ func init() {
 		"test/language/export/",
 		"test/language/import/",
 		"test/language/module-code/",
+
+		// Map getOrInsert*
+		"test/built-ins/WeakMap/prototype/getOrInsert",
+		"test/built-ins/Map/prototype/getOrInsert",
+
+		// rawJSON isn not supported
+		"test/built-ins/JSON/rawJSON",
 	)
 
 }
