@@ -208,31 +208,8 @@ var (
 		"test/built-ins/TypedArray/prototype/with/value-throw-completion.js":                                               true,
 		"test/built-ins/TypedArray/prototype/slice/speciesctor-return-same-buffer-with-offset.js":                          true,
 
-		// String prototype (cstm-* and regexp)
-		"test/built-ins/String/prototype/split/cstm-split-on-string-primitive.js":            true,
-		"test/built-ins/String/prototype/split/cstm-split-on-number-primitive.js":            true,
-		"test/built-ins/String/prototype/split/cstm-split-on-boolean-primitive.js":           true,
-		"test/built-ins/String/prototype/split/cstm-split-on-bigint-primitive.js":            true,
-		"test/built-ins/String/prototype/search/cstm-search-on-string-primitive.js":          true,
-		"test/built-ins/String/prototype/search/cstm-search-on-number-primitive.js":          true,
-		"test/built-ins/String/prototype/search/cstm-search-on-boolean-primitive.js":         true,
-		"test/built-ins/String/prototype/search/cstm-search-on-bigint-primitive.js":          true,
-		"test/built-ins/String/prototype/replaceAll/cstm-replaceall-on-number-primitive.js":  true,
-		"test/built-ins/String/prototype/replaceAll/cstm-replaceall-on-bigint-primitive.js":  true,
-		"test/built-ins/String/prototype/replace/cstm-replace-on-string-primitive.js":        true,
-		"test/built-ins/String/prototype/replace/cstm-replace-on-number-primitive.js":        true,
-		"test/built-ins/String/prototype/replaceAll/cstm-replaceall-on-string-primitive.js":  true,
-		"test/built-ins/String/prototype/replace/cstm-replace-on-boolean-primitive.js":       true,
-		"test/built-ins/String/prototype/replaceAll/cstm-replaceall-on-boolean-primitive.js": true,
-		"test/built-ins/String/prototype/replace/regexp-capture-by-index.js":                 true,
-		"test/built-ins/String/prototype/replace/cstm-replace-on-bigint-primitive.js":        true,
-		"test/built-ins/String/prototype/match/cstm-matcher-on-number-primitive.js":            true,
-		"test/built-ins/String/prototype/match/cstm-matcher-on-bigint-primitive.js":            true,
-		"test/built-ins/String/prototype/match/cstm-matcher-on-boolean-primitive.js":            true,
-		"test/built-ins/String/prototype/match/cstm-matcher-on-string-primitive.js":            true,
-		"test/built-ins/String/prototype/matchAll/cstm-matchall-on-number-primitive.js":      true,
-		"test/built-ins/String/prototype/matchAll/cstm-matchall-on-bigint-primitive.js":      true,
-		"test/built-ins/String/prototype/matchAll/cstm-matchall-on-string-primitive.js":      true,
+		// String prototype regexp-capture-by-index (regexp named groups)
+		"test/built-ins/String/prototype/replace/regexp-capture-by-index.js": true,
 
 		// RegExp CharacterClassEscapes
 		"test/built-ins/RegExp/CharacterClassEscapes/character-class-word-class-escape-positive-cases.js":           true,
