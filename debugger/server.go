@@ -109,9 +109,14 @@ func (s *Server) Run() error {
 
 	// Detach debugger only after the VM goroutine has finished,
 	// to avoid racing with VM goroutine reads of vm.dbg.
+	// Also respect disconnectCh so we don't block if the client
+	// disconnects before runFunc completes.
 	defer func() {
 		if s.configured && !s.vmDone {
-			<-s.doneCh
+			select {
+			case <-s.doneCh:
+			case <-s.disconnectCh:
+			}
 		}
 		s.runtime.SetDebugger(nil)
 	}()
@@ -448,6 +453,73 @@ func ListenTCP(r *goja.Runtime, addr string, runFunc func() error) (*TCPSession,
 	}()
 
 	return session, nil
+}
+
+// AttachSession is a debug session where the debugger attaches to an existing
+// runtime. Unlike ListenTCP/ServeTCP (which own the JS execution via runFunc),
+// AttachSession lets the caller manage execution separately — the debugger
+// intercepts all JS execution on the runtime until the session ends.
+type AttachSession struct {
+	*TCPSession
+	readyCh   chan struct{}
+	closeCh   chan struct{}
+	closeOnce sync.Once
+}
+
+// Ready blocks until a DAP client has connected and sent ConfigurationDone
+// (i.e., breakpoints are set and the runtime is ready for JS execution).
+func (s *AttachSession) Ready() {
+	<-s.readyCh
+}
+
+// Close signals the debug session to terminate and waits for cleanup.
+// It is safe to call multiple times.
+func (s *AttachSession) Close() error {
+	s.closeOnce.Do(func() { close(s.closeCh) })
+	return s.TCPSession.Wait()
+}
+
+// AttachTCP starts a DAP debug server that attaches to an existing runtime.
+// Unlike ListenTCP, there is no runFunc — the caller manages JS execution
+// separately (e.g., via runtime.RunString). The debugger intercepts all JS
+// execution on the runtime until the session ends.
+//
+// Call session.Ready() to block until a client connects and configures
+// breakpoints, then execute JS normally. Call session.Close() when done.
+//
+// Example:
+//
+//	r := goja.New()
+//	session, err := debugger.AttachTCP(r, "127.0.0.1:0")
+//	if err != nil { log.Fatal(err) }
+//	fmt.Printf("Debugger on %s\n", session.Addr)
+//	session.Ready()  // wait for VS Code to connect
+//	r.RunString(script)  // breakpoints work
+//	session.Close()
+func AttachTCP(r *goja.Runtime, addr string) (*AttachSession, error) {
+	as := &AttachSession{
+		readyCh: make(chan struct{}),
+		closeCh: make(chan struct{}),
+	}
+
+	session, err := ListenTCP(r, addr, func() error {
+		close(as.readyCh)
+		<-as.closeCh
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	as.TCPSession = session
+
+	// If the session ends before Close() (e.g., client disconnect),
+	// unblock the runFunc goroutine to prevent a leak.
+	go func() {
+		session.Wait()
+		as.closeOnce.Do(func() { close(as.closeCh) })
+	}()
+
+	return as, nil
 }
 
 // Ensure json import is used (for launch args parsing in handlers).
