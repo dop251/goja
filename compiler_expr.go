@@ -1762,10 +1762,32 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 			e.c.p.code[emitArgsRestMark] = createArgsRestStash
 		}
 	} else {
-		enter = &enterFuncStashless{
+		efl := &enterFuncStashless{
 			stackSize: uint32(stackSize),
 			args:      uint32(paramsCount),
 		}
+		// Populate dbgNames so the debugger can see stack-register variables.
+		if e.c.debugMode && (stackSize > 0 || paramsCount > 0) {
+			localIdx := 0
+			for i, b := range s.bindings {
+				if b.name == thisBindingName {
+					continue
+				}
+				if i < int(s.numArgs) {
+					if efl.dbgNames == nil {
+						efl.dbgNames = make(map[unistring.String]int)
+					}
+					efl.dbgNames[b.name] = -(i + 1)
+				} else {
+					if efl.dbgNames == nil {
+						efl.dbgNames = make(map[unistring.String]int)
+					}
+					efl.dbgNames[b.name] = localIdx
+					localIdx++
+				}
+			}
+		}
+		enter = efl
 		if enterFunc2Mark != -1 {
 			ef2 := &enterFuncBody{
 				extensible: e.c.scope.dynamic,

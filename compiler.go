@@ -2,12 +2,13 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dop251/goja/token"
 	"sort"
 
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
+	"github.com/dop251/goja/token"
 	"github.com/dop251/goja/unistring"
+	"github.com/go-sourcemap/sourcemap"
 )
 
 type blockType int
@@ -89,6 +90,8 @@ type compiler struct {
 	codeScratchpad []instruction
 
 	stringCache map[unistring.String]Value
+
+	debugMode bool // when true, emit debug variable maps for the debugger
 }
 
 type binding struct {
@@ -327,6 +330,7 @@ func (c *compiler) leaveScopeBlock(enter *enterBlock) {
 	leave := &leaveBlock{
 		stackSize: enter.stackSize,
 		popStash:  enter.stashSize > 0,
+		dbgPop:    len(enter.dbgNames) > 0,
 	}
 	c.emit(leave)
 	for _, pc := range c.block.breaks {
@@ -465,6 +469,17 @@ func (p *Program) sourceOffset(pc int) int {
 	}
 
 	return 0
+}
+
+// SetSourceMap attaches a source map to the program. Once set, all position
+// resolution (including debugger breakpoint matching and stack traces)
+// automatically maps through the source map to original source positions.
+// This is useful when the source was transpiled (e.g., TypeScript to JavaScript)
+// and you want debugging to work against the original source.
+func (p *Program) SetSourceMap(m *sourcemap.Consumer) {
+	if p.src != nil {
+		p.src.SetSourceMap(m)
+	}
 }
 
 func (p *Program) addSrcMap(srcPos int) {
