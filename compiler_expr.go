@@ -1726,6 +1726,28 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 			}
 			if s.isDynamic() {
 				enter1.names = s.makeNamesMap()
+			} else if e.c.debugMode && stashSize > 0 {
+				enter1.names = s.makeDebugStashNamesMap()
+			}
+			if e.c.debugMode && stackSize > 0 {
+				localIdx := 0
+				for i, b := range s.bindings {
+					if b.name == thisBindingName || b.inStash {
+						continue
+					}
+					if i < int(s.numArgs) {
+						if enter1.dbgNames == nil {
+							enter1.dbgNames = make(map[unistring.String]int)
+						}
+						enter1.dbgNames[b.name] = -(i + 1)
+					} else {
+						if enter1.dbgNames == nil {
+							enter1.dbgNames = make(map[unistring.String]int)
+						}
+						enter1.dbgNames[b.name] = localIdx
+						localIdx++
+					}
+				}
 			}
 			enter = &enter1
 			if enterFunc2Mark != -1 {
@@ -1746,6 +1768,8 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 			}
 			if s.isDynamic() {
 				enter1.names = s.makeNamesMap()
+			} else if e.c.debugMode && stashSize > 0 {
+				enter1.names = s.makeDebugStashNamesMap()
 			}
 			enter = &enter1
 			if enterFunc2Mark != -1 {

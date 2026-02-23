@@ -103,6 +103,10 @@ func (c *compiler) updateEnterBlock(enter *enterBlock) {
 	}
 	enter.stashSize, enter.stackSize = uint32(stashSize), uint32(stackSize)
 
+	if c.debugMode && stashSize > 0 && !scope.dynLookup {
+		enter.names = scope.makeDebugStashNamesMap()
+	}
+
 	// Build debug names map for stack-register variables so the debugger
 	// can enumerate and eval let/const variables that aren't in stash.
 	if c.debugMode && stackSize > 0 && !scope.dynLookup {

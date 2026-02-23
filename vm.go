@@ -3925,6 +3925,9 @@ func (e *enterFuncBody) exec(vm *vm) {
 		}
 	}
 	vm.sp = nsp
+	if vm.dbg != nil && len(e.dbgNames) > 0 {
+		vm.dbgPushBlockScope(e.dbgNames, sp)
+	}
 	vm.pc++
 }
 

@@ -897,6 +897,35 @@ func (s *scope) makeNamesMap() map[unistring.String]uint32 {
 	return names
 }
 
+// makeDebugStashNamesMap builds a stash names map for debugger introspection
+// in non-dynamic scopes. Unlike makeNamesMap (which uses binding index and is
+// only correct when ALL bindings are in the stash), this uses actual stash
+// indices matching the allocation in finaliseVarAlloc.
+func (s *scope) makeDebugStashNamesMap() map[unistring.String]uint32 {
+	var names map[unistring.String]uint32
+	stashIdx := uint32(0)
+	for _, b := range s.bindings {
+		if b.inStash {
+			if names == nil {
+				names = make(map[unistring.String]uint32)
+			}
+			idx := stashIdx
+			if b.isConst {
+				idx |= maskConst
+				if b.isStrict {
+					idx |= maskStrict
+				}
+			}
+			if b.isVar {
+				idx |= maskVar
+			}
+			names[b.name] = idx
+			stashIdx++
+		}
+	}
+	return names
+}
+
 func (s *scope) isDynamic() bool {
 	return s.dynLookup || s.dynamic
 }
