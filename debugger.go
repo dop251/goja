@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -180,10 +181,10 @@ type Debugger struct {
 	// Breakpoint management — protected by bpMu
 	bpMu        sync.RWMutex
 	breakpoints map[int]*Breakpoint              // id -> Breakpoint
-	nextBpID    int                               //nolint:unused
+	nextBpID    int                              //nolint:unused
 	bpIndex     map[string]map[int][]*Breakpoint // canonical filename -> line -> breakpoints
-	bpByBase    map[string]string                 // basename -> canonical path (for cross-resolution)
-	bpCount     int32                             // atomic; fast-path: skip map lookup when 0
+	bpByBase    map[string][]string              // basename -> canonical paths (for cross-resolution)
+	bpCount     int32                            // atomic; fast-path: skip map lookup when 0
 
 	// Exception breakpoints — protected by bpMu
 	exFilterAll      bool // pause on all thrown exceptions
@@ -216,7 +217,7 @@ func NewDebugger(hook DebugHookFunc) *Debugger {
 		hook:        hook,
 		breakpoints: make(map[int]*Breakpoint),
 		bpIndex:     make(map[string]map[int][]*Breakpoint),
-		bpByBase:    make(map[string]string),
+		bpByBase:    make(map[string][]string),
 	}
 }
 
@@ -285,9 +286,19 @@ func (d *Debugger) SetBreakpoint(filename string, line, column int, opts ...Brea
 	// Register basename → canonical mapping for cross-resolution.
 	// This allows breakpoints set with full paths (e.g. from VS Code) to match
 	// goja sources registered with short names (e.g. "fibonacci.ts"), and vice versa.
+	// Multiple files can share a basename (e.g. "includes/tests.ts" and "common/tests.ts"),
+	// so we store all canonical paths per basename.
 	base := filepath.Base(canonical)
-	if _, exists := d.bpByBase[base]; !exists {
-		d.bpByBase[base] = canonical
+	candidates := d.bpByBase[base]
+	found := false
+	for _, c := range candidates {
+		if c == canonical {
+			found = true
+			break
+		}
+	}
+	if !found {
+		d.bpByBase[base] = append(candidates, canonical)
 	}
 
 	atomic.AddInt32(&d.bpCount, 1)
@@ -382,9 +393,29 @@ func (d *Debugger) shouldPause(vm *vm) (DebugEvent, *Breakpoint, bool) {
 		if !ok {
 			// Fallback: try matching by basename (handles VS Code full paths
 			// matching goja sources registered with short names, and vice versa).
+			// When multiple files share a basename, use the program's compile name
+			// as a suffix to disambiguate (e.g. "includes/tests.ts" vs "common/tests.ts").
 			base := filepath.Base(canonical)
-			if altPath, found := d.bpByBase[base]; found && altPath != canonical {
-				lineMap, ok = d.bpIndex[altPath]
+			if candidates, found := d.bpByBase[base]; found {
+				prgName := ""
+				if vm.prg.src != nil {
+					prgName = filepath.ToSlash(vm.prg.src.Name())
+				}
+				for _, altPath := range candidates {
+					if altPath == canonical {
+						continue
+					}
+					if prgName != "" && pathHasSuffix(altPath, prgName) {
+						lineMap, ok = d.bpIndex[altPath]
+						break
+					}
+				}
+				// If no suffix match and only one candidate, use it only when we
+				// have no program name to disambiguate with (original behavior
+				// for inline/eval scripts).
+				if !ok && prgName == "" && len(candidates) == 1 && candidates[0] != canonical {
+					lineMap, ok = d.bpIndex[candidates[0]]
+				}
 			}
 		}
 		if ok {
@@ -533,14 +564,15 @@ func (vm *vm) debugScopes(frameIndex int) []DebugScope {
 	var scopes []DebugScope
 
 	// Enumerate stack-register variables from dbgScopes for this frame.
+	// Function-level scopes (isFunc=true) are collected separately and merged
+	// into the first stash-based "Local" scope below, so all function-local
+	// variables appear under one scope in the debugger.
+	var funcScopeVars []DebugVariable
 	if start, end := vm.dbgScopeRange(frameIndex); end > start {
 		// Iterate in reverse (innermost scope first)
 		for i := end - 1; i >= start; i-- {
 			ds := vm.dbgScopes[i]
-			scope := DebugScope{
-				Type: "block",
-				Name: "Block",
-			}
+			var vars []DebugVariable
 			for name, stackIdx := range ds.vars {
 				var val Value
 				if stackIdx >= 0 && stackIdx < len(vm.stack) {
@@ -549,12 +581,21 @@ func (vm *vm) debugScopes(frameIndex int) []DebugScope {
 				if val == nil {
 					val = _undefined
 				}
-				scope.Variables = append(scope.Variables, DebugVariable{
+				vars = append(vars, DebugVariable{
 					Name:  name.String(),
 					Value: val,
 				})
 			}
-			scopes = append(scopes, scope)
+			if ds.isFunc {
+				// Defer function-level variables to merge with the stash "Local" scope.
+				funcScopeVars = append(funcScopeVars, vars...)
+			} else {
+				scopes = append(scopes, DebugScope{
+					Type:      "block",
+					Name:      "Block",
+					Variables: vars,
+				})
+			}
 		}
 	}
 
@@ -583,6 +624,9 @@ func (vm *vm) debugScopes(frameIndex int) []DebugScope {
 		} else if isLocal {
 			scope.Type = "local"
 			scope.Name = "Local"
+			// Merge function-level stack-register variables into this scope.
+			scope.Variables = append(scope.Variables, funcScopeVars...)
+			funcScopeVars = nil
 			isLocal = false
 		} else {
 			scope.Type = "closure"
@@ -634,6 +678,24 @@ func (vm *vm) debugScopes(frameIndex int) []DebugScope {
 		scopes = append(scopes, scope)
 		s = s.outer
 	}
+
+	// If there was no stash-based "Local" scope to merge into (e.g., stashless
+	// function where all variables are on the stack), emit them as "Local".
+	if len(funcScopeVars) > 0 {
+		scopes = append(scopes, DebugScope{
+			Type:      "local",
+			Name:      "Local",
+			Variables: funcScopeVars,
+		})
+	}
+
+	// Sort variables alphabetically within each scope for stable, readable output.
+	for i := range scopes {
+		sort.Slice(scopes[i].Variables, func(a, b int) bool {
+			return scopes[i].Variables[a].Name < scopes[i].Variables[b].Name
+		})
+	}
+
 	return scopes
 }
 
@@ -825,6 +887,25 @@ func (vm *vm) debugSetVariable(frameIndex, scopeIndex int, name string, value Va
 	}
 
 	return fmt.Errorf("variable %q not found", name)
+}
+
+// pathHasSuffix reports whether fullPath ends with suffix at a path separator boundary.
+// Both paths are compared using forward slashes. For example:
+//
+//	pathHasSuffix("/a/b/includes/tests.ts", "includes/tests.ts") => true
+//	pathHasSuffix("/a/b/includes/tests.ts", "common/tests.ts")   => false
+//	pathHasSuffix("/a/b/includes/tests.ts", "tests.ts")          => true
+func pathHasSuffix(fullPath, suffix string) bool {
+	full := filepath.ToSlash(fullPath)
+	sfx := filepath.ToSlash(suffix)
+	if !strings.HasSuffix(full, sfx) {
+		return false
+	}
+	// Ensure match is at a path boundary (preceded by '/' or is the entire path).
+	if len(full) == len(sfx) {
+		return true
+	}
+	return full[len(full)-len(sfx)-1] == '/'
 }
 
 // canonicalizePath normalizes a filename for consistent breakpoint matching.

@@ -9,7 +9,8 @@ import (
 // dbgScopeInfo tracks an active scope's stack-register variables for the debugger.
 // Each variable maps to an absolute index in vm.stack, computed at scope entry time.
 type dbgScopeInfo struct {
-	vars map[unistring.String]int // variable name → absolute stack index
+	vars   map[unistring.String]int // variable name → absolute stack index
+	isFunc bool                     // true for function-level scopes (args + locals)
 }
 
 // debuggerInstr implements the JS `debugger` statement.
@@ -211,7 +212,7 @@ func (vm *vm) dbgPushFuncScope(dbgNames map[unistring.String]int, sb, args int) 
 			vars[name] = sb + args + 1 + offset
 		}
 	}
-	vm.dbgScopes = append(vm.dbgScopes, dbgScopeInfo{vars: vars})
+	vm.dbgScopes = append(vm.dbgScopes, dbgScopeInfo{vars: vars, isFunc: true})
 }
 
 // dbgPopScope pops the topmost debug scope entry.

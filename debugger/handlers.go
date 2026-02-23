@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
-	"reflect"
 	"strings"
 
 	"github.com/dop251/goja"
@@ -464,13 +463,7 @@ func (s *Server) valueToVariable(name string, val goja.Value) dap.Variable {
 	}
 
 	v := dap.Variable{
-		Name:  name,
-		Value: val.String(),
-	}
-
-	exportType := val.ExportType()
-	if exportType != nil {
-		v.Type = exportType.Kind().String()
+		Name: name,
 	}
 
 	switch {
@@ -489,21 +482,25 @@ func (s *Server) valueToVariable(name string, val goja.Value) dap.Variable {
 	default:
 		if obj, ok := val.(*goja.Object); ok {
 			v.VariablesReference = s.refs.AddObject(obj)
-			// Determine a more specific type
-			exported := obj.Export()
-			if exported != nil {
-				rt := reflect.TypeOf(exported)
-				switch rt.Kind() {
-				case reflect.Func:
-					v.Type = "function"
-					v.Value = "function"
-				case reflect.Slice, reflect.Array:
-					v.Type = "array"
-				default:
-					v.Type = "object"
-				}
-			} else {
+			// Use ClassName() which is safe (no JS execution) instead of
+			// String() which calls toString() and can corrupt VM state.
+			cls := obj.ClassName()
+			switch cls {
+			case "Function":
+				v.Type = "function"
+				v.Value = "function"
+			case "Array":
+				v.Type = "array"
+				v.Value = cls
+			default:
 				v.Type = "object"
+				v.Value = cls
+			}
+		} else {
+			// Primitives: String() is safe (no JS execution for int, float, bool, string).
+			v.Value = val.String()
+			if exportType := val.ExportType(); exportType != nil {
+				v.Type = exportType.Kind().String()
 			}
 		}
 	}

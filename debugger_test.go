@@ -804,6 +804,69 @@ func TestSetVariable(t *testing.T) {
 	}
 }
 
+func TestPathHasSuffix(t *testing.T) {
+	tests := []struct {
+		full, suffix string
+		want         bool
+	}{
+		{"/a/b/includes/tests.ts", "includes/tests.ts", true},
+		{"/a/b/includes/tests.ts", "common/tests.ts", false},
+		{"/a/b/includes/tests.ts", "tests.ts", true},
+		{"/a/b/includes/tests.ts", "b/includes/tests.ts", true},
+		{"/a/b/includes/tests.ts", "cludes/tests.ts", false}, // not at path boundary
+		{"includes/tests.ts", "includes/tests.ts", true},
+		{"/a/b/c", "c", true},
+		{"/a/b/c", "b/c", true},
+		{"/a/b/c", "a/b/c", true},
+		{"/a/b/c", "/a/b/c", true},
+	}
+	for _, tt := range tests {
+		got := pathHasSuffix(tt.full, tt.suffix)
+		if got != tt.want {
+			t.Errorf("pathHasSuffix(%q, %q) = %v, want %v", tt.full, tt.suffix, got, tt.want)
+		}
+	}
+}
+
+// TestBreakpointMultiFileDisambiguation verifies that when two programs share
+// the same basename (e.g. "includes/tests.ts" and "common/tests.ts"), a
+// breakpoint set on one file does NOT fire in the other.
+func TestBreakpointMultiFileDisambiguation(t *testing.T) {
+	r := New()
+	var hitPositions []DebugPosition
+	dbg := NewDebugger(func(ctx *DebugContext, event DebugEvent, pos DebugPosition) DebugAction {
+		if event == DebugEventBreakpoint {
+			hitPositions = append(hitPositions, pos)
+		}
+		return DebugContinue
+	})
+
+	// Simulate IDE setting a breakpoint at an absolute path for "includes/tests.ts" line 2.
+	// This path does NOT match the program compiled as "common/tests.ts".
+	dbg.SetBreakpoint("/workspace/templates/includes/tests.ts", 2, 0)
+	r.SetDebugger(dbg)
+
+	// Run a program compiled as "common/tests.ts" — should NOT trigger the breakpoint.
+	prg1, _ := r.Compile("common/tests.ts", "var a = 1;\nvar b = 2;\nvar c = 3;", false)
+	r.RunProgram(prg1)
+
+	if len(hitPositions) != 0 {
+		t.Fatalf("Expected 0 breakpoint hits for common/tests.ts, got %d at %v",
+			len(hitPositions), hitPositions)
+	}
+
+	// Run a program compiled as "includes/tests.ts" — SHOULD trigger the breakpoint.
+	prg2, _ := r.Compile("includes/tests.ts", "var x = 1;\nvar y = 2;\nvar z = 3;", false)
+	r.RunProgram(prg2)
+
+	if len(hitPositions) != 1 {
+		t.Fatalf("Expected 1 breakpoint hit for includes/tests.ts, got %d", len(hitPositions))
+	}
+	if hitPositions[0].Line != 2 {
+		t.Fatalf("Expected breakpoint at line 2, got line %d", hitPositions[0].Line)
+	}
+}
+
 func TestEvalHitCondition(t *testing.T) {
 	tests := []struct {
 		expr     string
