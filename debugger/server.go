@@ -2,7 +2,6 @@ package debugger
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -16,11 +15,11 @@ import (
 // Server is a DAP (Debug Adapter Protocol) server for a goja Runtime.
 // It bridges DAP messages from an IDE (e.g., VS Code) to goja's debug API.
 type Server struct {
-	runtime *goja.Runtime
+	runtime  *goja.Runtime
 	debugger *goja.Debugger
-	reader  *bufio.Reader
-	writer  io.Writer
-	runFunc func() error
+	reader   *bufio.Reader
+	writer   io.Writer
+	runFunc  func() error
 
 	// Outgoing message sequencing
 	sendMu sync.Mutex
@@ -30,11 +29,11 @@ type Server struct {
 	refs *RefManager
 
 	// Hook bridge channels
-	stoppedCh    chan stopInfo          // VM → Server: VM paused
-	inspectCh    chan inspectRequest    // Server → VM: inspect while paused
-	resumeCh     chan goja.DebugAction  // Server → VM: resume
-	logCh        chan logEntry          // VM → Server: log point output
-	disconnectCh chan struct{}          // closed on disconnect to unblock debugHook
+	stoppedCh    chan stopInfo         // VM → Server: VM paused
+	inspectCh    chan inspectRequest   // Server → VM: inspect while paused
+	resumeCh     chan goja.DebugAction // Server → VM: resume
+	logCh        chan logEntry         // VM → Server: log point output
+	disconnectCh chan struct{}         // closed on disconnect to unblock debugHook
 
 	// Session state
 	configured  bool
@@ -84,15 +83,15 @@ type dapMessage struct {
 // It runs on a new goroutine and should execute JS code via the runtime.
 func NewServer(r *goja.Runtime, reader io.Reader, writer io.Writer, runFunc func() error) *Server {
 	return &Server{
-		runtime:   r,
-		reader:    bufio.NewReader(reader),
-		writer:    writer,
-		runFunc:   runFunc,
-		refs:      NewRefManager(),
-		stoppedCh: make(chan stopInfo, 1),
-		inspectCh: make(chan inspectRequest),
-		resumeCh:  make(chan goja.DebugAction),
-		logCh:     make(chan logEntry, 16),
+		runtime:       r,
+		reader:        bufio.NewReader(reader),
+		writer:        writer,
+		runFunc:       runFunc,
+		refs:          NewRefManager(),
+		stoppedCh:     make(chan stopInfo, 1),
+		inspectCh:     make(chan inspectRequest),
+		resumeCh:      make(chan goja.DebugAction),
+		logCh:         make(chan logEntry, 16),
 		doneCh:        make(chan error, 1),
 		disconnectCh:  make(chan struct{}),
 		sourcePathMap: make(map[string]string),
@@ -275,70 +274,14 @@ func eventToReason(event goja.DebugEvent) string {
 }
 
 // setSeq sets the Seq field on any DAP message.
+// All go-dap Response/Event types implement ResponseMessage/EventMessage,
+// giving access to the embedded ProtocolMessage.Seq field.
 func setSeq(msg dap.Message, seq int) {
-	// go-dap messages embed ProtocolMessage which has Seq.
-	// We use JSON round-trip to set it generically. This could be done
-	// more efficiently with a type switch, but send is not hot path.
-	type hasSeq interface {
-		GetSeq() int
-	}
-	// Use reflection-free approach: marshal, patch, unmarshal is overkill.
-	// Instead, use the concrete type knowledge:
 	switch m := msg.(type) {
-	case *dap.InitializeResponse:
-		m.Seq = seq
-	case *dap.LaunchResponse:
-		m.Seq = seq
-	case *dap.AttachResponse:
-		m.Seq = seq
-	case *dap.SetBreakpointsResponse:
-		m.Seq = seq
-	case *dap.SetExceptionBreakpointsResponse:
-		m.Seq = seq
-	case *dap.ConfigurationDoneResponse:
-		m.Seq = seq
-	case *dap.ContinueResponse:
-		m.Seq = seq
-	case *dap.NextResponse:
-		m.Seq = seq
-	case *dap.StepInResponse:
-		m.Seq = seq
-	case *dap.StepOutResponse:
-		m.Seq = seq
-	case *dap.PauseResponse:
-		m.Seq = seq
-	case *dap.StackTraceResponse:
-		m.Seq = seq
-	case *dap.ScopesResponse:
-		m.Seq = seq
-	case *dap.VariablesResponse:
-		m.Seq = seq
-	case *dap.EvaluateResponse:
-		m.Seq = seq
-	case *dap.SetVariableResponse:
-		m.Seq = seq
-	case *dap.ThreadsResponse:
-		m.Seq = seq
-	case *dap.DisconnectResponse:
-		m.Seq = seq
-	case *dap.TerminateResponse:
-		m.Seq = seq
-	case *dap.ErrorResponse:
-		m.Seq = seq
-	case *dap.InitializedEvent:
-		m.Seq = seq
-	case *dap.StoppedEvent:
-		m.Seq = seq
-	case *dap.ContinuedEvent:
-		m.Seq = seq
-	case *dap.TerminatedEvent:
-		m.Seq = seq
-	case *dap.ThreadEvent:
-		m.Seq = seq
-	case *dap.OutputEvent:
-		m.Seq = seq
-	case *dap.ExitedEvent:
-		m.Seq = seq
+	case dap.ResponseMessage:
+		m.GetResponse().Seq = seq
+	case dap.EventMessage:
+		m.GetEvent().Seq = seq
 	}
 }
 
@@ -376,8 +319,8 @@ func ServeTCP(r *goja.Runtime, addr string, runFunc func() error) error {
 type TCPSession struct {
 	// Addr is the address the server is listening on. Useful when the
 	// port was auto-assigned (addr ":0").
-	Addr net.Addr
-	ln   net.Listener
+	Addr  net.Addr
+	ln    net.Listener
 	errCh chan error
 }
 
@@ -521,6 +464,3 @@ func AttachTCP(r *goja.Runtime, addr string) (*AttachSession, error) {
 
 	return as, nil
 }
-
-// Ensure json import is used (for launch args parsing in handlers).
-var _ = json.Unmarshal

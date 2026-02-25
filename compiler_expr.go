@@ -1730,24 +1730,7 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 				enter1.names = s.makeDebugStashNamesMap()
 			}
 			if e.c.debugMode && stackSize > 0 {
-				localIdx := 0
-				for i, b := range s.bindings {
-					if b.name == thisBindingName || b.inStash {
-						continue
-					}
-					if i < int(s.numArgs) {
-						if enter1.dbgNames == nil {
-							enter1.dbgNames = make(map[unistring.String]int)
-						}
-						enter1.dbgNames[b.name] = -(i + 1)
-					} else {
-						if enter1.dbgNames == nil {
-							enter1.dbgNames = make(map[unistring.String]int)
-						}
-						enter1.dbgNames[b.name] = localIdx
-						localIdx++
-					}
-				}
+				enter1.dbgNames = s.makeDebugRegisterNamesMap(true)
 			}
 			enter = &enter1
 			if enterFunc2Mark != -1 {
@@ -1792,24 +1775,7 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 		}
 		// Populate dbgNames so the debugger can see stack-register variables.
 		if e.c.debugMode && (stackSize > 0 || paramsCount > 0) {
-			localIdx := 0
-			for i, b := range s.bindings {
-				if b.name == thisBindingName {
-					continue
-				}
-				if i < int(s.numArgs) {
-					if efl.dbgNames == nil {
-						efl.dbgNames = make(map[unistring.String]int)
-					}
-					efl.dbgNames[b.name] = -(i + 1)
-				} else {
-					if efl.dbgNames == nil {
-						efl.dbgNames = make(map[unistring.String]int)
-					}
-					efl.dbgNames[b.name] = localIdx
-					localIdx++
-				}
-			}
+			efl.dbgNames = s.makeDebugRegisterNamesMap(false)
 		}
 		enter = efl
 		if enterFunc2Mark != -1 {

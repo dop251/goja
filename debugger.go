@@ -180,8 +180,8 @@ type Debugger struct {
 
 	// Breakpoint management — protected by bpMu
 	bpMu        sync.RWMutex
-	breakpoints map[int]*Breakpoint              // id -> Breakpoint
-	nextBpID    int                              //nolint:unused
+	breakpoints map[int]*Breakpoint // id -> Breakpoint
+	nextBpID    int
 	bpIndex     map[string]map[int][]*Breakpoint // canonical filename -> line -> breakpoints
 	bpByBase    map[string][]string              // basename -> canonical paths (for cross-resolution)
 	bpCount     int32                            // atomic; fast-path: skip map lookup when 0
@@ -424,7 +424,8 @@ func (d *Debugger) shouldPause(vm *vm) (DebugEvent, *Breakpoint, bool) {
 					if bp.Column == 0 || bp.Column == pos.Column {
 						d.bpMu.RUnlock()
 
-						// Increment hit count
+						// Increment hit count — safe without bpMu because shouldPause
+						// is only called from the VM goroutine, which is the sole writer.
 						bp.hitCount++
 
 						// Check hit condition

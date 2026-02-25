@@ -21,14 +21,19 @@ A [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol/) 
 
 ### 1. Install the VS Code extension
 
-The extension is at `debugger/vscode-goja-debugger/`. Install it in VS Code:
+The extension is at `debugger/vscode-goja-debugger/`. A pre-built `.vsix` is
+included in the repository for convenience. Install it in VS Code:
 
 ```bash
 cd debugger/vscode-goja-debugger
-# Option A: symlink into VS Code extensions directory
+
+# Option A (quickest): install the pre-built VSIX
+code --install-extension vscode-goja-debugger-0.0.3.vsix
+
+# Option B: symlink into VS Code extensions directory
 ln -s "$(pwd)" ~/.vscode-server/extensions/vscode-goja-debugger
 
-# Option B: package and install as VSIX
+# Option C: package a fresh VSIX and install
 npx @vscode/vsce package
 code --install-extension vscode-goja-debugger-*.vsix
 ```
@@ -127,12 +132,12 @@ Set breakpoints in your `.js` or `.ts` files and press **F5**.
 
 Goja supports two compilation modes. The debugger needs debug metadata (`dbgNames` maps) to display `let`/`const` variables and function parameters. Without it, only `var` declarations and closure variables are visible.
 
-| Function | Debug info | Use case |
-| -------- | ---------- | -------- |
-| `goja.Compile()` | No | Production — zero overhead |
-| `goja.CompileForDebug()` | Yes | Pre-compiled programs for debugging |
-| `r.Compile()` | Auto | Detects debugger at compile time |
-| `r.RunString()` / `r.RunScript()` | Auto | Auto-detects if debugger is attached |
+| Function                          | Debug info | Use case                             |
+| --------------------------------- | ---------- | ------------------------------------ |
+| `goja.Compile()`                  | No         | Production — zero overhead           |
+| `goja.CompileForDebug()`          | Yes        | Pre-compiled programs for debugging  |
+| `r.Compile()`                     | Auto       | Detects debugger at compile time     |
+| `r.RunString()` / `r.RunScript()` | Auto       | Auto-detects if debugger is attached |
 
 **Recommendation:** Use `r.Compile()` or `r.RunString()` — they automatically enable debug info when a debugger is attached, and skip it when not.
 
@@ -159,14 +164,14 @@ p, err := r.Compile("script.js", src, false)
 }
 ```
 
-| Field | Description |
-| ----- | ----------- |
-| `program` | Path to the Go package directory (must contain `main.go`) |
-| `args` | Arguments passed to the Go program after `--port` |
-| `port` | TCP port for the DAP server (default: `4711`) |
-| `buildArgs` | Extra flags for `go run` (e.g., `-race`, `-tags`) |
-| `cwd` | Working directory (defaults to `program` directory) |
-| `env` | Extra environment variables |
+| Field       | Description                                               |
+| ----------- | --------------------------------------------------------- |
+| `program`   | Path to the Go package directory (must contain `main.go`) |
+| `args`      | Arguments passed to the Go program after `--port`         |
+| `port`      | TCP port for the DAP server (default: `4711`)             |
+| `buildArgs` | Extra flags for `go run` (e.g., `-race`, `-tags`)         |
+| `cwd`       | Working directory (defaults to `program` directory)       |
+| `env`       | Extra environment variables                               |
 
 The extension runs: `go run [buildArgs...] . --port PORT [args...]`
 
@@ -321,24 +326,24 @@ r.SetDebugger(nil) // detach when done
 
 The hook function returns a `DebugAction` that tells the VM what to do next:
 
-| Action | Behavior |
-| ------ | -------- |
-| `DebugActionContinue` | Resume execution until next breakpoint |
+| Action                | Behavior                                |
+| --------------------- | --------------------------------------- |
+| `DebugActionContinue` | Resume execution until next breakpoint  |
 | `DebugActionStepOver` | Execute current line, stop at next line |
-| `DebugActionStepInto` | Step into function calls |
-| `DebugActionStepOut` | Run until the current function returns |
+| `DebugActionStepInto` | Step into function calls                |
+| `DebugActionStepOut`  | Run until the current function returns  |
 
 ### Debug events
 
 The hook receives a `DebugEvent` indicating why execution paused:
 
-| Event | Trigger |
-| ----- | ------- |
-| `DebugEventBreakpoint` | Hit a breakpoint |
-| `DebugEventStep` | Step operation completed |
-| `DebugEventDebuggerStatement` | `debugger` statement in JS |
-| `DebugEventPause` | `RequestPause()` was called |
-| `DebugEventException` | Exception thrown (when exception breakpoints are active) |
+| Event                         | Trigger                                                  |
+| ----------------------------- | -------------------------------------------------------- |
+| `DebugEventBreakpoint`        | Hit a breakpoint                                         |
+| `DebugEventStep`              | Step operation completed                                 |
+| `DebugEventDebuggerStatement` | `debugger` statement in JS                               |
+| `DebugEventPause`             | `RequestPause()` was called                              |
+| `DebugEventException`         | Exception thrown (when exception breakpoints are active) |
 
 ## Architecture
 
@@ -367,27 +372,27 @@ When the VM pauses, the debug hook blocks the VM goroutine. The server goroutine
 
 ## Supported DAP Requests
 
-| Request | Status |
-| ------- | ------ |
-| initialize | Supported |
-| launch | Supported |
-| attach | Supported |
-| setBreakpoints | Supported (line, conditional, hit count, log point) |
-| setExceptionBreakpoints | Supported (`all`, `uncaught` filters) |
-| configurationDone | Supported |
-| threads | Supported (single thread) |
-| stackTrace | Supported |
-| scopes | Supported |
-| variables | Supported (with object expansion) |
-| setVariable | Supported |
-| evaluate | Supported (in any frame context) |
-| continue | Supported |
-| next (step over) | Supported |
-| stepIn | Supported |
-| stepOut | Supported |
-| pause | Supported |
-| terminate | Supported |
-| disconnect | Supported |
+| Request                 | Status                                              |
+| ----------------------- | --------------------------------------------------- |
+| initialize              | Supported                                           |
+| launch                  | Supported                                           |
+| attach                  | Supported                                           |
+| setBreakpoints          | Supported (line, conditional, hit count, log point) |
+| setExceptionBreakpoints | Supported (`all`, `uncaught` filters)               |
+| configurationDone       | Supported                                           |
+| threads                 | Supported (single thread)                           |
+| stackTrace              | Supported                                           |
+| scopes                  | Supported                                           |
+| variables               | Supported (with object expansion)                   |
+| setVariable             | Supported                                           |
+| evaluate                | Supported (in any frame context)                    |
+| continue                | Supported                                           |
+| next (step over)        | Supported                                           |
+| stepIn                  | Supported                                           |
+| stepOut                 | Supported                                           |
+| pause                   | Supported                                           |
+| terminate               | Supported                                           |
+| disconnect              | Supported                                           |
 
 ## Thread Safety
 

@@ -926,6 +926,31 @@ func (s *scope) makeDebugStashNamesMap() map[unistring.String]uint32 {
 	return names
 }
 
+// makeDebugRegisterNamesMap builds a debug names map for stack-register (non-stash)
+// variables so the debugger can see them. Arguments are encoded with negative
+// indices (-(argIndex+1)), locals with sequential non-negative indices.
+// When skipInStash is true, bindings that live in the stash are skipped (used
+// for functions that have both stash and register variables).
+func (s *scope) makeDebugRegisterNamesMap(skipInStash bool) map[unistring.String]int {
+	names := make(map[unistring.String]int, len(s.bindings))
+	localIdx := 0
+	for i, b := range s.bindings {
+		if b.name == thisBindingName || (skipInStash && b.inStash) {
+			continue
+		}
+		if i < int(s.numArgs) {
+			names[b.name] = -(i + 1)
+		} else {
+			names[b.name] = localIdx
+			localIdx++
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return names
+}
+
 func (s *scope) isDynamic() bool {
 	return s.dynLookup || s.dynamic
 }
