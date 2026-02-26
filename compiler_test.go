@@ -4841,6 +4841,49 @@ func TestOptChainCallee(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestOptChainDelete(t *testing.T) {
+	const SCRIPT = `
+	{
+		const o = {
+			a: 1,
+		}
+		const a = {
+			b: {
+				c: 123,
+				d: 1,
+			},
+			f: () => o,
+		};
+		assert(delete a.b?.c);
+		assert(!('c' in a.b));
+		assert(delete a.z?.c);
+		assert(delete a.z?.().c);
+		assert(delete a.f?.().a);
+		assert(!('a' in o));
+	}
+
+	{
+		const o = {
+			a: 1,
+		}
+		const a = {
+			b: {
+				c: 123,
+				d: 1,
+			},
+			f: () => o,
+		};
+		delete a.b?.c;
+		assert(!('c' in a.b));
+		delete a.z?.c;
+		delete a.z?.().c;
+		delete a.f?.().a;
+		assert(!('a' in o));
+	}
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestObjectLiteralSuper(t *testing.T) {
 	const SCRIPT = `
 	const proto = {
