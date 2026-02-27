@@ -193,6 +193,10 @@ func (r *Runtime) enqueuePromiseJob(job func()) {
 func (r *Runtime) triggerPromiseReactions(reactions []*promiseReaction, argument Value) {
 	for _, reaction := range reactions {
 		r.enqueuePromiseJob(r.newPromiseReactionJob(reaction, argument))
+		// Call the promise reaction hook if attached
+		if h := r.runtimeHook; h != nil && reaction.capability != nil {
+			h.OnPromiseReaction(r, reaction.capability.promise)
+		}
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	"golang.org/x/text/collate"
@@ -205,6 +206,15 @@ type Runtime struct {
 	// Stack for tracking objects currently being converted to string
 	// to detect and handle circular references
 	toStringStack []*Object
+
+	runtimeHook      RuntimeHook
+	debugPaused      bool
+	debugPausedMutex sync.Mutex
+	debugPausedCond  *sync.Cond
+
+	// Track loaded programs for debugger access
+	loadedPrograms     []*Program
+	loadedProgramsLock sync.RWMutex
 }
 
 type StackFrame struct {
@@ -235,6 +245,20 @@ func (f *StackFrame) Position() file.Position {
 		return file.Position{}
 	}
 	return f.prg.src.Position(f.prg.sourceOffset(f.pc))
+}
+
+// PC returns the program counter for this stack frame.
+func (f *StackFrame) PC() int {
+	return f.pc
+}
+
+// SourceCode returns the source code for this stack frame's file.
+// Returns empty string if source is not available (e.g., native code).
+func (f *StackFrame) SourceCode() string {
+	if f.prg == nil || f.prg.src == nil {
+		return ""
+	}
+	return f.prg.src.Source()
 }
 
 func (f *StackFrame) WriteToValueBuilder(b *StringBuilder) {
@@ -457,6 +481,9 @@ func (r *Runtime) init() {
 		r: r,
 	}
 	r.vm.init()
+
+	// Initialize debug synchronization
+	r.debugPausedCond = sync.NewCond(&r.debugPausedMutex)
 }
 
 func (r *Runtime) typeErrorResult(throw bool, args ...interface{}) {
@@ -1435,6 +1462,9 @@ func asUncatchableException(v interface{}) error {
 
 // RunProgram executes a pre-compiled (see Compile()) code in the global context.
 func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
+	// Track loaded program for debugger
+	r.trackProgram(p)
+
 	vm := r.vm
 	recursive := len(vm.callStack) > 0
 	defer func() {
@@ -2452,6 +2482,240 @@ func (r *Runtime) SetParserOptions(opts ...parser.Option) {
 // from the vm goroutine or when the vm is not running.
 func (r *Runtime) SetMaxCallStackSize(size int) {
 	r.vm.maxCallStackSize = size
+}
+
+// SetRuntimeHook attaches a runtime hook for instrumentation. Pass nil to detach.
+// The hook will be called at various execution points (instructions, function calls, etc.)
+// and can be used to build debuggers, profilers, tracers, or coverage tools.
+func (r *Runtime) SetRuntimeHook(h RuntimeHook) {
+	r.runtimeHook = h
+}
+
+// GetRuntimeHook returns the attached runtime hook, or nil if none.
+func (r *Runtime) GetRuntimeHook() RuntimeHook {
+	return r.runtimeHook
+}
+
+// IsPaused returns true if execution is paused by the debugger.
+func (r *Runtime) IsPaused() bool {
+	r.debugPausedMutex.Lock()
+	paused := r.debugPaused
+	r.debugPausedMutex.Unlock()
+	return paused
+}
+
+// Resume continues execution after a debugger pause.
+// Returns an error if the runtime is not paused.
+func (r *Runtime) Resume() error {
+	r.debugPausedMutex.Lock()
+	defer r.debugPausedMutex.Unlock()
+	if !r.debugPaused {
+		return errors.New("runtime is not paused")
+	}
+	r.debugPaused = false
+	r.debugPausedCond.Broadcast()
+	return nil
+}
+
+// ScopeType represents the type of a scope.
+type ScopeType int
+
+const (
+	ScopeLocal   ScopeType = iota // Function local scope
+	ScopeClosure                  // Closure (captured variables)
+	ScopeBlock                    // Block scope (let/const in block)
+	ScopeGlobal                   // Global scope
+	ScopeWith                     // With statement scope
+)
+
+// String returns a string representation of the scope type.
+func (t ScopeType) String() string {
+	switch t {
+	case ScopeLocal:
+		return "local"
+	case ScopeClosure:
+		return "closure"
+	case ScopeBlock:
+		return "block"
+	case ScopeGlobal:
+		return "global"
+	case ScopeWith:
+		return "with"
+	default:
+		return "unknown"
+	}
+}
+
+// Scope represents a scope in the scope chain.
+type Scope struct {
+	Type      ScopeType
+	Name      string           // Function name or descriptive name
+	Variables map[string]Value // Variables in this scope
+}
+
+// VMState represents low-level VM state for advanced debugging.
+type VMState struct {
+	PC        int  // Program counter
+	SP        int  // Stack pointer
+	SB        int  // Stack base
+	CallDepth int  // Number of nested function calls
+	TryDepth  int  // Number of active try blocks
+	InAsync   bool // True if executing in a resumed async continuation (after await)
+}
+
+// Scopes returns the scope chain at the current execution point.
+// Each scope contains its type and the variables defined in it.
+// This is useful for debuggers to show variable values.
+func (r *Runtime) Scopes() []Scope {
+	vm := r.vm
+	scopes := make([]Scope, 0)
+
+	for s := vm.stash; s != nil; s = s.outer {
+		scope := Scope{
+			Variables: make(map[string]Value),
+		}
+
+		// Determine scope type
+		if s.obj != nil {
+			if s.obj == r.globalObject {
+				scope.Type = ScopeGlobal
+				scope.Name = "global"
+			} else {
+				scope.Type = ScopeWith
+				scope.Name = "with"
+			}
+			// Get properties from object
+			for _, key := range s.obj.self.stringKeys(false, nil) {
+				keyStr := key.String()
+				if v := s.obj.self.getStr(unistring.NewFromString(keyStr), nil); v != nil {
+					scope.Variables[keyStr] = v
+				}
+			}
+		} else {
+			// Check if this is a function scope or block scope
+			if s.funcType != funcNone {
+				scope.Type = ScopeLocal
+				scope.Name = "local"
+			} else if s.outer != nil && s.outer.funcType != funcNone {
+				scope.Type = ScopeBlock
+				scope.Name = "block"
+			} else {
+				scope.Type = ScopeClosure
+				scope.Name = "closure"
+			}
+			// Get variables from names map
+			for name, idx := range s.names {
+				realIdx := idx & ^uint32(maskTyp)
+				if int(realIdx) < len(s.values) {
+					v := s.values[realIdx]
+					if v != nil {
+						scope.Variables[name.String()] = v
+					}
+				}
+			}
+		}
+
+		scopes = append(scopes, scope)
+	}
+
+	return scopes
+}
+
+// VMState returns the current low-level VM state.
+// This is useful for advanced debugging and profiling.
+func (r *Runtime) VMState() VMState {
+	vm := r.vm
+	return VMState{
+		PC:        vm.pc,
+		SP:        vm.sp,
+		SB:        vm.sb,
+		CallDepth: len(vm.callStack),
+		TryDepth:  len(vm.tryStack),
+		InAsync:   vm.curAsyncRunner != nil,
+	}
+}
+
+// trackProgram registers a program for debugger access.
+func (r *Runtime) trackProgram(p *Program) {
+	if p == nil {
+		return
+	}
+	r.loadedProgramsLock.Lock()
+	defer r.loadedProgramsLock.Unlock()
+	// Check if already tracked
+	for _, existing := range r.loadedPrograms {
+		if existing == p {
+			return
+		}
+	}
+	r.loadedPrograms = append(r.loadedPrograms, p)
+}
+
+// LoadedScript represents information about a loaded JavaScript source.
+type LoadedScript struct {
+	Name   string // filename or URL
+	Source string // source code
+}
+
+// LoadedScripts returns information about all scripts loaded into this runtime.
+// This is useful for debuggers to list available scripts for setting breakpoints.
+func (r *Runtime) LoadedScripts() []LoadedScript {
+	r.loadedProgramsLock.RLock()
+	defer r.loadedProgramsLock.RUnlock()
+
+	// Use a map to deduplicate by source file (multiple programs can share a source)
+	seen := make(map[string]bool)
+	var scripts []LoadedScript
+
+	for _, p := range r.loadedPrograms {
+		if p.src == nil {
+			continue
+		}
+		name := p.src.Name()
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		scripts = append(scripts, LoadedScript{
+			Name:   name,
+			Source: p.src.Source(),
+		})
+	}
+	return scripts
+}
+
+// FindPCsForLine returns all program counters (PCs) that correspond to the given
+// source file and line number. This is useful for setting breakpoints in top-level code.
+// The returned PCs can be used with OnInstruction hook to implement breakpoints.
+//
+// Note: This only works for top-level code in programs run via RunProgram.
+// Code inside functions has its own internal Program that isn't tracked here.
+// For breakpoints inside functions, use OnInstruction to match by position:
+//
+//	h.OnInstruction = func(rt *Runtime, pc int) HookResult {
+//	    frames := rt.CaptureCallStack(1, nil)
+//	    pos := frames[0].Position()
+//	    if pos.Filename == targetFile && pos.Line == targetLine {
+//	        // breakpoint hit
+//	    }
+//	}
+func (r *Runtime) FindPCsForLine(filename string, line int) []int {
+	r.loadedProgramsLock.RLock()
+	defer r.loadedProgramsLock.RUnlock()
+
+	var pcs []int
+	for _, p := range r.loadedPrograms {
+		if p.src == nil || p.src.Name() != filename {
+			continue
+		}
+		for _, item := range p.srcMap {
+			pos := p.src.Position(item.srcPos)
+			if pos.Line == line {
+				pcs = append(pcs, item.pc)
+			}
+		}
+	}
+	return pcs
 }
 
 // New is an equivalent of the 'new' operator allowing to call it directly from Go.
