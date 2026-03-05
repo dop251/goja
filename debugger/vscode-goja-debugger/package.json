@@ -1,0 +1,103 @@
+{
+  "name": "vscode-goja-debugger",
+  "displayName": "Goja JavaScript Debugger",
+  "description": "Debug JavaScript/TypeScript running in any Go application that embeds goja with DAP support",
+  "version": "0.0.3",
+  "publisher": "goja",
+  "engines": { "vscode": "^1.70.0" },
+  "categories": ["Debuggers"],
+  "activationEvents": ["onDebugResolve:goja"],
+  "main": "./extension.js",
+  "contributes": {
+    "breakpoints": [
+      { "language": "javascript" },
+      { "language": "typescript" }
+    ],
+    "debuggers": [
+      {
+        "type": "goja",
+        "label": "Goja JavaScript",
+        "configurationAttributes": {
+          "launch": {
+            "required": ["program"],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Path to the Go package directory that embeds goja"
+              },
+              "args": {
+                "type": "array",
+                "description": "Arguments passed to the Go program (after --port)",
+                "items": { "type": "string" },
+                "default": []
+              },
+              "port": {
+                "type": "number",
+                "description": "TCP port for the goja DAP server",
+                "default": 4711
+              },
+              "host": {
+                "type": "string",
+                "description": "Host for the goja DAP server",
+                "default": "127.0.0.1"
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Working directory (defaults to program directory)"
+              },
+              "env": {
+                "type": "object",
+                "description": "Extra environment variables",
+                "additionalProperties": { "type": "string" }
+              },
+              "buildArgs": {
+                "type": "array",
+                "description": "Extra arguments for 'go run' (e.g. -tags, -race)",
+                "items": { "type": "string" },
+                "default": []
+              }
+            }
+          },
+          "attach": {
+            "properties": {
+              "port": {
+                "type": "number",
+                "description": "TCP port of the running goja DAP server",
+                "default": 4711
+              },
+              "host": {
+                "type": "string",
+                "description": "Host of the running goja DAP server",
+                "default": "127.0.0.1"
+              }
+            }
+          }
+        },
+        "configurationSnippets": [
+          {
+            "label": "Goja: Launch",
+            "description": "Build & launch a Go program with goja DAP debugging",
+            "body": {
+              "type": "goja",
+              "request": "launch",
+              "name": "Debug in goja",
+              "program": "^\"\\${workspaceFolder}\"",
+              "args": [],
+              "port": 4711
+            }
+          },
+          {
+            "label": "Goja: Attach",
+            "description": "Attach to a running goja DAP server",
+            "body": {
+              "type": "goja",
+              "request": "attach",
+              "name": "Attach to goja",
+              "port": 4711
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
