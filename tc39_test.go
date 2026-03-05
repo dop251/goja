@@ -193,9 +193,6 @@ var (
 		"test/built-ins/RegExp/nullable-quantifier.js":               true,
 		"test/built-ins/RegExp/lookahead-quantifier-match-groups.js": true,
 
-		// Fixed in https://github.com/grafana/sobek/pull/115
-		"test/built-ins/GeneratorPrototype/return/try-finally-set-property-within-try.js": true,
-
 		// TypedArray internals
 		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-reflect-set.js":                            true,
 		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-proto.js":                    true,
