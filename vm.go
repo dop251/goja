@@ -4782,6 +4782,7 @@ func (leaveTry) exec(vm *vm) {
 		vm.pc = int(tf.finallyPos)
 		tf.finallyPos = -1
 		tf.catchPos = -1
+		vm.sp, vm.stash = int(tf.sp), tf.stash
 	} else {
 		vm.popTryFrame()
 		vm.pc++

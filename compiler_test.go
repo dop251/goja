@@ -1143,6 +1143,25 @@ func TestReturnOutOfTryWithFinally(t *testing.T) {
 	testScript(SCRIPT, asciiString("Hello, world!"), t)
 }
 
+func TestReturnOutOfTryWithFinally1(t *testing.T) {
+	const SCRIPT = `
+	function run(fx) {
+		let valid = true;
+		try {
+			return 1;
+			
+			let ready = false;
+			() => ready && valid && fx; // put all these into stash
+		} finally {
+			// if stash is still inner, this will panic because 'valid'' is at index 1 and inner stash has only 1 variable ('ready')
+			valid = false;
+		}
+	}
+	run();
+`
+	testScript(SCRIPT, intToValue(1), t)
+}
+
 func TestContinueLoop(t *testing.T) {
 	const SCRIPT = `
 	function A() {
