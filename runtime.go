@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/text/collate"
@@ -1307,14 +1308,28 @@ func New() *Runtime {
 // method. This representation is not linked to a runtime in any way and can be run in multiple runtimes (possibly
 // at the same time).
 func Compile(name, src string, strict bool) (*Program, error) {
-	return compile(name, src, strict, true, nil)
+	return compile(name, src, strict, true, false, nil)
+}
+
+// CompileForDebug is like Compile but also generates debug variable maps.
+// Programs compiled with this function allow the debugger to inspect
+// stack-register variables (let/const in optimized scopes, function arguments).
+// Use this when attaching a Debugger to the runtime.
+func CompileForDebug(name, src string, strict bool) (*Program, error) {
+	return compile(name, src, strict, true, true, nil)
 }
 
 // CompileAST creates an internal representation of the JavaScript code that can be later run using the Runtime.RunProgram()
 // method. This representation is not linked to a runtime in any way and can be run in multiple runtimes (possibly
 // at the same time).
 func CompileAST(prg *js_ast.Program, strict bool) (*Program, error) {
-	return compileAST(prg, strict, true, nil)
+	return compileAST(prg, strict, true, false, nil)
+}
+
+// CompileASTForDebug is like CompileAST but also generates debug variable maps.
+// See CompileForDebug for details.
+func CompileASTForDebug(prg *js_ast.Program, strict bool) (*Program, error) {
+	return compileAST(prg, strict, true, true, nil)
 }
 
 // MustCompile is like Compile but panics if the code cannot be compiled.
@@ -1350,17 +1365,18 @@ func Parse(name, src string, options ...parser.Option) (prg *js_ast.Program, err
 	return
 }
 
-func compile(name, src string, strict, inGlobal bool, evalVm *vm, parserOptions ...parser.Option) (p *Program, err error) {
+func compile(name, src string, strict, inGlobal, debugMode bool, evalVm *vm, parserOptions ...parser.Option) (p *Program, err error) {
 	prg, err := Parse(name, src, parserOptions...)
 	if err != nil {
 		return
 	}
 
-	return compileAST(prg, strict, inGlobal, evalVm)
+	return compileAST(prg, strict, inGlobal, debugMode, evalVm)
 }
 
-func compileAST(prg *js_ast.Program, strict, inGlobal bool, evalVm *vm) (p *Program, err error) {
+func compileAST(prg *js_ast.Program, strict, inGlobal, debugMode bool, evalVm *vm) (p *Program, err error) {
 	c := newCompiler()
+	c.debugMode = debugMode
 
 	defer func() {
 		if x := recover(); x != nil {
@@ -1380,7 +1396,7 @@ func compileAST(prg *js_ast.Program, strict, inGlobal bool, evalVm *vm) (p *Prog
 }
 
 func (r *Runtime) compile(name, src string, strict, inGlobal bool, evalVm *vm) (p *Program, err error) {
-	p, err = compile(name, src, strict, inGlobal, evalVm, r.parserOptions...)
+	p, err = compile(name, src, strict, inGlobal, r.vm.dbg != nil, evalVm, r.parserOptions...)
 	if err != nil {
 		switch x1 := err.(type) {
 		case *CompilerSyntaxError:
@@ -1527,6 +1543,33 @@ func (r *Runtime) Interrupt(v interface{}) {
 // only called when the runtime has finished and there is no chance of a concurrent Interrupt() call.
 func (r *Runtime) ClearInterrupt() {
 	r.vm.ClearInterrupt()
+}
+
+// Compile creates an internal representation of the JavaScript code, automatically
+// including debug variable maps when a Debugger is attached to this runtime.
+// This is the preferred compile method when a program will be run on a specific
+// runtime that may have a debugger, as opposed to the package-level Compile()
+// which has no runtime context.
+func (r *Runtime) Compile(name, src string, strict bool) (*Program, error) {
+	return compile(name, src, strict, true, r.vm.dbg != nil, nil, r.parserOptions...)
+}
+
+// SetDebugger attaches or detaches a debugger to/from the runtime.
+// When attached, the VM uses a debug-aware execution loop that checks for
+// breakpoints and stepping at statement boundaries.
+// Pass nil to disable debugging. This must be called before starting execution
+// or while the VM is paused in a debug hook.
+func (r *Runtime) SetDebugger(dbg *Debugger) {
+	r.vm.dbg = dbg
+}
+
+// RequestPause requests the runtime to pause at the next statement boundary.
+// This is safe to call from any goroutine.
+// The pause will be reported as a DebugEventPause to the debug hook.
+func (r *Runtime) RequestPause() {
+	if dbg := r.vm.dbg; dbg != nil {
+		atomic.StoreUint32(&dbg.pauseRequested, 1)
+	}
 }
 
 /*
