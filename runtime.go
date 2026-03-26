@@ -550,7 +550,7 @@ func (r *Runtime) NewTypeError(args ...interface{}) *Object {
 }
 
 func (r *Runtime) NewGoError(err error) *Object {
-	e := r.newError(r.getGoError(), err.Error()).(*Object)
+	e := r.newError(r.getGoError(), "%s", err.Error()).(*Object)
 	e.Set("value", err)
 	return e
 }
@@ -1389,7 +1389,7 @@ func (r *Runtime) compile(name, src string, strict, inGlobal bool, evalVm *vm) (
 			}
 		case *CompilerReferenceError:
 			err = &Exception{
-				val: r.newError(r.getReferenceError(), x1.Message),
+				val: r.newError(r.getReferenceError(), "%s", x1.Message),
 			} // TODO proper message
 		}
 	}

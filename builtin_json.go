@@ -25,7 +25,7 @@ func (r *Runtime) builtinJSON_parse(call FunctionCall) Value {
 		panic(r.newError(r.getSyntaxError(), "Unexpected end of JSON input (%v)", err.Error()))
 	}
 	if err != nil {
-		panic(r.newError(r.getSyntaxError(), err.Error()))
+		panic(r.newError(r.getSyntaxError(), "%s", err.Error()))
 	}
 
 	if tok, err := d.Token(); err != io.EOF {
