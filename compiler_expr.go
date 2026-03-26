@@ -256,7 +256,7 @@ func (c *compiler) compileExpression(v ast.Expression) compiledExpr {
 		r.init(c, v.Idx0())
 		return r
 	case *ast.SuperExpression:
-		c.throwSyntaxError(int(v.Idx0())-1, "'super' keyword unexpected here")
+		c.throwSyntaxError(int(v.Idx0())-1, "%s", "'super' keyword unexpected here")
 		panic("unreachable")
 	case *ast.SequenceExpression:
 		return c.compileSequenceExpression(v)
@@ -2983,7 +2983,7 @@ func (e *compiledRegexpLiteral) emitGetter(putOnStack bool) {
 	if putOnStack {
 		pattern, err := compileRegexp(e.expr.Pattern, e.expr.Flags)
 		if err != nil {
-			e.c.throwSyntaxError(e.offset, err.Error())
+			e.c.throwSyntaxError(e.offset, "%s", err.Error())
 		}
 
 		e.c.emit(&newRegexp{pattern: pattern, src: newStringValue(e.expr.Pattern)})

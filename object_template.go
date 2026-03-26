@@ -2,10 +2,11 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dop251/goja/unistring"
 	"math"
 	"reflect"
 	"sort"
+
+	"github.com/dop251/goja/unistring"
 )
 
 type templatePropFactory func(*Runtime) Value

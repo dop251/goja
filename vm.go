@@ -5843,15 +5843,15 @@ func (vm *vm) exceptionFromValue(x interface{}) *Exception {
 		}
 	case referenceError:
 		ex = &Exception{
-			val: vm.r.newError(vm.r.getReferenceError(), string(x1)),
+			val: vm.r.newError(vm.r.getReferenceError(), "%s", string(x1)),
 		}
 	case rangeError:
 		ex = &Exception{
-			val: vm.r.newError(vm.r.getRangeError(), string(x1)),
+			val: vm.r.newError(vm.r.getRangeError(), "%s", string(x1)),
 		}
 	case syntaxError:
 		ex = &Exception{
-			val: vm.r.newError(vm.r.getSyntaxError(), string(x1)),
+			val: vm.r.newError(vm.r.getSyntaxError(), "%s", string(x1)),
 		}
 	default:
 		/*
