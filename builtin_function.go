@@ -126,8 +126,18 @@ func (r *Runtime) boundCallable(target func(FunctionCall) Value, boundArgs []Val
 	} else {
 		this = _undefined
 	}
+	if len(args) == 0 {
+		return func(call FunctionCall) Value {
+			return target(FunctionCall{
+				This:      this,
+				Arguments: call.Arguments,
+			})
+		}
+	}
 	return func(call FunctionCall) Value {
-		a := append(args, call.Arguments...)
+		a := make([]Value, len(args)+len(call.Arguments))
+		copy(a, args)
+		copy(a[len(args):], call.Arguments)
 		return target(FunctionCall{
 			This:      this,
 			Arguments: a,
@@ -144,8 +154,18 @@ func (r *Runtime) boundConstruct(f *Object, target func([]Value, *Object) *Objec
 		args = make([]Value, len(boundArgs)-1)
 		copy(args, boundArgs[1:])
 	}
+	if len(args) == 0 {
+		return func(fargs []Value, newTarget *Object) *Object {
+			if newTarget == f {
+				newTarget = nil
+			}
+			return target(fargs, newTarget)
+		}
+	}
 	return func(fargs []Value, newTarget *Object) *Object {
-		a := append(args, fargs...)
+		a := make([]Value, len(args)+len(fargs))
+		copy(a, args)
+		copy(a[len(args):], fargs)
 		if newTarget == f {
 			newTarget = nil
 		}

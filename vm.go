@@ -390,7 +390,7 @@ type instruction interface {
 }
 
 func intToValue(i int64) Value {
-	if idx := 256 + i; idx >= 0 && idx < 256 {
+	if idx := 256 + i; idx >= 0 && idx < 512 {
 		return intCache[idx]
 	}
 	if i >= -maxInt && i <= maxInt {
@@ -603,6 +603,9 @@ func (vm *vm) init() {
 	vm.sb = -1
 	vm.stash = &vm.r.global.stash
 	vm.maxCallStackSize = math.MaxInt32
+	if vm.callStack == nil {
+		vm.callStack = make([]context, 0, 64)
+	}
 }
 
 func (vm *vm) halted() bool {
