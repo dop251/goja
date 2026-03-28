@@ -57,7 +57,7 @@ var (
 	reflectTypeError    = reflect.TypeOf((*error)(nil)).Elem()
 )
 
-var intCache [256]Value
+var intCache [512]Value
 
 // Value represents an ECMAScript value.
 //
@@ -1193,7 +1193,7 @@ func typeErrorResult(throw bool, args ...interface{}) {
 }
 
 func init() {
-	for i := 0; i < 256; i++ {
+	for i := 0; i < 512; i++ {
 		intCache[i] = valueInt(i - 256)
 	}
 }
