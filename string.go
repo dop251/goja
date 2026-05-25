@@ -329,6 +329,8 @@ func devirtualizeString(s String) (asciiString, unicodeString) {
 			return "", s.u
 		}
 		return asciiString(s.s), nil
+	case *concatString:
+		return devirtualizeString(s.flatten())
 	default:
 		panic(unknownStringTypeErr(s))
 	}

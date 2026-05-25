@@ -317,17 +317,65 @@ func (s asciiString) Length() int {
 }
 
 func (s asciiString) Concat(other String) String {
-	a, u := devirtualizeString(other)
-	if u != nil {
-		b := make([]uint16, len(s)+len(u))
+	switch o := other.(type) {
+	case asciiString:
+		totalLen := len(s) + len(o)
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: o, length: totalLen}
+		}
+		return s + o
+	case unicodeString:
+		totalLen := len(s) + o.Length()
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: o, length: totalLen}
+		}
+		b := make([]uint16, len(s)+len(o))
 		b[0] = unistring.BOM
 		for i := 0; i < len(s); i++ {
 			b[i+1] = uint16(s[i])
 		}
-		copy(b[len(s)+1:], u[1:])
+		copy(b[len(s)+1:], o[1:])
 		return unicodeString(b)
+	case *importedString:
+		o.ensureScanned()
+		if o.u != nil {
+			totalLen := len(s) + o.u.Length()
+			if totalLen > concatThreshold {
+				return &concatString{left: s, right: o.u, length: totalLen}
+			}
+			b := make([]uint16, len(s)+len(o.u))
+			b[0] = unistring.BOM
+			for i := 0; i < len(s); i++ {
+				b[i+1] = uint16(s[i])
+			}
+			copy(b[len(s)+1:], o.u[1:])
+			return unicodeString(b)
+		}
+		totalLen := len(s) + len(o.s)
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: asciiString(o.s), length: totalLen}
+		}
+		return s + asciiString(o.s)
+	case *concatString:
+		totalLen := len(s) + o.length
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: o, length: totalLen}
+		}
+		flat := o.flatten()
+		a, u := devirtualizeString(flat)
+		if u != nil {
+			b := make([]uint16, len(s)+len(u))
+			b[0] = unistring.BOM
+			for i := 0; i < len(s); i++ {
+				b[i+1] = uint16(s[i])
+			}
+			copy(b[len(s)+1:], u[1:])
+			return unicodeString(b)
+		}
+		return s + a
+	default:
+		panic(unknownStringTypeErr(other))
 	}
-	return s + a
 }
 
 func (s asciiString) Substring(start, end int) String {
@@ -342,6 +390,8 @@ func (s asciiString) CompareTo(other String) int {
 		return strings.Compare(string(s), other.String())
 	case *importedString:
 		return strings.Compare(string(s), other.s)
+	case *concatString:
+		return strings.Compare(string(s), other.String())
 	default:
 		panic(newTypeError("Internal bug: unknown string type: %T", other))
 	}

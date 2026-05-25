@@ -5280,6 +5280,15 @@ func (n concatStrings) exec(vm *vm) {
 				strs[i] = asciiString(s.s)
 				length += len(s.s)
 			}
+		case *concatString:
+			flat := s.flatten()
+			strs[i] = flat
+			if _, ok := flat.(asciiString); ok {
+				length += flat.Length()
+			} else {
+				length += flat.Length()
+				allAscii = false
+			}
 		default:
 			panic(unknownStringTypeErr(s))
 		}

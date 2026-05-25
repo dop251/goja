@@ -474,6 +474,8 @@ func (r *Runtime) stringproto_normalize(call FunctionCall) Value {
 			return asciiString(s.s)
 		}
 		return newStringValue(f.String(s.s))
+	case *concatString:
+		return newStringValue(f.String(s.String()))
 	default:
 		panic(unknownStringTypeErr(s))
 	}
