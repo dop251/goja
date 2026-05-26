@@ -175,6 +175,45 @@ func (p *regexpPattern) findAllSubmatchIndex(s String, start int, limit int, sti
 	return p.regexp2Wrapper.findAllSubmatchIndex(s, start, limit, sticky, p.unicode)
 }
 
+// cacheKey returns a unique string key for this pattern+flags combination.
+// Used by the RegExp literal cache.
+func (p *regexpPattern) cacheKey() string {
+	var flags [6]byte
+	var n int
+	if p.global {
+		flags[n] = 'g'
+		n++
+	}
+	if p.ignoreCase {
+		flags[n] = 'i'
+		n++
+	}
+	if p.multiline {
+		flags[n] = 'm'
+		n++
+	}
+	if p.dotAll {
+		flags[n] = 's'
+		n++
+	}
+	if p.unicode {
+		flags[n] = 'u'
+		n++
+	}
+	if p.sticky {
+		flags[n] = 'y'
+		n++
+	}
+	return p.src + "\x00" + string(flags[:n])
+}
+
+// isCacheable returns true if this pattern can be safely cached across evaluations.
+// All patterns are cacheable; for global/sticky patterns we reset lastIndex=0 on each
+// cached access, which is safe for the dominant use-cases (test/replace/match).
+func (p *regexpPattern) isCacheable() bool {
+	return true
+}
+
 // clone creates a copy of the regexpPattern which can be used concurrently.
 func (p *regexpPattern) clone() *regexpPattern {
 	ret := &regexpPattern{

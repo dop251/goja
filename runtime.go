@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	"golang.org/x/text/collate"
@@ -205,6 +206,11 @@ type Runtime struct {
 	// Stack for tracking objects currently being converted to string
 	// to detect and handle circular references
 	toStringStack []*Object
+
+	// RegExp literal cache: when enabled, identical RegExp literals evaluate to the same object.
+	// Safe for non-global/non-sticky patterns. Off by default for ES5 spec compliance.
+	regexpLiteralCache     map[string]*regexpObject
+	regexpLiteralCacheOnce sync.Once
 }
 
 type StackFrame struct {
@@ -457,6 +463,21 @@ func (r *Runtime) init() {
 		r: r,
 	}
 	r.vm.init()
+}
+
+// EnableRegExpLiteralCache enables caching of RegExp literal objects.
+// When enabled, evaluating the same RegExp literal multiple times returns the
+// same object instance, avoiding repeated allocations.
+//
+// This is safe for patterns without the 'global' or 'sticky' flags because
+// those flags mutate lastIndex. Such patterns are never cached.
+//
+// This is a non-standard optimization; disable it if you need strict ES5
+// semantics for RegExp identity (===) or lastIndex behavior.
+func (r *Runtime) EnableRegExpLiteralCache() {
+	r.regexpLiteralCacheOnce.Do(func() {
+		r.regexpLiteralCache = make(map[string]*regexpObject)
+	})
 }
 
 func (r *Runtime) typeErrorResult(throw bool, args ...interface{}) {

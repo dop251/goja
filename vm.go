@@ -2818,7 +2818,24 @@ type newRegexp struct {
 }
 
 func (n *newRegexp) exec(vm *vm) {
-	vm.push(vm.r.newRegExpp(n.pattern.clone(), n.src, vm.r.getRegExpPrototype()).val)
+	var obj *regexpObject
+	if cache := vm.r.regexpLiteralCache; cache != nil && n.pattern.isCacheable() {
+		key := n.pattern.cacheKey()
+		if cached, ok := cache[key]; ok {
+			obj = cached
+			// Reset lastIndex for global/sticky patterns to avoid cross-evaluation pollution.
+			// Safe because replace/test/match internally manage lastIndex anyway.
+			if n.pattern.global || n.pattern.sticky {
+				obj.setOwnStr(unistring.String("lastIndex"), intToValue(0), true)
+			}
+		} else {
+			obj = vm.r.newRegExpp(n.pattern.clone(), n.src, vm.r.getRegExpPrototype())
+			cache[key] = obj
+		}
+	} else {
+		obj = vm.r.newRegExpp(n.pattern.clone(), n.src, vm.r.getRegExpPrototype())
+	}
+	vm.push(obj.val)
 	vm.pc++
 }
 
