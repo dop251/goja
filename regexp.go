@@ -2,14 +2,14 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dlclark/regexp2"
-	"github.com/dop251/goja/unistring"
 	"io"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"unicode/utf16"
+
+	"github.com/dlclark/regexp2/v2"
+	"github.com/dop251/goja/unistring"
 )
 
 type regexp2MatchCache struct {
@@ -74,41 +74,20 @@ type regexpResult struct {
 }
 
 func (result *regexpResult) appendIndexesAndGroup(index1, index2 int, name string) {
-	if _, err := strconv.Atoi(name); err == nil {
-		// The regexp2 package assigns a name to all capture groups,
-		// even those that have not been named using (?<name>exp).
-		// These automatic names are integers converted to strings.
-		// Since strings like "1" are not valid ECMAScript identifiers,
-		// ignore the name returned by regexp2 and instead use an empty
-		// string.
-		// FIXME: Add a validation stage to regular expression parsing
-		// that ensures that all groups with invalid names are only named
-		// like so because regexp2 assigned that name, not because the
-		// regular expression contained that name itself.
-		name = ""
-	}
 	result.indexes = append(result.indexes, index1, index2)
 	result.groups = append(result.groups, name)
 }
 
-func submatchesToRegexpResults(submatches [][]int) []regexpResult {
+func submatchesToRegexpResults(submatches [][]int, groups []string) []regexpResult {
 	results := make([]regexpResult, 0, len(submatches))
 	for _, val := range submatches {
-		results = append(results, regexpResult{indexes: val})
+		results = append(results, regexpResult{indexes: val, groups: groups})
 	}
 	return results
 }
 
-func regexpResultsToSubmatches(results []regexpResult) [][]int {
-	submatches := make([][]int, 0, len(results))
-	for _, val := range results {
-		submatches = append(submatches, val.indexes)
-	}
-	return submatches
-}
-
 func compileRegexp2(src string, multiline, dotAll, ignoreCase, unicode bool) (*regexp2Wrapper, error) {
-	var opts regexp2.RegexOptions = regexp2.ECMAScript
+	var opts = regexp2.ECMAScript
 	if multiline {
 		opts |= regexp2.Multiline
 	}
@@ -292,7 +271,7 @@ func (r *regexp2Wrapper) findSubmatchIndexUTF16(s String, start int, doCache boo
 	}
 	for _, group := range groups {
 		if len(group.Captures) > 0 {
-			result.appendIndexesAndGroup(group.Index, group.Index+group.Length, group.Name)
+			result.appendIndexesAndGroup(group.RuneIndex, group.RuneIndex+group.RuneLength, group.Name)
 		} else {
 			result.appendIndexesAndGroup(-1, 0, group.Name)
 		}
@@ -357,7 +336,7 @@ func (r *regexp2Wrapper) findSubmatchIndexUnicode(s String, start int, doCache b
 	}
 	for _, group := range groups {
 		if len(group.Captures) > 0 {
-			result.appendIndexesAndGroup(posMap[group.Index], posMap[group.Index+group.Length], group.Name)
+			result.appendIndexesAndGroup(posMap[group.RuneIndex], posMap[group.RuneIndex+group.RuneLength], group.Name)
 		} else {
 			result.appendIndexesAndGroup(-1, 0, group.Name)
 		}
@@ -385,8 +364,8 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUTF16(s String, start, limit int, s
 
 		for _, group := range groups {
 			if len(group.Captures) > 0 {
-				startPos := group.Index
-				endPos := group.Index + group.Length
+				startPos := group.RuneIndex
+				endPos := group.RuneIndex + group.RuneLength
 				result.appendIndexesAndGroup(startPos, endPos, group.Name)
 			} else {
 				result.appendIndexesAndGroup(-1, 0, group.Name)
@@ -471,8 +450,8 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUnicode(s unicodeString, start, lim
 
 		for _, group := range groups {
 			if len(group.Captures) > 0 {
-				start := posMap[group.Index]
-				end := posMap[group.Index+group.Length]
+				start := posMap[group.RuneIndex]
+				end := posMap[group.RuneIndex+group.RuneLength]
 				result.appendIndexesAndGroup(start, end, group.Name)
 			} else {
 				result.appendIndexesAndGroup(-1, 0, group.Name)
@@ -514,7 +493,7 @@ func (r *regexp2Wrapper) clone() *regexp2Wrapper {
 
 func (r *regexpWrapper) findAllSubmatchIndex(s string, limit int, sticky bool) []regexpResult {
 	wrapped := (*regexp.Regexp)(r)
-	results := submatchesToRegexpResults(wrapped.FindAllStringSubmatchIndex(s, limit))
+	results := submatchesToRegexpResults(wrapped.FindAllStringSubmatchIndex(s, limit), wrapped.SubexpNames())
 	pos := 0
 	if sticky {
 		for i, result := range results {
@@ -539,7 +518,7 @@ func (r *regexpWrapper) findSubmatchIndex(s String, fullUnicode bool) regexpResu
 
 func (r *regexpWrapper) findSubmatchIndexASCII(s string) regexpResult {
 	wrapped := (*regexp.Regexp)(r)
-	return regexpResult{indexes: wrapped.FindStringSubmatchIndex(s)}
+	return regexpResult{indexes: wrapped.FindStringSubmatchIndex(s), groups: wrapped.SubexpNames()}
 }
 
 func (r *regexpWrapper) findSubmatchIndexUnicode(s unicodeString, fullUnicode bool) regexpResult {
@@ -554,11 +533,45 @@ func (r *regexpWrapper) findSubmatchIndexUnicode(s unicodeString, fullUnicode bo
 		}
 		return result
 	}
-	return regexpResult{indexes: wrapped.FindReaderSubmatchIndex(s.utf16RuneReader())}
+	return regexpResult{indexes: wrapped.FindReaderSubmatchIndex(s.utf16RuneReader()), groups: wrapped.SubexpNames()}
 }
 
 func (r *regexpWrapper) clone() *regexpWrapper {
 	return r
+}
+
+func (r *Runtime) createRegexpGroupsObj(valueArray []Value, groupNames []string) *Object {
+	var groups *baseObject
+	for index := 1; index < len(valueArray); index++ {
+		if index < len(groupNames) {
+			name := groupNames[index]
+			if name == "" {
+				continue
+			} else if groups == nil {
+				groups = r.newBaseObject(nil, classObject)
+			}
+			groups.setOwnStr(unistring.NewFromString(name), valueArray[index], false)
+		}
+	}
+	if groups != nil {
+		return groups.val
+	}
+	return nil
+}
+
+func createRegexpGroupsMap(result regexpResult) (groups map[unistring.String]int) {
+	if len(result.groups) > 0 {
+		groups = make(map[unistring.String]int)
+		for i := 1; i < len(result.groups); i++ {
+			if group := result.groups[i]; group != "" {
+				idx := i * 2
+				if idx < len(result.indexes)-1 {
+					groups[unistring.NewFromString(group)] = idx
+				}
+			}
+		}
+	}
+	return
 }
 
 func (r *regexpObject) execResultToArray(target String, result regexpResult) Value {
@@ -580,24 +593,20 @@ func (r *regexpObject) execResultToArray(target String, result regexpResult) Val
 	match.self.setOwnStr("input", target, false)
 	match.self.setOwnStr("index", intToValue(int64(matchIndex)), false)
 
-	var groups *baseObject
-	for index := 1; index < captureCount && len(result.groups) > 0; index++ {
-		name := result.groups[index]
-		if name == "" {
-			continue
-		} else if groups == nil {
-			groups = r.val.runtime.newBaseObject(nil, classObject)
-		}
-		groups.setOwnStr(unistring.String(name), valueArray[index], false)
-	}
+	groups := r.val.runtime.createRegexpGroupsObj(valueArray, result.groups)
+
+	var groupsVal Value
 	if groups != nil {
-		match.self.defineOwnPropertyStr("groups", PropertyDescriptor{
-			Value:        groups.val,
-			Writable:     FLAG_TRUE,
-			Configurable: FLAG_TRUE,
-			Enumerable:   FLAG_TRUE,
-		}, false)
+		groupsVal = groups
+	} else {
+		groupsVal = _undefined
 	}
+	match.self.defineOwnPropertyStr("groups", PropertyDescriptor{
+		Value:        groupsVal,
+		Writable:     FLAG_TRUE,
+		Configurable: FLAG_TRUE,
+		Enumerable:   FLAG_TRUE,
+	}, false)
 
 	return match
 }
@@ -610,14 +619,14 @@ func (r *regexpObject) getLastIndex() int64 {
 	return lastIndex
 }
 
-func (r *regexpObject) updateLastIndex(index int64, firstResult, lastResult regexpResult) bool {
+func (r *regexpObject) updateLastIndex(index int64, firstResult, lastResult []int) bool {
 	if r.pattern.sticky {
-		if firstResult.indexes == nil || int64(firstResult.indexes[0]) != index {
+		if firstResult == nil || int64(firstResult[0]) != index {
 			r.setOwnStr("lastIndex", intToValue(0), true)
 			return false
 		}
 	} else {
-		if firstResult.indexes == nil {
+		if firstResult == nil {
 			if r.pattern.global {
 				r.setOwnStr("lastIndex", intToValue(0), true)
 			}
@@ -626,7 +635,7 @@ func (r *regexpObject) updateLastIndex(index int64, firstResult, lastResult rege
 	}
 
 	if r.pattern.global || r.pattern.sticky {
-		r.setOwnStr("lastIndex", intToValue(int64(lastResult.indexes[1])), true)
+		r.setOwnStr("lastIndex", intToValue(int64(lastResult[1])), true)
 	}
 	return true
 }
@@ -637,7 +646,7 @@ func (r *regexpObject) execRegexp(target String) (bool, regexpResult) {
 	if index >= 0 && index <= int64(target.Length()) {
 		result = r.pattern.findSubmatchIndex(target, int(index))
 	}
-	match := r.updateLastIndex(index, result, result)
+	match := r.updateLastIndex(index, result.indexes, result.indexes)
 	return match, result
 }
 

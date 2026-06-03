@@ -125,8 +125,6 @@ func TestRegExp(t *testing.T) {
 
 			test(`[G-b\0]`, `[G-b\0]`)
 
-			test(`\k`, `k`)
-
 			test(`\x20`, `\x20`)
 
 			test(`😊`, `😊`)

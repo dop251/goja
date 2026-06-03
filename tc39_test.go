@@ -187,48 +187,22 @@ var (
 		"test/annexB/built-ins/RegExp/RegExp-invalid-control-escape-character-class.js": true,
 		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js":          true,
 
-		// Skip due to regexp named groups
-		"test/built-ins/String/prototype/replaceAll/searchValue-replacer-RegExp-call.js": true,
-
 		"test/built-ins/RegExp/nullable-quantifier.js":               true,
 		"test/built-ins/RegExp/lookahead-quantifier-match-groups.js": true,
 
-		"test/annexB/built-ins/RegExp/named-groups/non-unicode-malformed.js":                           true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups-prop.js":                  true,
-		"test/built-ins/RegExp/named-groups/unicode-property-names.js":                                 true,
-		"test/built-ins/RegExp/named-groups/unicode-property-names-valid.js":                           true,
-		"test/built-ins/RegExp/named-groups/unicode-property-names-invalid.js":                         true,
-		"test/built-ins/RegExp/named-groups/unicode-match.js":                                          true,
-		"test/built-ins/RegExp/named-groups/string-replace-missing.js":                                 true,
-		"test/built-ins/RegExp/named-groups/string-replace-get.js":                                     true,
-		"test/built-ins/RegExp/named-groups/non-unicode-property-names.js":                             true,
-		"test/built-ins/RegExp/named-groups/non-unicode-property-names-valid.js":                       true,
-		"test/built-ins/RegExp/named-groups/non-unicode-match.js":                                      true,
-		"test/built-ins/RegExp/named-groups/groups-object-unmatched.js":                                true,
-		"test/built-ins/RegExp/named-groups/string-replace-undefined.js":                               true,
-		"test/built-ins/RegExp/named-groups/groups-object-undefined.js":                                true,
-		"test/built-ins/RegExp/named-groups/groups-object-subclass.js":                                 true,
-		"test/built-ins/RegExp/named-groups/functional-replace-non-global.js":                          true,
-		"test/built-ins/RegExp/named-groups/groups-object-subclass-sans.js":                            true,
-		"test/built-ins/RegExp/named-groups/functional-replace-global.js":                              true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/result-get-groups-prop-err.js":                 true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/result-get-groups-err.js":                      true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups.js":                       true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups-prop-err.js":              true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-groups-err.js":                   true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/poisoned-stdlib.js":                            true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/named-groups.js":                               true,
-		"test/built-ins/RegExp/prototype/Symbol.replace/named-groups-fn.js":                            true,
-		"test/language/literals/regexp/named-groups/invalid-non-id-start-groupspecifier-2-u.js":        true,
-		"test/language/literals/regexp/named-groups/invalid-incomplete-groupname-without-group-u.js":   true,
-		"test/language/literals/regexp/named-groups/invalid-incomplete-groupname-without-group-3-u.js": true,
-		"test/language/literals/regexp/named-groups/invalid-identity-escape-in-capture-u.js":           true,
-		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier.js":               true,
-		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier-2.js":             true,
-		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier-u.js":             true,
-		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier-2-u.js":           true,
-		"test/language/literals/regexp/named-groups/invalid-dangling-groupname-without-group-u.js":     true,
-		"test/language/literals/regexp/named-groups/invalid-incomplete-groupname-without-group-2-u.js": true,
+		// Extended Unicode group names in non-unicode regexp
+		"test/built-ins/RegExp/named-groups/non-unicode-property-names-valid.js": true,
+
+		// \k without groups and Go regex engine
+		"test/annexB/built-ins/RegExp/named-groups/non-unicode-malformed.js": true,
+
+		// Duplicate group name and Go regex engine
+		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier.js":     true,
+		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier-2.js":   true,
+		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier-u.js":   true,
+		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier-2-u.js": true,
+
+		"test/language/literals/regexp/named-groups/invalid-identity-escape-in-capture-u.js": true,
 	}
 
 	featuresBlackList = []string{

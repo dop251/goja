@@ -2,11 +2,12 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dop251/goja/parser"
 	"regexp"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/dop251/goja/parser"
 )
 
 func (r *Runtime) newRegexpObject(proto *Object) *regexpObject {
@@ -1130,6 +1131,9 @@ func (r *Runtime) regexpproto_stdReplacerGeneric(rxObj *Object, s, replaceStr St
 		var replacement String
 		if rcall != nil {
 			captures = append(captures, intToValue(int64(position)), s)
+			if namedCaptures := nilSafe(obj.self.getStr("groups", nil)); namedCaptures != _undefined {
+				captures = append(captures, namedCaptures)
+			}
 			replacement = rcall(FunctionCall{
 				This:      _undefined,
 				Arguments: captures,
@@ -1140,6 +1144,10 @@ func (r *Runtime) regexpproto_stdReplacerGeneric(rxObj *Object, s, replaceStr St
 				nextSourcePosition = position + matchLength
 			}
 		} else {
+			var namedCaptures *Object
+			if c := nilSafe(obj.self.getStr("groups", nil)); c != _undefined {
+				namedCaptures = c.ToObject(r)
+			}
 			if position >= nextSourcePosition {
 				resultBuf.WriteString(s.Substring(nextSourcePosition, position))
 				writeSubstitution(s, position, len(captures), func(idx int) String {
@@ -1148,6 +1156,15 @@ func (r *Runtime) regexpproto_stdReplacerGeneric(rxObj *Object, s, replaceStr St
 						return capture.toString()
 					}
 					return stringEmpty
+				}, func(ref String) String {
+					if namedCaptures != nil {
+						capture := nilSafe(namedCaptures.self.getStr(ref.string(), nil))
+						if capture != _undefined {
+							return capture.toString()
+						}
+						return stringEmpty
+					}
+					return nil
 				}, replaceStr, &resultBuf)
 				nextSourcePosition = position + matchLength
 			}
@@ -1159,7 +1176,7 @@ func (r *Runtime) regexpproto_stdReplacerGeneric(rxObj *Object, s, replaceStr St
 	return resultBuf.String()
 }
 
-func writeSubstitution(s String, position int, numCaptures int, getCapture func(int) String, replaceStr String, buf *StringBuilder) {
+func writeSubstitution(s String, position int, numCaptures int, getCapture func(int) String, getNamedCapture func(String) String, replaceStr String, buf *StringBuilder) {
 	l := s.Length()
 	rl := replaceStr.Length()
 	matched := getCapture(0)
@@ -1180,6 +1197,26 @@ func writeSubstitution(s String, position int, numCaptures int, getCapture func(
 				}
 			case '&':
 				buf.WriteString(matched)
+			case '<':
+				var ref String
+				j := i + 2
+				for ; j < rl; j++ {
+					ch := replaceStr.CharAt(j)
+					if ch == '>' {
+						ref = replaceStr.Substring(i+2, j)
+						break
+					}
+				}
+				if ref != nil {
+					capture := getNamedCapture(ref)
+					if capture != nil {
+						buf.WriteString(capture)
+						i = j
+						continue
+					}
+				}
+				buf.WriteRune('$')
+				buf.WriteRune('<')
 			default:
 				matchNumber := 0
 				j := i + 1
@@ -1232,15 +1269,13 @@ func (r *Runtime) regexpproto_stdReplacer(call FunctionCall) Value {
 	}
 	results := rx.pattern.findAllSubmatchIndex(s, toIntStrict(index), find, rx.pattern.sticky)
 	if len(results) > 0 {
-		if !rx.updateLastIndex(index, results[0], results[len(results)-1]) {
+		if !rx.updateLastIndex(index, results[0].indexes, results[len(results)-1].indexes) {
 			results = nil
 		}
 	} else {
-		empty := regexpResult{}
-		rx.updateLastIndex(index, empty, empty)
+		rx.updateLastIndex(index, nil, nil)
 	}
-
-	return stringReplace(s, regexpResultsToSubmatches(results), replaceStr, rcall)
+	return r.stringReplace(s, results, replaceStr, rcall)
 }
 
 func (r *Runtime) regExpStringIteratorProto_next(call FunctionCall) Value {
