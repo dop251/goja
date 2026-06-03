@@ -2193,7 +2193,7 @@ func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCt
 		}
 	case reflect.Struct:
 		if o, ok := v.(*Object); ok {
-			t := reflect.PtrTo(typ)
+			t := reflect.PointerTo(typ)
 			if v, exists := ctx.getTyped(o, t); exists {
 				dst.Set(reflect.ValueOf(v).Elem())
 				return nil
