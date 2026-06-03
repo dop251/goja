@@ -1087,7 +1087,7 @@ func (r *Runtime) newBigUint64ArrayObject(buf *arrayBufferObject, offset, length
 func (o *dataViewObject) getIdxAndByteOrder(getIdx int, littleEndianVal Value, size int) (int, byteOrder) {
 	o.viewedArrayBuf.ensureNotDetached(true)
 	if getIdx+size > o.byteLen {
-		panic(o.val.runtime.newError(o.val.runtime.getRangeError(), "Index %d is out of bounds", getIdx))
+		panic(o.val.runtime.newErrorf(o.val.runtime.getRangeError(), "Index %d is out of bounds", getIdx))
 	}
 	getIdx += o.byteOffset
 	var bo byteOrder
