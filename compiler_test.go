@@ -1143,6 +1143,25 @@ func TestReturnOutOfTryWithFinally(t *testing.T) {
 	testScript(SCRIPT, asciiString("Hello, world!"), t)
 }
 
+func TestReturnOutOfTryWithFinally1(t *testing.T) {
+	const SCRIPT = `
+	function run(fx) {
+		let valid = true;
+		try {
+			return 1;
+			
+			let ready = false;
+			() => ready && valid && fx; // put all these into stash
+		} finally {
+			// if stash is still inner, this will panic because 'valid'' is at index 1 and inner stash has only 1 variable ('ready')
+			valid = false;
+		}
+	}
+	run();
+`
+	testScript(SCRIPT, intToValue(1), t)
+}
+
 func TestContinueLoop(t *testing.T) {
 	const SCRIPT = `
 	function A() {
@@ -4841,6 +4860,49 @@ func TestOptChainCallee(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestOptChainDelete(t *testing.T) {
+	const SCRIPT = `
+	{
+		const o = {
+			a: 1,
+		}
+		const a = {
+			b: {
+				c: 123,
+				d: 1,
+			},
+			f: () => o,
+		};
+		assert(delete a.b?.c);
+		assert(!('c' in a.b));
+		assert(delete a.z?.c);
+		assert(delete a.z?.().c);
+		assert(delete a.f?.().a);
+		assert(!('a' in o));
+	}
+
+	{
+		const o = {
+			a: 1,
+		}
+		const a = {
+			b: {
+				c: 123,
+				d: 1,
+			},
+			f: () => o,
+		};
+		delete a.b?.c;
+		assert(!('c' in a.b));
+		delete a.z?.c;
+		delete a.z?.().c;
+		delete a.f?.().a;
+		assert(!('a' in o));
+	}
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestObjectLiteralSuper(t *testing.T) {
 	const SCRIPT = `
 	const proto = {
@@ -5884,6 +5946,141 @@ func TestNestedDestructArray(t *testing.T) {
 	assert.sameValue(h2, 2);
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestThisInStash(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		globalThis.x = () => this; // move 'this' to stash
+		
+		{
+            try {
+                throw new Error("boo!");
+            } catch (e) {
+                if (e.message !== 'boo!') {
+					throw new Error("unexpected exception value");
+				}
+            }
+        }
+	}
+
+	function f1() {
+		globalThis.x = () => this; // move 'this' to stash
+		var v; // introduce a stack variable
+
+		{
+            try {
+                throw new Error("boo!");
+            } catch (e) {
+                if (e.message !== 'boo!') {
+					throw new Error("unexpected exception value");
+				}
+            }
+        }
+	}
+
+	f();
+	f1();
+`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestThisInStashCtor(t *testing.T) {
+	const SCRIPT = `
+	class C extends Object {
+		constructor() {
+			super();
+			globalThis.x = () => this; // move 'this' to stash
+			{
+				try {
+					throw new Error("boo!");
+				} catch (e) {
+					if (e.message !== 'boo!') {
+						throw new Error("unexpected exception value");
+					}
+				}
+			}	
+		}
+	}
+
+	class C1 extends Object {
+		constructor() {
+			super();
+			globalThis.x = () => this; // move 'this' to stash
+			var v; // introduce a stack variable
+			{
+				try {
+					throw new Error("boo!");
+				} catch (e) {
+					if (e.message !== 'boo!') {
+						throw new Error("unexpected exception value");
+					}
+				}
+			}	
+		}
+	}
+
+	new C();
+	new C1();
+	undefined;
+`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestWrongThisRest(t *testing.T) {
+	const SCRIPT = `
+	class mine {
+		constructor (arg) {
+			this.field = arg
+		}
+		f(...argument) {
+			if (this.field != "something") {
+				throw "wrong " + this.field + " Object.keys:" + Object.keys(this)
+			}
+			let s = () => {
+				for (const arg of argument) arg.call()
+				return this.field
+			}
+		}
+	}
+	const a = new mine("something")
+	a.f({"SomeKey": "here"})
+`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestWrongThisExtraArg(t *testing.T) {
+	const SCRIPT = `
+	class mine {
+		constructor (arg) {
+			this.field = arg
+		}
+		f() {
+			if (this.field != "something") {
+				throw "wrong " + this.field + " Object.keys:" + Object.keys(this)
+			}
+			globalThis.x = () => this.field;
+		}
+	}
+	const a = new mine("something")
+	a.f({"SomeKey": "here"}) // pass extra arg
+`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestWrongThisForwardRef(t *testing.T) {
+	const SCRIPT = `
+	const expectedThis = {};
+	function f(a = b + 1, b) { // forward ref argument to make sure args remain on stack
+		if (this != expectedThis) {
+			throw new Error("unexpected 'this'");
+		}
+		eval("true"); // make the scope dynamic which copies args to stash
+	}
+
+	f.call(expectedThis, 1, 2);
+`
+	testScript(SCRIPT, _undefined, t)
 }
 
 /*

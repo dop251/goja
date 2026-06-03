@@ -1,8 +1,10 @@
 package goja
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
+	"regexp/syntax"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -242,8 +244,8 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 		patternStr = convertRegexpToUtf16(patternStr)
 	}
 
-	re2Str, err1 := parser.TransformRegExp(patternStr, dotAll, unicode)
-	if err1 == nil {
+	re2Str, err := parser.TransformRegExp(patternStr, dotAll, unicode)
+	if err == nil {
 		re2flags := ""
 		if multiline {
 			re2flags += "m"
@@ -260,15 +262,22 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 
 		pattern, err1 := regexp.Compile(re2Str)
 		if err1 != nil {
-			err = fmt.Errorf("Invalid regular expression (re2): %s (%v)", re2Str, err1)
-			return
+			var syntaxError *syntax.Error
+			if !errors.As(err1, &syntaxError) || syntaxError.Code != syntax.ErrInvalidRepeatSize {
+				err = fmt.Errorf("Invalid regular expression (re2): %s (%v)", re2Str, err1)
+				return
+			}
+		} else {
+			wrapper = (*regexpWrapper)(pattern)
 		}
-		wrapper = (*regexpWrapper)(pattern)
 	} else {
-		if _, incompat := err1.(parser.RegexpErrorIncompatible); !incompat {
-			err = err1
+		var incompat parser.RegexpErrorIncompatible
+		if !errors.As(err, &incompat) {
 			return
 		}
+	}
+
+	if wrapper == nil {
 		wrapper2, err = compileRegexp2(patternStr, multiline, dotAll, ignoreCase, unicode)
 		if err != nil {
 			err = fmt.Errorf("Invalid regular expression (regexp2): %s (%v)", patternStr, err)
@@ -763,16 +772,15 @@ func (r *Runtime) regexpproto_stdMatcher(call FunctionCall) Value {
 		return r.regexpproto_stdMatcherGeneric(thisObj, s)
 	}
 	if rx.pattern.global {
+		rx.setOwnStr("lastIndex", intToValue(0), true)
 		results := rx.pattern.findAllSubmatchIndex(s, 0, -1, rx.pattern.sticky)
 		if len(results) == 0 {
-			rx.setOwnStr("lastIndex", intToValue(0), true)
 			return _null
 		}
 		a := make([]Value, 0, len(results))
 		for _, result := range results {
 			a = append(a, s.Substring(result.indexes[0], result.indexes[1]))
 		}
-		rx.setOwnStr("lastIndex", intToValue(int64(results[len(results)-1].indexes[1])), true)
 		return r.newArrayValues(a)
 	} else {
 		return rx.exec(s)
@@ -1263,19 +1271,18 @@ func (r *Runtime) regexpproto_stdReplacer(call FunctionCall) Value {
 	find := 1
 	if rx.pattern.global {
 		find = -1
-		rx.setOwnStr("lastIndex", intToValue(0), true)
 	} else {
 		index = rx.getLastIndex()
 	}
-	results := rx.pattern.findAllSubmatchIndex(s, toIntStrict(index), find, rx.pattern.sticky)
-	if len(results) > 0 {
-		if !rx.updateLastIndex(index, results[0].indexes, results[len(results)-1].indexes) {
-			results = nil
+	found := rx.pattern.findAllSubmatchIndex(s, toIntStrict(index), find, rx.pattern.sticky)
+	if rx.pattern.global || rx.pattern.sticky {
+		var newLastIndex int64
+		if !rx.pattern.global && len(found) > 0 {
+			newLastIndex = int64(found[len(found)-1].indexes[1])
 		}
-	} else {
-		rx.updateLastIndex(index, nil, nil)
+		rx.setOwnStr("lastIndex", intToValue(newLastIndex), true)
 	}
-	return r.stringReplace(s, results, replaceStr, rcall)
+	return r.stringReplace(s, found, replaceStr, rcall)
 }
 
 func (r *Runtime) regExpStringIteratorProto_next(call FunctionCall) Value {

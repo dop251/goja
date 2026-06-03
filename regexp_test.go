@@ -773,6 +773,39 @@ func TestRegexpUnicodeGroupNames(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestRegExpLastIndex(t *testing.T) {
+	const SCRIPT = `
+	function t(R, type) {
+		const re = new R("x+", "g");
+		re.exec("xxy");
+		assert.sameValue(re.lastIndex, 2, type+": exec");
+		"xxy".replace(re);
+		assert.sameValue(re.lastIndex, 0, type+": replace must reset lastIndex");
+		re.lastIndex = 1;
+		assert.sameValue("xxy".match(re)[0], "xx", type+": match");
+		assert.sameValue(re.lastIndex, 0, type+": match must reset lastIndex");
+	}
+
+	class CustomRegExp extends RegExp {
+		exec(s) {
+			return super.exec(s);
+		}
+	}
+
+	t(RegExp, "std");
+	t(CustomRegExp, "generic");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestRegExpRepeatCount(t *testing.T) {
+	const SCRIPT = `
+	const re = /^0x[0-9a-fA-F]{0,4096}$/;
+	re.test("0xABCD");
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)

@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"bytes"
 	"testing"
 )
 
@@ -319,6 +320,64 @@ func TestTypedArrayDeleteUnconfigurable(t *testing.T) {
 		if (!e.message.startsWith("Cannot delete property")) {
 			throw e;
 		}
+	}
+	`
+
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestTypedArrayExportToBytes(t *testing.T) {
+	const SCRIPT = `
+	const arr = new Uint16Array(10);
+	arr[2] = 0xFFFF; // make sure it's not affected by the platform endianness
+	arr.subarray(2, 4);
+	`
+	vm := New()
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b []byte
+	err = vm.ExportTo(v, &b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(b, []byte{0xFF, 0xFF, 0, 0}) {
+		t.Fatal("unexpected value", b)
+	}
+}
+
+func TestDataViewExportToBytes(t *testing.T) {
+	const SCRIPT = `
+	const arr = new Uint16Array(10);
+	arr[2] = 0xFFFF;
+	new DataView(arr.buffer, 4, 4);
+	`
+	vm := New()
+	v, err := vm.RunString(SCRIPT)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b []byte
+	err = vm.ExportTo(v, &b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(b, []byte{0xFF, 0xFF, 0, 0}) {
+		t.Fatal("unexpected value", b)
+	}
+}
+
+func TestTypedArraySubarraySet(t *testing.T) {
+	const SCRIPT = `
+	const u = new Uint8Array(4)
+	const s = u.subarray(1, 4);
+	s.set([1,2,3], 0);
+	if (s.length !== 3) {
+		throw new Error("s.length=" + s.length + ", expected 3");
+	}
+	if (s[0] !== 1 || s[1] !== 2 || s[2] !== 3) {
+		throw new Error("s=[" + s.join(",") + "], expected [1,2,3]");
 	}
 	`
 

@@ -619,35 +619,22 @@ func (r *regexpObject) getLastIndex() int64 {
 	return lastIndex
 }
 
-func (r *regexpObject) updateLastIndex(index int64, firstResult, lastResult []int) bool {
-	if r.pattern.sticky {
-		if firstResult == nil || int64(firstResult[0]) != index {
-			r.setOwnStr("lastIndex", intToValue(0), true)
-			return false
-		}
-	} else {
-		if firstResult == nil {
-			if r.pattern.global {
-				r.setOwnStr("lastIndex", intToValue(0), true)
-			}
-			return false
-		}
-	}
-
-	if r.pattern.global || r.pattern.sticky {
-		r.setOwnStr("lastIndex", intToValue(int64(lastResult[1])), true)
-	}
-	return true
-}
-
-func (r *regexpObject) execRegexp(target String) (bool, regexpResult) {
+func (r *regexpObject) execRegexp(target String) (match bool, result regexpResult) {
 	index := r.getLastIndex()
-	result := regexpResult{}
 	if index >= 0 && index <= int64(target.Length()) {
 		result = r.pattern.findSubmatchIndex(target, int(index))
 	}
-	match := r.updateLastIndex(index, result.indexes, result.indexes)
-	return match, result
+	match = len(result.indexes) > 0 && (!r.pattern.sticky || int64(result.indexes[0]) == index)
+
+	if r.pattern.global || r.pattern.sticky {
+		var newLastIndex int64
+		if match {
+			newLastIndex = int64(result.indexes[1])
+		}
+		r.setOwnStr("lastIndex", intToValue(newLastIndex), true)
+	}
+
+	return
 }
 
 func (r *regexpObject) exec(target String) Value {
