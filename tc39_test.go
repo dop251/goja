@@ -187,9 +187,6 @@ var (
 		"test/annexB/built-ins/RegExp/RegExp-invalid-control-escape-character-class.js": true,
 		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js":          true,
 
-		// Skip due to regexp named groups
-		"test/built-ins/String/prototype/replaceAll/searchValue-replacer-RegExp-call.js": true,
-
 		"test/built-ins/RegExp/nullable-quantifier.js":               true,
 		"test/built-ins/RegExp/lookahead-quantifier-match-groups.js": true,
 
@@ -298,13 +295,26 @@ var (
 		"test/language/identifiers/start-unicode-15.1.0-class-escaped.js":                                                                   true,
 		"test/language/identifiers/start-unicode-16.0.0-class-escaped.js":                                                                   true,
 		"test/language/identifiers/start-unicode-16.0.0-escaped.js":                                                                         true,
+
+		// Extended Unicode group names in non-unicode regexp
+		"test/built-ins/RegExp/named-groups/non-unicode-property-names-valid.js": true,
+
+		// \k without groups and Go regex engine
+		"test/annexB/built-ins/RegExp/named-groups/non-unicode-malformed.js": true,
+
+		// Duplicate group name and Go regex engine
+		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier.js":     true,
+		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier-2.js":   true,
+		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier-u.js":   true,
+		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier-2-u.js": true,
+
+		"test/language/literals/regexp/named-groups/invalid-identity-escape-in-capture-u.js": true,
 	}
 
 	featuresBlackList = []string{
 		"async-iteration",
 		"Symbol.asyncIterator",
 		"resizable-arraybuffer",
-		"regexp-named-groups",
 		"regexp-duplicate-named-groups",
 		"regexp-unicode-property-escapes",
 		"regexp-match-indices",

@@ -416,8 +416,10 @@ func TestRegexpConsecutiveMatchCache(t *testing.T) {
 		];
 		expectedMatches[0].index = 0;
 		expectedMatches[0].input = 'test1test2';
+		expectedMatches[0].groups = undefined;
 		expectedMatches[1].index = 5;
 		expectedMatches[1].input = 'test1test2';
+		expectedMatches[1].groups = undefined;
 
 		assert(deepEqual(matches, expectedMatches), "#1");
 
@@ -432,6 +434,7 @@ func TestRegexpConsecutiveMatchCache(t *testing.T) {
 		];
 		expectedMatch.index = 1;
 		expectedMatch.input = ' test5';
+		expectedMatch.groups = undefined;
 		assert(deepEqual(match, expectedMatch), "#2");
 		assert.sameValue(regex.lastIndex, 6, "#3");
 
@@ -445,6 +448,7 @@ func TestRegexpConsecutiveMatchCache(t *testing.T) {
 		];
 		expectedMatch.index = 6;
 		expectedMatch.input = ' test5test6';
+		expectedMatch.groups = undefined;
 		assert(deepEqual(match, expectedMatch), "#4");
 		assert.sameValue(regex.lastIndex, 11, "#5");
 
@@ -508,8 +512,10 @@ func TestRegexpMatchAll(t *testing.T) {
 		];
 		expectedMatches[0].index = 0;
 		expectedMatches[0].input = 'test1test2';
+		expectedMatches[0].groups = undefined;
 		expectedMatches[1].index = 5;
 		expectedMatches[1].input = 'test1test2';
+		expectedMatches[1].groups = undefined;
 
 		assert(deepEqual(matches, expectedMatches), "#1");
 		assert.sameValue(regex.lastIndex, 0, "#1 lastIndex");
@@ -530,6 +536,7 @@ func TestRegexpMatchAll(t *testing.T) {
 		];
 		expectedMatches[0].index = 1;
 		expectedMatches[0].input = ' test5';
+		expectedMatches[0].groups = undefined;
 		assert(deepEqual(matches, expectedMatches), "#2");
 		assert.sameValue(regex.lastIndex, 0, "#2 lastIndex");
 
@@ -555,8 +562,10 @@ func TestRegexpMatchAll(t *testing.T) {
 		];
 		expectedMatches[0].index = 1;
 		expectedMatches[0].input = ' test5test6';
+		expectedMatches[0].groups = undefined;
 		expectedMatches[1].index = 6;
 		expectedMatches[1].input = ' test5test6';
+		expectedMatches[1].groups = undefined;
 		assert(deepEqual(matches, expectedMatches), "#3");
 		assert.sameValue(regex.lastIndex, 0, "#3 lastindex");
 	});
@@ -750,6 +759,16 @@ func TestRegexpUnicodeEscape(t *testing.T) {
 	assert.sameValue("u{0_2}".match(/\u{0_2}/)[0], "u{0_2}");
 	assert.sameValue("uu\x02".match(/\u{2}/u)[0], '\x02');
 	assert.sameValue("uu\x02".match(/\u{2}/)[0], "uu");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestRegexpUnicodeGroupNames(t *testing.T) {
+	const SCRIPT = `
+	var string = "The quick brown fox jumped over the lazy dog's back";
+	let match = string.match(/(?<狸>fox).*(?<狗>dog)/);
+	assert.sameValue(match.groups.狸, "fox");
+	assert.sameValue(match.groups.狗, "dog");
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
