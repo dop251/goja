@@ -58,20 +58,6 @@ func arraySpeciesCreate(obj *Object, size int64) *Object {
 	return obj.runtime.newArrayLength(size)
 }
 
-func max(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int64) int64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func relToIdx(rel, l int64) int64 {
 	if rel >= 0 {
 		return min(rel, l)

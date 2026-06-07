@@ -202,9 +202,6 @@ var (
 		"test/built-ins/TypedArray/prototype/with/value-throw-completion.js":                                               true,
 		"test/built-ins/TypedArray/prototype/slice/speciesctor-return-same-buffer-with-offset.js":                          true,
 
-		// String prototype regexp-capture-by-index (regexp named groups)
-		"test/built-ins/String/prototype/replace/regexp-capture-by-index.js": true,
-
 		// RegExp CharacterClassEscapes
 		"test/built-ins/RegExp/CharacterClassEscapes/character-class-word-class-escape-positive-cases.js":           true,
 		"test/built-ins/RegExp/CharacterClassEscapes/character-class-word-class-escape-negative-cases.js":           true,

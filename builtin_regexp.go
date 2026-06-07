@@ -1226,23 +1226,24 @@ func writeSubstitution(s String, position int, numCaptures int, getCapture func(
 				buf.WriteRune('$')
 				buf.WriteRune('<')
 			default:
-				matchNumber := 0
+				index := 0
 				j := i + 1
-				for j < rl {
+				lim := min(j+2, rl)
+
+				for ; j < lim; j++ {
 					ch := replaceStr.CharAt(j)
 					if ch >= '0' && ch <= '9' {
-						m := matchNumber*10 + int(ch-'0')
+						m := index*10 + int(ch-'0')
 						if m >= numCaptures {
 							break
 						}
-						matchNumber = m
-						j++
+						index = m
 					} else {
 						break
 					}
 				}
-				if matchNumber > 0 {
-					buf.WriteString(getCapture(matchNumber))
+				if index > 0 {
+					buf.WriteString(getCapture(index))
 					i = j - 1
 					continue
 				} else {
