@@ -333,3 +333,11 @@ NodeJS Compatibility
 --------------------
 
 There is a [separate project](https://github.com/dop251/goja_nodejs) aimed at providing some of the NodeJS functionality.
+
+
+Tools
+-----
+
+Name|Description
+:--|:--
+[gojs-tool](https://github.com/gogap/gojs-tool)|A tool for goja to convert go packages to js require modules
