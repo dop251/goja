@@ -383,3 +383,27 @@ func TestTypedArraySubarraySet(t *testing.T) {
 
 	testScript(SCRIPT, _undefined, t)
 }
+
+func TestTypedArrayWithOffset(t *testing.T) {
+	const SCRIPT = `
+	var buf = new ArrayBuffer(16);
+	var src = new Uint8Array(buf, 4, 4);
+	src[0] = 10; src[1] = 20; src[2] = 30; src[3] = 40;
+	var result = src.with(1, 99);
+	result[0] === 10 && result[1] === 99 && result[2] === 30 && result[3] === 40
+		&& result.length === 4 && src[1] === 20;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestTypedArrayToReversedOffset(t *testing.T) {
+	const SCRIPT = `
+	var buf = new ArrayBuffer(16);
+	var src = new Uint8Array(buf, 4, 4);
+	src[0] = 10; src[1] = 20; src[2] = 30; src[3] = 40;
+	var result = src.toReversed();
+	result[0] === 40 && result[1] === 30 && result[2] === 20 && result[3] === 10
+		&& result.length === 4 && src[0] === 10;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
