@@ -407,3 +407,84 @@ func TestTypedArrayToReversedOffset(t *testing.T) {
 	`
 	testScript(SCRIPT, valueTrue, t)
 }
+
+func TestTypedArraySliceEvilSpecies(t *testing.T) {
+	// If typedArraySpeciesCreate() returns an array with non-zero offset, the offset must be taken into account
+	// by the slice() method.
+	const SCRIPT = `
+	let count = 0;
+	class EvilArray extends Uint8Array {
+		constructor(length) {
+			super(length);
+			if (++count === 1) {
+				return;
+			}
+			const buf = new ArrayBuffer(length+1);
+			const ret = new Uint8Array(buf, 1, length);
+			Object.setPrototypeOf(ret, EvilArray.prototype);
+			return ret;
+		}
+	}
+
+	const a = new EvilArray(2);
+	a[0] = 1;
+	a[1] = 2;
+
+	a.slice(1, 2)[0];
+	`
+	testScript(SCRIPT, intToValue(2), t)
+}
+
+func TestTypedArraySliceEvilSpecies1(t *testing.T) {
+	// If typedArraySpeciesCreate() returns an array with non-zero offset and different type, the offset must be taken into account
+	// by the slice() method.
+	const SCRIPT = `
+	let count = 0;
+	class EvilArray extends Uint8Array {
+		constructor(length) {
+			super(length);
+			if (++count === 1) {
+				return;
+			}
+			const buf = new ArrayBuffer((length+1)*2);
+			const ret = new Uint16Array(buf, 2, length);
+			Object.setPrototypeOf(ret, EvilArray.prototype);
+			return ret;
+		}
+	}
+
+	const a = new EvilArray(2);
+	a[0] = 1;
+	a[1] = 2;
+
+	a.slice(1, 2)[0];
+	`
+	testScript(SCRIPT, intToValue(2), t)
+}
+
+func TestTypedArrayMapEvilSpecies(t *testing.T) {
+	// If typedArraySpeciesCreate() returns an array with non-zero offset, the offset must be taken into account
+	// by the map() method.
+	const SCRIPT = `
+	let count = 0;
+	class EvilArray extends Uint8Array {
+		constructor(length) {
+			super(length);
+			if (++count === 1) {
+				return;
+			}
+			const buf = new ArrayBuffer(length+1);
+			const ret = new Uint8Array(buf, 1, length);
+			Object.setPrototypeOf(ret, EvilArray.prototype);
+			return ret;
+		}
+	}
+
+	const a = new EvilArray(2);
+	a[0] = 1;
+	a[1] = 2;
+
+	a.map(x => x)[0];
+	`
+	testScript(SCRIPT, intToValue(1), t)
+}

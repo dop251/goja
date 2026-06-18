@@ -901,7 +901,7 @@ func (r *Runtime) typedArrayProto_map(call FunctionCall) Value {
 				fc.Arguments[0] = _undefined
 			}
 			fc.Arguments[1] = intToValue(int64(i))
-			dst.typedArray.set(i, callbackFn(fc))
+			dst.typedArray.set(dst.offset+i, callbackFn(fc))
 		}
 		return dst.val
 	}
@@ -1093,12 +1093,12 @@ func (r *Runtime) typedArrayProto_slice(call FunctionCall) Value {
 				ta.viewedArrayBuf.ensureNotDetached(true)
 				offset := ta.offset
 				elemSize := ta.elemSize
-				copy(dst.viewedArrayBuf.data, ta.viewedArrayBuf.data[(offset+start)*elemSize:(offset+start+count)*elemSize])
+				copy(dst.viewedArrayBuf.data[dst.offset:], ta.viewedArrayBuf.data[(offset+start)*elemSize:(offset+start+count)*elemSize])
 			}
 		} else {
 			for i := 0; i < count; i++ {
 				ta.viewedArrayBuf.ensureNotDetached(true)
-				dst.typedArray.set(i, ta.typedArray.get(ta.offset+start+i))
+				dst.typedArray.set(dst.offset+i, ta.typedArray.get(ta.offset+start+i))
 			}
 		}
 		return dst.val
