@@ -1241,7 +1241,7 @@ func (r *Runtime) typedArrayProto_with(call FunctionCall) Value {
 		} else {
 			fromValue = ta.typedArray.get(ta.offset + k)
 		}
-		a.typedArray.set(ta.offset+k, fromValue)
+		a.typedArray.set(k, fromValue)
 	}
 	return a.val
 }
@@ -1260,7 +1260,7 @@ func (r *Runtime) typedArrayProto_toReversed(call FunctionCall) Value {
 	for k := 0; k < length; k++ {
 		from := length - k - 1
 		fromValue := ta.typedArray.get(ta.offset + from)
-		a.typedArray.set(ta.offset+k, fromValue)
+		a.typedArray.set(k, fromValue)
 	}
 
 	return a.val
