@@ -53,6 +53,7 @@ const (
 
 type options struct {
 	disableSourceMaps bool
+	skipEmptySourceMaps bool
 	sourceMapLoader   func(path string) ([]byte, error)
 }
 
@@ -64,6 +65,13 @@ type Option func(*options)
 // are not in use.
 func WithDisableSourceMaps(opts *options) {
 	opts.disableSourceMaps = true
+}
+
+// WithSkipEmptySourceMaps is an option to ignore source maps that are empty rather than fail parsing.
+// This is particulary useful for code compiled from TypeScript. The TypeScript compiler outputs empty
+// source maps for files containing only type definitions.
+func WithSkipEmptySourceMaps(opts *options) {
+	opts.skipEmptySourceMaps = true
 }
 
 // WithSourceMapLoader is an option to set a custom source map loader. The loader will be given a path or a
