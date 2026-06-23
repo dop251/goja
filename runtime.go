@@ -2931,6 +2931,11 @@ func (r *Runtime) getHash() *maphash.Hash {
 
 // called when the top level function returns normally (i.e. control is passed outside the Runtime).
 func (r *Runtime) leave() {
+	defer func() {
+		r.jobQueue = nil
+		r.promiseJobQueuePriority = false
+		r.vm.stack = nil
+	}()
 	// Re-read the hook per job so mid-batch clearing or replacement
 	// takes effect immediately.
 	for len(r.jobQueue) > 0 {
@@ -2944,9 +2949,6 @@ func (r *Runtime) leave() {
 			}
 		}
 	}
-	r.jobQueue = nil
-	r.promiseJobQueuePriority = false
-	r.vm.stack = nil
 }
 
 // called when the top level function returns (i.e. control is passed outside the Runtime) but it was due to an interrupt
@@ -2962,7 +2964,16 @@ func (r *Runtime) leaveAbrupt() {
 		return
 	}
 	r.leavingAbrupt = true
-	defer func() { r.leavingAbrupt = false }()
+	defer func() {
+		r.leavingAbrupt = false
+		// in a defer so cleanup still runs if hook(job) panics
+		r.jobQueue = nil
+		r.promiseJobQueuePriority = false
+		r.vm.stack = nil
+		r.vm.prg = nil
+		r.vm.sb = -1
+		r.ClearInterrupt()
+	}()
 
 	for len(r.jobQueue) > 0 {
 		if r.promiseJobEnqueuer == nil {
@@ -2975,15 +2986,18 @@ func (r *Runtime) leaveAbrupt() {
 			if hook == nil {
 				break
 			}
-			hook(job)
+			// recover so a panicking hook does not propagate out of
+			// leaveAbrupt; the caller's defer has already set the
+			// InterruptedError, so drop the panic and keep forwarding
+			// the remaining jobs.
+			func() {
+				defer func() {
+					_ = recover()
+				}()
+				hook(job)
+			}()
 		}
 	}
-	r.jobQueue = nil
-	r.promiseJobQueuePriority = false
-	r.vm.stack = nil
-	r.vm.prg = nil
-	r.vm.sb = -1
-	r.ClearInterrupt()
 }
 
 func nilSafe(v Value) Value {

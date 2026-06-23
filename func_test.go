@@ -1881,6 +1881,43 @@ func TestPromiseJobEnqueuer(t *testing.T) {
 			t.Fatalf("expected tracker-enqueued job to precede downstream reaction [1 2], got %v", order)
 		}
 	})
+
+	// A hook that panics during abrupt shutdown must not escape
+	// leaveAbrupt as a raw panic; RunProgram still returns the
+	// original InterruptedError and the runtime stays reusable.
+	t.Run("leaveabrupt-hook-panic-state-consistency", func(t *testing.T) {
+		r := New()
+		sentinel := errors.New("hook bug")
+		r.Set("mark", func() {})
+		r.Set("installPanickingHookAndInterrupt", func() {
+			r.SetPromiseJobEnqueuer(func(job func()) { panic(sentinel) })
+			r.Interrupt("trigger-abrupt")
+		})
+
+		_, err := r.RunString(`
+			Promise.resolve().then(function() { mark(); });
+			installPanickingHookAndInterrupt();
+		`)
+		if err == nil {
+			t.Fatal("expected InterruptedError from RunString, got nil")
+		}
+		if _, ok := err.(*InterruptedError); !ok {
+			t.Fatalf("expected *InterruptedError, got %T: %v", err, err)
+		}
+
+		if r.vm.stack != nil {
+			t.Fatal("vm.stack should be nil after leaveAbrupt hook panic")
+		}
+		if r.vm.prg != nil {
+			t.Fatal("vm.prg should be nil after leaveAbrupt hook panic")
+		}
+		if r.vm.sb != -1 {
+			t.Fatalf("vm.sb should be -1, got %d", r.vm.sb)
+		}
+		if _, err := r.RunString(`1 + 1`); err != nil {
+			t.Fatalf("runtime not reusable after hook panic: %v", err)
+		}
+	})
 }
 
 func TestGeneratorReturnIterCleanup(t *testing.T) {
