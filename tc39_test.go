@@ -440,6 +440,10 @@ type tc39TestCtx struct {
 	sabStub      *Program
 	//lint:ignore U1000 Only used with race
 	testQueue []tc39Test
+
+	// externalPromiseJobs enables a PromiseJobEnqueuer drained via RunPromiseJob
+	// after each RunProgram.
+	externalPromiseJobs bool
 }
 
 type TC39MetaNegative struct {
@@ -550,6 +554,16 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		}
 	}()
 	vm := New()
+
+	// When set, install a PromiseJobEnqueuer and drain via RunPromiseJob after
+	// each RunProgram.
+	var drain func() error
+	if ctx.externalPromiseJobs {
+		runner := &externalJobRunner{vm: vm}
+		vm.SetPromiseJobEnqueuer(runner.enqueue)
+		drain = runner.drain
+	}
+
 	_262 := vm.NewObject()
 	_262.Set("detachArrayBuffer", ctx.detachArrayBuffer)
 	_262.Set("createRealm", ctx.throwIgnorableTestError)
@@ -564,10 +578,13 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 	vm.Set("$262", _262)
 	vm.Set("IgnorableTestError", ignorableTestError)
 	vm.RunProgram(ctx.sabStub)
+	if drain != nil {
+		drain()
+	}
 	var out []string
 	async := meta.hasFlag("async")
 	if async {
-		err := ctx.runFile(ctx.base, path.Join("harness", "doneprintHandle.js"), vm)
+		err := ctx.runFile(ctx.base, path.Join("harness", "doneprintHandle.js"), vm, drain)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -578,7 +595,7 @@ func (ctx *tc39TestCtx) runTC39Test(name, src string, meta *tc39Meta, t testing.
 		vm.Set("print", t.Log)
 	}
 
-	err, early := ctx.runTC39Script(name, src, meta.Includes, vm)
+	err, early := ctx.runTC39Script(name, src, meta.Includes, vm, drain)
 
 	if err != nil {
 		if meta.Negative.Type == "" {
@@ -750,30 +767,36 @@ func (ctx *tc39TestCtx) compile(base, name string) (*Program, error) {
 
 	return prg, nil
 }
-
-func (ctx *tc39TestCtx) runFile(base, name string, vm *Runtime) error {
+func (ctx *tc39TestCtx) runFile(base, name string, vm *Runtime, drain func() error) error {
 	prg, err := ctx.compile(base, name)
 	if err != nil {
 		return err
 	}
+
 	_, err = vm.RunProgram(prg)
-	return err
+	if err != nil {
+		return err
+	}
+	if drain != nil {
+		return drain()
+	}
+	return nil
 }
 
-func (ctx *tc39TestCtx) runTC39Script(name, src string, includes []string, vm *Runtime) (err error, early bool) {
+func (ctx *tc39TestCtx) runTC39Script(name, src string, includes []string, vm *Runtime, drain func() error) (err error, early bool) {
 	early = true
-	err = ctx.runFile(ctx.base, path.Join("harness", "assert.js"), vm)
+	err = ctx.runFile(ctx.base, path.Join("harness", "assert.js"), vm, drain)
 	if err != nil {
 		return
 	}
 
-	err = ctx.runFile(ctx.base, path.Join("harness", "sta.js"), vm)
+	err = ctx.runFile(ctx.base, path.Join("harness", "sta.js"), vm, drain)
 	if err != nil {
 		return
 	}
 
 	for _, include := range includes {
-		err = ctx.runFile(ctx.base, path.Join("harness", include), vm)
+		err = ctx.runFile(ctx.base, path.Join("harness", include), vm, drain)
 		if err != nil {
 			return
 		}
@@ -788,6 +811,12 @@ func (ctx *tc39TestCtx) runTC39Script(name, src string, includes []string, vm *R
 
 	early = false
 	_, err = vm.RunProgram(p)
+	if err != nil {
+		return
+	}
+	if drain != nil {
+		err = drain()
+	}
 
 	return
 }
@@ -817,6 +846,18 @@ func (ctx *tc39TestCtx) runTC39Tests(name string) {
 
 }
 
+// runAllTC39Tests runs the test262 directories shared by all run modes.
+func (ctx *tc39TestCtx) runAllTC39Tests() {
+	ctx.runTC39Tests("test/language")
+	ctx.runTC39Tests("test/built-ins")
+	ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
+	ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimLeft")
+	ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimRight")
+	ctx.runTC39Tests("test/annexB/built-ins/escape")
+	ctx.runTC39Tests("test/annexB/built-ins/unescape")
+	ctx.runTC39Tests("test/annexB/built-ins/RegExp")
+}
+
 func TestTC39(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
@@ -835,15 +876,7 @@ func TestTC39(t *testing.T) {
 	t.Run("tc39", func(t *testing.T) {
 		ctx.t = t
 		//ctx.runTC39File("test/language/types/number/8.5.1.js", t)
-		ctx.runTC39Tests("test/language")
-		ctx.runTC39Tests("test/built-ins")
-		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
-		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimLeft")
-		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimRight")
-		ctx.runTC39Tests("test/annexB/built-ins/escape")
-		ctx.runTC39Tests("test/annexB/built-ins/unescape")
-		ctx.runTC39Tests("test/annexB/built-ins/RegExp")
-
+		ctx.runAllTC39Tests()
 		ctx.flush()
 	})
 
