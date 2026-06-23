@@ -636,13 +636,7 @@ func (vm *vm) run() {
 	}
 
 	if interrupted {
-		vm.interruptLock.Lock()
-		v := &InterruptedError{
-			iface: vm.interruptVal,
-		}
-		v.stack = vm.captureStack(nil, 0)
-		vm.interruptLock.Unlock()
-		panic(v)
+		vm.throwInterrupt()
 	}
 }
 
@@ -687,6 +681,22 @@ func (vm *vm) Interrupt(v interface{}) {
 	vm.interruptVal = v
 	atomic.StoreUint32(&vm.interrupted, 1)
 	vm.interruptLock.Unlock()
+}
+
+func (vm *vm) checkInterrupt() {
+	if atomic.LoadUint32(&vm.interrupted) != 0 {
+		vm.throwInterrupt()
+	}
+}
+
+func (vm *vm) throwInterrupt() {
+	vm.interruptLock.Lock()
+	v := &InterruptedError{
+		iface: vm.interruptVal,
+	}
+	v.stack = vm.captureStack(nil, 0)
+	vm.interruptLock.Unlock()
+	panic(v)
 }
 
 func (vm *vm) ClearInterrupt() {

@@ -37,11 +37,21 @@ var (
 // AsyncContextTracker is a handler that allows to track an async execution context to ensure it remains
 // consistent across all callback invocations.
 // Whenever a Promise reaction job is scheduled the Grab method is called. It is supposed to return the
-// current context. The same context will be supplied to the Resumed method before the reaction job is
-// executed. The Exited method is called after the reaction job is finished.
+// current context. The same context will be supplied to the Resumed method before the reaction handler
+// is invoked. The Exited method is called after the reaction handler returns or throws, but before the
+// derived promise's capability is resolved or rejected, so the tracker does not span downstream resolution
+// (thenable assimilation, reaction triggering).
 // This means that for each invocation of the Grab method there will be exactly one subsequent invocation
 // of Resumed and then Exited methods (assuming the Promise is fulfilled or rejected). Also, the Resumed/Exited
 // calls cannot be nested, so Exited can simply clear the current context instead of popping from a stack.
+//
+// The tracker is captured at reaction scheduling time. If the tracker is replaced or cleared after a
+// reaction is scheduled but before it runs, the pending reaction still uses the tracker that was active
+// when it was scheduled.
+//
+// Resumed and Exited are called for all reaction types, including nil-handler propagation reactions
+// (e.g. Promise.resolve(1).then()).
+//
 // Note, this works for both async functions and regular Promise.then()/Promise.catch() callbacks.
 // See TestAsyncContextTracker for more insight.
 //

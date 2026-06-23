@@ -28,6 +28,25 @@ const (
 
 type PromiseRejectionTracker func(p *Promise, operation PromiseRejectionOperation)
 
+// PromiseJobEnqueuer is a host hook that receives promise jobs instead of
+// queueing them internally (ECMA-262 HostEnqueuePromiseJob). The host is
+// responsible for invoking each job in FIFO order via RunPromiseJob.
+//
+// The hook runs on the runtime's goroutine. Jobs should be captured and run
+// via RunPromiseJob only after the current turn (RunString/RunProgram) returns.
+// Synchronous invocation from within the hook is supported but does not
+// preserve ECMA-262 turn ordering.
+//
+// If set while jobs are already pending in the internal queue, they are
+// forwarded to the hook when the current turn exits. Jobs enqueued after the
+// hook is set are delivered directly during the turn, so they reach the hook
+// before the forwarded (older) jobs. Install the enqueuer before enqueuing any
+// jobs if global FIFO ordering is required.
+//
+// Set to nil (the default) to restore the internal queue.
+// Register via Runtime.SetPromiseJobEnqueuer.
+type PromiseJobEnqueuer func(job func())
+
 type jobCallback struct {
 	callback func(FunctionCall) Value
 }
@@ -38,11 +57,12 @@ type promiseCapability struct {
 }
 
 type promiseReaction struct {
-	capability  *promiseCapability
-	typ         promiseReactionType
-	handler     *jobCallback
-	asyncRunner *asyncRunner
-	asyncCtx    interface{}
+	capability   *promiseCapability
+	typ          promiseReactionType
+	handler      *jobCallback
+	asyncRunner  *asyncRunner
+	asyncCtx     interface{}
+	asyncTracker AsyncContextTracker
 }
 
 var typePromise = reflect.TypeOf((*Promise)(nil))
@@ -154,7 +174,9 @@ func (p *Promise) addReactions(fulfillReaction *promiseReaction, rejectReaction 
 	if tracker := r.asyncContextTracker; tracker != nil {
 		ctx := tracker.Grab()
 		fulfillReaction.asyncCtx = ctx
+		fulfillReaction.asyncTracker = tracker
 		rejectReaction.asyncCtx = ctx
+		rejectReaction.asyncTracker = tracker
 	}
 	switch p.state {
 	case PromiseStatePending:
@@ -187,7 +209,20 @@ func (r *Runtime) newPromiseResolveThenableJob(p *Promise, thenable Value, then 
 }
 
 func (r *Runtime) enqueuePromiseJob(job func()) {
+	// While a tracker scope is active (between Resumed and Exited in
+	// newPromiseReactionJob), buffer jobs internally instead of delivering
+	// them to a synchronous hook. A synchronous hook calling RunPromiseJob
+	// would run the new reaction while the outer tracker is still resumed,
+	// causing nested Resumed() calls. Once buffered jobs exist, later jobs
+	// are also buffered to preserve FIFO.
+	if hook := r.promiseJobEnqueuer; hook != nil && !r.asyncTrackerActive && !r.promiseJobQueuePriority {
+		hook(job)
+		return
+	}
 	r.jobQueue = append(r.jobQueue, job)
+	if r.asyncTrackerActive {
+		r.promiseJobQueuePriority = true
+	}
 }
 
 func (r *Runtime) triggerPromiseReactions(reactions []*promiseReaction, argument Value) {
@@ -200,15 +235,39 @@ func (r *Runtime) newPromiseReactionJob(reaction *promiseReaction, argument Valu
 	return func() {
 		var handlerResult Value
 		fulfill := false
+		// Set up the tracker before checking for a handler so that
+		// nil-handler propagation reactions also observe the
+		// Grab/Resumed/Exited invariant.
+		var tracker AsyncContextTracker
+		var exited bool
+		exitTracker := func() {
+			if tracker != nil && !exited {
+				exited = true
+				defer func() {
+					r.asyncTrackerActive = false
+				}()
+				tracker.Exited()
+			}
+		}
+		if t := reaction.asyncTracker; t != nil {
+			tracker = t
+			r.asyncTrackerActive = true
+			resumed := false
+			defer func() {
+				if !resumed {
+					r.asyncTrackerActive = false
+				}
+			}()
+			tracker.Resumed(reaction.asyncCtx)
+			resumed = true
+			defer exitTracker()
+		}
 		if reaction.handler == nil {
 			handlerResult = argument
 			if reaction.typ == promiseReactionFulfill {
 				fulfill = true
 			}
 		} else {
-			if tracker := r.asyncContextTracker; tracker != nil {
-				tracker.Resumed(reaction.asyncCtx)
-			}
 			ex := r.vm.try(func() {
 				handlerResult = r.callJobCallback(reaction.handler, _undefined, argument)
 				fulfill = true
@@ -216,9 +275,25 @@ func (r *Runtime) newPromiseReactionJob(reaction *promiseReaction, argument Valu
 			if ex != nil {
 				handlerResult = ex.val
 			}
-			if tracker := r.asyncContextTracker; tracker != nil {
-				tracker.Exited()
-			}
+		}
+		// Call Exited before resolving/rejecting the capability so the
+		// tracker brackets only the handler, not downstream resolution
+		// (thenable assimilation, reaction triggering). The defer above
+		// is a safety net for panics that skip this call.
+		//
+		// asyncTrackerActive stays true until Exited() returns so that
+		// promise work enqueued by Exited() itself is buffered rather
+		// than delivered to a synchronous hook.
+		exitTracker()
+		if tracker != nil && len(r.jobQueue) > 0 {
+			// Keep hook delivery paused through capability resolution
+			// so downstream reactions are appended behind the buffered
+			// jobs instead of overtaking them.
+			previousAsyncTrackerActive := r.asyncTrackerActive
+			r.asyncTrackerActive = true
+			defer func() {
+				r.asyncTrackerActive = previousAsyncTrackerActive
+			}()
 		}
 		if reaction.capability != nil {
 			if fulfill {
@@ -643,8 +718,19 @@ func (r *Runtime) SetPromiseRejectionTracker(tracker PromiseRejectionTracker) {
 }
 
 // SetAsyncContextTracker registers a handler that allows to track async execution contexts. See AsyncContextTracker
-// documentation for more details. Setting it to nil disables the functionality.
+// documentation for more details.
+//
+// Changing or clearing the tracker affects only reactions scheduled after the change.
+// Pending reactions retain the tracker that was active when they were scheduled.
+//
 // This method (as Runtime in general) is not goroutine-safe.
 func (r *Runtime) SetAsyncContextTracker(tracker AsyncContextTracker) {
 	r.asyncContextTracker = tracker
+}
+
+// SetPromiseJobEnqueuer registers a hook that receives promise jobs instead of
+// queueing them internally. See PromiseJobEnqueuer for the contract. nil
+// restores the default behaviour. Not goroutine-safe (except Interrupt).
+func (r *Runtime) SetPromiseJobEnqueuer(enqueuer PromiseJobEnqueuer) {
+	r.promiseJobEnqueuer = enqueuer
 }

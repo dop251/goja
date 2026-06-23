@@ -201,6 +201,16 @@ type Runtime struct {
 
 	promiseRejectionTracker PromiseRejectionTracker
 	asyncContextTracker     AsyncContextTracker
+	promiseJobEnqueuer      PromiseJobEnqueuer
+	leavingAbrupt           bool
+	// asyncTrackerActive is true while a reaction job's tracker is between
+	// Resumed and Exited. enqueuePromiseJob buffers jobs instead of delivering
+	// them to a synchronous hook during this window.
+	asyncTrackerActive bool
+	// promiseJobQueuePriority is true when r.jobQueue contains jobs buffered
+	// during a tracker scope. Later jobs are appended to the queue to preserve
+	// FIFO with the buffered jobs.
+	promiseJobQueuePriority bool
 
 	// Stack for tracking objects currently being converted to string
 	// to detect and handle circular references
@@ -1510,6 +1520,10 @@ func (r *Runtime) CaptureCallStack(depth int, stack []StackFrame) []StackFrame {
 // Interrupt a running JavaScript. The corresponding Go call will return an *InterruptedError containing v.
 // If the interrupt propagates until the stack is empty the currently queued promise resolve/reject jobs will be cleared
 // without being executed. This is the same time they would be executed otherwise.
+// If a PromiseJobEnqueuer is set, the queued jobs are forwarded to the hook instead of being cleared.
+// Note that during the abrupt-exit path the interrupt flag is still active when the hook is called, so a
+// synchronous hook that calls RunPromiseJob will see the jobs fail immediately. Capture jobs and drain
+// them after the runtime has recovered.
 // Note, it only works while in JavaScript code, it does not interrupt native Go functions (which includes all built-ins).
 // If the runtime is currently not running, it will be immediately interrupted on the next Run*() call.
 // To avoid that use ClearInterrupt()
@@ -2527,6 +2541,88 @@ func (r *Runtime) runWrapped(f func()) (err error) {
 	return
 }
 
+// RunPromiseJob runs a promise job captured through a PromiseJobEnqueuer hook.
+// Uncatchable exceptions (InterruptedError, StackOverflowError) are recovered
+// and returned; other panics are re-thrown. Not goroutine-safe.
+//
+// The job must be run on the same Runtime that produced it.
+//
+// On success, if the hook is set, any jobs the job enqueued internally are
+// forwarded to the hook. If the hook is nil, they remain in r.jobQueue and run
+// on the next Run*() call. On an uncatchable error, leaveAbrupt() forwards
+// stranded jobs, clears the queue, and resets the interrupt flag.
+//
+// When called reentrantly (from within a running script) the outer operand
+// stack is preserved and leaveAbrupt() is not called. An InterruptedError
+// leaves the interrupt flag set for the outer script; a StackOverflowError is
+// cleared by handleThrow and the outer script can continue.
+func (r *Runtime) RunPromiseJob(job func()) (err error) {
+	recursive := len(r.vm.callStack) > 0
+	if !recursive {
+		// Sentinel so nested RunProgram calls (e.g. a native handler
+		// calling r.RunString) are treated as recursive and do not
+		// drain the job queue via leave().
+		r.vm.callStack = append(r.vm.callStack, context{})
+	}
+	// Pop the sentinel before recover so a panicking hook does not
+	// leave it behind and poison future RunProgram calls.
+	defer func() {
+		if !recursive {
+			r.vm.callStack = r.vm.callStack[:len(r.vm.callStack)-1]
+		}
+		if x := recover(); x != nil {
+			if ex := asUncatchableException(x); ex != nil {
+				err = ex
+				if recursive {
+					r.vm.clearStack()
+				} else {
+					r.leaveAbrupt()
+				}
+			} else {
+				if recursive {
+					r.vm.clearStack()
+				}
+				panic(x)
+			}
+			return
+		}
+		if recursive {
+			r.vm.clearStack()
+		}
+	}()
+	r.vm.checkInterrupt()
+	job()
+	if !recursive {
+		r.vm.prg = nil
+		r.vm.sb = -1
+		r.vm.stack = nil
+	forward:
+		for len(r.jobQueue) > 0 {
+			jobs := r.jobQueue
+			r.jobQueue = nil
+			for i, job := range jobs {
+				// Re-read the hook per job so mid-batch clearing
+				// or replacement takes effect immediately.
+				hook := r.promiseJobEnqueuer
+				if hook == nil {
+					// Remaining jobs are older than anything
+					// the just-run job appended, so keep them
+					// ahead for the next Run*() call.
+					remaining := make([]func(), len(jobs[i:]))
+					copy(remaining, jobs[i:])
+					r.jobQueue = append(remaining, r.jobQueue...)
+					break forward
+				}
+				hook(job)
+			}
+		}
+		if len(r.jobQueue) == 0 {
+			r.promiseJobQueuePriority = false
+		}
+	}
+	return
+}
+
 // IsUndefined returns true if the supplied Value is undefined. Note, it checks against the real undefined, not
 // against the global object's 'undefined' property.
 func IsUndefined(v Value) bool {
@@ -2835,20 +2931,58 @@ func (r *Runtime) getHash() *maphash.Hash {
 
 // called when the top level function returns normally (i.e. control is passed outside the Runtime).
 func (r *Runtime) leave() {
-	var jobs []func()
+	// Re-read the hook per job so mid-batch clearing or replacement
+	// takes effect immediately.
 	for len(r.jobQueue) > 0 {
-		jobs, r.jobQueue = r.jobQueue, jobs[:0]
+		jobs := r.jobQueue
+		r.jobQueue = nil
 		for _, job := range jobs {
-			job()
+			if hook := r.promiseJobEnqueuer; hook != nil {
+				hook(job)
+			} else {
+				job()
+			}
 		}
 	}
 	r.jobQueue = nil
+	r.promiseJobQueuePriority = false
 	r.vm.stack = nil
 }
 
 // called when the top level function returns (i.e. control is passed outside the Runtime) but it was due to an interrupt
 func (r *Runtime) leaveAbrupt() {
+	// Nested calls (from RunPromiseJob's error path inside a hook)
+	// must not clear the interrupt; only the outermost call owns
+	// ClearInterrupt().
+	if r.leavingAbrupt {
+		r.jobQueue = nil
+		r.vm.stack = nil
+		r.vm.prg = nil
+		r.vm.sb = -1
+		return
+	}
+	r.leavingAbrupt = true
+	defer func() { r.leavingAbrupt = false }()
+
+	for len(r.jobQueue) > 0 {
+		if r.promiseJobEnqueuer == nil {
+			break
+		}
+		jobs := r.jobQueue
+		r.jobQueue = nil
+		for _, job := range jobs {
+			hook := r.promiseJobEnqueuer
+			if hook == nil {
+				break
+			}
+			hook(job)
+		}
+	}
 	r.jobQueue = nil
+	r.promiseJobQueuePriority = false
+	r.vm.stack = nil
+	r.vm.prg = nil
+	r.vm.sb = -1
 	r.ClearInterrupt()
 }
 
