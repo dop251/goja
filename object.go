@@ -601,7 +601,7 @@ func (o *baseObject) setForeignIdx(name valueInt, val, receiver Value, throw boo
 	if idx := toIdx(name); idx != math.MaxUint32 {
 		o.ensurePropOrder()
 		if o.idxPropCount == 0 {
-			return o._setForeignIdx(name, name, nil, receiver, throw)
+			return o._setForeignIdx(name, nil, val, receiver, throw)
 		}
 	}
 	return o.setForeignStr(name.string(), val, receiver, throw)
@@ -1476,36 +1476,36 @@ func (o *Object) hasProperty(p Value) bool {
 func (o *Object) setStr(name unistring.String, val, receiver Value, throw bool) bool {
 	if receiver == o {
 		return o.self.setOwnStr(name, val, throw)
-	} else {
-		if res, ok := o.self.setForeignStr(name, val, receiver, throw); !ok {
-			if robj, ok := receiver.(*Object); ok {
-				if prop := robj.self.getOwnPropStr(name); prop != nil {
-					if desc, ok := prop.(*valueProperty); ok {
-						if desc.accessor {
-							o.runtime.typeErrorResult(throw, "Receiver property %s is an accessor", name)
-							return false
-						}
-						if !desc.writable {
-							o.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", name)
-							return false
-						}
+	}
+
+	if res, ok := o.self.setForeignStr(name, val, receiver, throw); !ok {
+		if robj, ok := receiver.(*Object); ok {
+			if prop := robj.self.getOwnPropStr(name); prop != nil {
+				if desc, ok := prop.(*valueProperty); ok {
+					if desc.accessor {
+						o.runtime.typeErrorResult(throw, "Receiver property %s is an accessor", name)
+						return false
 					}
-					return robj.self.defineOwnPropertyStr(name, PropertyDescriptor{Value: val}, throw)
-				} else {
-					return robj.self.defineOwnPropertyStr(name, PropertyDescriptor{
-						Value:        val,
-						Writable:     FLAG_TRUE,
-						Configurable: FLAG_TRUE,
-						Enumerable:   FLAG_TRUE,
-					}, throw)
+					if !desc.writable {
+						o.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", name)
+						return false
+					}
 				}
-			} else {
-				o.runtime.typeErrorResult(throw, "Receiver is not an object: %v", receiver)
-				return false
+				return robj.self.defineOwnPropertyStr(name, PropertyDescriptor{Value: val}, throw)
 			}
-		} else {
-			return res
+
+			return robj.self.defineOwnPropertyStr(name, PropertyDescriptor{
+				Value:        val,
+				Writable:     FLAG_TRUE,
+				Configurable: FLAG_TRUE,
+				Enumerable:   FLAG_TRUE,
+			}, throw)
 		}
+
+		o.runtime.typeErrorResult(throw, "Receiver is not an object: %v", receiver)
+		return false
+	} else {
+		return res
 	}
 }
 
@@ -1534,75 +1534,73 @@ func (o *Object) setOwn(name Value, val Value, throw bool) bool {
 func (o *Object) setIdx(name valueInt, val, receiver Value, throw bool) bool {
 	if receiver == o {
 		return o.self.setOwnIdx(name, val, throw)
-	} else {
-		if res, ok := o.self.setForeignIdx(name, val, receiver, throw); !ok {
-			if robj, ok := receiver.(*Object); ok {
-				if prop := robj.self.getOwnPropIdx(name); prop != nil {
-					if desc, ok := prop.(*valueProperty); ok {
-						if desc.accessor {
-							o.runtime.typeErrorResult(throw, "Receiver property %s is an accessor", name)
-							return false
-						}
-						if !desc.writable {
-							o.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", name)
-							return false
-						}
-					}
-					robj.self.defineOwnPropertyIdx(name, PropertyDescriptor{Value: val}, throw)
-				} else {
-					robj.self.defineOwnPropertyIdx(name, PropertyDescriptor{
-						Value:        val,
-						Writable:     FLAG_TRUE,
-						Configurable: FLAG_TRUE,
-						Enumerable:   FLAG_TRUE,
-					}, throw)
-				}
-			} else {
-				o.runtime.typeErrorResult(throw, "Receiver is not an object: %v", receiver)
-				return false
-			}
-		} else {
-			return res
-		}
 	}
-	return true
+
+	if res, ok := o.self.setForeignIdx(name, val, receiver, throw); !ok {
+		if robj, ok := receiver.(*Object); ok {
+			if prop := robj.self.getOwnPropIdx(name); prop != nil {
+				if desc, ok := prop.(*valueProperty); ok {
+					if desc.accessor {
+						o.runtime.typeErrorResult(throw, "Receiver property %s is an accessor", name)
+						return false
+					}
+					if !desc.writable {
+						o.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", name)
+						return false
+					}
+				}
+				return robj.self.defineOwnPropertyIdx(name, PropertyDescriptor{Value: val}, throw)
+			}
+
+			return robj.self.defineOwnPropertyIdx(name, PropertyDescriptor{
+				Value:        val,
+				Writable:     FLAG_TRUE,
+				Configurable: FLAG_TRUE,
+				Enumerable:   FLAG_TRUE,
+			}, throw)
+		}
+
+		o.runtime.typeErrorResult(throw, "Receiver is not an object: %v", receiver)
+		return false
+	} else {
+		return res
+	}
 }
 
 func (o *Object) setSym(name *Symbol, val, receiver Value, throw bool) bool {
 	if receiver == o {
 		return o.self.setOwnSym(name, val, throw)
-	} else {
-		if res, ok := o.self.setForeignSym(name, val, receiver, throw); !ok {
-			if robj, ok := receiver.(*Object); ok {
-				if prop := robj.self.getOwnPropSym(name); prop != nil {
-					if desc, ok := prop.(*valueProperty); ok {
-						if desc.accessor {
-							o.runtime.typeErrorResult(throw, "Receiver property %s is an accessor", name)
-							return false
-						}
-						if !desc.writable {
-							o.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", name)
-							return false
-						}
-					}
-					robj.self.defineOwnPropertySym(name, PropertyDescriptor{Value: val}, throw)
-				} else {
-					robj.self.defineOwnPropertySym(name, PropertyDescriptor{
-						Value:        val,
-						Writable:     FLAG_TRUE,
-						Configurable: FLAG_TRUE,
-						Enumerable:   FLAG_TRUE,
-					}, throw)
-				}
-			} else {
-				o.runtime.typeErrorResult(throw, "Receiver is not an object: %v", receiver)
-				return false
-			}
-		} else {
-			return res
-		}
 	}
-	return true
+
+	if res, ok := o.self.setForeignSym(name, val, receiver, throw); !ok {
+		if robj, ok := receiver.(*Object); ok {
+			if prop := robj.self.getOwnPropSym(name); prop != nil {
+				if desc, ok := prop.(*valueProperty); ok {
+					if desc.accessor {
+						o.runtime.typeErrorResult(throw, "Receiver property %s is an accessor", name)
+						return false
+					}
+					if !desc.writable {
+						o.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", name)
+						return false
+					}
+				}
+				return robj.self.defineOwnPropertySym(name, PropertyDescriptor{Value: val}, throw)
+			}
+
+			return robj.self.defineOwnPropertySym(name, PropertyDescriptor{
+				Value:        val,
+				Writable:     FLAG_TRUE,
+				Configurable: FLAG_TRUE,
+				Enumerable:   FLAG_TRUE,
+			}, throw)
+		}
+
+		o.runtime.typeErrorResult(throw, "Receiver is not an object: %v", receiver)
+		return false
+	} else {
+		return res
+	}
 }
 
 func (o *Object) delete(n Value, throw bool) bool {

@@ -1093,7 +1093,19 @@ func (r *Runtime) typedArrayProto_slice(call FunctionCall) Value {
 				ta.viewedArrayBuf.ensureNotDetached(true)
 				offset := ta.offset
 				elemSize := ta.elemSize
-				copy(dst.viewedArrayBuf.data[dst.offset:], ta.viewedArrayBuf.data[(offset+start)*elemSize:(offset+start+count)*elemSize])
+				byteCount := count * elemSize
+				dstBuf := dst.viewedArrayBuf.data[dst.offset*dst.elemSize : dst.offset*dst.elemSize+byteCount]
+				srcBuf := ta.viewedArrayBuf.data[(offset+start)*elemSize : (offset+start)*elemSize+byteCount]
+				dstStart := uintptr(unsafe.Pointer(&dstBuf[0]))
+				srcStart := uintptr(unsafe.Pointer(&srcBuf[0]))
+				if dstStart <= srcStart || dstStart >= srcStart+uintptr(byteCount) {
+					copy(dstBuf, srcBuf)
+				} else {
+					// Slices overlap forward, cannot just use copy() here because it's too smart
+					for i := 0; i < byteCount; i++ {
+						dstBuf[i] = srcBuf[i]
+					}
+				}
 			}
 		} else {
 			for i := 0; i < count; i++ {
@@ -1221,9 +1233,6 @@ func (r *Runtime) typedArrayProto_with(call FunctionCall) Value {
 	} else {
 		actualIndex = toIntStrict(int64(length) + relativeIndex)
 	}
-	if !ta.isValidIntegerIndex(actualIndex) {
-		panic(r.newError(r.getRangeError(), "Invalid typed array index"))
-	}
 
 	var numericValue Value
 	switch ta.typedArray.(type) {
@@ -1233,16 +1242,13 @@ func (r *Runtime) typedArrayProto_with(call FunctionCall) Value {
 		numericValue = call.Argument(1).ToNumber()
 	}
 
-	a := r.typedArrayCreate(ta.defaultCtor, intToValue(int64(length)))
-	for k := 0; k < length; k++ {
-		var fromValue Value
-		if k == actualIndex {
-			fromValue = numericValue
-		} else {
-			fromValue = ta.typedArray.get(ta.offset + k)
-		}
-		a.typedArray.set(k, fromValue)
+	if !ta.isValidIntegerIndex(actualIndex) {
+		panic(r.newError(r.getRangeError(), "Invalid typed array index"))
 	}
+
+	a := r.typedArrayCreate(ta.defaultCtor, intToValue(int64(length)))
+	copy(a.viewedArrayBuf.data, ta.viewedArrayBuf.data[ta.offset*ta.elemSize:])
+	a.typedArray.set(actualIndex, numericValue)
 	return a.val
 }
 

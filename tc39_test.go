@@ -190,18 +190,6 @@ var (
 		"test/built-ins/RegExp/nullable-quantifier.js":               true,
 		"test/built-ins/RegExp/lookahead-quantifier-match-groups.js": true,
 
-		// TypedArray internals
-		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-reflect-set.js":                            true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-proto.js":                    true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-not-object.js":               true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-prototype-chain-set.js":        true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-reflect-set.js":                true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-valid-index-reflect-set.js":                     true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-canonical-invalid-index-prototype-chain-set.js": true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-canonical-invalid-index-reflect-set.js":         true,
-		"test/built-ins/TypedArray/prototype/with/value-throw-completion.js":                                               true,
-		"test/built-ins/TypedArray/prototype/slice/speciesctor-return-same-buffer-with-offset.js":                          true,
-
 		// RegExp CharacterClassEscapes
 		"test/built-ins/RegExp/CharacterClassEscapes/character-class-word-class-escape-positive-cases.js":           true,
 		"test/built-ins/RegExp/CharacterClassEscapes/character-class-word-class-escape-negative-cases.js":           true,
