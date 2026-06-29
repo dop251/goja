@@ -5,6 +5,7 @@ import (
 	"math"
 	"reflect"
 	"sort"
+	"unsafe"
 
 	"github.com/dop251/goja/unistring"
 )
@@ -46,11 +47,8 @@ var (
 )
 
 type Object struct {
-	id      uint64
-	runtime *Runtime
 	self    objectImpl
-
-	weakRefs map[weakMap]Value
+	runtime *Runtime
 }
 
 type iterNextFunc func() (propIterItem, iterNextFunc)
@@ -1625,22 +1623,8 @@ func (o *Object) defineOwnProperty(n Value, desc PropertyDescriptor, throw bool)
 	}
 }
 
-func (o *Object) getWeakRefs() map[weakMap]Value {
-	refs := o.weakRefs
-	if refs == nil {
-		refs = make(map[weakMap]Value)
-		o.weakRefs = refs
-	}
-	return refs
-}
-
 func (o *Object) getId() uint64 {
-	id := o.id
-	if id == 0 {
-		id = o.runtime.genId()
-		o.id = id
-	}
-	return id
+	return uint64(uintptr(unsafe.Pointer(o)))
 }
 
 func (o *guardedObject) guard(props ...unistring.String) {
