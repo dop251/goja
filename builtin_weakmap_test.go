@@ -77,6 +77,17 @@ func TestWeakMapGetAdderGetIteratorOrder(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestWeakMapUpdateKey(t *testing.T) {
+	const SCRIPT = `
+	const m = new WeakMap();
+	let key = {};
+	m.set(key, 1);
+	m.set(key, 2);
+	m.get(key);
+	`
+	testScript(SCRIPT, intToValue(2), t)
+}
+
 func TestWeakMapCleanup(t *testing.T) {
 	t.Parallel()
 	vm := New()

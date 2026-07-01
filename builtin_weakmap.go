@@ -12,11 +12,12 @@ type weakMap struct {
 }
 
 func (wm *weakMap) set(key *Object, value Value) {
-	wm.Lock()
 	id := key.getId()
-	if _, exists := wm.m[id]; !exists {
-		wm.m[id] = value
-		wm.Unlock()
+	wm.Lock()
+	_, exists := wm.m[id]
+	wm.m[id] = value
+	wm.Unlock()
+	if !exists {
 		wmPtr := weak.Make(wm) // do not hold strong reference to wm so that it could be collected by GC
 		runtime.AddCleanup(key, func(id uint64) {
 			wm := wmPtr.Value()
@@ -27,8 +28,6 @@ func (wm *weakMap) set(key *Object, value Value) {
 			delete(wm.m, id)
 			wm.Unlock()
 		}, id)
-	} else {
-		wm.Unlock()
 	}
 }
 
