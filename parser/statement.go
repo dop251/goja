@@ -12,6 +12,11 @@ import (
 	"github.com/go-sourcemap/sourcemap"
 )
 
+const (
+	// Copied from https://github.com/go-sourcemap/sourcemap/blob/794171861aeb0f83fcd66eeb0415a5062594cde6/mappings.go#L35
+	errSourceMapEmptyString = "sourcemap: mappings are empty"
+)
+
 func (self *_parser) parseBlockStatement() *ast.BlockStatement {
 	node := &ast.BlockStatement{}
 	node.LeftBrace = self.expect(token.LEFT_BRACE)
@@ -950,6 +955,8 @@ func (self *_parser) parseSourceMap() *sourcemap.Consumer {
 
 		if sm, err := sourcemap.Parse(self.file.Name(), data); err == nil {
 			return sm
+		} else if self.opts.skipEmptySourceMaps && strings.Contains(err.Error(), errSourceMapEmptyString) {
+			return nil
 		} else {
 			self.error(file.Idx(0), "Could not parse source map: %v", err)
 		}
