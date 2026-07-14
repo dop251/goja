@@ -404,8 +404,16 @@ func (self *_RegExp_parser) scanEscape(inClass bool) {
 			self.read()
 			return
 		}
-		// Unescape the character for re2
-		self.pass()
+		// For \p{...} Unicode property escapes, preserve the backslash since Go regexp
+		// requires it for \p{} support. Other unrecognized identifier chars (like \a in \abc)
+		// have their backslash stripped to match ECMAScript semantics where
+		// /\z/.test("z") === true and /\a/.test("a") === true.
+		if self.chr == 'p' && self.offset < self.length && self.str[self.offset] == '{' {
+			self.passString(offset-1, self.offset)
+			self.read()
+		} else {
+			self.pass()
+		}
 		return
 	}
 
