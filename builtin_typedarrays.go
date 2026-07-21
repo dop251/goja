@@ -571,7 +571,7 @@ func (r *Runtime) typedArrayProto_filter(call FunctionCall) Value {
 			ret := r.typedArrayCreate(c, intToValue(int64(captured)))
 			keptTa := kept.self.(*typedArrayObject)
 			for i := 0; i < captured; i++ {
-				ret.typedArray.set(i, keptTa.typedArray.get(keptTa.offset+i))
+				ret.typedArray.set(ret.offset+i, keptTa.typedArray.get(keptTa.offset+i))
 			}
 			return ret.val
 		}
@@ -1294,7 +1294,7 @@ func (r *Runtime) typedArrayProto_toSorted(call FunctionCall) Value {
 	length := ta.length
 
 	a := r.typedArrayCreate(ta.defaultCtor, intToValue(int64(length)))
-	copy(a.viewedArrayBuf.data, ta.viewedArrayBuf.data)
+	copy(a.viewedArrayBuf.data, ta.viewedArrayBuf.data[ta.offset*ta.elemSize:])
 
 	ctx := typedArraySortCtx{
 		ta:      a,

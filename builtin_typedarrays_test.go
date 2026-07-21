@@ -488,3 +488,27 @@ func TestTypedArrayMapEvilSpecies(t *testing.T) {
 	`
 	testScript(SCRIPT, intToValue(1), t)
 }
+
+func TestTypedArrayFilterEvilSpecies(t *testing.T) {
+	// If typedArraySpeciesCreate() returns an array with non-zero offset, the offset must be taken into account
+	// by the filter() method.
+	const SCRIPT = `
+	class Evil extends Uint8Array {
+	  static get [Symbol.species]() {
+		return function (len) { return new Uint8Array(new ArrayBuffer(len + 2), 2, len); };
+	  }
+	}
+
+	assert(compareArray(new Evil([10,11,12,13,14,15]).filter(x => x % 2 === 0), [10,12,14]));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestToSortedSubarray(t *testing.T) {
+	const SCRIPT = `
+	var base = new Uint8Array([9,8,7,6,5,4,3,2,1,0]);
+	var view = base.subarray(3);          // = [6,5,4,3,2,1,0]
+	assert(compareArray(view.toSorted(), [0,1,2,3,4,5,6]));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
