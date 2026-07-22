@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"bytes"
 	"errors"
 	"hash/maphash"
 	"io"
@@ -9,12 +10,15 @@ import (
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+	"unsafe"
 
 	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
+
+const utf16IndexNaiveCrossover = 32
 
 type unicodeString []uint16
 
@@ -500,30 +504,143 @@ func (s unicodeString) CompareTo(other String) int {
 	return strings.Compare(s.String(), other.String())
 }
 
+func utf16Index(s, substr []uint16) int {
+	if len(s) < utf16IndexNaiveCrossover {
+		return utf16IndexNaive(s, substr)
+	}
+	return utf16IndexBytes(s, substr)
+}
+
+func utf16IndexNaive(s, sep []uint16) int {
+	n := len(sep)
+	if n == 0 {
+		return 0
+	}
+	if n > len(s) {
+		return -1
+	}
+	for i := 0; i+n <= len(s); i++ {
+		if s[i] == sep[0] {
+			match := true
+			for j := 1; j < n; j++ {
+				if s[i+j] != sep[j] {
+					match = false
+					break
+				}
+			}
+			if match {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func uint16AsBytes(s []uint16) []byte {
+	if len(s) == 0 {
+		return nil
+	}
+	return unsafe.Slice((*byte)(unsafe.Pointer(&s[0])), len(s)*2)
+}
+
+func utf16IndexBytes(s, sep []uint16) int {
+	if len(sep) == 0 {
+		return 0
+	}
+	if len(sep) > len(s) {
+		return -1
+	}
+
+	sb := uint16AsBytes(s)
+	sepb := uint16AsBytes(sep)
+
+	offset := 0
+	for {
+		i := bytes.Index(sb[offset:], sepb)
+		if i < 0 {
+			return -1
+		}
+		pos := offset + i
+		if pos%2 == 0 {
+			return pos / 2
+		}
+		// False match, not aligned, continue
+		offset = pos + 1
+	}
+}
+
 func (s unicodeString) index(substr String, start int) int {
 	var ss []uint16
 	a, u := devirtualizeString(substr)
 	if u != nil {
 		ss = u[1:]
 	} else {
-		ss = make([]uint16, len(a))
-		for i := 0; i < len(a); i++ {
-			ss[i] = uint16(a[i])
-		}
+		ss = a.utf16()
 	}
-	s1 := s[1:]
-	// TODO: optimise
-	end := len(s1) - len(ss)
-	for start <= end {
-		for i := 0; i < len(ss); i++ {
-			if s1[start+i] != ss[i] {
-				goto nomatch
+	idx := utf16Index(s[min(1+start, len(s)):], ss)
+	if idx != -1 {
+		return idx + start
+	}
+	return -1
+}
+
+func utf16LastIndex(s, sep []uint16) int {
+	if len(s) < utf16IndexNaiveCrossover {
+		return utf16LastIndexNaive(s, sep)
+	}
+	return utf16LastIndexBytes(s, sep)
+}
+
+func utf16LastIndexNaive(s, sep []uint16) int {
+	n := len(sep)
+	if n == 0 {
+		return len(s)
+	}
+	if n > len(s) {
+		return -1
+	}
+	for i := len(s) - n; i >= 0; i-- {
+		if s[i] == sep[0] {
+			match := true
+			for j := 1; j < n; j++ {
+				if s[i+j] != sep[j] {
+					match = false
+					break
+				}
+			}
+			if match {
+				return i
 			}
 		}
+	}
+	return -1
+}
 
-		return start
-	nomatch:
-		start++
+func utf16LastIndexBytes(s, sep []uint16) int {
+	if len(sep) == 0 {
+		return len(s)
+	}
+	if len(sep) > len(s) {
+		return -1
+	}
+
+	sb := uint16AsBytes(s)
+	sepb := uint16AsBytes(sep)
+
+	end := len(sb)
+	for end >= len(sepb) {
+		i := bytes.LastIndex(sb[:end], sepb)
+		if i < 0 {
+			return -1
+		}
+		if i%2 == 0 {
+			return i / 2
+		}
+		// False match starting at odd byte offset i. Shrink the window so
+		// the next search can still find a match starting at i-1 (i.e.
+		// end must be >= (i-1)+len(sepb)) while excluding this same match
+		// (end must be < i+len(sepb)). end = i+len(sepb)-1 satisfies both.
+		end = i + len(sepb) - 1
 	}
 	return -1
 }
@@ -534,29 +651,9 @@ func (s unicodeString) lastIndex(substr String, start int) int {
 	if u != nil {
 		ss = u[1:]
 	} else {
-		ss = make([]uint16, len(a))
-		for i := 0; i < len(a); i++ {
-			ss[i] = uint16(a[i])
-		}
+		ss = a.utf16()
 	}
-
-	s1 := s[1:]
-	if maxStart := len(s1) - len(ss); start > maxStart {
-		start = maxStart
-	}
-	// TODO: optimise
-	for start >= 0 {
-		for i := 0; i < len(ss); i++ {
-			if s1[start+i] != ss[i] {
-				goto nomatch
-			}
-		}
-
-		return start
-	nomatch:
-		start--
-	}
-	return -1
+	return utf16LastIndex(s[1:min(start+1+len(ss), len(s))], ss)
 }
 
 func unicodeStringFromRunes(r []rune) unicodeString {

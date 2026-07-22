@@ -82,6 +82,14 @@ func (s asciiString) utf16Runes() []rune {
 	return runes
 }
 
+func (s asciiString) utf16() []uint16 {
+	u := make([]uint16, len(s))
+	for i := 0; i < len(s); i++ {
+		u[i] = uint16(s[i])
+	}
+	return u
+}
+
 // ss must be trimmed
 func stringToInt(ss string) (int64, error) {
 	if ss == "" {
