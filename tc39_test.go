@@ -252,10 +252,6 @@ var (
 		"test/language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-import-star-as-and-export.js":                         true,
 		"test/language/module-code/top-level-await/pending-async-dep-from-cycle.js":                                                         true,
 		"test/language/module-code/top-level-await/module-graphs-does-not-hang.js":                                                          true,
-		"test/language/expressions/less-than-or-equal/S11.8.3_A4.12_T1.js":                                                                  true,
-		"test/language/expressions/less-than/S11.8.1_A4.12_T1.js":                                                                           true,
-		"test/language/expressions/greater-than-or-equal/S11.8.4_A4.12_T1.js":                                                               true,
-		"test/language/expressions/greater-than/S11.8.2_A4.12_T1.js":                                                                        true,
 
 		// Extended Unicode group names in non-unicode regexp
 		"test/built-ins/RegExp/named-groups/non-unicode-property-names-valid.js": true,

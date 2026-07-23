@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"reflect"
+	"slices"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -499,9 +500,35 @@ func (s unicodeString) String() string {
 	return string(utf16.Decode(s[1:]))
 }
 
+func (s unicodeString) compareToAscii(s2 asciiString) int {
+	s1 := s[1:]
+	for i := range s1 {
+		if i >= len(s2) {
+			return 1
+		}
+		c1 := s1[i]
+		c2 := uint16(s2[i])
+		if c1 < c2 {
+			return -1
+		}
+		if c1 > c2 {
+			return 1
+		}
+	}
+	// This condition will never be true as long as unicodeString contains at least one
+	// Unicode character, but is left here for completeness.
+	if len(s2) > len(s1) {
+		return -1
+	}
+	return 0
+}
+
 func (s unicodeString) CompareTo(other String) int {
-	// TODO handle invalid UTF-16
-	return strings.Compare(s.String(), other.String())
+	oa, ou := devirtualizeString(other)
+	if ou != nil {
+		return slices.Compare(s[1:], ou[1:])
+	}
+	return s.compareToAscii(oa)
 }
 
 func utf16Index(s, substr []uint16) int {

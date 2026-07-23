@@ -233,6 +233,15 @@ func TestUnicodeRepeat(t *testing.T) {
 	}
 }
 
+func TestImportedString_CompareTo(t *testing.T) {
+	vm := New()
+	s1 := StringFromUTF16([]uint16{0xFFFF})
+	s2 := vm.ToValue("\U00010000") //  "equivalent to "\uD800\uDC00"
+	if s2.(String).CompareTo(s1) >= 0 {
+		t.Fatal("Imported string does did not compare by code units")
+	}
+}
+
 func BenchmarkASCIIConcat(b *testing.B) {
 	vm := New()
 
