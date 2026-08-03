@@ -955,7 +955,7 @@ func (self *_parser) parseSourceMap() *sourcemap.Consumer {
 
 		if sm, err := sourcemap.Parse(self.file.Name(), data); err == nil {
 			return sm
-		} else if self.opts.skipEmptySourceMaps && strings.Contains(err.Error(), errSourceMapEmptyString) {
+		} else if strings.Contains(err.Error(), errSourceMapEmptyString) {
 			return nil
 		} else {
 			self.error(file.Idx(0), "Could not parse source map: %v", err)

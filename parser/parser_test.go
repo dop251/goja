@@ -1250,13 +1250,9 @@ var x = {};
 			return []byte(emptySourceMap), nil
 		}
 
-		// First, ensure that the expected error is produced for an empty source map.
-		_, err = ParseFile(nil, "delme.js", src, 0, WithSourceMapLoader(emptySourceMapLoader))
-		is(true, strings.Contains(err.Error(), errSourceMapEmptyString))
-
-		// Then, ensure WithSkipEmptySourceMaps bypasses the error.
+		// Ensure empty source map errors are skipped
 		count = 0
-		_, err = ParseFile(nil, "delme.js", src, 0, WithSourceMapLoader(emptySourceMapLoader), WithSkipEmptySourceMaps)
+		_, err = ParseFile(nil, "delme.js", src, 0, WithSourceMapLoader(emptySourceMapLoader))
 		is(err, nil)
 		is(count, 1)
 		is(requestedPath, "delme.js.map")
