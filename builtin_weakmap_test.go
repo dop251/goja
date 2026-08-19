@@ -4,6 +4,7 @@ import (
 	"runtime"
 	"testing"
 	"time"
+	"unsafe"
 )
 
 func TestWeakMap(t *testing.T) {
@@ -120,4 +121,84 @@ func TestWeakMapCleanup(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("m is not empty")
+}
+
+func TestWeakMapKeyAddressReuse(t *testing.T) {
+	vm := New()
+	val, err := vm.RunString("new WeakMap()")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wmo := val.(*Object).self.(*weakMapObject)
+
+	keyA := vm.NewObject()
+	wmo.m.set(keyA, asciiString("stale"))
+	addrA := uintptr(unsafe.Pointer(keyA))
+
+	wmo.m.Lock()
+	var unlocked bool
+	defer func() {
+		if !unlocked {
+			wmo.m.Unlock()
+		}
+	}()
+
+	keyA = nil
+	runtime.GC()
+
+	var fresh *Object
+	for range 1024 {
+		f := vm.NewObject()
+		if uintptr(unsafe.Pointer(f)) == addrA {
+			fresh = f
+			break
+		}
+	}
+	if fresh == nil {
+		unlocked = true
+		wmo.m.Unlock()
+		t.Skip("allocator did not reuse key address")
+	}
+
+	if v := wmo.m.m[fresh.getId()]; v != nil {
+		unlocked = true
+		wmo.m.Unlock()
+		t.Fatalf("fresh key at recycled address read stale value %v", v)
+	}
+
+	wmo.m.m[fresh.getId()] = asciiString("fresh_value")
+	unlocked = true
+	wmo.m.Unlock()
+
+	for i := 0; i < 50; i++ {
+		runtime.GC()
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	if v := wmo.m.get(fresh); v == nil || v.String() != "fresh_value" {
+		t.Fatalf("live key's entry was prematurely deleted by dead key cleanup: got %v, want fresh_value", v)
+	}
+}
+
+func BenchmarkWeakMapObjectKeyLookup(b *testing.B) {
+	vm := New()
+	v, err := vm.RunString("new WeakMap()")
+	if err != nil {
+		b.Fatal(err)
+	}
+	wmo := v.(*Object).self.(*weakMapObject)
+	keys := make([]*Object, 64)
+	for i := range keys {
+		keys[i] = vm.NewObject()
+		wmo.m.set(keys[i], intToValue(int64(i)))
+	}
+	var s Value
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		for _, k := range keys {
+			s = wmo.m.get(k)
+		}
+	}
+	_ = s
 }

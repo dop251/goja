@@ -3,8 +3,12 @@ package goja
 import (
 	"fmt"
 	"reflect"
+	"runtime"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"unsafe"
 )
 
 func TestDefineProperty(t *testing.T) {
@@ -664,5 +668,127 @@ func BenchmarkAddString(b *testing.B) {
 		if !z.StrictEquals(tst) {
 			b.Fatalf("Unexpected result %v", x)
 		}
+	}
+}
+
+func TestObjectID(t *testing.T) {
+	vm := New()
+	o1 := vm.NewObject()
+	id1 := o1.getId()
+	if id1 == 0 {
+		t.Fatal("id is 0")
+	}
+	if id1Again := o1.getId(); id1Again != id1 {
+		t.Fatalf("id changed: %d != %d", id1Again, id1)
+	}
+
+	o2 := vm.NewObject()
+	id2 := o2.getId()
+	if id2 == 0 {
+		t.Fatal("id2 is 0")
+	}
+	if id1 == id2 {
+		t.Fatalf("duplicate id: %d", id1)
+	}
+}
+
+func TestObjectIDConcurrent(t *testing.T) {
+	vm := New()
+	objects := make([]*Object, 8)
+	for i := range objects {
+		objects[i] = vm.NewObject()
+	}
+
+	const goroutines = 8
+	const iterations = 1000
+	results := make([][]uint64, goroutines)
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			res := make([]uint64, len(objects)*iterations)
+			for it := 0; it < iterations; it++ {
+				for i, obj := range objects {
+					res[it*len(objects)+i] = obj.getId()
+				}
+			}
+			results[g] = res
+		}(g)
+	}
+	wg.Wait()
+
+	for i, obj := range objects {
+		expected := results[0][i]
+		if expected == 0 {
+			t.Fatalf("object %d id is 0", i)
+		}
+		for g := 0; g < goroutines; g++ {
+			for it := 0; it < iterations; it++ {
+				if got := results[g][it*len(objects)+i]; got != expected {
+					t.Fatalf("object %d (%p) id mismatch: got %d, want %d", i, obj, got, expected)
+				}
+			}
+		}
+	}
+}
+
+func TestObjectIDNeverReusedAcrossGC(t *testing.T) {
+	vm := New()
+	seenIDs := make(map[uint64]struct{})
+	var seenAddrs []uintptr
+	reusedAddr := false
+
+	for batch := 0; batch < 64; batch++ {
+		ptrs := make([]uintptr, 0, 8)
+		for i := 0; i < 8; i++ {
+			obj := vm.NewObject()
+			ptr := uintptr(unsafe.Pointer(obj))
+			ptrs = append(ptrs, ptr)
+			id := obj.getId()
+			if id == 0 {
+				t.Fatal("id is 0")
+			}
+			if _, exists := seenIDs[id]; exists {
+				t.Fatalf("object ID %d reused after GC", id)
+			}
+			seenIDs[id] = struct{}{}
+		}
+
+		runtime.GC()
+
+		for _, p := range ptrs {
+			if slices.Contains(seenAddrs, p) {
+				reusedAddr = true
+				break
+			}
+		}
+		seenAddrs = append(seenAddrs, ptrs...)
+	}
+
+	if !reusedAddr {
+		t.Skip("allocator did not reuse any heap addresses in this run")
+	}
+}
+
+var benchmarkIDSink uint64
+
+func BenchmarkObjectGetID(b *testing.B) {
+	obj := New().NewObject()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		benchmarkIDSink = obj.getId()
+	}
+}
+
+var benchmarkNewObjectInitIDObjSink *Object
+var benchmarkNewObjectInitIDIDSink uint64
+
+func BenchmarkNewObjectInitID(b *testing.B) {
+	JS := New()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		benchmarkNewObjectInitIDObjSink = JS.NewObject()
+		benchmarkNewObjectInitIDIDSink = benchmarkNewObjectInitIDObjSink.getId()
 	}
 }
