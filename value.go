@@ -17,10 +17,11 @@ var (
 	// Not goroutine-safe, do not use for anything other than package level init
 	pkgHasher maphash.Hash
 
-	hashFalse = randomHash()
-	hashTrue  = randomHash()
-	hashNull  = randomHash()
-	hashUndef = randomHash()
+	hashFalse      = randomHash()
+	hashTrue       = randomHash()
+	hashNull       = randomHash()
+	hashUndef      = randomHash()
+	hashObjectSalt = randomHash()
 )
 
 // Not goroutine-safe, do not use for anything other than package level init
@@ -798,7 +799,7 @@ func (o *Object) ExportType() reflect.Type {
 }
 
 func (o *Object) hash(*maphash.Hash) uint64 {
-	return o.getId()
+	return o.getId() ^ hashObjectSalt
 }
 
 // Get an object's property by name.

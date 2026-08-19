@@ -199,3 +199,98 @@ func TestOrderedMapIterDeleteCurrent(t *testing.T) {
 		t.Fatalf("2: unexpected key: %v", entry.key)
 	}
 }
+
+func TestObjectHash(t *testing.T) {
+	vm := New()
+	o1 := vm.NewObject()
+	o2 := vm.NewObject()
+
+	var h maphash.Hash
+	if o1.hash(&h) != o1.hash(&h) {
+		t.Fatal("Object.hash is not idempotent")
+	}
+	if o1.hash(nil) != o1.hash(&h) {
+		t.Fatal("Object.hash depends on hasher instance")
+	}
+	if o1.hash(nil) == o1.getId() {
+		t.Fatal("Object.hash must not equal raw getId()")
+	}
+	if o1.hash(nil) == o2.hash(nil) {
+		t.Fatal("distinct objects must have distinct hashes")
+	}
+}
+
+func TestMapMixedKeys(t *testing.T) {
+	m := newOrderedMap(&maphash.Hash{})
+	vm := New()
+	const count = 50
+
+	objects := make([]*Object, count)
+	for i := 0; i < count; i++ {
+		intKey := intToValue(int64(i + 1))
+		objKey := vm.NewObject()
+		objects[i] = objKey
+		m.set(intKey, asciiString(strconv.Itoa(i)))
+		m.set(objKey, asciiString(strconv.Itoa(i)))
+	}
+
+	for i := 0; i < count; i += 2 {
+		if !m.remove(intToValue(int64(i + 1))) {
+			t.Fatalf("failed to remove int key %d", i+1)
+		}
+	}
+
+	for i := 0; i < count; i++ {
+		intKey := intToValue(int64(i + 1))
+		val := m.get(intKey)
+		if i%2 == 0 {
+			if val != nil {
+				t.Fatalf("removed int key %d still present: %v", i+1, val)
+			}
+		} else {
+			if val == nil || !asciiString(strconv.Itoa(i)).SameAs(val) {
+				t.Fatalf("retained int key %d missing or wrong: %v", i+1, val)
+			}
+		}
+
+		objVal := m.get(objects[i])
+		if objVal == nil || !asciiString(strconv.Itoa(i)).SameAs(objVal) {
+			t.Fatalf("object key %d missing or wrong after int removal: %v", i, objVal)
+		}
+	}
+}
+
+var benchmarkHashSink uint64
+
+func BenchmarkObjectHash(b *testing.B) {
+	obj := New().NewObject()
+	var h maphash.Hash
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		benchmarkHashSink = obj.hash(&h)
+	}
+}
+
+func BenchmarkMapMixedKeyLookup(b *testing.B) {
+	vm := New()
+	m := newOrderedMap(vm.getHash())
+	keys := make([]Value, 0, 64)
+	for i := int64(0); i < 32; i++ {
+		iv := valueInt(i)
+		keys = append(keys, iv)
+		m.set(iv, intToValue(i))
+		ov := vm.NewObject()
+		keys = append(keys, ov)
+		m.set(ov, intToValue(i+1000))
+	}
+	var s Value
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		for _, k := range keys {
+			s = m.get(k)
+		}
+	}
+	_ = s
+}
