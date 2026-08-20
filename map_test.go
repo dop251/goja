@@ -206,7 +206,9 @@ func TestObjectHash(t *testing.T) {
 	o2 := vm.NewObject()
 
 	var h maphash.Hash
-	if o1.hash(&h) != o1.hash(&h) {
+	a := o1.hash(&h)
+	b := o1.hash(&h)
+	if a != b {
 		t.Fatal("Object.hash is not idempotent")
 	}
 	if o1.hash(nil) != o1.hash(&h) {
