@@ -2031,7 +2031,6 @@ func (r *Runtime) getArrayBuffer() *Object {
 	return ret
 }
 
-
 // TC39 Abstract Operations for Uint8Array Objects - [ValidateUint8Array(ta)].
 // If ta.[[TypedArrayName]] is not "Uint8Array", throw a TypeError exception.
 //
