@@ -1,6 +1,6 @@
 module github.com/dop251/goja
 
-go 1.25
+go 1.25.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
