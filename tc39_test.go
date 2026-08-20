@@ -305,31 +305,6 @@ var (
 		"test/built-ins/Uint8Array/prototype/toBase64/omit-padding.js":                true,
 		"test/built-ins/Uint8Array/prototype/toBase64/option-coercion.js":             true,
 		"test/built-ins/Uint8Array/prototype/toBase64/results.js":                     true,
-
-		// Uint8Array hex methods (fromHex/toHex/setFromHex) not implemented
-		"test/built-ins/Uint8Array/fromHex/descriptor.js":                                    true,
-		"test/built-ins/Uint8Array/fromHex/ignores-receiver.js":                              true,
-		"test/built-ins/Uint8Array/fromHex/illegal-characters.js":                            true,
-		"test/built-ins/Uint8Array/fromHex/length.js":                                        true,
-		"test/built-ins/Uint8Array/fromHex/name.js":                                          true,
-		"test/built-ins/Uint8Array/fromHex/nonconstructor.js":                                true,
-		"test/built-ins/Uint8Array/fromHex/odd-length-input.js":                              true,
-		"test/built-ins/Uint8Array/fromHex/results.js":                                       true,
-		"test/built-ins/Uint8Array/prototype/setFromHex/descriptor.js":                       true,
-		"test/built-ins/Uint8Array/prototype/setFromHex/illegal-characters.js":               true,
-		"test/built-ins/Uint8Array/prototype/setFromHex/length.js":                           true,
-		"test/built-ins/Uint8Array/prototype/setFromHex/name.js":                             true,
-		"test/built-ins/Uint8Array/prototype/setFromHex/nonconstructor.js":                   true,
-		"test/built-ins/Uint8Array/prototype/setFromHex/results.js":                          true,
-		"test/built-ins/Uint8Array/prototype/setFromHex/subarray.js":                         true,
-		"test/built-ins/Uint8Array/prototype/setFromHex/target-size.js":                      true,
-		"test/built-ins/Uint8Array/prototype/setFromHex/throws-when-string-length-is-odd.js": true,
-		"test/built-ins/Uint8Array/prototype/setFromHex/writes-up-to-error.js":               true,
-		"test/built-ins/Uint8Array/prototype/toHex/descriptor.js":                            true,
-		"test/built-ins/Uint8Array/prototype/toHex/length.js":                                true,
-		"test/built-ins/Uint8Array/prototype/toHex/name.js":                                  true,
-		"test/built-ins/Uint8Array/prototype/toHex/nonconstructor.js":                        true,
-		"test/built-ins/Uint8Array/prototype/toHex/results.js":                               true,
 	}
 
 	featuresBlackList = []string{

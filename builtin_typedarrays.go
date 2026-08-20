@@ -1,6 +1,8 @@
 package goja
 
 import (
+	stdhex "encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -1575,6 +1577,46 @@ func (r *Runtime) newBigUint64Array(args []Value, newTarget, proto *Object) *Obj
 	return r._newTypedArray(args, newTarget, r.newBigUint64ArrayObject, proto)
 }
 
+func (r *Runtime) uint8Array_fromHex(call FunctionCall) Value {
+	s, ok := call.Argument(0).(String)
+	if !ok {
+		panic(r.NewTypeError("Uint8Array.fromHex requires a string"))
+	}
+	b, err := r.fromHex(s)
+	if err != nil {
+		panic(r.newSyntaxError(err.Error(), -1)) // SyntaxError for odd-length-input or illegal-characters
+	}
+	ta := r.allocateTypedArray(r.getUint8Array(), len(b), r.newUint8ArrayObject, nil)
+	copy(ta.viewedArrayBuf.data, b)
+	return ta.val
+}
+
+func (r *Runtime) uint8ArrayProto_toHex(call FunctionCall) Value {
+	ta := r.validateUint8Array(call.This)
+	toEnc := r.getUint8ArrayBytes(ta)
+	return asciiString(stdhex.EncodeToString(toEnc))
+}
+
+func (r *Runtime) uint8ArrayProto_setFromHex(call FunctionCall) Value {
+	ta := r.validateUint8Array(call.This)
+	s, ok := call.Argument(0).(String)
+	if !ok {
+		panic(r.NewTypeError("Uint8Array.prototype.setFromHex requires a string"))
+	}
+	into := r.getUint8ArrayBytes(ta)
+	b, err := r.fromHexWithMaxLength(s, len(into))
+	// Whatever was decoded before the error still gets written out, so the write has to
+	// happen before the error is thrown.
+	copy(into, b)
+	if err != nil {
+		panic(r.newSyntaxError(err.Error(), -1))
+	}
+	res := r.NewObject()
+	res.self.setOwnStr("read", intToValue(int64(2*len(b))), false)
+	res.self.setOwnStr("written", intToValue(int64(len(b))), false)
+	return res
+}
+
 func (r *Runtime) createArrayBufferProto(val *Object) objectImpl {
 	b := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 	byteLengthProp := &valueProperty{
@@ -1621,7 +1663,7 @@ func (r *Runtime) getTypedArray() *Object {
 	return ret
 }
 
-func (r *Runtime) createTypedArrayCtor(val *Object, ctor func(args []Value, newTarget, proto *Object) *Object, name unistring.String, bytesPerElement int) {
+func (r *Runtime) createTypedArrayCtor(val *Object, ctor func(args []Value, newTarget, proto *Object) *Object, name unistring.String, bytesPerElement int) *baseObject {
 	p := r.newBaseObject(r.getTypedArrayPrototype(), classObject)
 	o := r.newNativeConstructOnly(val, func(args []Value, newTarget *Object) *Object {
 		return ctor(args, newTarget, p.val)
@@ -1633,6 +1675,7 @@ func (r *Runtime) createTypedArrayCtor(val *Object, ctor func(args []Value, newT
 	bpe := intToValue(int64(bytesPerElement))
 	o._putProp("BYTES_PER_ELEMENT", bpe, false, false, false)
 	p._putProp("BYTES_PER_ELEMENT", bpe, false, false, false)
+	return p
 }
 
 func addTypedArrays(t *objectTemplate) {
@@ -1767,7 +1810,17 @@ func (r *Runtime) getUint8Array() *Object {
 	if ret == nil {
 		ret = &Object{runtime: r}
 		r.global.Uint8Array = ret
-		r.createTypedArrayCtor(ret, r.newUint8Array, "Uint8Array", 1)
+		p := r.createTypedArrayCtor(ret, r.newUint8Array, "Uint8Array", 1)
+
+		// Applies Uint8Array only, not other TypedArrays.
+		// implements Uint8Array.fromHex static method
+		o := ret.self.(*nativeFuncObject)
+		o._putProp("fromHex", r.newNativeFunc(r.uint8Array_fromHex, "fromHex", 1), true, false, true)
+
+		// implements Uint8Array.prototype.toHex method
+		p._putProp("toHex", r.newNativeFunc(r.uint8ArrayProto_toHex, "toHex", 0), true, false, true)
+		// implements Uint8Array.prototype.setFromHex method
+		p._putProp("setFromHex", r.newNativeFunc(r.uint8ArrayProto_setFromHex, "setFromHex", 1), true, false, true)
 	}
 	return ret
 }
@@ -1976,4 +2029,53 @@ func (r *Runtime) getArrayBuffer() *Object {
 		ret.self = r.createArrayBuffer(ret)
 	}
 	return ret
+}
+
+
+// TC39 Abstract Operations for Uint8Array Objects - [ValidateUint8Array(ta)].
+// If ta.[[TypedArrayName]] is not "Uint8Array", throw a TypeError exception.
+//
+// [ValidateUint8Array(ta)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-validateuint8array
+func (r *Runtime) validateUint8Array(v Value) *typedArrayObject {
+	if obj, ok := v.(*Object); ok {
+		if ta, ok := obj.self.(*typedArrayObject); ok {
+			if _, ok := ta.typedArray.(*uint8Array); ok {
+				ta.viewedArrayBuf.ensureNotDetached(true)
+				return ta
+			}
+		}
+	}
+	panic(r.NewTypeError("Receiver must be a Uint8Array"))
+}
+
+// TC39 Abstract Operations for Uint8Array Objects - [GetUint8ArrayBytes(ta)].
+//
+// [GetUint8ArrayBytes(ta)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-getuint8arraybytes
+func (r *Runtime) getUint8ArrayBytes(ta *typedArrayObject) []byte {
+	ta.viewedArrayBuf.ensureNotDetached(true)
+	return ta.viewedArrayBuf.data[ta.offset : ta.offset+ta.length]
+}
+
+// TC39 Abstract Operations for Uint8Array Objects - [FromHex(string)].
+//
+// [FromHex(string)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-fromhex
+func (r *Runtime) fromHex(s String) ([]byte, error) {
+	b, err := stdhex.DecodeString(s.String())
+	return b, err
+}
+
+// TC39 Abstract Operations for Uint8Array Objects - [FromHex(string, maxLength])].
+//
+// [FromHex(string, maxLength)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-fromhex
+func (r *Runtime) fromHexWithMaxLength(s String, maxLength int) ([]byte, error) {
+	// Length() counts UTF-16 code units.
+	length := s.Length()
+	if length%2 != 0 {
+		return nil, errors.New("string should have an even number of characters")
+	}
+	// while read < length and the number of elements in bytes < maxLength.
+	if length/2 > maxLength {
+		s = s.Substring(0, maxLength*2)
+	}
+	return r.fromHex(s)
 }
