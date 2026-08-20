@@ -41,6 +41,7 @@ func TestDtostr(t *testing.T) {
 	testFToStr(math.Float64frombits(0x0010000000000000), ModeStandard, 0, "2.2250738585072014e-308", t) // smallest normal
 	testFToStr(math.Float64frombits(0x000FFFFFFFFFFFFF), ModeStandard, 0, "2.225073858507201e-308", t)  // largest denormal
 	testFToStr(4294967272.0, ModePrecision, 14, "4294967272.0000", t)
+	testFToStr(0.7016570306969449, ModeStandard, 0, "0.7016570306969449", t)
 }
 
 func BenchmarkDtostrSmall(b *testing.B) {
