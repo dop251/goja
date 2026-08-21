@@ -715,7 +715,7 @@ func TestUint8ArraySetFromHex(t *testing.T) {
 	}
 
 	t.Run("read", func(t *testing.T) {
-		ret, err = vm.RunString(`
+		ret, err := vm.RunString(`
 		var arr = new Uint8Array(8);
 		arr.setFromHex("cafed00d").read;
 		`)
@@ -728,7 +728,7 @@ func TestUint8ArraySetFromHex(t *testing.T) {
 		}
 	})
 	t.Run("written", func(t *testing.T) {
-		ret, err = vm.RunString(`
+		ret, err := vm.RunString(`
 		var arr = new Uint8Array(8);
 		arr.setFromHex("cafed00d").written;
 		`)
