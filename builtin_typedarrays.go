@@ -1508,6 +1508,17 @@ func (r *Runtime) _newTypedArrayFromTypedArray(src *typedArrayObject, newTarget 
 	return dst.val
 }
 
+// Creates typedArrayObject from directly by data to avoiding extra allocation.
+// Caller must not retain or modify it, because the underlying ArrayBuffer takes ownership of it.
+// len(data) must be a multiple of the element size.
+func (r *Runtime) newTypedArrayWithData(data []byte, newTarget *Object, taCtor typedArrayObjectCtor, proto *Object) *typedArrayObject {
+	ab := r._newArrayBuffer(r.getArrayBufferPrototype(), nil)
+	ab.data = data
+	ta := taCtor(ab, 0, 0, r.getPrototypeFromCtor(newTarget, nil, proto))
+	ta.length = len(data) / ta.elemSize
+	return ta
+}
+
 func (r *Runtime) _newTypedArray(args []Value, newTarget *Object, taCtor typedArrayObjectCtor, proto *Object) *Object {
 	if newTarget == nil {
 		panic(r.needNew("TypedArray"))
@@ -1586,9 +1597,7 @@ func (r *Runtime) uint8Array_fromHex(call FunctionCall) Value {
 	if err != nil {
 		panic(r.newSyntaxError(err.Error(), -1)) // SyntaxError for odd-length-input or illegal-characters
 	}
-	ta := r.allocateTypedArray(r.getUint8Array(), len(b), r.newUint8ArrayObject, nil)
-	copy(ta.viewedArrayBuf.data, b)
-	return ta.val
+	return r.newTypedArrayWithData(b, r.getUint8Array(), r.newUint8ArrayObject, nil).val
 }
 
 func (r *Runtime) uint8ArrayProto_toHex(call FunctionCall) Value {
