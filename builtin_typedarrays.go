@@ -1613,16 +1613,15 @@ func (r *Runtime) uint8ArrayProto_setFromHex(call FunctionCall) Value {
 		panic(r.NewTypeError("Uint8Array.prototype.setFromHex requires a string"))
 	}
 	into := r.getUint8ArrayBytes(ta)
-	b, err := r.fromHexWithMaxLength(s, len(into))
-	// Whatever was decoded before the error still gets written out, so the write has to
-	// happen before the error is thrown.
-	copy(into, b)
+	// Whatever was decoded before the error has already been written into the
+	// destination, as required by the spec (SetUint8ArrayBytes runs before the throw).
+	n, err := r.fromHexInto(s, len(into), into)
 	if err != nil {
 		panic(r.newSyntaxError(err.Error(), -1))
 	}
 	res := r.NewObject()
-	res.self.setOwnStr("read", intToValue(int64(2*len(b))), false)
-	res.self.setOwnStr("written", intToValue(int64(len(b))), false)
+	res.self.setOwnStr("read", intToValue(int64(2*n)), false)
+	res.self.setOwnStr("written", intToValue(int64(n)), false)
 	return res
 }
 
@@ -2072,18 +2071,18 @@ func (r *Runtime) fromHex(s String) ([]byte, error) {
 	return b, err
 }
 
-// TC39 Abstract Operations for Uint8Array Objects - [FromHex(string, maxLength])].
+// TC39 Abstract Operations for Uint8Array Objects - [FromHex(string, maxLength)]
 //
 // [FromHex(string, maxLength)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-fromhex
-func (r *Runtime) fromHexWithMaxLength(s String, maxLength int) ([]byte, error) {
+func (r *Runtime) fromHexInto(s String, maxLength int, dst []byte) (int, error) {
 	// Length() counts UTF-16 code units.
 	length := s.Length()
 	if length%2 != 0 {
-		return nil, errors.New("string should have an even number of characters")
+		return 0, errors.New("string should have an even number of characters")
 	}
 	// while read < length and the number of elements in bytes < maxLength.
-	if length/2 > maxLength {
+	if length > maxLength*2 {
 		s = s.Substring(0, maxLength*2)
 	}
-	return r.fromHex(s)
+	return stdhex.Decode(dst, []byte(s.String()))
 }
