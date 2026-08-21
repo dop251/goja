@@ -713,6 +713,33 @@ func TestUint8ArraySetFromHex(t *testing.T) {
 	if bufStr6 != "000000cafe" {
 		t.Fatal(bufStr6)
 	}
+
+	t.Run("read", func(t *testing.T) {
+		ret, err = vm.RunString(`
+		var arr = new Uint8Array(8);
+		arr.setFromHex("cafed00d").read;
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		read := ret.Export().(int64)
+		if read != 8 {
+			t.Fatal(read)
+		}
+	})
+	t.Run("written", func(t *testing.T) {
+		ret, err = vm.RunString(`
+		var arr = new Uint8Array(8);
+		arr.setFromHex("cafed00d").written;
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		written := ret.Export().(int64)
+		if written != 4 {
+			t.Fatal(written)
+		}
+	})
 }
 
 func TestInvalidUint8ArrayFromHex(t *testing.T) {
