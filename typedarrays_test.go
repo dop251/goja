@@ -2,6 +2,7 @@ package goja
 
 import (
 	"bytes"
+	stdhex "encoding/hex"
 	"testing"
 )
 
@@ -541,4 +542,327 @@ func TestTypedArrayExport(t *testing.T) {
 		}
 	})
 
+}
+
+func TestUint8ArrayFromHex(t *testing.T) {
+	vm := New()
+
+	// valid-hex string
+	retH, err := vm.RunString(`
+	Uint8Array.fromHex("0123456789ABcdEf");
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bufStr := stdhex.EncodeToString(retH.Export().([]byte)) // means Uint8Array
+	if bufStr != "0123456789abcdef" {
+		t.Fatal(bufStr)
+	}
+
+	data := []byte{0xAA, 0xBB}
+	buf := vm.NewArrayBuffer(data)
+	vm.Set("buf", buf)
+	_, err = vm.RunString(`
+	var a = new Uint8Array(buf);
+	var b = Uint8Array.fromHex("AaBb");
+
+	if (a.length !== 2 || b.length !== 2) {
+		throw new Error(b);
+	}
+	for (let i = 0; i < a.length; i++) {
+		if (a[i] !== b[i]) {
+		throw new Error(b);
+		}
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ret, err := vm.RunString(`
+	var b = Uint8Array.fromHex("ccDD");
+	b.buffer;
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf1 := ret.Export().(ArrayBuffer)
+	data1 := buf1.Bytes()
+	if len(data1) != 2 || data1[0] != 0xCC || data1[1] != 0xDD {
+		t.Fatal(data1)
+	}
+	if buf1.Detached() {
+		t.Fatal("buf1.Detached() returned true")
+	}
+	if !buf1.Detach() {
+		t.Fatal("buf1.Detach() returned false")
+	}
+	if !buf1.Detached() {
+		t.Fatal("buf1.Detached() returned false")
+	}
+	_, err = vm.RunString(`
+	if (b[0] !== undefined) {
+		throw new Error("b[0] !== undefined");
+	}
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestUint8ArrayToHex(t *testing.T) {
+	vm := New()
+
+	// valid-hex string
+	retH, err := vm.RunString(`
+	var arr = Uint8Array.fromHex("0123456789ABcdEf");
+	arr.toHex();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bufStr := retH.Export().(string) // means Hex string
+	if bufStr != "0123456789abcdef" {
+		t.Fatal(bufStr)
+	}
+}
+
+func TestUint8ArraySetFromHex(t *testing.T) {
+	vm := New()
+
+	// valid-hex string
+	retH, err := vm.RunString(`
+	var arr = Uint8Array.fromHex("0123456789ABcdEf");
+	arr.setFromHex("0123456789ABcdEf");
+	arr.toHex();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bufStr := retH.Export().(string) // means Hex string
+	if bufStr != "0123456789abcdef" {
+		t.Fatal(bufStr)
+	}
+
+	// length[Uint8Array] < length(setFromHex)
+	retH, err = vm.RunString(`
+	var arr = Uint8Array.fromHex("01234567");
+	arr.setFromHex("0123456789ABcdEf");
+	arr.toHex();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bufStr2 := retH.Export().(string) // means Hex string
+	if bufStr2 != "01234567" {
+		t.Fatal(bufStr2)
+	}
+
+	// length[Uint8Array] > length(setFromHex)
+	retH, err = vm.RunString(`
+	var arr = Uint8Array.fromHex("0123456789ABcdEf");
+	arr.setFromHex("AABBCCDD");
+	arr.toHex();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bufStr3 := retH.Export().(string) // means Hex string
+	if bufStr3 != "aabbccdd89abcdef" {
+		t.Fatal(bufStr3)
+	}
+
+	// length[Uint8Array] > length(setFromHex)
+	retH, err = vm.RunString(`
+	var arr = new Uint8Array(5);
+	arr.setFromHex("AABBCCDD");
+	arr.toHex();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bufStr4 := retH.Export().(string) // means Hex string
+	if bufStr4 != "aabbccdd00" {
+		t.Fatal(bufStr4)
+	}
+
+	// offset length[Uint8Array] > length(setFromHex)
+	retH, err = vm.RunString(`
+	var arr = new Uint8Array(8);
+	arr.subarray(3).setFromHex("cafed00d");
+	arr.toHex();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bufStr5 := retH.Export().(string) // means Hex string
+	if bufStr5 != "000000cafed00d00" {
+		t.Fatal(bufStr5)
+	}
+
+	// offset + length[Uint8Array] < length(setFromHex)
+	retH, err = vm.RunString(`
+	var arr = new Uint8Array(5);
+	arr.subarray(3).setFromHex("cafed00d");
+	arr.toHex();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bufStr6 := retH.Export().(string) // means Hex string
+	if bufStr6 != "000000cafe" {
+		t.Fatal(bufStr6)
+	}
+
+	t.Run("read", func(t *testing.T) {
+		ret, err := vm.RunString(`
+		var arr = new Uint8Array(8);
+		arr.setFromHex("cafed00d").read;
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		read := ret.Export().(int64)
+		if read != 8 {
+			t.Fatal(read)
+		}
+	})
+	t.Run("written", func(t *testing.T) {
+		ret, err := vm.RunString(`
+		var arr = new Uint8Array(8);
+		arr.setFromHex("cafed00d").written;
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		written := ret.Export().(int64)
+		if written != 4 {
+			t.Fatal(written)
+		}
+	})
+}
+
+func TestInvalidUint8ArrayFromHex(t *testing.T) {
+	vm := New()
+
+	t.Run("non-hex-character", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var arr = Uint8Array.fromHex("01234567");
+		arr.setFromHex("aabZ"); // Invalid hex character
+		`)
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+	})
+
+	t.Run("odd-length", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var arr = Uint8Array.fromHex("01234567");
+		arr.setFromHex("aab"); // Odd length hex character
+		`)
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+	})
+
+	t.Run("contain-whitespace", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var arr = Uint8Array.fromHex("01234567");
+		arr.setFromHex("aa  bb"); // Not contain whitespace
+		`)
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+	})
+}
+
+func TestInvalidUint8ArraySetFromHex(t *testing.T) {
+	vm := New()
+
+	t.Run("non-hex-character", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var b = Uint8Array.fromHex("aabZ"); // Invalid hex character
+		`)
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+	})
+
+	t.Run("odd-length", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var b = Uint8Array.fromHex("aab"); // Odd length hex character
+		`)
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+	})
+
+	t.Run("contain-whitespace", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var b = Uint8Array.fromHex("aa  bb"); // Not contain whitespace
+		`)
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+	})
+}
+
+func TestFromHexWithoutUint8Array(t *testing.T) {
+	vm := New()
+	t.Run("int8", func(t *testing.T) {
+		_, err := vm.RunString(`Int8Array.fromHex("aabb");`)
+		if err == nil {
+			t.Fatal("Int8Array must not have fromHex method")
+		}
+	})
+	t.Run("uint16", func(t *testing.T) {
+		_, err := vm.RunString(`Uint16Array.fromHex("aabb");`)
+		if err == nil {
+			t.Fatal("Uint16Array must not have fromHex method")
+		}
+	})
+}
+
+func TestSetFromHexWithoutUint8Array(t *testing.T) {
+	vm := New()
+	t.Run("int8", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var int8Array = new Int8Array(8);;
+		int8Array.setFromHex("cafed00d");
+		`)
+		if err == nil {
+			t.Fatal("Int8Array must not have setFromHex method")
+		}
+	})
+	t.Run("uint16", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var uint16Array = new Uint16Array(16);;
+		uint16Array.setFromHex("cafed00dcafed00d");
+		`)
+		if err == nil {
+			t.Fatal("Uint16Array must not have setFromHex method")
+		}
+	})
+}
+
+func TestToFromHexWithoutUint8Array(t *testing.T) {
+	vm := New()
+	t.Run("int8", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var int8Array = new Int8Array(8);;
+		int8Array.toHex();
+		`)
+		if err == nil {
+			t.Fatal("Int8Array must not have toHex method")
+		}
+	})
+	t.Run("uint16", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var uint16Array = new Uint16Array(16);;
+		uint16Array.toHex();
+		`)
+		if err == nil {
+			t.Fatal("Uint16Array must not have toHex method")
+		}
+	})
 }
