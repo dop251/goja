@@ -3,6 +3,7 @@ package goja
 import (
 	"bytes"
 	stdhex "encoding/hex"
+	"fmt"
 	"testing"
 )
 
@@ -863,6 +864,345 @@ func TestToFromHexWithoutUint8Array(t *testing.T) {
 		`)
 		if err == nil {
 			t.Fatal("Uint16Array must not have toHex method")
+		}
+	})
+}
+
+func TestUint8ArrayFromBase64(t *testing.T) {
+	testCases := []struct {
+		name     string
+		script   string
+		expected string
+	}{
+		// ---------loose---------
+		{
+			name:     "loose-base64-missing-padding",
+			script:   `Uint8Array.fromBase64("aGVsbG8");`,
+			expected: "hello",
+		},
+		{
+			name:     "loose-base64-with-padding",
+			script:   `Uint8Array.fromBase64("aGVsbG8=");`,
+			expected: "hello",
+		},
+		{
+			name:     "loose-base64-with-whitespace",
+			script:   `Uint8Array.fromBase64(" aGVs\tb\nG8\r\n = ");`,
+			expected: "hello",
+		},
+		{
+			name:     "loose-base64-empty",
+			script:   `Uint8Array.fromBase64("");`,
+			expected: "",
+		},
+		{
+			name:     "loose-base64-urllike",
+			script:   `Uint8Array.fromBase64("aGVsbG8+ISE/", { alphabet: "base64"});`,
+			expected: "hello>!!?",
+		},
+		// ---------strict---------
+		{
+			name:     "strict-base64-missing-padding",
+			script:   `Uint8Array.fromBase64("aGVsbG8x", { lastChunkHandling: "strict" });`,
+			expected: "hello1",
+		},
+		{
+			name:     "strict-base64-with-padding",
+			script:   `Uint8Array.fromBase64("aGVsbG8=", { lastChunkHandling: "strict" });`,
+			expected: "hello",
+		},
+		{
+			name:     "strict-base64-with-whitespace",
+			script:   `Uint8Array.fromBase64(" aGVs\tb\nG8\r\nx ", { lastChunkHandling: "strict" });`,
+			expected: "hello1",
+		},
+		{
+			name:     "strict-base64-empty",
+			script:   `Uint8Array.fromBase64("", { lastChunkHandling: "strict" });`,
+			expected: "",
+		},
+		// ---------stop-before-partial---------
+		{
+			name:     "partial-base64-missing-padding",
+			script:   `Uint8Array.fromBase64("aGVs", { lastChunkHandling: "stop-before-partial" });`,
+			expected: "hel",
+		},
+		{
+			name:     "partial-base64-missing-padding-after-partial",
+			script:   `Uint8Array.fromBase64("aGVsbG", { lastChunkHandling: "stop-before-partial" });`,
+			expected: "hel",
+		},
+		{
+			name:     "partial-base64-with-padding",
+			script:   `Uint8Array.fromBase64("aGVsbG8=", { lastChunkHandling: "stop-before-partial" });`,
+			expected: "hello",
+		},
+		{
+			name:     "partial-base64-with-whitespace",
+			script:   `Uint8Array.fromBase64(" aGVs\tb\nG8\r\n = ", { lastChunkHandling: "stop-before-partial" });`,
+			expected: "hello",
+		},
+		{
+			name:     "partial-base64-empty",
+			script:   `Uint8Array.fromBase64("", { lastChunkHandling: "stop-before-partial" });`,
+			expected: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			v, err := vm.RunString(tc.script)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result := string(v.Export().([]byte)) // means Uint8Array
+			if result != tc.expected {
+				t.Fatalf("Expected '%s' but got '%s'", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestUint8ArrayFromBase64Url(t *testing.T) {
+	testCases := []struct {
+		name     string
+		script   string
+		expected string
+	}{
+		// ---------loose---------
+		{
+			name:     "loose-base64url-missing-padding",
+			script:   `Uint8Array.fromBase64("aGVsbG8-ISE_", { alphabet: "base64url"});`,
+			expected: "hello>!!?",
+		},
+		{
+			name:     "loose-base64url-with-padding",
+			script:   `Uint8Array.fromBase64("aGVsbG8-ISE_YQ==", { alphabet: "base64url"});`,
+			expected: "hello>!!?a",
+		},
+		{
+			name:     "loose-base64url-with-whitespace",
+			script:   `Uint8Array.fromBase64(" aGVs\tbG\n8-ISE_Y\r\nQ= = ", { alphabet: "base64url"});`,
+			expected: "hello>!!?a",
+		},
+		{
+			name:     "loose-base64url-empty",
+			script:   `Uint8Array.fromBase64("", { alphabet: "base64url"});`,
+			expected: "",
+		},
+		// ---------strict---------
+		{
+			name:     "strict-base64url-missing-padding",
+			script:   `Uint8Array.fromBase64("aGVsbG8-ISE_", { lastChunkHandling: "strict", alphabet: "base64url" });`,
+			expected: "hello>!!?",
+		},
+		{
+			name:     "strict-base64url-with-padding",
+			script:   `Uint8Array.fromBase64("aGVsbG8-ISE_YQ==", { lastChunkHandling: "stop-before-partial", alphabet: "base64url" });`,
+			expected: "hello>!!?a",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			v, err := vm.RunString(tc.script)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result := string(v.Export().([]byte)) // means Uint8Array
+			if result != tc.expected {
+				t.Fatalf("Expected '%s' but got '%s'", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestUint8ArrayFromBase64LastChunkHandling(t *testing.T) {
+	vm := New()
+
+	t.Run("strict-with-padding", func(t *testing.T) {
+		retH, err := vm.RunString(`
+		Uint8Array.fromBase64("aGVsbG8gd29ybGQ=", { lastChunkHandling: "strict" });
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s := string(retH.Export().([]byte)); s != "hello world" {
+			t.Fatal(s)
+		}
+	})
+
+	t.Run("strict-missing-padding", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var ok = false;
+		try {
+			Uint8Array.fromBase64("aGVsbG8", { lastChunkHandling: "strict" });
+		} catch (e) {
+			ok = e instanceof SyntaxError;
+		}
+		if (!ok) {
+			throw new Error("Expected a SyntaxError");
+		}
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("strict-extra-bits", func(t *testing.T) {
+		// "QR==": the last character contributes non-zero bits beyond the single decoded byte
+		_, err := vm.RunString(`
+		var ok = false;
+		try {
+			Uint8Array.fromBase64("QR==", { lastChunkHandling: "strict" });
+		} catch (e) {
+			ok = e instanceof SyntaxError;
+		}
+		if (!ok) {
+			throw new Error("Expected a SyntaxError");
+		}
+		var loose = Uint8Array.fromBase64("QR==");
+		if (loose.length !== 1 || loose[0] !== 65) {
+			throw new Error("loose should decode QR== to [65]");
+		}
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("stop-before-partial", func(t *testing.T) {
+		retH, err := vm.RunString(`
+		Uint8Array.fromBase64("aGVsbG8", { lastChunkHandling: "stop-before-partial" });
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// only the full-length chunk "aGVs" is decoded, the partial chunk "bG8" is ignored
+		if s := string(retH.Export().([]byte)); s != "hel" {
+			t.Fatal(s)
+		}
+	})
+}
+
+func TestInvalidUint8ArrayFromBase64(t *testing.T) {
+	testCases := []struct {
+		name      string
+		script    string
+		errorName string
+	}{
+		// ---------SyntaxError---------
+		{
+			name:      "non-base64-character",
+			script:    `Uint8Array.fromBase64("ab#c")`,
+			errorName: "SyntaxError",
+		},
+		{
+			// a trailing chunk of length 1 is invalid even in loose mode
+			name:      "single-extra-character",
+			script:    `Uint8Array.fromBase64("abcde")`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "padding-only",
+			script:    `Uint8Array.fromBase64("=")`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "padding-after-single-character",
+			script:    `Uint8Array.fromBase64("A=")`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "padding-inside-chunk",
+			script:    `Uint8Array.fromBase64("AB=C")`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "padding-after-full-chunk",
+			script:    `Uint8Array.fromBase64("ABCD=")`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "character-after-padding",
+			script:    `Uint8Array.fromBase64("AB==C")`,
+			errorName: "SyntaxError",
+		},
+		// ---------TypeError---------
+		{
+			// the argument must be a String, there is no ToString coercion
+			name:      "non-string-input",
+			script:    `Uint8Array.fromBase64(1234)`,
+			errorName: "TypeError",
+		},
+		{
+			name:      "options-null",
+			script:    `Uint8Array.fromBase64("aGVsbG8=", null)`,
+			errorName: "TypeError",
+		},
+		{
+			name:      "options-not-an-object",
+			script:    `Uint8Array.fromBase64("aGVsbG8=", "loose")`,
+			errorName: "TypeError",
+		},
+		{
+			name:      "alphabet-unknown",
+			script:    `Uint8Array.fromBase64("aGVsbG8=", { alphabet: "base16" })`,
+			errorName: "TypeError",
+		},
+		{
+			name:      "alphabet-null",
+			script:    `Uint8Array.fromBase64("aGVsbG8=", { alphabet: null })`,
+			errorName: "TypeError",
+		},
+		{
+			name:      "last-chunk-handling-unknown",
+			script:    `Uint8Array.fromBase64("aGVsbG8=", { lastChunkHandling: "foo" })`,
+			errorName: "TypeError",
+		},
+		{
+			name:      "last-chunk-handling-null",
+			script:    `Uint8Array.fromBase64("aGVsbG8=", { lastChunkHandling: null })`,
+			errorName: "TypeError",
+		},
+	}
+
+	const assertThrows = `
+	var ok = false;
+	try {
+		%s;
+	} catch (e) {
+		ok = e instanceof %s;
+	}
+	if (!ok) {
+		throw new Error("Expected a %[2]s");
+	}
+	`
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			_, err := vm.RunString(fmt.Sprintf(assertThrows, tc.script, tc.errorName))
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestFromBase64WithoutUint8Array(t *testing.T) {
+	vm := New()
+	t.Run("int8", func(t *testing.T) {
+		_, err := vm.RunString(`Int8Array.fromBase64("aGVsbG8=");`)
+		if err == nil {
+			t.Fatal("Int8Array must not have fromBase64 method")
+		}
+	})
+	t.Run("uint16", func(t *testing.T) {
+		_, err := vm.RunString(`Uint16Array.fromBase64("aGVsbG8=");`)
+		if err == nil {
+			t.Fatal("Uint16Array must not have fromBase64 method")
 		}
 	})
 }

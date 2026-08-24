@@ -268,18 +268,6 @@ var (
 		"test/language/literals/regexp/named-groups/invalid-identity-escape-in-capture-u.js": true,
 
 		// Uint8Array base64 methods (fromBase64/toBase64/setFromBase64) not implemented
-		"test/built-ins/Uint8Array/fromBase64/alphabet.js":                            true,
-		"test/built-ins/Uint8Array/fromBase64/descriptor.js":                          true,
-		"test/built-ins/Uint8Array/fromBase64/ignores-receiver.js":                    true,
-		"test/built-ins/Uint8Array/fromBase64/illegal-characters.js":                  true,
-		"test/built-ins/Uint8Array/fromBase64/last-chunk-handling.js":                 true,
-		"test/built-ins/Uint8Array/fromBase64/last-chunk-invalid.js":                  true,
-		"test/built-ins/Uint8Array/fromBase64/length.js":                              true,
-		"test/built-ins/Uint8Array/fromBase64/name.js":                                true,
-		"test/built-ins/Uint8Array/fromBase64/nonconstructor.js":                      true,
-		"test/built-ins/Uint8Array/fromBase64/option-coercion.js":                     true,
-		"test/built-ins/Uint8Array/fromBase64/results.js":                             true,
-		"test/built-ins/Uint8Array/fromBase64/whitespace.js":                          true,
 		"test/built-ins/Uint8Array/prototype/setFromBase64/alphabet.js":               true,
 		"test/built-ins/Uint8Array/prototype/setFromBase64/descriptor.js":             true,
 		"test/built-ins/Uint8Array/prototype/setFromBase64/detached-buffer.js":        true,

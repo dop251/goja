@@ -13,6 +13,19 @@ import (
 	"github.com/dop251/goja/unistring"
 )
 
+// base64ReverseTable maps a code unit of the standard base64 alphabet
+// "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+// to its 6-bit value; -1 marks code units outside the alphabet.
+var base64ReverseTable = func() (t [128]int8) {
+	for i := range t {
+		t[i] = -1
+	}
+	for i, c := range "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" {
+		t[c] = int8(i)
+	}
+	return
+}()
+
 type typedArraySortCtx struct {
 	ta           *typedArrayObject
 	compare      func(FunctionCall) Value
@@ -1600,6 +1613,39 @@ func (r *Runtime) uint8Array_fromHex(call FunctionCall) Value {
 	return r.newTypedArrayWithData(b, r.getUint8Array(), r.newUint8ArrayObject, nil).val
 }
 
+func (r *Runtime) uint8Array_fromBase64(call FunctionCall) Value {
+	s, ok := call.Argument(0).(String)
+	if !ok {
+		panic(r.NewTypeError("Uint8Array.fromBase64 requires a string"))
+	}
+	opts := r.getOptionsObject(call.Argument(1))
+	alphabet := "base64"
+	if v := opts.self.getStr("alphabet", nil); v != nil && v != _undefined {
+		str, ok := v.(String)
+		if ok {
+			alphabet = str.String()
+		}
+		if !ok || (alphabet != "base64" && alphabet != "base64url") {
+			panic(r.NewTypeError("alphabet must be \"base64\" or \"base64url\""))
+		}
+	}
+	lastChunkHandling := "loose"
+	if v := opts.self.getStr("lastChunkHandling", nil); v != nil && v != _undefined {
+		str, ok := v.(String)
+		if ok {
+			lastChunkHandling = str.String()
+		}
+		if !ok || (lastChunkHandling != "loose" && lastChunkHandling != "strict" && lastChunkHandling != "stop-before-partial") {
+			panic(r.NewTypeError("lastChunkHandling must be \"loose\", \"strict\" or \"stop-before-partial\""))
+		}
+	}
+	_, b, err := r.fromBase64(s, alphabet, lastChunkHandling, -1)
+	if err != nil {
+		panic(r.newSyntaxError(err.Error(), -1))
+	}
+	return r.newTypedArrayWithData(b, r.getUint8Array(), r.newUint8ArrayObject, nil).val
+}
+
 func (r *Runtime) uint8ArrayProto_toHex(call FunctionCall) Value {
 	ta := r.validateUint8Array(call.This)
 	toEnc := r.getUint8ArrayBytes(ta)
@@ -1824,6 +1870,8 @@ func (r *Runtime) getUint8Array() *Object {
 		// implements Uint8Array.fromHex static method
 		o := ret.self.(*nativeFuncObject)
 		o._putProp("fromHex", r.newNativeFunc(r.uint8Array_fromHex, "fromHex", 1), true, false, true)
+		// implements Uint8Array.fromBase64 static method
+		o._putProp("fromBase64", r.newNativeFunc(r.uint8Array_fromBase64, "fromBase64", 1), true, false, true)
 
 		// implements Uint8Array.prototype.toHex method
 		p._putProp("toHex", r.newNativeFunc(r.uint8ArrayProto_toHex, "toHex", 0), true, false, true)
@@ -2063,6 +2111,146 @@ func (r *Runtime) getUint8ArrayBytes(ta *typedArrayObject) []byte {
 	return ta.viewedArrayBuf.data[ta.offset : ta.offset+ta.length]
 }
 
+// TC39 Abstract Operations for Uint8Array Objects - [SkipAsciiWhitespace(string, index)].
+//
+// [SkipAsciiWhitespace(string, index)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-skipasciiwhitespace
+func (r *Runtime) skipAsciiWhitespace(s String, index int) int {
+	length := s.Length()
+	for index < length {
+		switch s.CharAt(index) {
+		case 0x0009, 0x000A, 0x000C, 0x000D, 0x0020:
+			index++
+		default:
+			return index
+		}
+	}
+	return index
+}
+
+// TC39 Abstract Operations for Uint8Array Objects - [DecodeFinalBase64Chunk(chunk, throwOnExtraBits)].
+// chunk must contain 2 or 3 characters of the standard base64 alphabet.
+//
+// [DecodeFinalBase64Chunk(chunk, throwOnExtraBits)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-decodefinalbase64chunk
+func (r *Runtime) decodeFinalBase64Chunk(chunk []byte, throwOnExtraBits bool) ([]byte, error) {
+	full := [4]byte{'A', 'A', 'A', 'A'}
+	copy(full[:], chunk)
+	b := r.decodeFullLengthBase64Chunk(full)
+	if len(chunk) == 2 {
+		if throwOnExtraBits && b[1] != 0 {
+			return nil, errors.New("extra bits in the last base64 character")
+		}
+		return b[:1], nil
+	}
+	if throwOnExtraBits && b[2] != 0 {
+		return nil, errors.New("extra bits in the last base64 character")
+	}
+	return b[:2], nil
+}
+
+// TC39 Abstract Operations for Uint8Array Objects - [DecodeFullLengthBase64Chunk(chunk)].
+// chunk must contain 4 characters of the standard base64 alphabet.
+//
+// [DecodeFullLengthBase64Chunk(chunk)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-decodefulllengthbase64chunk
+func (r *Runtime) decodeFullLengthBase64Chunk(chunk [4]byte) [3]byte {
+	n := uint32(base64ReverseTable[chunk[0]])<<18 |
+		uint32(base64ReverseTable[chunk[1]])<<12 |
+		uint32(base64ReverseTable[chunk[2]])<<6 |
+		uint32(base64ReverseTable[chunk[3]])
+	return [3]byte{byte(n >> 16), byte(n >> 8), byte(n)}
+}
+
+// TC39 Abstract Operations for Uint8Array Objects - [FromBase64(string, alphabet, lastChunkHandling, maxLength)].
+//
+// [FromBase64(string, alphabet, lastChunkHandling, maxLength)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-frombase64
+func (r *Runtime) fromBase64(s String, alphabet, lastChunkHandling string, maxLength int) (read int, bytes []byte, err error) {
+	if maxLength == 0 {
+		return 0, nil, nil
+	}
+	var chunk [4]byte
+	chunkLength := 0
+	index := 0
+	length := s.Length()
+	for {
+		index = r.skipAsciiWhitespace(s, index)
+		//
+		if index == length {
+			if chunkLength > 0 {
+				if lastChunkHandling == "stop-before-partial" {
+					return read, bytes, nil
+				}
+				if lastChunkHandling == "strict" {
+					return read, bytes, errors.New("missing padding in the last chunk")
+				}
+				// lastChunkHandling is "loose", and
+				if chunkLength == 1 {
+					return read, bytes, errors.New("a single extra base64 character in the last chunk")
+				}
+				dec, _ := r.decodeFinalBase64Chunk(chunk[:chunkLength], false)
+				bytes = append(bytes, dec...)
+			}
+			return length, bytes, nil
+		}
+		char := s.CharAt(index)
+		index++
+		if char == '=' {
+			if chunkLength < 2 {
+				return read, bytes, errors.New("unexpected padding character")
+			}
+			index = r.skipAsciiWhitespace(s, index)
+			if chunkLength == 2 {
+				if index == length {
+					if lastChunkHandling == "stop-before-partial" {
+						return read, bytes, nil
+					}
+					return read, bytes, errors.New("missing padding character")
+				}
+				if s.CharAt(index) == '=' {
+					index = r.skipAsciiWhitespace(s, index+1)
+				}
+			}
+			if index < length {
+				return read, bytes, errors.New("unexpected character after padding")
+			}
+			dec, decErr := r.decodeFinalBase64Chunk(chunk[:chunkLength], lastChunkHandling == "strict")
+			if decErr != nil {
+				return read, bytes, decErr
+			}
+			bytes = append(bytes, dec...)
+			return length, bytes, nil
+		}
+		if alphabet == "base64url" {
+			switch char {
+			case '+', '/':
+				return read, bytes, errors.New("invalid character in a base64url string")
+			case '-':
+				char = '+'
+			case '_':
+				char = '/'
+			}
+		}
+		if char >= 128 || base64ReverseTable[char] < 0 {
+			return read, bytes, errors.New("invalid base64 character")
+		}
+		if maxLength >= 0 {
+			remaining := maxLength - len(bytes)
+			if (remaining == 1 && chunkLength == 2) || (remaining == 2 && chunkLength == 3) {
+				return read, bytes, nil
+			}
+		}
+		chunk[chunkLength] = byte(char)
+		chunkLength++
+		if chunkLength == 4 {
+			dec := r.decodeFullLengthBase64Chunk(chunk)
+			bytes = append(bytes, dec[:]...)
+			chunkLength = 0
+			read = index
+			if maxLength >= 0 && len(bytes) == maxLength {
+				return read, bytes, nil
+			}
+		}
+	}
+}
+
 // TC39 Abstract Operations for Uint8Array Objects - [FromHex(string)].
 //
 // [FromHex(string)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-fromhex
@@ -2085,4 +2273,17 @@ func (r *Runtime) fromHexInto(s String, maxLength int, dst []byte) (int, error) 
 		s = s.Substring(0, maxLength*2)
 	}
 	return stdhex.Decode(dst, []byte(s.String()))
+}
+
+// TC39 Abstract Operation for Objects - [GetOptionsObject(options)].
+//
+// [GetOptionsObject(options)]: https://tc39.es/ecma262/multipage/abstract-operations.html#sec-getoptionsobject
+func (r *Runtime) getOptionsObject(options Value) *Object {
+	if options == nil || options == _undefined {
+		return r.newBaseObject(nil, classObject).val
+	}
+	if obj, ok := options.(*Object); ok {
+		return obj
+	}
+	panic(r.NewTypeError("Options is not an object"))
 }
