@@ -1653,21 +1653,22 @@ func (r *Runtime) uint8ArrayProto_toHex(call FunctionCall) Value {
 }
 
 func (r *Runtime) uint8ArrayProto_setFromHex(call FunctionCall) Value {
-	ta := r.validateUint8Array(call.This)
+	taRecord := r.validateUint8Array(call.This)
 	s, ok := call.Argument(0).(String)
 	if !ok {
 		panic(r.NewTypeError("Uint8Array.prototype.setFromHex requires a string"))
 	}
-	into := r.getUint8ArrayBytes(ta)
+	into := r.getUint8ArrayBytes(taRecord)
 	// Whatever was decoded before the error has already been written into the
 	// destination, as required by the spec (SetUint8ArrayBytes runs before the throw).
-	n, err := r.fromHexInto(s, len(into), into)
+	// Writes data directly, instead of using [SetUint8ArrayBytes], to avoiding extra allocation.
+	written, err := r.fromHexInto(s, len(into), into)
 	if err != nil {
 		panic(r.newSyntaxError(err.Error(), -1))
 	}
 	res := r.NewObject()
-	res.self.setOwnStr("read", intToValue(int64(2*n)), false)
-	res.self.setOwnStr("written", intToValue(int64(n)), false)
+	res.self.setOwnStr("read", intToValue(int64(2*written)), false)
+	res.self.setOwnStr("written", intToValue(int64(written)), false)
 	return res
 }
 
@@ -2262,7 +2263,7 @@ func (r *Runtime) fromHex(s String) ([]byte, error) {
 // TC39 Abstract Operations for Uint8Array Objects - [FromHex(string, maxLength)]
 //
 // [FromHex(string, maxLength)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-fromhex
-func (r *Runtime) fromHexInto(s String, maxLength int, dst []byte) (int, error) {
+func (r *Runtime) fromHexInto(s String, maxLength int, dst []byte) (written int, err error) {
 	// Length() counts UTF-16 code units.
 	length := s.Length()
 	if length%2 != 0 {
