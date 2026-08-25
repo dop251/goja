@@ -791,69 +791,86 @@ func TestUint8ArraySetFromHexPartialWrite(t *testing.T) {
 	}
 }
 
-func TestInvalidUint8ArrayFromHex(t *testing.T) {
-	vm := New()
-
-	t.Run("non-hex-character", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var arr = Uint8Array.fromHex("01234567");
-		arr.setFromHex("aabZ"); // Invalid hex character
-		`)
-		if err == nil {
-			t.Fatal("Expected error but got none")
-		}
-	})
-
-	t.Run("odd-length", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var arr = Uint8Array.fromHex("01234567");
-		arr.setFromHex("aab"); // Odd length hex character
-		`)
-		if err == nil {
-			t.Fatal("Expected error but got none")
-		}
-	})
-
-	t.Run("contain-whitespace", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var arr = Uint8Array.fromHex("01234567");
-		arr.setFromHex("aa  bb"); // Not contain whitespace
-		`)
-		if err == nil {
-			t.Fatal("Expected error but got none")
-		}
-	})
+// assertThrows wraps a script (%s) so that it fails unless the script throws
+// an instance of the given error constructor (%[2]s).
+const assertThrows = `
+var ok = false;
+try {
+	%s;
+} catch (e) {
+	ok = e instanceof %s;
 }
+if (!ok) {
+	throw new Error("Expected a %[2]s");
+}
+`
 
 func TestInvalidUint8ArraySetFromHex(t *testing.T) {
-	vm := New()
+	testCases := []struct {
+		name      string
+		script    string
+		errorName string
+	}{
+		{
+			name:      "non-hex-character",
+			script:    `Uint8Array.fromHex("01234567").setFromHex("aabZ")`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "odd-length",
+			script:    `Uint8Array.fromHex("01234567").setFromHex("aab")`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "contain-whitespace",
+			script:    `Uint8Array.fromHex("01234567").setFromHex("aa  bb")`,
+			errorName: "SyntaxError",
+		},
+	}
 
-	t.Run("non-hex-character", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var b = Uint8Array.fromHex("aabZ"); // Invalid hex character
-		`)
-		if err == nil {
-			t.Fatal("Expected error but got none")
-		}
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			_, err := vm.RunString(fmt.Sprintf(assertThrows, tc.script, tc.errorName))
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
 
-	t.Run("odd-length", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var b = Uint8Array.fromHex("aab"); // Odd length hex character
-		`)
-		if err == nil {
-			t.Fatal("Expected error but got none")
-		}
-	})
+func TestInvalidUint8ArrayFromHex(t *testing.T) {
+	testCases := []struct {
+		name      string
+		script    string
+		errorName string
+	}{
+		{
+			name:      "non-hex-character",
+			script:    `Uint8Array.fromHex("aabZ")`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "odd-length",
+			script:    `Uint8Array.fromHex("aab")`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "contain-whitespace",
+			script:    `Uint8Array.fromHex("aa  bb")`,
+			errorName: "SyntaxError",
+		},
+	}
 
-	t.Run("contain-whitespace", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var b = Uint8Array.fromHex("aa  bb"); // Not contain whitespace
-		`)
-		if err == nil {
-			t.Fatal("Expected error but got none")
-		}
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			_, err := vm.RunString(fmt.Sprintf(assertThrows, tc.script, tc.errorName))
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
 
 func TestFromHexWithoutUint8Array(t *testing.T) {
@@ -876,7 +893,7 @@ func TestSetFromHexWithoutUint8Array(t *testing.T) {
 	vm := New()
 	t.Run("int8", func(t *testing.T) {
 		_, err := vm.RunString(`
-		var int8Array = new Int8Array(8);;
+		var int8Array = new Int8Array(8);
 		int8Array.setFromHex("cafed00d");
 		`)
 		if err == nil {
@@ -885,7 +902,7 @@ func TestSetFromHexWithoutUint8Array(t *testing.T) {
 	})
 	t.Run("uint16", func(t *testing.T) {
 		_, err := vm.RunString(`
-		var uint16Array = new Uint16Array(16);;
+		var uint16Array = new Uint16Array(16);
 		uint16Array.setFromHex("cafed00dcafed00d");
 		`)
 		if err == nil {
@@ -894,11 +911,11 @@ func TestSetFromHexWithoutUint8Array(t *testing.T) {
 	})
 }
 
-func TestToFromHexWithoutUint8Array(t *testing.T) {
+func TestToHexWithoutUint8Array(t *testing.T) {
 	vm := New()
 	t.Run("int8", func(t *testing.T) {
 		_, err := vm.RunString(`
-		var int8Array = new Int8Array(8);;
+		var int8Array = new Int8Array(8);
 		int8Array.toHex();
 		`)
 		if err == nil {
@@ -907,7 +924,7 @@ func TestToFromHexWithoutUint8Array(t *testing.T) {
 	})
 	t.Run("uint16", func(t *testing.T) {
 		_, err := vm.RunString(`
-		var uint16Array = new Uint16Array(16);;
+		var uint16Array = new Uint16Array(16);
 		uint16Array.toHex();
 		`)
 		if err == nil {
@@ -1153,17 +1170,6 @@ func TestInvalidUint8ArrayFromBase64(t *testing.T) {
 		},
 	}
 
-	const assertThrows = `
-	var ok = false;
-	try {
-		%s;
-	} catch (e) {
-		ok = e instanceof %s;
-	}
-	if (!ok) {
-		throw new Error("Expected a %[2]s");
-	}
-	`
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			vm := New()
