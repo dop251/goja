@@ -629,95 +629,89 @@ func TestUint8ArrayToHex(t *testing.T) {
 }
 
 func TestUint8ArraySetFromHex(t *testing.T) {
+	testCases := []struct {
+		name     string
+		script   string
+		expected string
+	}{
+		{
+			name: "valid-hex-string",
+			script: `
+			var arr = Uint8Array.fromHex("0123456789ABcdEf");
+			arr.setFromHex("0123456789ABcdEf");
+			arr.toHex();
+			`,
+			expected: "0123456789abcdef",
+		},
+		{
+			// length[Uint8Array] < length(setFromHex)
+			name: "array-shorter-than-input",
+			script: `
+			var arr = Uint8Array.fromHex("01234567");
+			arr.setFromHex("0123456789ABcdEf");
+			arr.toHex();
+			`,
+			expected: "01234567",
+		},
+		{
+			// length[Uint8Array] > length(setFromHex)
+			name: "array-longer-than-input",
+			script: `
+			var arr = Uint8Array.fromHex("0123456789ABcdEf");
+			arr.setFromHex("AABBCCDD");
+			arr.toHex();
+			`,
+			expected: "aabbccdd89abcdef",
+		},
+		{
+			// length[Uint8Array] > length(setFromHex)
+			name: "fresh-array-longer-than-input",
+			script: `
+			var arr = new Uint8Array(5);
+			arr.setFromHex("AABBCCDD");
+			arr.toHex();
+			`,
+			expected: "aabbccdd00",
+		},
+		{
+			// offset length[Uint8Array] > length(setFromHex)
+			name: "subarray-longer-than-input",
+			script: `
+			var arr = new Uint8Array(8);
+			arr.subarray(3).setFromHex("cafed00d");
+			arr.toHex();
+			`,
+			expected: "000000cafed00d00",
+		},
+		{
+			// offset + length[Uint8Array] < length(setFromHex)
+			name: "subarray-shorter-than-input",
+			script: `
+			var arr = new Uint8Array(5);
+			arr.subarray(3).setFromHex("cafed00d");
+			arr.toHex();
+			`,
+			expected: "000000cafe",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			v, err := vm.RunString(tc.script)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result := v.String(); result != tc.expected {
+				t.Fatalf("Expected '%s' but got '%s'", tc.expected, result)
+			}
+		})
+	}
+
 	vm := New()
-
-	// valid-hex string
-	retH, err := vm.RunString(`
-	var arr = Uint8Array.fromHex("0123456789ABcdEf");
-	arr.setFromHex("0123456789ABcdEf");
-	arr.toHex();
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bufStr := retH.Export().(string) // means Hex string
-	if bufStr != "0123456789abcdef" {
-		t.Fatal(bufStr)
-	}
-
-	// length[Uint8Array] < length(setFromHex)
-	retH, err = vm.RunString(`
-	var arr = Uint8Array.fromHex("01234567");
-	arr.setFromHex("0123456789ABcdEf");
-	arr.toHex();
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bufStr2 := retH.Export().(string) // means Hex string
-	if bufStr2 != "01234567" {
-		t.Fatal(bufStr2)
-	}
-
-	// length[Uint8Array] > length(setFromHex)
-	retH, err = vm.RunString(`
-	var arr = Uint8Array.fromHex("0123456789ABcdEf");
-	arr.setFromHex("AABBCCDD");
-	arr.toHex();
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bufStr3 := retH.Export().(string) // means Hex string
-	if bufStr3 != "aabbccdd89abcdef" {
-		t.Fatal(bufStr3)
-	}
-
-	// length[Uint8Array] > length(setFromHex)
-	retH, err = vm.RunString(`
-	var arr = new Uint8Array(5);
-	arr.setFromHex("AABBCCDD");
-	arr.toHex();
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bufStr4 := retH.Export().(string) // means Hex string
-	if bufStr4 != "aabbccdd00" {
-		t.Fatal(bufStr4)
-	}
-
-	// offset length[Uint8Array] > length(setFromHex)
-	retH, err = vm.RunString(`
-	var arr = new Uint8Array(8);
-	arr.subarray(3).setFromHex("cafed00d");
-	arr.toHex();
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bufStr5 := retH.Export().(string) // means Hex string
-	if bufStr5 != "000000cafed00d00" {
-		t.Fatal(bufStr5)
-	}
-
-	// offset + length[Uint8Array] < length(setFromHex)
-	retH, err = vm.RunString(`
-	var arr = new Uint8Array(5);
-	arr.subarray(3).setFromHex("cafed00d");
-	arr.toHex();
-	`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bufStr6 := retH.Export().(string) // means Hex string
-	if bufStr6 != "000000cafe" {
-		t.Fatal(bufStr6)
-	}
-
 	t.Run("read", func(t *testing.T) {
 		ret, err := vm.RunString(`
-		var arr = new Uint8Array(8);
+		var arr = new Uint8Array(16);
 		arr.setFromHex("cafed00d").read;
 		`)
 		if err != nil {
@@ -730,7 +724,7 @@ func TestUint8ArraySetFromHex(t *testing.T) {
 	})
 	t.Run("written", func(t *testing.T) {
 		ret, err := vm.RunString(`
-		var arr = new Uint8Array(8);
+		var arr = new Uint8Array(16);
 		arr.setFromHex("cafed00d").written;
 		`)
 		if err != nil {
@@ -741,6 +735,60 @@ func TestUint8ArraySetFromHex(t *testing.T) {
 			t.Fatal(written)
 		}
 	})
+}
+
+// Whatever was decoded before an error must still be written into the
+// destination: the spec performs SetUint8ArrayBytes before the throw.
+func TestUint8ArraySetFromHexPartialWrite(t *testing.T) {
+	testCases := []struct {
+		name     string
+		script   string
+		expected string
+	}{
+		{
+			name: "invalid-character-mid-string",
+			script: `
+			var arr = new Uint8Array(4);
+			try {
+				arr.setFromHex("aabbZZcc");
+			} catch (e) {
+				if (!(e instanceof SyntaxError)) {
+					throw e;
+				}
+			}
+			arr.toHex();
+			`,
+			expected: "aabb0000", // writes "aabb" and then throws on "ZZ"
+		},
+		{
+			name: "invalid-character-mid-string-subarray",
+			script: `
+			var arr = new Uint8Array(6);
+			try {
+				arr.subarray(2).setFromHex("aabbZZcc");
+			} catch (e) {
+				if (!(e instanceof SyntaxError)) {
+					throw e;
+				}
+			}
+			arr.toHex();
+			`,
+			expected: "0000aabb0000", // writes "____aabb" and then throws on "ZZ"
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			v, err := vm.RunString(tc.script)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result := v.String(); result != tc.expected {
+				t.Fatalf("Expected '%s' but got '%s'", tc.expected, result)
+			}
+		})
+	}
 }
 
 func TestInvalidUint8ArrayFromHex(t *testing.T) {
@@ -947,30 +995,8 @@ func TestUint8ArrayFromBase64(t *testing.T) {
 			script:   `Uint8Array.fromBase64("", { lastChunkHandling: "stop-before-partial" });`,
 			expected: "",
 		},
-	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			vm := New()
-			v, err := vm.RunString(tc.script)
-			if err != nil {
-				t.Fatal(err)
-			}
-			result := string(v.Export().([]byte)) // means Uint8Array
-			if result != tc.expected {
-				t.Fatalf("Expected '%s' but got '%s'", tc.expected, result)
-			}
-		})
-	}
-}
-
-func TestUint8ArrayFromBase64Url(t *testing.T) {
-	testCases := []struct {
-		name     string
-		script   string
-		expected string
-	}{
-		// ---------loose---------
+		// ---------base64url----------
 		{
 			name:     "loose-base64url-missing-padding",
 			script:   `Uint8Array.fromBase64("aGVsbG8-ISE_", { alphabet: "base64url"});`,
@@ -991,14 +1017,13 @@ func TestUint8ArrayFromBase64Url(t *testing.T) {
 			script:   `Uint8Array.fromBase64("", { alphabet: "base64url"});`,
 			expected: "",
 		},
-		// ---------strict---------
 		{
 			name:     "strict-base64url-missing-padding",
 			script:   `Uint8Array.fromBase64("aGVsbG8-ISE_", { lastChunkHandling: "strict", alphabet: "base64url" });`,
 			expected: "hello>!!?",
 		},
 		{
-			name:     "strict-base64url-with-padding",
+			name:     "partial-base64url-with-padding",
 			script:   `Uint8Array.fromBase64("aGVsbG8-ISE_YQ==", { lastChunkHandling: "stop-before-partial", alphabet: "base64url" });`,
 			expected: "hello>!!?a",
 		},
@@ -1019,74 +1044,6 @@ func TestUint8ArrayFromBase64Url(t *testing.T) {
 	}
 }
 
-func TestUint8ArrayFromBase64LastChunkHandling(t *testing.T) {
-	vm := New()
-
-	t.Run("strict-with-padding", func(t *testing.T) {
-		retH, err := vm.RunString(`
-		Uint8Array.fromBase64("aGVsbG8gd29ybGQ=", { lastChunkHandling: "strict" });
-		`)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if s := string(retH.Export().([]byte)); s != "hello world" {
-			t.Fatal(s)
-		}
-	})
-
-	t.Run("strict-missing-padding", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var ok = false;
-		try {
-			Uint8Array.fromBase64("aGVsbG8", { lastChunkHandling: "strict" });
-		} catch (e) {
-			ok = e instanceof SyntaxError;
-		}
-		if (!ok) {
-			throw new Error("Expected a SyntaxError");
-		}
-		`)
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
-
-	t.Run("strict-extra-bits", func(t *testing.T) {
-		// "QR==": the last character contributes non-zero bits beyond the single decoded byte
-		_, err := vm.RunString(`
-		var ok = false;
-		try {
-			Uint8Array.fromBase64("QR==", { lastChunkHandling: "strict" });
-		} catch (e) {
-			ok = e instanceof SyntaxError;
-		}
-		if (!ok) {
-			throw new Error("Expected a SyntaxError");
-		}
-		var loose = Uint8Array.fromBase64("QR==");
-		if (loose.length !== 1 || loose[0] !== 65) {
-			throw new Error("loose should decode QR== to [65]");
-		}
-		`)
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
-
-	t.Run("stop-before-partial", func(t *testing.T) {
-		retH, err := vm.RunString(`
-		Uint8Array.fromBase64("aGVsbG8", { lastChunkHandling: "stop-before-partial" });
-		`)
-		if err != nil {
-			t.Fatal(err)
-		}
-		// only the full-length chunk "aGVs" is decoded, the partial chunk "bG8" is ignored
-		if s := string(retH.Export().([]byte)); s != "hel" {
-			t.Fatal(s)
-		}
-	})
-}
-
 func TestInvalidUint8ArrayFromBase64(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -1101,8 +1058,14 @@ func TestInvalidUint8ArrayFromBase64(t *testing.T) {
 		},
 		{
 			// a trailing chunk of length 1 is invalid even in loose mode
-			name:      "single-extra-character",
+			name:      "loose-last-chunk-is-one-length-character",
 			script:    `Uint8Array.fromBase64("abcde")`,
+			errorName: "SyntaxError",
+		},
+		{
+			// a trailing chunk of length 1 is invalid even in stop-before-partial mode
+			name:      "partial-last-chunk-is-one-length-character",
+			script:    `Uint8Array.fromBase64("aGVs bG8x P=", { lastChunkHandling: "stop-before-partial" });`,
 			errorName: "SyntaxError",
 		},
 		{
@@ -1128,6 +1091,27 @@ func TestInvalidUint8ArrayFromBase64(t *testing.T) {
 		{
 			name:      "character-after-padding",
 			script:    `Uint8Array.fromBase64("AB==C")`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "strict-extra-bits",
+			script:    `Uint8Array.fromBase64("QR==", { lastChunkHandling: "strict" })`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "strict-missing-padding",
+			script:    `Uint8Array.fromBase64("aGVsbG8", { lastChunkHandling: "strict" });`,
+			errorName: "SyntaxError",
+		},
+		// ---------SyntaxError with alphabet option---------
+		{
+			name:      "base64url-but-base64-alphabet",
+			script:    `Uint8Array.fromBase64("aGVsbG8-ISE_YQ==", { lastChunkHandling: "stop-before-partial", alphabet: "base64" });`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "base64-but-base64url-alphabet",
+			script:    `Uint8Array.fromBase64("aGVsbG8+ISE/", { alphabet: "base64url"});`,
 			errorName: "SyntaxError",
 		},
 		// ---------TypeError---------
