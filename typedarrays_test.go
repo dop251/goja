@@ -873,66 +873,6 @@ func TestInvalidUint8ArrayFromHex(t *testing.T) {
 	}
 }
 
-func TestFromHexWithoutUint8Array(t *testing.T) {
-	vm := New()
-	t.Run("int8", func(t *testing.T) {
-		_, err := vm.RunString(`Int8Array.fromHex("aabb");`)
-		if err == nil {
-			t.Fatal("Int8Array must not have fromHex method")
-		}
-	})
-	t.Run("uint16", func(t *testing.T) {
-		_, err := vm.RunString(`Uint16Array.fromHex("aabb");`)
-		if err == nil {
-			t.Fatal("Uint16Array must not have fromHex method")
-		}
-	})
-}
-
-func TestSetFromHexWithoutUint8Array(t *testing.T) {
-	vm := New()
-	t.Run("int8", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var int8Array = new Int8Array(8);
-		int8Array.setFromHex("cafed00d");
-		`)
-		if err == nil {
-			t.Fatal("Int8Array must not have setFromHex method")
-		}
-	})
-	t.Run("uint16", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var uint16Array = new Uint16Array(16);
-		uint16Array.setFromHex("cafed00dcafed00d");
-		`)
-		if err == nil {
-			t.Fatal("Uint16Array must not have setFromHex method")
-		}
-	})
-}
-
-func TestToHexWithoutUint8Array(t *testing.T) {
-	vm := New()
-	t.Run("int8", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var int8Array = new Int8Array(8);
-		int8Array.toHex();
-		`)
-		if err == nil {
-			t.Fatal("Int8Array must not have toHex method")
-		}
-	})
-	t.Run("uint16", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var uint16Array = new Uint16Array(16);
-		uint16Array.toHex();
-		`)
-		if err == nil {
-			t.Fatal("Uint16Array must not have toHex method")
-		}
-	})
-}
-
 func TestUint8ArrayFromBase64(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -1181,22 +1121,6 @@ func TestInvalidUint8ArrayFromBase64(t *testing.T) {
 	}
 }
 
-func TestFromBase64WithoutUint8Array(t *testing.T) {
-	vm := New()
-	t.Run("int8", func(t *testing.T) {
-		_, err := vm.RunString(`Int8Array.fromBase64("aGVsbG8=");`)
-		if err == nil {
-			t.Fatal("Int8Array must not have fromBase64 method")
-		}
-	})
-	t.Run("uint16", func(t *testing.T) {
-		_, err := vm.RunString(`Uint16Array.fromBase64("aGVsbG8=");`)
-		if err == nil {
-			t.Fatal("Uint16Array must not have fromBase64 method")
-		}
-	})
-}
-
 func TestUint8ArrayToBase64(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -1329,24 +1253,41 @@ func TestInvalidUint8ArrayToBase64(t *testing.T) {
 	}
 }
 
-func TestToBase64WithoutUint8Array(t *testing.T) {
-	vm := New()
-	t.Run("int8", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var int8Array = new Int8Array(8);
-		int8Array.toBase64();
-		`)
-		if err == nil {
-			t.Fatal("Int8Array must not have toBase64 method")
-		}
-	})
-	t.Run("uint16", func(t *testing.T) {
-		_, err := vm.RunString(`
-		var uint16Array = new Uint16Array(16);
-		uint16Array.toBase64();
-		`)
-		if err == nil {
-			t.Fatal("Uint16Array must not have toBase64 method")
-		}
-	})
+// The base64/hex methods (23.3.1 and 23.3.2) are additional properties of the
+// Uint8Array constructor and Uint8Array.prototype only:
+// they must not exist on any other TypedArray.
+func TestBase64HexWithoutUint8Array(t *testing.T) {
+	methods := []struct {
+		name   string
+		script string // %s is replaced with a TypedArray constructor name
+	}{
+		{"fromHex", `%s.fromHex("aabb")`},
+		{"setFromHex", `new %s(8).setFromHex("aabb")`},
+		{"toHex", `new %s(8).toHex()`},
+		{"fromBase64", `%s.fromBase64("aGVsbG8=")`},
+		{"setFromBase64", `new %s(8).setFromBase64("aGVsbG8=")`},
+		{"toBase64", `new %s(8).toBase64()`},
+	}
+	typedArrays := []string{
+		"Int8Array", "Uint8ClampedArray",
+		"Int16Array", "Uint16Array",
+		"Int32Array", "Uint32Array",
+		"Float32Array", "Float64Array",
+		"BigInt64Array", "BigUint64Array",
+	}
+
+	for _, m := range methods {
+		t.Run(m.name, func(t *testing.T) {
+			for _, ta := range typedArrays {
+				t.Run(ta, func(t *testing.T) {
+					vm := New()
+					script := fmt.Sprintf(m.script, ta)
+					_, err := vm.RunString(fmt.Sprintf(assertThrows, script, "TypeError"))
+					if err != nil {
+						t.Fatal(err)
+					}
+				})
+			}
+		})
+	}
 }
