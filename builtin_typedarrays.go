@@ -1,6 +1,7 @@
 package goja
 
 import (
+	stdbase64 "encoding/base64"
 	stdhex "encoding/hex"
 	"errors"
 	"fmt"
@@ -1646,6 +1647,50 @@ func (r *Runtime) uint8Array_fromBase64(call FunctionCall) Value {
 	return r.newTypedArrayWithData(b, r.getUint8Array(), r.newUint8ArrayObject, nil).val
 }
 
+func (r *Runtime) uint8ArrayProto_toBase64(call FunctionCall) Value {
+	ta := r.validateUint8Array(call.This)
+	opts := r.getOptionsObject(call.Argument(0))
+
+	// 4. Let alphabet be ? Get(opts, "alphabet").
+	alphabetVal := nilSafe(opts.self.getStr("alphabet", nil))
+	// 5. If alphabet is undefined, set alphabet to "base64".
+	alphabet := "base64"
+	if alphabetVal != _undefined {
+		str, ok := alphabetVal.(String)
+		if ok {
+			alphabet = str.String()
+		}
+		// 6. If alphabet is neither "base64" nor "base64url", throw a TypeError exception.
+		if !ok || (alphabet != "base64" && alphabet != "base64url") {
+			panic(r.NewTypeError(`alphabet must be "base64" or "base64url"`))
+		}
+	}
+	omitPadding := false
+	if v := opts.self.getStr("omitPadding", nil); v != nil {
+		omitPadding = v.ToBoolean()
+	}
+	enc := getBase64Encoding(alphabet, omitPadding)
+	// GetUint8ArrayBytes runs after the option getters, which may have detached the buffer.
+	toEnc := r.getUint8ArrayBytes(ta)
+	return asciiString(enc.EncodeToString(toEnc))
+}
+
+func getBase64Encoding(alphabet string, omitPadding bool) *stdbase64.Encoding {
+	if alphabet == "base64" {
+		// the base64 encoding specified in section 4 of RFC 4648
+		if omitPadding {
+			return stdbase64.RawStdEncoding
+		}
+		return stdbase64.StdEncoding
+	}
+
+	// the base64url encoding specified in section 5 of RFC 4648
+	if omitPadding {
+		return stdbase64.RawURLEncoding
+	}
+	return stdbase64.URLEncoding
+}
+
 func (r *Runtime) uint8ArrayProto_toHex(call FunctionCall) Value {
 	ta := r.validateUint8Array(call.This)
 	toEnc := r.getUint8ArrayBytes(ta)
@@ -1868,14 +1913,14 @@ func (r *Runtime) getUint8Array() *Object {
 		p := r.createTypedArrayCtor(ret, r.newUint8Array, "Uint8Array", 1)
 
 		// Applies Uint8Array only, not other TypedArrays.
-		// implements Uint8Array.fromHex static method
+		// implements Uint8Array.fromHex/Uint8Array.fromBase64 static method
 		o := ret.self.(*nativeFuncObject)
 		o._putProp("fromHex", r.newNativeFunc(r.uint8Array_fromHex, "fromHex", 1), true, false, true)
-		// implements Uint8Array.fromBase64 static method
 		o._putProp("fromBase64", r.newNativeFunc(r.uint8Array_fromBase64, "fromBase64", 1), true, false, true)
 
-		// implements Uint8Array.prototype.toHex method
+		// implements Uint8Array.prototype.toHex/Uint8Array.prototype.toBase64 method
 		p._putProp("toHex", r.newNativeFunc(r.uint8ArrayProto_toHex, "toHex", 0), true, false, true)
+		p._putProp("toBase64", r.newNativeFunc(r.uint8ArrayProto_toBase64, "toBase64", 0), true, false, true)
 		// implements Uint8Array.prototype.setFromHex method
 		p._putProp("setFromHex", r.newNativeFunc(r.uint8ArrayProto_setFromHex, "setFromHex", 1), true, false, true)
 	}
@@ -2096,7 +2141,7 @@ func (r *Runtime) validateUint8Array(v Value) *typedArrayObject {
 	if obj, ok := v.(*Object); ok {
 		if ta, ok := obj.self.(*typedArrayObject); ok {
 			if _, ok := ta.typedArray.(*uint8Array); ok {
-				ta.viewedArrayBuf.ensureNotDetached(true)
+				// Uint8Array.prototype.toBase64 checks for detachedness after side-effects are finished
 				return ta
 			}
 		}

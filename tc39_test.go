@@ -284,15 +284,6 @@ var (
 		"test/built-ins/Uint8Array/prototype/setFromBase64/trailing-garbage.js":       true,
 		"test/built-ins/Uint8Array/prototype/setFromBase64/whitespace.js":             true,
 		"test/built-ins/Uint8Array/prototype/setFromBase64/writes-up-to-error.js":     true,
-		"test/built-ins/Uint8Array/prototype/toBase64/alphabet.js":                    true,
-		"test/built-ins/Uint8Array/prototype/toBase64/descriptor.js":                  true,
-		"test/built-ins/Uint8Array/prototype/toBase64/detached-buffer.js":             true,
-		"test/built-ins/Uint8Array/prototype/toBase64/length.js":                      true,
-		"test/built-ins/Uint8Array/prototype/toBase64/name.js":                        true,
-		"test/built-ins/Uint8Array/prototype/toBase64/nonconstructor.js":              true,
-		"test/built-ins/Uint8Array/prototype/toBase64/omit-padding.js":                true,
-		"test/built-ins/Uint8Array/prototype/toBase64/option-coercion.js":             true,
-		"test/built-ins/Uint8Array/prototype/toBase64/results.js":                     true,
 	}
 
 	featuresBlackList = []string{

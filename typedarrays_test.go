@@ -1196,3 +1196,157 @@ func TestFromBase64WithoutUint8Array(t *testing.T) {
 		}
 	})
 }
+
+func TestUint8ArrayToBase64(t *testing.T) {
+	testCases := []struct {
+		name     string
+		script   string
+		expected string
+	}{
+		// ---------base64 (default)---------
+		{
+			name:     "no-padding-needed",
+			script:   `Uint8Array.fromBase64("aGVs").toBase64();`,
+			expected: "aGVs",
+		},
+		{
+			name:     "one-padding-character",
+			script:   `Uint8Array.fromBase64("aGVsbG8gd29ybGQ=").toBase64();`,
+			expected: "aGVsbG8gd29ybGQ=",
+		},
+		{
+			name:     "two-padding-characters",
+			script:   `Uint8Array.fromBase64("aGVsbA==").toBase64();`,
+			expected: "aGVsbA==",
+		},
+		{
+			name:     "empty",
+			script:   `new Uint8Array(0).toBase64();`,
+			expected: "",
+		},
+		{
+			// only the bytes of the subarray view are encoded
+			name:     "subarray",
+			script:   `Uint8Array.fromHex("00aabb00").subarray(1, 3).toBase64();`,
+			expected: "qrs=",
+		},
+		// ---------alphabet---------
+		{
+			name:     "base64-alphabet-explicit",
+			script:   `Uint8Array.fromHex("fbefbeffffff").toBase64({ alphabet: "base64" });`,
+			expected: "++++////",
+		},
+		{
+			name:     "base64url-alphabet",
+			script:   `Uint8Array.fromHex("fbefbeffffff").toBase64({ alphabet: "base64url" });`,
+			expected: "----____",
+		},
+		{
+			name:     "base64url-alphabet-with-padding",
+			script:   `Uint8Array.fromHex("fbef").toBase64({ alphabet: "base64url" });`,
+			expected: "--8=",
+		},
+		// ---------omitPadding---------
+		{
+			name:     "omit-padding",
+			script:   `Uint8Array.fromBase64("aGVsbG8=").toBase64({ omitPadding: true });`,
+			expected: "aGVsbG8",
+		},
+		{
+			name:     "omit-padding-false",
+			script:   `Uint8Array.fromBase64("aGVsbG8=").toBase64({ omitPadding: false });`,
+			expected: "aGVsbG8=",
+		},
+		{
+			// omitPadding is coerced with ToBoolean: any truthy value omits the padding
+			name:     "omit-padding-truthy-string",
+			script:   `Uint8Array.fromBase64("aGVsbG8=").toBase64({ omitPadding: "false" });`,
+			expected: "aGVsbG8",
+		},
+		{
+			name:     "omit-padding-base64url",
+			script:   `Uint8Array.fromHex("fbef").toBase64({ alphabet: "base64url", omitPadding: true });`,
+			expected: "--8",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			v, err := vm.RunString(tc.script)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result := v.String(); result != tc.expected {
+				t.Fatalf("Expected '%s' but got '%s'", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestInvalidUint8ArrayToBase64(t *testing.T) {
+	testCases := []struct {
+		name      string
+		script    string
+		errorName string
+	}{
+		{
+			name:      "options-null",
+			script:    `new Uint8Array(4).toBase64(null)`,
+			errorName: "TypeError",
+		},
+		{
+			name:      "options-not-an-object",
+			script:    `new Uint8Array(4).toBase64("base64")`,
+			errorName: "TypeError",
+		},
+		{
+			name:      "alphabet-unknown",
+			script:    `new Uint8Array(4).toBase64({ alphabet: "hex" })`,
+			errorName: "TypeError",
+		},
+		{
+			name:      "alphabet-null",
+			script:    `new Uint8Array(4).toBase64({ alphabet: null })`,
+			errorName: "TypeError",
+		},
+		{
+			// a String wrapper object is not a String primitive
+			name:      "alphabet-string-object",
+			script:    `new Uint8Array(4).toBase64({ alphabet: new String("base64") })`,
+			errorName: "TypeError",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			_, err := vm.RunString(fmt.Sprintf(assertThrows, tc.script, tc.errorName))
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestToBase64WithoutUint8Array(t *testing.T) {
+	vm := New()
+	t.Run("int8", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var int8Array = new Int8Array(8);
+		int8Array.toBase64();
+		`)
+		if err == nil {
+			t.Fatal("Int8Array must not have toBase64 method")
+		}
+	})
+	t.Run("uint16", func(t *testing.T) {
+		_, err := vm.RunString(`
+		var uint16Array = new Uint16Array(16);
+		uint16Array.toBase64();
+		`)
+		if err == nil {
+			t.Fatal("Uint16Array must not have toBase64 method")
+		}
+	})
+}
