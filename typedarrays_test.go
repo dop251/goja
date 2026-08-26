@@ -1253,6 +1253,255 @@ func TestInvalidUint8ArrayToBase64(t *testing.T) {
 	}
 }
 
+func TestUint8ArraySetFromBase64(t *testing.T) {
+	testCases := []struct {
+		name     string
+		script   string
+		expected string
+	}{
+		{
+			name: "same-length",
+			script: `
+			var arr = new Uint8Array(4);
+			arr.setFromBase64("aGVsbA==");
+			arr.toHex();
+			`,
+			expected: "68656c6c",
+		},
+		{
+			// only up to the target size is decoded, the rest of the input is not read
+			name: "array-shorter-than-input",
+			script: `
+			var arr = new Uint8Array(3);
+			arr.setFromBase64("aGVsbG8=");
+			arr.toHex();
+			`,
+			expected: "68656c",
+		},
+		{
+			// the bytes beyond the decoded length keep their previous content
+			name: "array-longer-than-input",
+			script: `
+			var arr = Uint8Array.fromHex("ffffffffffff");
+			arr.setFromBase64("aGVs");
+			arr.toHex();
+			`,
+			expected: "68656cffffff",
+		},
+		{
+			name: "fresh-array-longer-than-input",
+			script: `
+			var arr = new Uint8Array(5);
+			arr.setFromBase64("aGVs");
+			arr.toHex();
+			`,
+			expected: "68656c0000",
+		},
+		{
+			// only the bytes of the subarray view are written
+			name: "subarray",
+			script: `
+			var arr = new Uint8Array(8);
+			arr.subarray(3).setFromBase64("aGVs");
+			arr.toHex();
+			`,
+			expected: "00000068656c0000",
+		},
+		{
+			name: "whitespace",
+			script: `
+			var arr = new Uint8Array(4);
+			arr.setFromBase64(" aGVs\tbA==\n");
+			arr.toHex();
+			`,
+			expected: "68656c6c",
+		},
+		{
+			// the partial last chunk "bG8" is not decoded
+			name: "stop-before-partial",
+			script: `
+			var arr = new Uint8Array(6);
+			arr.setFromBase64("aGVsbG8", { lastChunkHandling: "stop-before-partial" });
+			arr.toHex();
+			`,
+			expected: "68656c000000",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			v, err := vm.RunString(tc.script)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result := v.String(); result != tc.expected {
+				t.Fatalf("Expected '%s' but got '%s'", tc.expected, result)
+			}
+		})
+	}
+
+	vm := New()
+	t.Run("read", func(t *testing.T) {
+		ret, err := vm.RunString(`
+		var arr = new Uint8Array(16);
+		arr.setFromBase64("aGVsbA==").read;
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		read := ret.Export().(int64)
+		if read != 8 {
+			t.Fatal(read)
+		}
+	})
+	t.Run("written", func(t *testing.T) {
+		ret, err := vm.RunString(`
+		var arr = new Uint8Array(16);
+		arr.setFromBase64("aGVsbA==").written;
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		written := ret.Export().(int64)
+		if written != 4 {
+			t.Fatal(written)
+		}
+	})
+	t.Run("read-stops-at-target-size", func(t *testing.T) {
+		// the target holds 3 bytes: only the first full chunk (4 characters) is read
+		ret, err := vm.RunString(`
+		var arr = new Uint8Array(3);
+		arr.setFromBase64("aGVsbG8x").read;
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		read := ret.Export().(int64)
+		if read != 4 {
+			t.Fatal(read)
+		}
+	})
+}
+
+// Whatever was decoded before an error must still be written into the
+// destination: the spec performs SetUint8ArrayBytes before the throw.
+func TestUint8ArraySetFromBase64PartialWrite(t *testing.T) {
+	testCases := []struct {
+		name     string
+		script   string
+		expected string
+	}{
+		{
+			name: "invalid-character-mid-string",
+			script: `
+			var arr = new Uint8Array(6);
+			try {
+				arr.setFromBase64("aGVs#nvalid");
+			} catch (e) {
+				if (!(e instanceof SyntaxError)) {
+					throw e;
+				}
+			}
+			arr.toHex();
+			`,
+			expected: "68656c000000",
+		},
+		{
+			name: "invalid-character-mid-string-subarray",
+			script: `
+			var arr = new Uint8Array(8);
+			try {
+				arr.subarray(2).setFromBase64("aGVs#nvalid");
+			} catch (e) {
+				if (!(e instanceof SyntaxError)) {
+					throw e;
+				}
+			}
+			arr.toHex();
+			`,
+			expected: "000068656c000000",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			v, err := vm.RunString(tc.script)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result := v.String(); result != tc.expected {
+				t.Fatalf("Expected '%s' but got '%s'", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestInvalidUint8ArraySetFromBase64(t *testing.T) {
+	testCases := []struct {
+		name      string
+		script    string
+		errorName string
+	}{
+		// ---------SyntaxError---------
+		{
+			name:      "non-base64-character",
+			script:    `new Uint8Array(8).setFromBase64("ab#c")`,
+			errorName: "SyntaxError",
+		},
+		{
+			// a trailing chunk of length 1 is invalid even in loose mode
+			name:      "single-extra-character",
+			script:    `new Uint8Array(8).setFromBase64("abcde")`,
+			errorName: "SyntaxError",
+		},
+		{
+			name:      "strict-missing-padding",
+			script:    `new Uint8Array(8).setFromBase64("aGVsbG8", { lastChunkHandling: "strict" })`,
+			errorName: "SyntaxError",
+		},
+		// ---------TypeError---------
+		{
+			// the argument must be a String, there is no ToString coercion
+			name:      "non-string-input",
+			script:    `new Uint8Array(8).setFromBase64(1234)`,
+			errorName: "TypeError",
+		},
+		{
+			name:      "options-null",
+			script:    `new Uint8Array(8).setFromBase64("aGVs", null)`,
+			errorName: "TypeError",
+		},
+		{
+			name:      "alphabet-unknown",
+			script:    `new Uint8Array(8).setFromBase64("aGVs", { alphabet: "base16" })`,
+			errorName: "TypeError",
+		},
+		{
+			name:      "last-chunk-handling-unknown",
+			script:    `new Uint8Array(8).setFromBase64("aGVs", { lastChunkHandling: "foo" })`,
+			errorName: "TypeError",
+		},
+		{
+			// the receiver must be a Uint8Array
+			name:      "receiver-not-uint8array",
+			script:    `Uint8Array.prototype.setFromBase64.call(new Int8Array(8), "aGVs")`,
+			errorName: "TypeError",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := New()
+			_, err := vm.RunString(fmt.Sprintf(assertThrows, tc.script, tc.errorName))
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 // The base64/hex methods (23.3.1 and 23.3.2) are additional properties of the
 // Uint8Array constructor and Uint8Array.prototype only:
 // they must not exist on any other TypedArray.

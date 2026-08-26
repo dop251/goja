@@ -1615,11 +1615,26 @@ func (r *Runtime) uint8Array_fromHex(call FunctionCall) Value {
 }
 
 func (r *Runtime) uint8Array_fromBase64(call FunctionCall) Value {
+	// 1. If string is not a String, throw a TypeError exception.
 	s, ok := call.Argument(0).(String)
 	if !ok {
 		panic(r.NewTypeError("Uint8Array.fromBase64 requires a string"))
 	}
+	// 2. Let opts be ? GetOptionsObject(options).
 	opts := r.getOptionsObject(call.Argument(1))
+
+	// 3.-8. Get and validate "alphabet" and "lastChunkHandling".
+	alphabet, lastChunkHandling := r.getBase64Options(opts)
+
+	// 9. Let result be FromBase64(string, alphabet, lastChunkHandling).
+	_, b, err := r.fromBase64(s, alphabet, lastChunkHandling, -1)
+	if err != nil {
+		panic(r.newSyntaxError(err.Error(), -1))
+	}
+	return r.newTypedArrayWithData(b, r.getUint8Array(), r.newUint8ArrayObject, nil).val
+}
+
+func (r *Runtime) getBase64Options(opts *Object) (string, string) {
 	alphabet := "base64"
 	if v := opts.self.getStr("alphabet", nil); v != nil && v != _undefined {
 		str, ok := v.(String)
@@ -1640,11 +1655,7 @@ func (r *Runtime) uint8Array_fromBase64(call FunctionCall) Value {
 			panic(r.NewTypeError("lastChunkHandling must be \"loose\", \"strict\" or \"stop-before-partial\""))
 		}
 	}
-	_, b, err := r.fromBase64(s, alphabet, lastChunkHandling, -1)
-	if err != nil {
-		panic(r.newSyntaxError(err.Error(), -1))
-	}
-	return r.newTypedArrayWithData(b, r.getUint8Array(), r.newUint8ArrayObject, nil).val
+	return alphabet, lastChunkHandling
 }
 
 func (r *Runtime) uint8ArrayProto_toBase64(call FunctionCall) Value {
@@ -1698,12 +1709,16 @@ func (r *Runtime) uint8ArrayProto_toHex(call FunctionCall) Value {
 }
 
 func (r *Runtime) uint8ArrayProto_setFromHex(call FunctionCall) Value {
-	taRecord := r.validateUint8Array(call.This)
+	// 2. Perform ? ValidateUint8Array(into).
+	ta := r.validateUint8Array(call.This)
+	// 3. If string is not a String, throw a TypeError exception.
 	s, ok := call.Argument(0).(String)
 	if !ok {
 		panic(r.NewTypeError("Uint8Array.prototype.setFromHex requires a string"))
 	}
-	into := r.getUint8ArrayBytes(taRecord)
+
+	// 6. Let result be FromHex(string, byteLength).
+	into := r.getUint8ArrayBytes(ta)
 	// Whatever was decoded before the error has already been written into the
 	// destination, as required by the spec (SetUint8ArrayBytes runs before the throw).
 	// Writes data directly, instead of using [SetUint8ArrayBytes], to avoiding extra allocation.
@@ -1713,6 +1728,44 @@ func (r *Runtime) uint8ArrayProto_setFromHex(call FunctionCall) Value {
 	}
 	res := r.NewObject()
 	res.self.setOwnStr("read", intToValue(int64(2*written)), false)
+	res.self.setOwnStr("written", intToValue(int64(written)), false)
+	return res
+}
+
+func (r *Runtime) uint8ArrayProto_setFromBase64(call FunctionCall) Value {
+	// 2. Perform ? ValidateUint8Array(ta).
+	ta := r.validateUint8Array(call.This)
+	// 3. If string is not a String, throw a TypeError exception.
+	s, ok := call.Argument(0).(String)
+	if !ok {
+		panic(r.NewTypeError("Uint8Array.prototype.setFromBase64 requires a string"))
+	}
+	// 4. Let opts be ? GetOptionsObject(options).
+	opts := r.getOptionsObject(call.Argument(1))
+	// 5.-10. Get and validate "alphabet" and "lastChunkHandling".
+	alphabet, lastChunkHandling := r.getBase64Options(opts)
+
+	// 11. Let taRecord be ? ValidateTypedArrayBounds(taRecord, seq-cst).
+	// The option getters above may have detached the buffer.
+	ta.viewedArrayBuf.ensureNotDetached(true)
+
+	// 12. Let byteLength be TypedArrayLength(taRecord).
+	byteLength := ta.length
+	// 13.-15. Let result be FromBase64(string, alphabet, lastChunkHandling, byteLength).
+	read, bytes, err := r.fromBase64(s, alphabet, lastChunkHandling, byteLength)
+	written := len(bytes)
+
+	// 18. Perform SetUint8ArrayBytes(ta, bytes).
+	// Whatever was decoded before an error is still written into the destination,
+	// as required by the spec (SetUint8ArrayBytes runs before the throw).
+	r.setUint8ArrayBytes(ta, bytes)
+
+	if err != nil {
+		panic(r.newSyntaxError(err.Error(), -1))
+	}
+
+	res := r.NewObject()
+	res.self.setOwnStr("read", intToValue(int64(read)), false)
 	res.self.setOwnStr("written", intToValue(int64(written)), false)
 	return res
 }
@@ -1915,14 +1968,15 @@ func (r *Runtime) getUint8Array() *Object {
 		// Applies Uint8Array only, not other TypedArrays.
 		// implements Uint8Array.fromHex/Uint8Array.fromBase64 static method
 		o := ret.self.(*nativeFuncObject)
-		o._putProp("fromHex", r.newNativeFunc(r.uint8Array_fromHex, "fromHex", 1), true, false, true)
 		o._putProp("fromBase64", r.newNativeFunc(r.uint8Array_fromBase64, "fromBase64", 1), true, false, true)
+		o._putProp("fromHex", r.newNativeFunc(r.uint8Array_fromHex, "fromHex", 1), true, false, true)
 
-		// implements Uint8Array.prototype.toHex/Uint8Array.prototype.toBase64 method
-		p._putProp("toHex", r.newNativeFunc(r.uint8ArrayProto_toHex, "toHex", 0), true, false, true)
-		p._putProp("toBase64", r.newNativeFunc(r.uint8ArrayProto_toBase64, "toBase64", 0), true, false, true)
-		// implements Uint8Array.prototype.setFromHex method
+		// implements Uint8Array.prototype.setFromHex/Uint8Array.prototype.setFromBase64 method
+		p._putProp("setFromBase64", r.newNativeFunc(r.uint8ArrayProto_setFromBase64, "setFromBase64", 1), true, false, true)
 		p._putProp("setFromHex", r.newNativeFunc(r.uint8ArrayProto_setFromHex, "setFromHex", 1), true, false, true)
+		// implements Uint8Array.prototype.toHex/Uint8Array.prototype.toBase64 method
+		p._putProp("toBase64", r.newNativeFunc(r.uint8ArrayProto_toBase64, "toBase64", 0), true, false, true)
+		p._putProp("toHex", r.newNativeFunc(r.uint8ArrayProto_toHex, "toHex", 0), true, false, true)
 	}
 	return ret
 }
@@ -2141,7 +2195,8 @@ func (r *Runtime) validateUint8Array(v Value) *typedArrayObject {
 	if obj, ok := v.(*Object); ok {
 		if ta, ok := obj.self.(*typedArrayObject); ok {
 			if _, ok := ta.typedArray.(*uint8Array); ok {
-				// Uint8Array.prototype.toBase64 checks for detachedness after side-effects are finished
+				// Don't call ensureNotDetached.
+				// Because Uint8Array.prototype.toBase64 checks for detachedness after side-effects are finished
 				return ta
 			}
 		}
@@ -2155,6 +2210,15 @@ func (r *Runtime) validateUint8Array(v Value) *typedArrayObject {
 func (r *Runtime) getUint8ArrayBytes(ta *typedArrayObject) []byte {
 	ta.viewedArrayBuf.ensureNotDetached(true)
 	return ta.viewedArrayBuf.data[ta.offset : ta.offset+ta.length]
+}
+
+// TC39 Abstract Operations for Uint8Array Objects - [SetUint8ArrayBytes(into, bytes)].
+// The callers guarantee that the buffer is not detached and that bytes fits into
+// the array, as required by the asserts in the spec.
+//
+// [SetUint8ArrayBytes(into, bytes)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-setuint8arraybytes
+func (r *Runtime) setUint8ArrayBytes(into *typedArrayObject, bytes []byte) {
+	copy(into.viewedArrayBuf.data[into.offset:], bytes)
 }
 
 // TC39 Abstract Operations for Uint8Array Objects - [SkipAsciiWhitespace(string, index)].
