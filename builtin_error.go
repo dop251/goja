@@ -1,6 +1,8 @@
 package goja
 
-import "github.com/dop251/goja/unistring"
+import (
+	"github.com/dop251/goja/unistring"
+)
 
 const propNameStack = "stack"
 
@@ -122,7 +124,7 @@ func (r *Runtime) newErrorObject(proto *Object, class string) *errorObject {
 func (r *Runtime) builtin_Error(args []Value, proto *Object) *Object {
 	obj := r.newErrorObject(proto, classError)
 	if len(args) > 0 && args[0] != _undefined {
-		obj._putProp("message", args[0].ToString(), true, false, true)
+		obj._putProp("message", args[0].toString(), true, false, true)
 	}
 	if len(args) > 1 && args[1] != _undefined {
 		if options, ok := args[1].(*Object); ok {
@@ -164,6 +166,15 @@ func (r *Runtime) builtin_AggregateError(args []Value, proto *Object) *Object {
 	}
 
 	return obj.val
+}
+
+func (r *Runtime) error_isError(call FunctionCall) Value {
+	if o, ok := call.Argument(0).(*Object); ok {
+		if o.self.className() == classError {
+			return valueTrue
+		}
+	}
+	return valueFalse
 }
 
 func writeErrorString(sb *StringBuilder, obj *Object) String {
@@ -229,6 +240,8 @@ func (r *Runtime) getError() *Object {
 		ret = &Object{runtime: r}
 		r.global.Error = ret
 		r.newNativeFuncConstruct(ret, r.builtin_Error, "Error", r.getErrorPrototype(), 1)
+		o := ret.self
+		o._putProp("isError", r.newNativeFunc(r.error_isError, "isError", 1), true, false, true)
 	}
 	return ret
 }

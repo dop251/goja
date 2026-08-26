@@ -217,20 +217,6 @@ var (
 		"test/built-ins/JSON/parse/reviver-context-source-array-literal.js":         true,
 		"test/built-ins/JSON/parse/reviver-call-args-after-forward-modification.js": true,
 
-		// Error.isError
-		"test/built-ins/Error/isError/symbols.js":                                   true,
-		"test/built-ins/Error/isError/primitives.js":                                true,
-		"test/built-ins/Error/isError/prop-desc.js":                                 true,
-		"test/built-ins/Error/isError/name.js":                                      true,
-		"test/built-ins/Error/isError/is-a-constructor.js":                          true,
-		"test/built-ins/Error/isError/fake-errors.js":                               true,
-		"test/built-ins/Error/isError/errors.js":                                    true,
-		"test/built-ins/Error/isError/non-error-objects.js":                         true,
-		"test/built-ins/Error/isError/error-subclass.js":                            true,
-		"test/built-ins/Error/isError/bigints.js":                                   true,
-		"test/built-ins/Error/error-message-tostring-symbol.js":                     true,
-		"test/built-ins/NativeErrors/nativeerror-tostring-message-throws-symbol.js": true,
-
 		// Object, Array, AggregateError
 		"test/built-ins/Object/prototype/setPrototypeOf-with-non-circular-values.js":           true,
 		"test/built-ins/Object/prototype/setPrototypeOf-with-non-circular-values-__proto__.js": true,
