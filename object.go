@@ -26,6 +26,7 @@ const (
 	classRegExp        = "RegExp"
 	classDate          = "Date"
 	classJSON          = "JSON"
+	classRawJSON       = "RawJSON"
 	classGlobal        = "global"
 	classPromise       = "Promise"
 
@@ -452,6 +453,12 @@ func (o *baseObject) setProto(proto *Object, throw bool) bool {
 	current := o.prototype
 	if current.SameAs(proto) {
 		return true
+	}
+	// 10.4.7 Immutable Prototype Exotic Objects
+	// Object.prototype seems like the only immutable prototype exotic object
+	if o.val == o.val.runtime.global.ObjectPrototype {
+		o.val.runtime.typeErrorResult(throw, "Immutable prototype object 'Object.prototype' cannot have their prototype set")
+		return false
 	}
 	if !o.extensible {
 		o.val.runtime.typeErrorResult(throw, "%s is not extensible", o.val)
