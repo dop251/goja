@@ -217,9 +217,8 @@ var (
 		"test/built-ins/JSON/parse/reviver-context-source-array-literal.js":         true,
 		"test/built-ins/JSON/parse/reviver-call-args-after-forward-modification.js": true,
 
-		// Array, AggregateError
-		"test/built-ins/Array/prototype/flat/non-numeric-depth-should-not-throw.js": true,
-		"test/built-ins/AggregateError/errors-iterabletolist.js":                    true,
+		// AggregateError
+		"test/built-ins/AggregateError/errors-iterabletolist.js": true,
 
 		// Language tests (class, with, module, expressions, identifiers)
 		"test/language/statements/class/subclass/private-class-field-on-nonextensible-return-override.js":                                   true,
