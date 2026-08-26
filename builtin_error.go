@@ -146,10 +146,11 @@ func (r *Runtime) builtin_AggregateError(args []Value, proto *Object) *Object {
 	if len(args) > 1 && args[1] != nil && args[1] != _undefined {
 		obj._putProp("message", args[1].toString(), true, false, true)
 	}
-	var errors []Value
+	items := _undefined
 	if len(args) > 0 {
-		errors = r.iterableToList(args[0], nil)
+		items = args[0]
 	}
+	errors := r.iterableToList(items, nil)
 	obj._putProp("errors", r.newArrayValues(errors), true, false, true)
 
 	if len(args) > 2 && args[2] != _undefined {
@@ -165,6 +166,13 @@ func (r *Runtime) builtin_AggregateError(args []Value, proto *Object) *Object {
 		}
 	}
 
+	return obj.val
+}
+
+func (r *Runtime) newAggregateErrorErrors(errors []Value) *Object {
+	proto := r.getPrototypeFromCtor(r.getAggregateError(), nil, nil)
+	obj := r.newErrorObject(proto, classError)
+	obj._putProp("errors", r.newArrayValues(errors), true, false, true)
 	return obj.val
 }
 
