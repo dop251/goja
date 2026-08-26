@@ -217,11 +217,9 @@ var (
 		"test/built-ins/JSON/parse/reviver-context-source-array-literal.js":         true,
 		"test/built-ins/JSON/parse/reviver-call-args-after-forward-modification.js": true,
 
-		// Object, Array, AggregateError
-		"test/built-ins/Object/prototype/setPrototypeOf-with-non-circular-values.js":           true,
-		"test/built-ins/Object/prototype/setPrototypeOf-with-non-circular-values-__proto__.js": true,
-		"test/built-ins/Array/prototype/flat/non-numeric-depth-should-not-throw.js":            true,
-		"test/built-ins/AggregateError/errors-iterabletolist.js":                               true,
+		// Array, AggregateError
+		"test/built-ins/Array/prototype/flat/non-numeric-depth-should-not-throw.js": true,
+		"test/built-ins/AggregateError/errors-iterabletolist.js":                    true,
 
 		// Language tests (class, with, module, expressions, identifiers)
 		"test/language/statements/class/subclass/private-class-field-on-nonextensible-return-override.js":                                   true,
