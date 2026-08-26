@@ -26,6 +26,7 @@ const (
 	classRegExp        = "RegExp"
 	classDate          = "Date"
 	classJSON          = "JSON"
+	classRawJSON       = "RawJSON"
 	classGlobal        = "global"
 	classPromise       = "Promise"
 

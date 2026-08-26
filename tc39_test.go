@@ -204,13 +204,8 @@ var (
 		"test/built-ins/RegExp/CharacterClassEscapes/character-class-digit-class-escape-negative-cases.js":          true,
 		"test/built-ins/RegExp/CharacterClassEscapes/character-class-non-whitespace-class-escape-positive-cases.js": true,
 
-		// JSON (rawJSON, reviver)
-		"test/built-ins/JSON/isRawJSON/not-a-constructor.js":                        true,
-		"test/built-ins/JSON/isRawJSON/length.js":                                   true,
-		"test/built-ins/JSON/isRawJSON/prop-desc.js":                                true,
-		"test/built-ins/JSON/isRawJSON/basic.js":                                    true,
-		"test/built-ins/JSON/isRawJSON/name.js":                                     true,
-		"test/built-ins/JSON/isRawJSON/builtin.js":                                  true,
+		// JSON (reviver)
+		"test/built-ins/JSON/rawJSON/bigint-raw-json-can-be-stringified.js":         true,
 		"test/built-ins/JSON/parse/reviver-forward-modifies-object.js":              true,
 		"test/built-ins/JSON/parse/reviver-context-source-primitive-literal.js":     true,
 		"test/built-ins/JSON/parse/reviver-context-source-object-literal.js":        true,
@@ -412,9 +407,6 @@ func init() {
 		// Map getOrInsert*
 		"test/built-ins/WeakMap/prototype/getOrInsert",
 		"test/built-ins/Map/prototype/getOrInsert",
-
-		// rawJSON isn not supported
-		"test/built-ins/JSON/rawJSON",
 	)
 
 }
