@@ -317,7 +317,6 @@ var (
 		"symbols-as-weakmap-keys",
 		"String.prototype.toWellFormed",
 		"explicit-resource-management",
-		"set-methods",
 		"promise-try",
 		"promise-with-resolvers",
 		"array-grouping",

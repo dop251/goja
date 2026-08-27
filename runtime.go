@@ -143,6 +143,8 @@ type global struct {
 	weakMapAdder  *Object
 	mapAdder      *Object
 	setAdder      *Object
+	setHas        *Object
+	setValues     *Object
 	arrayValues   *Object
 	arrayToString *Object
 
@@ -2793,7 +2795,11 @@ func (ir *iteratorRecord) close() {
 // When using outside of Runtime.Run (i.e. when calling directly from Go code, not from a JS function implemented
 // in Go) it must be enclosed in Try. See the example.
 func (r *Runtime) ForOf(iterable Value, step func(curValue Value) (continueIteration bool)) {
-	iter := r.getIterator(iterable, nil)
+	r.forOfMethod(iterable, nil, step)
+}
+
+func (r *Runtime) forOfMethod(iterable Value, method func(FunctionCall) Value, step func(curValue Value) (continueIteration bool)) {
+	iter := r.getIterator(iterable, method)
 	for {
 		value, ex := iter.step()
 		if ex != nil {
