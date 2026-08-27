@@ -1660,8 +1660,25 @@ func (r *Runtime) getBase64Options(opts *Object) (string, string) {
 
 func (r *Runtime) uint8ArrayProto_toBase64(call FunctionCall) Value {
 	ta := r.validateUint8Array(call.This)
-	opts := r.getOptionsObject(call.Argument(0))
+	enc := r.parseToBase64Encoding(call.Argument(0))
+	// GetUint8ArrayBytes runs after the option getters, which may have detached the buffer.
+	toEnc := r.getUint8ArrayBytes(ta)
+	return asciiString(enc.EncodeToString(toEnc))
+}
 
+// parseToBase64Encoding reads the "alphabet" and "omitPadding" options of
+// Uint8Array.prototype.toBase64(section 3. to 10.) and returns the encoding they select:
+// the base64 encoding of section 4 of RFC 4648, or the base64url encoding of section 5.
+func (r *Runtime) parseToBase64Encoding(options Value) *stdbase64.Encoding {
+	// The defaults are "base64" and omitPadding false.
+	if options == nil || options == _undefined {
+		return stdbase64.StdEncoding
+	}
+	// 3. Let opts be ? GetOptionsObject(options).
+	opts, ok := options.(*Object)
+	if !ok {
+		panic(r.NewTypeError("Options is not an object"))
+	}
 	// 4. Let alphabet be ? Get(opts, "alphabet").
 	alphabetVal := nilSafe(opts.self.getStr("alphabet", nil))
 	// 5. If alphabet is undefined, set alphabet to "base64".
@@ -1676,26 +1693,17 @@ func (r *Runtime) uint8ArrayProto_toBase64(call FunctionCall) Value {
 			panic(r.NewTypeError(`alphabet must be "base64" or "base64url"`))
 		}
 	}
+	// 7.-8. Let omitPadding be ToBoolean(? Get(opts, "omitPadding")).
 	omitPadding := false
 	if v := opts.self.getStr("omitPadding", nil); v != nil {
 		omitPadding = v.ToBoolean()
 	}
-	enc := getBase64Encoding(alphabet, omitPadding)
-	// GetUint8ArrayBytes runs after the option getters, which may have detached the buffer.
-	toEnc := r.getUint8ArrayBytes(ta)
-	return asciiString(enc.EncodeToString(toEnc))
-}
-
-func getBase64Encoding(alphabet string, omitPadding bool) *stdbase64.Encoding {
 	if alphabet == "base64" {
-		// the base64 encoding specified in section 4 of RFC 4648
 		if omitPadding {
 			return stdbase64.RawStdEncoding
 		}
 		return stdbase64.StdEncoding
 	}
-
-	// the base64url encoding specified in section 5 of RFC 4648
 	if omitPadding {
 		return stdbase64.RawURLEncoding
 	}
