@@ -2291,7 +2291,7 @@ func (r *Runtime) fromBase64(s String, alphabet, lastChunkHandling string) (read
 // to avoid an intermediate allocation and copy.
 //
 // [FromBase64(string, alphabet, lastChunkHandling, maxLength)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-frombase64
-func (r *Runtime) fromBase64Into(s String, alphabet, lastChunkHandling string, dst []byte) (read, bytes int, err error) {
+func (r *Runtime) fromBase64Into(s String, alphabet, lastChunkHandling string, dst []byte) (read, written int, err error) {
 	if len(dst) == 0 {
 		return 0, 0, nil
 	}
@@ -2305,52 +2305,52 @@ func (r *Runtime) fromBase64Into(s String, alphabet, lastChunkHandling string, d
 		if index == length {
 			if chunkLength > 0 {
 				if lastChunkHandling == "stop-before-partial" {
-					return read, bytes, nil
+					return read, written, nil
 				}
 				if lastChunkHandling == "strict" {
-					return read, bytes, errors.New("missing padding in the last chunk")
+					return read, written, errors.New("missing padding in the last chunk")
 				}
 				// lastChunkHandling is "loose", and
 				if chunkLength == 1 {
-					return read, bytes, errors.New("a single extra base64 character in the last chunk")
+					return read, written, errors.New("a single extra base64 character in the last chunk")
 				}
 				dec, _ := r.decodeFinalBase64Chunk(chunk[:chunkLength], false)
-				bytes += copy(dst[bytes:], dec)
+				written += copy(dst[written:], dec)
 			}
-			return length, bytes, nil
+			return length, written, nil
 		}
 		char := s.CharAt(index)
 		index++
 		if char == '=' {
 			if chunkLength < 2 {
-				return read, bytes, errors.New("unexpected padding character")
+				return read, written, errors.New("unexpected padding character")
 			}
 			index = r.skipAsciiWhitespace(s, index)
 			if chunkLength == 2 {
 				if index == length {
 					if lastChunkHandling == "stop-before-partial" {
-						return read, bytes, nil
+						return read, written, nil
 					}
-					return read, bytes, errors.New("missing padding character")
+					return read, written, errors.New("missing padding character")
 				}
 				if s.CharAt(index) == '=' {
 					index = r.skipAsciiWhitespace(s, index+1)
 				}
 			}
 			if index < length {
-				return read, bytes, errors.New("unexpected character after padding")
+				return read, written, errors.New("unexpected character after padding")
 			}
 			dec, decErr := r.decodeFinalBase64Chunk(chunk[:chunkLength], lastChunkHandling == "strict")
 			if decErr != nil {
-				return read, bytes, decErr
+				return read, written, decErr
 			}
-			bytes += copy(dst[bytes:], dec)
-			return length, bytes, nil
+			written += copy(dst[written:], dec)
+			return length, written, nil
 		}
 		if alphabet == "base64url" {
 			switch char {
 			case '+', '/':
-				return read, bytes, errors.New("invalid character in a base64url string")
+				return read, written, errors.New("invalid character in a base64url string")
 			case '-':
 				char = '+'
 			case '_':
@@ -2358,21 +2358,21 @@ func (r *Runtime) fromBase64Into(s String, alphabet, lastChunkHandling string, d
 			}
 		}
 		if char >= 128 || base64ReverseTable[char] < 0 {
-			return read, bytes, errors.New("invalid base64 character")
+			return read, written, errors.New("invalid base64 character")
 		}
-		remaining := len(dst) - bytes
+		remaining := len(dst) - written
 		if (remaining == 1 && chunkLength == 2) || (remaining == 2 && chunkLength == 3) {
-			return read, bytes, nil
+			return read, written, nil
 		}
 		chunk[chunkLength] = byte(char)
 		chunkLength++
 		if chunkLength == 4 {
 			dec := r.decodeFullLengthBase64Chunk(chunk)
-			bytes += copy(dst[bytes:], dec[:])
+			written += copy(dst[written:], dec[:])
 			chunkLength = 0
 			read = index
-			if bytes == len(dst) {
-				return read, bytes, nil
+			if written == len(dst) {
+				return read, written, nil
 			}
 		}
 	}
