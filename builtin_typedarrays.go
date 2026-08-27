@@ -2404,16 +2404,3 @@ func (r *Runtime) fromHexInto(s String, maxLength int, dst []byte) (written int,
 	}
 	return stdhex.Decode(dst, []byte(s.String()))
 }
-
-// TC39 Abstract Operation for Objects - [GetOptionsObject(options)].
-//
-// [GetOptionsObject(options)]: https://tc39.es/ecma262/multipage/abstract-operations.html#sec-getoptionsobject
-func (r *Runtime) getOptionsObject(options Value) *Object {
-	if options == nil || options == _undefined {
-		return r.newBaseObject(nil, classObject).val
-	}
-	if obj, ok := options.(*Object); ok {
-		return obj
-	}
-	panic(r.NewTypeError("Options is not an object"))
-}
