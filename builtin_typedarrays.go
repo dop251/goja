@@ -1621,10 +1621,8 @@ func (r *Runtime) uint8Array_fromBase64(call FunctionCall) Value {
 		panic(r.NewTypeError("Uint8Array.fromBase64 requires a string"))
 	}
 	// 2. Let opts be ? GetOptionsObject(options).
-	opts := r.getOptionsObject(call.Argument(1))
-
 	// 3.-8. Get and validate "alphabet" and "lastChunkHandling".
-	alphabet, lastChunkHandling := r.getBase64Options(opts)
+	alphabet, lastChunkHandling := r.parseFromBase64Options(call.Argument(1))
 
 	// 9. Let result be FromBase64(string, alphabet, lastChunkHandling).
 	_, b, err := r.fromBase64(s, alphabet, lastChunkHandling, -1)
@@ -1634,8 +1632,20 @@ func (r *Runtime) uint8Array_fromBase64(call FunctionCall) Value {
 	return r.newTypedArrayWithData(b, r.getUint8Array(), r.newUint8ArrayObject, nil).val
 }
 
-func (r *Runtime) getBase64Options(opts *Object) (string, string) {
+// parseFromBase64Options reads the "alphabet" and "lastChunkHandling" options shared by
+// Uint8Array.fromBase64 and Uint8Array.prototype.setFromBase64.
+func (r *Runtime) parseFromBase64Options(options Value) (string, string) {
 	alphabet := "base64"
+	lastChunkHandling := "loose"
+	// The defaults above are what an empty options object yields, so an undefined
+	// one needs no allocation to be read.
+	if options == nil || options == _undefined {
+		return alphabet, lastChunkHandling
+	}
+	opts, ok := options.(*Object)
+	if !ok {
+		panic(r.NewTypeError("Options is not an object"))
+	}
 	if v := opts.self.getStr("alphabet", nil); v != nil && v != _undefined {
 		str, ok := v.(String)
 		if ok {
@@ -1645,7 +1655,6 @@ func (r *Runtime) getBase64Options(opts *Object) (string, string) {
 			panic(r.NewTypeError("alphabet must be \"base64\" or \"base64url\""))
 		}
 	}
-	lastChunkHandling := "loose"
 	if v := opts.self.getStr("lastChunkHandling", nil); v != nil && v != _undefined {
 		str, ok := v.(String)
 		if ok {
@@ -1749,9 +1758,8 @@ func (r *Runtime) uint8ArrayProto_setFromBase64(call FunctionCall) Value {
 		panic(r.NewTypeError("Uint8Array.prototype.setFromBase64 requires a string"))
 	}
 	// 4. Let opts be ? GetOptionsObject(options).
-	opts := r.getOptionsObject(call.Argument(1))
 	// 5.-10. Get and validate "alphabet" and "lastChunkHandling".
-	alphabet, lastChunkHandling := r.getBase64Options(opts)
+	alphabet, lastChunkHandling := r.parseFromBase64Options(call.Argument(1))
 
 	// 11. Let taRecord be ? ValidateTypedArrayBounds(taRecord, seq-cst).
 	// The option getters above may have detached the buffer.
