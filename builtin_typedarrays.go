@@ -1625,7 +1625,7 @@ func (r *Runtime) uint8Array_fromBase64(call FunctionCall) Value {
 	alphabet, lastChunkHandling := r.parseFromBase64Options(call.Argument(1))
 
 	// 9. Let result be FromBase64(string, alphabet, lastChunkHandling).
-	_, b, err := r.fromBase64(s, alphabet, lastChunkHandling, -1)
+	_, b, err := r.fromBase64(s, alphabet, lastChunkHandling)
 	if err != nil {
 		panic(r.newSyntaxError(err.Error(), -1))
 	}
@@ -1761,20 +1761,15 @@ func (r *Runtime) uint8ArrayProto_setFromBase64(call FunctionCall) Value {
 	// 5.-10. Get and validate "alphabet" and "lastChunkHandling".
 	alphabet, lastChunkHandling := r.parseFromBase64Options(call.Argument(1))
 
-	// 11. Let taRecord be ? ValidateTypedArrayBounds(taRecord, seq-cst).
-	// The option getters above may have detached the buffer.
-	ta.viewedArrayBuf.ensureNotDetached(true)
-
-	// 12. Let byteLength be TypedArrayLength(taRecord).
-	byteLength := ta.length
-	// 13.-15. Let result be FromBase64(string, alphabet, lastChunkHandling, byteLength).
-	read, bytes, err := r.fromBase64(s, alphabet, lastChunkHandling, byteLength)
-	written := len(bytes)
-
-	// 18. Perform SetUint8ArrayBytes(ta, bytes).
-	// Whatever was decoded before an error is still written into the destination,
-	// as required by the spec (SetUint8ArrayBytes runs before the throw).
-	r.setUint8ArrayBytes(ta, bytes)
+	// 11.-12. Let taRecord be ? ValidateTypedArrayBounds(taRecord, seq-cst),
+	// and let byteLength be TypedArrayLength(taRecord).
+	// The option getters above may have detached the buffer; getUint8ArrayBytes throws then.
+	into := r.getUint8ArrayBytes(ta)
+	// 13.-18. Let result be FromBase64(string, alphabet, lastChunkHandling, byteLength).
+	// Whatever was decoded before an error has already been written into the
+	// destination, as required by the spec (SetUint8ArrayBytes runs before the throw).
+	// Writes data directly, instead of using [SetUint8ArrayBytes], to avoiding extra allocation.
+	read, written, err := r.fromBase64Into(s, alphabet, lastChunkHandling, into)
 
 	if err != nil {
 		panic(r.newSyntaxError(err.Error(), -1))
@@ -2228,15 +2223,6 @@ func (r *Runtime) getUint8ArrayBytes(ta *typedArrayObject) []byte {
 	return ta.viewedArrayBuf.data[ta.offset : ta.offset+ta.length]
 }
 
-// TC39 Abstract Operations for Uint8Array Objects - [SetUint8ArrayBytes(into, bytes)].
-// The callers guarantee that the buffer is not detached and that bytes fits into
-// the array, as required by the asserts in the spec.
-//
-// [SetUint8ArrayBytes(into, bytes)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-setuint8arraybytes
-func (r *Runtime) setUint8ArrayBytes(into *typedArrayObject, bytes []byte) {
-	copy(into.viewedArrayBuf.data[into.offset:], bytes)
-}
-
 // TC39 Abstract Operations for Uint8Array Objects - [SkipAsciiWhitespace(string, index)].
 //
 // [SkipAsciiWhitespace(string, index)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-skipasciiwhitespace
@@ -2289,12 +2275,25 @@ func (r *Runtime) decodeFullLengthBase64Chunk(chunk [4]byte) [3]byte {
 	return [3]byte{byte(n >> 16), byte(n >> 8), byte(n)}
 }
 
-// TC39 Abstract Operations for Uint8Array Objects - [FromBase64(string, alphabet, lastChunkHandling, maxLength)].
+// TC39 Abstract Operations for Uint8Array Objects - [FromBase64(string, alphabet, lastChunkHandling)],
 //
 // [FromBase64(string, alphabet, lastChunkHandling, maxLength)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-frombase64
-func (r *Runtime) fromBase64(s String, alphabet, lastChunkHandling string, maxLength int) (read int, bytes []byte, err error) {
-	if maxLength == 0 {
-		return 0, nil, nil
+func (r *Runtime) fromBase64(s String, alphabet, lastChunkHandling string) (read int, bytes []byte, err error) {
+	// 4 characters of input decode into at most 3 bytes, so a buffer of the
+	// upper-bound size makes fromBase64Into behave as if maxLength were absent.
+	dst := make([]byte, (s.Length()+3)/4*3)
+	read, written, err := r.fromBase64Into(s, alphabet, lastChunkHandling, dst)
+	return read, dst[:written], err
+}
+
+// TC39 Abstract Operations for Uint8Array Objects - [FromBase64(string, alphabet, lastChunkHandling, maxLength)].
+// The result is decoded directly into dst, whose length takes the role of maxLength,
+// to avoid an intermediate allocation and copy.
+//
+// [FromBase64(string, alphabet, lastChunkHandling, maxLength)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-frombase64
+func (r *Runtime) fromBase64Into(s String, alphabet, lastChunkHandling string, dst []byte) (read, bytes int, err error) {
+	if len(dst) == 0 {
+		return 0, 0, nil
 	}
 	var chunk [4]byte
 	chunkLength := 0
@@ -2316,7 +2315,7 @@ func (r *Runtime) fromBase64(s String, alphabet, lastChunkHandling string, maxLe
 					return read, bytes, errors.New("a single extra base64 character in the last chunk")
 				}
 				dec, _ := r.decodeFinalBase64Chunk(chunk[:chunkLength], false)
-				bytes = append(bytes, dec...)
+				bytes += copy(dst[bytes:], dec)
 			}
 			return length, bytes, nil
 		}
@@ -2345,7 +2344,7 @@ func (r *Runtime) fromBase64(s String, alphabet, lastChunkHandling string, maxLe
 			if decErr != nil {
 				return read, bytes, decErr
 			}
-			bytes = append(bytes, dec...)
+			bytes += copy(dst[bytes:], dec)
 			return length, bytes, nil
 		}
 		if alphabet == "base64url" {
@@ -2361,20 +2360,18 @@ func (r *Runtime) fromBase64(s String, alphabet, lastChunkHandling string, maxLe
 		if char >= 128 || base64ReverseTable[char] < 0 {
 			return read, bytes, errors.New("invalid base64 character")
 		}
-		if maxLength >= 0 {
-			remaining := maxLength - len(bytes)
-			if (remaining == 1 && chunkLength == 2) || (remaining == 2 && chunkLength == 3) {
-				return read, bytes, nil
-			}
+		remaining := len(dst) - bytes
+		if (remaining == 1 && chunkLength == 2) || (remaining == 2 && chunkLength == 3) {
+			return read, bytes, nil
 		}
 		chunk[chunkLength] = byte(char)
 		chunkLength++
 		if chunkLength == 4 {
 			dec := r.decodeFullLengthBase64Chunk(chunk)
-			bytes = append(bytes, dec[:]...)
+			bytes += copy(dst[bytes:], dec[:])
 			chunkLength = 0
 			read = index
-			if maxLength >= 0 && len(bytes) == maxLength {
+			if bytes == len(dst) {
 				return read, bytes, nil
 			}
 		}
