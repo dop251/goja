@@ -2242,9 +2242,13 @@ func (r *Runtime) skipAsciiWhitespace(s String, index int) int {
 //
 // [DecodeFinalBase64Chunk(chunk, throwOnExtraBits)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-decodefinalbase64chunk
 func (r *Runtime) decodeFinalBase64Chunk(chunk []byte, throwOnExtraBits bool) ([]byte, error) {
+	// Right-pads the chunk with "A" to 4 characters.
 	full := [4]byte{'A', 'A', 'A', 'A'}
 	copy(full[:], chunk)
+
+	// Decodes into 3-byte chunks.
 	b := r.decodeFullLengthBase64Chunk(full)
+
 	if len(chunk) == 2 {
 		if throwOnExtraBits && b[1] != 0 {
 			return nil, errors.New("extra bits in the last base64 character")
