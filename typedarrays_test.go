@@ -2,8 +2,10 @@ package goja
 
 import (
 	"bytes"
+	stdbase64 "encoding/base64"
 	stdhex "encoding/hex"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -934,6 +936,86 @@ func TestBase64HexWithoutUint8Array(t *testing.T) {
 				t.Run(ta, func(t *testing.T) {
 					script := fmt.Sprintf(`assert.throws(TypeError, function() { %s; });`, fmt.Sprintf(m.script, ta))
 					testScriptWithTestLib(script, _undefined, t)
+				})
+			}
+		})
+	}
+}
+
+// -------------- Uint8Array-Base64 BenchMarks
+
+// decoded byte lengths to measure
+var fromHexBenchSizes = []int{16, 1 << 10, 64 << 10, 1 << 20}
+
+type impl struct {
+	name string
+	fn   func(*Runtime) func(FunctionCall) Value
+}
+
+var fromHexImpls = []impl{
+	{"fromHex", func(r *Runtime) func(FunctionCall) Value { return r.uint8Array_fromHex }},
+	{"setFromHex", func(r *Runtime) func(FunctionCall) Value { return r.uint8ArrayProto_setFromHex }},
+	{"fromBase64", func(r *Runtime) func(FunctionCall) Value { return r.uint8Array_fromBase64 }},
+	{"setFromBase64", func(r *Runtime) func(FunctionCall) Value { return r.uint8ArrayProto_setFromBase64 }},
+	{"toHex", func(r *Runtime) func(FunctionCall) Value { return r.uint8ArrayProto_toHex }},
+	{"toBase64", func(r *Runtime) func(FunctionCall) Value { return r.uint8ArrayProto_toBase64 }},
+}
+
+func hexInput(decodedLen int) String {
+	return asciiString(strings.Repeat("a7", decodedLen))
+}
+
+func base64Input(decodedLen int) String {
+	return asciiString(stdbase64.StdEncoding.EncodeToString([]byte(strings.Repeat("a7", decodedLen))))
+}
+
+// sink prevents the compiler from optimizing the call away.
+var sink Value
+
+func BenchmarkUint8ArrayCodec(b *testing.B) {
+	for _, impl := range fromHexImpls {
+		isBase64 := strings.Contains(impl.name, "Base64")
+		isSetInto := strings.HasPrefix(impl.name, "set")
+		isEncode := strings.HasPrefix(impl.name, "to")
+		b.Run(impl.name, func(b *testing.B) {
+			println("-----------------------------------------------------")
+			for _, size := range fromHexBenchSizes {
+				b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+					r := New()
+					fn := impl.fn(r)
+
+					call := FunctionCall{}
+					nBytes := size
+					if isEncode {
+						// toHex/toBase64 encode the bytes of the receiver and take no input string
+						call.This = r.newTypedArrayWithData(bytes.Repeat([]byte{0xa7}, size), r.getUint8Array(), r.newUint8ArrayObject, nil).val
+					} else {
+						var in String
+						if isBase64 {
+							in = base64Input(size)
+							data, err := stdbase64.StdEncoding.DecodeString(in.String())
+							if err != nil {
+								b.Fatal(err)
+							}
+							nBytes = len(data)
+						} else {
+							in = hexInput(size)
+							nBytes = in.Length() / 2
+						}
+						call.Arguments = []Value{in}
+						if isSetInto {
+							// the receiver must be large enough to hold the whole input,
+							// otherwise the decoding stops at its length
+							call.This = r.newTypedArrayWithData(make([]byte, nBytes), r.getUint8Array(), r.newUint8ArrayObject, nil).val
+						}
+					}
+
+					b.ReportAllocs()
+					b.SetBytes(int64(nBytes))
+					b.ResetTimer()
+					for i := 0; i < b.N; i++ {
+						sink = fn(call)
+					}
 				})
 			}
 		})
