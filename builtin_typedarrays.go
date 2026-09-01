@@ -1,6 +1,7 @@
 package goja
 
 import (
+	stdbase64 "encoding/base64"
 	stdhex "encoding/hex"
 	"errors"
 	"fmt"
@@ -12,6 +13,19 @@ import (
 
 	"github.com/dop251/goja/unistring"
 )
+
+// base64ReverseTable maps a code unit of the standard base64 alphabet
+// "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+// to its 6-bit value; -1 marks code units outside the alphabet.
+var base64ReverseTable = func() (t [128]int8) {
+	for i := range t {
+		t[i] = -1
+	}
+	for i, c := range "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" {
+		t[c] = int8(i)
+	}
+	return
+}()
 
 type typedArraySortCtx struct {
 	ta           *typedArrayObject
@@ -1600,6 +1614,111 @@ func (r *Runtime) uint8Array_fromHex(call FunctionCall) Value {
 	return r.newTypedArrayWithData(b, r.getUint8Array(), r.newUint8ArrayObject, nil).val
 }
 
+func (r *Runtime) uint8Array_fromBase64(call FunctionCall) Value {
+	// 1. If string is not a String, throw a TypeError exception.
+	s, ok := call.Argument(0).(String)
+	if !ok {
+		panic(r.NewTypeError("Uint8Array.fromBase64 requires a string"))
+	}
+	// 2. Let opts be ? GetOptionsObject(options).
+	// 3.-8. Get and validate "alphabet" and "lastChunkHandling".
+	alphabet, lastChunkHandling := r.parseFromBase64Options(call.Argument(1))
+
+	// 9. Let result be FromBase64(string, alphabet, lastChunkHandling).
+	_, b, err := r.fromBase64(s, alphabet, lastChunkHandling)
+	if err != nil {
+		panic(r.newSyntaxError(err.Error(), -1))
+	}
+	return r.newTypedArrayWithData(b, r.getUint8Array(), r.newUint8ArrayObject, nil).val
+}
+
+// parseFromBase64Options reads the "alphabet" and "lastChunkHandling" options shared by
+// Uint8Array.fromBase64 and Uint8Array.prototype.setFromBase64.
+func (r *Runtime) parseFromBase64Options(options Value) (string, string) {
+	alphabet := "base64"
+	lastChunkHandling := "loose"
+	// The defaults above are what an empty options object yields, so an undefined
+	// one needs no allocation to be read.
+	if options == nil || options == _undefined {
+		return alphabet, lastChunkHandling
+	}
+	opts, ok := options.(*Object)
+	if !ok {
+		panic(r.NewTypeError("Options is not an object"))
+	}
+	if v := opts.self.getStr("alphabet", nil); v != nil && v != _undefined {
+		str, ok := v.(String)
+		if ok {
+			alphabet = str.String()
+		}
+		if !ok || (alphabet != "base64" && alphabet != "base64url") {
+			panic(r.NewTypeError("alphabet must be \"base64\" or \"base64url\""))
+		}
+	}
+	if v := opts.self.getStr("lastChunkHandling", nil); v != nil && v != _undefined {
+		str, ok := v.(String)
+		if ok {
+			lastChunkHandling = str.String()
+		}
+		if !ok || (lastChunkHandling != "loose" && lastChunkHandling != "strict" && lastChunkHandling != "stop-before-partial") {
+			panic(r.NewTypeError("lastChunkHandling must be \"loose\", \"strict\" or \"stop-before-partial\""))
+		}
+	}
+	return alphabet, lastChunkHandling
+}
+
+func (r *Runtime) uint8ArrayProto_toBase64(call FunctionCall) Value {
+	ta := r.validateUint8Array(call.This)
+	enc := r.parseToBase64Encoding(call.Argument(0))
+	// GetUint8ArrayBytes runs after the option getters, which may have detached the buffer.
+	toEnc := r.getUint8ArrayBytes(ta)
+	return asciiString(enc.EncodeToString(toEnc))
+}
+
+// parseToBase64Encoding reads the "alphabet" and "omitPadding" options of
+// Uint8Array.prototype.toBase64(section 3. to 10.) and returns the encoding they select:
+// the base64 encoding of section 4 of RFC 4648, or the base64url encoding of section 5.
+func (r *Runtime) parseToBase64Encoding(options Value) *stdbase64.Encoding {
+	// The defaults are "base64" and omitPadding false.
+	if options == nil || options == _undefined {
+		return stdbase64.StdEncoding
+	}
+	// 3. Let opts be ? GetOptionsObject(options).
+	opts, ok := options.(*Object)
+	if !ok {
+		panic(r.NewTypeError("Options is not an object"))
+	}
+	// 4. Let alphabet be ? Get(opts, "alphabet").
+	alphabetVal := nilSafe(opts.self.getStr("alphabet", nil))
+	// 5. If alphabet is undefined, set alphabet to "base64".
+	alphabet := "base64"
+	if alphabetVal != _undefined {
+		str, ok := alphabetVal.(String)
+		if ok {
+			alphabet = str.String()
+		}
+		// 6. If alphabet is neither "base64" nor "base64url", throw a TypeError exception.
+		if !ok || (alphabet != "base64" && alphabet != "base64url") {
+			panic(r.NewTypeError(`alphabet must be "base64" or "base64url"`))
+		}
+	}
+	// 7.-8. Let omitPadding be ToBoolean(? Get(opts, "omitPadding")).
+	omitPadding := false
+	if v := opts.self.getStr("omitPadding", nil); v != nil {
+		omitPadding = v.ToBoolean()
+	}
+	if alphabet == "base64" {
+		if omitPadding {
+			return stdbase64.RawStdEncoding
+		}
+		return stdbase64.StdEncoding
+	}
+	if omitPadding {
+		return stdbase64.RawURLEncoding
+	}
+	return stdbase64.URLEncoding
+}
+
 func (r *Runtime) uint8ArrayProto_toHex(call FunctionCall) Value {
 	ta := r.validateUint8Array(call.This)
 	toEnc := r.getUint8ArrayBytes(ta)
@@ -1607,21 +1726,58 @@ func (r *Runtime) uint8ArrayProto_toHex(call FunctionCall) Value {
 }
 
 func (r *Runtime) uint8ArrayProto_setFromHex(call FunctionCall) Value {
+	// 2. Perform ? ValidateUint8Array(into).
 	ta := r.validateUint8Array(call.This)
+	// 3. If string is not a String, throw a TypeError exception.
 	s, ok := call.Argument(0).(String)
 	if !ok {
 		panic(r.NewTypeError("Uint8Array.prototype.setFromHex requires a string"))
 	}
+
+	// 6. Let result be FromHex(string, byteLength).
 	into := r.getUint8ArrayBytes(ta)
 	// Whatever was decoded before the error has already been written into the
 	// destination, as required by the spec (SetUint8ArrayBytes runs before the throw).
-	n, err := r.fromHexInto(s, len(into), into)
+	// Writes data directly, instead of using [SetUint8ArrayBytes], to avoiding extra allocation.
+	written, err := r.fromHexInto(s, len(into), into)
 	if err != nil {
 		panic(r.newSyntaxError(err.Error(), -1))
 	}
 	res := r.NewObject()
-	res.self.setOwnStr("read", intToValue(int64(2*n)), false)
-	res.self.setOwnStr("written", intToValue(int64(n)), false)
+	res.self.setOwnStr("read", intToValue(int64(2*written)), false)
+	res.self.setOwnStr("written", intToValue(int64(written)), false)
+	return res
+}
+
+func (r *Runtime) uint8ArrayProto_setFromBase64(call FunctionCall) Value {
+	// 2. Perform ? ValidateUint8Array(ta).
+	ta := r.validateUint8Array(call.This)
+	// 3. If string is not a String, throw a TypeError exception.
+	s, ok := call.Argument(0).(String)
+	if !ok {
+		panic(r.NewTypeError("Uint8Array.prototype.setFromBase64 requires a string"))
+	}
+	// 4. Let opts be ? GetOptionsObject(options).
+	// 5.-10. Get and validate "alphabet" and "lastChunkHandling".
+	alphabet, lastChunkHandling := r.parseFromBase64Options(call.Argument(1))
+
+	// 11.-12. Let taRecord be ? ValidateTypedArrayBounds(taRecord, seq-cst),
+	// and let byteLength be TypedArrayLength(taRecord).
+	// The option getters above may have detached the buffer; getUint8ArrayBytes throws then.
+	into := r.getUint8ArrayBytes(ta)
+	// 13.-18. Let result be FromBase64(string, alphabet, lastChunkHandling, byteLength).
+	// Whatever was decoded before an error has already been written into the
+	// destination, as required by the spec (SetUint8ArrayBytes runs before the throw).
+	// Writes data directly, instead of using [SetUint8ArrayBytes], to avoiding extra allocation.
+	read, written, err := r.fromBase64Into(s, alphabet, lastChunkHandling, into)
+
+	if err != nil {
+		panic(r.newSyntaxError(err.Error(), -1))
+	}
+
+	res := r.NewObject()
+	res.self.setOwnStr("read", intToValue(int64(read)), false)
+	res.self.setOwnStr("written", intToValue(int64(written)), false)
 	return res
 }
 
@@ -1821,14 +1977,17 @@ func (r *Runtime) getUint8Array() *Object {
 		p := r.createTypedArrayCtor(ret, r.newUint8Array, "Uint8Array", 1)
 
 		// Applies Uint8Array only, not other TypedArrays.
-		// implements Uint8Array.fromHex static method
+		// implements Uint8Array.fromHex/Uint8Array.fromBase64 static method
 		o := ret.self.(*nativeFuncObject)
+		o._putProp("fromBase64", r.newNativeFunc(r.uint8Array_fromBase64, "fromBase64", 1), true, false, true)
 		o._putProp("fromHex", r.newNativeFunc(r.uint8Array_fromHex, "fromHex", 1), true, false, true)
 
-		// implements Uint8Array.prototype.toHex method
-		p._putProp("toHex", r.newNativeFunc(r.uint8ArrayProto_toHex, "toHex", 0), true, false, true)
-		// implements Uint8Array.prototype.setFromHex method
+		// implements Uint8Array.prototype.setFromHex/Uint8Array.prototype.setFromBase64 method
+		p._putProp("setFromBase64", r.newNativeFunc(r.uint8ArrayProto_setFromBase64, "setFromBase64", 1), true, false, true)
 		p._putProp("setFromHex", r.newNativeFunc(r.uint8ArrayProto_setFromHex, "setFromHex", 1), true, false, true)
+		// implements Uint8Array.prototype.toHex/Uint8Array.prototype.toBase64 method
+		p._putProp("toBase64", r.newNativeFunc(r.uint8ArrayProto_toBase64, "toBase64", 0), true, false, true)
+		p._putProp("toHex", r.newNativeFunc(r.uint8ArrayProto_toHex, "toHex", 0), true, false, true)
 	}
 	return ret
 }
@@ -2047,7 +2206,8 @@ func (r *Runtime) validateUint8Array(v Value) *typedArrayObject {
 	if obj, ok := v.(*Object); ok {
 		if ta, ok := obj.self.(*typedArrayObject); ok {
 			if _, ok := ta.typedArray.(*uint8Array); ok {
-				ta.viewedArrayBuf.ensureNotDetached(true)
+				// Don't call ensureNotDetached.
+				// Because Uint8Array.prototype.toBase64 checks for detachedness after side-effects are finished
 				return ta
 			}
 		}
@@ -2063,6 +2223,161 @@ func (r *Runtime) getUint8ArrayBytes(ta *typedArrayObject) []byte {
 	return ta.viewedArrayBuf.data[ta.offset : ta.offset+ta.length]
 }
 
+// TC39 Abstract Operations for Uint8Array Objects - [SkipAsciiWhitespace(string, index)].
+//
+// [SkipAsciiWhitespace(string, index)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-skipasciiwhitespace
+func (r *Runtime) skipAsciiWhitespace(s String, index int) int {
+	length := s.Length()
+	for index < length {
+		switch s.CharAt(index) {
+		case 0x0009, 0x000A, 0x000C, 0x000D, 0x0020:
+			index++
+		default:
+			return index
+		}
+	}
+	return index
+}
+
+// TC39 Abstract Operations for Uint8Array Objects - [DecodeFinalBase64Chunk(chunk, throwOnExtraBits)].
+// chunk must contain 2 or 3 characters of the standard base64 alphabet.
+//
+// [DecodeFinalBase64Chunk(chunk, throwOnExtraBits)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-decodefinalbase64chunk
+func (r *Runtime) decodeFinalBase64Chunk(chunk []byte, throwOnExtraBits bool) ([]byte, error) {
+	// Right-pads the chunk with "A" to 4 characters.
+	full := [4]byte{'A', 'A', 'A', 'A'}
+	copy(full[:], chunk)
+
+	// Decodes into 3-byte chunks.
+	b := r.decodeFullLengthBase64Chunk(full)
+
+	if len(chunk) == 2 {
+		if throwOnExtraBits && b[1] != 0 {
+			return nil, errors.New("extra bits in the last base64 character")
+		}
+		return b[:1], nil
+	}
+	if throwOnExtraBits && b[2] != 0 {
+		return nil, errors.New("extra bits in the last base64 character")
+	}
+	return b[:2], nil
+}
+
+// TC39 Abstract Operations for Uint8Array Objects - [DecodeFullLengthBase64Chunk(chunk)].
+// chunk must contain 4 characters of the standard base64 alphabet.
+//
+// [DecodeFullLengthBase64Chunk(chunk)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-decodefulllengthbase64chunk
+func (r *Runtime) decodeFullLengthBase64Chunk(chunk [4]byte) [3]byte {
+	n := uint32(base64ReverseTable[chunk[0]])<<18 |
+		uint32(base64ReverseTable[chunk[1]])<<12 |
+		uint32(base64ReverseTable[chunk[2]])<<6 |
+		uint32(base64ReverseTable[chunk[3]])
+	return [3]byte{byte(n >> 16), byte(n >> 8), byte(n)}
+}
+
+// TC39 Abstract Operations for Uint8Array Objects - [FromBase64(string, alphabet, lastChunkHandling)],
+//
+// [FromBase64(string, alphabet, lastChunkHandling, maxLength)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-frombase64
+func (r *Runtime) fromBase64(s String, alphabet, lastChunkHandling string) (read int, bytes []byte, err error) {
+	// 4 characters of input decode into at most 3 bytes, so a buffer of the
+	// upper-bound size makes fromBase64Into behave as if maxLength were absent.
+	dst := make([]byte, (s.Length()+3)/4*3)
+	read, written, err := r.fromBase64Into(s, alphabet, lastChunkHandling, dst)
+	return read, dst[:written], err
+}
+
+// TC39 Abstract Operations for Uint8Array Objects - [FromBase64(string, alphabet, lastChunkHandling, maxLength)].
+// The result is decoded directly into dst, whose length takes the role of maxLength,
+// to avoid an intermediate allocation and copy.
+//
+// [FromBase64(string, alphabet, lastChunkHandling, maxLength)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-frombase64
+func (r *Runtime) fromBase64Into(s String, alphabet, lastChunkHandling string, dst []byte) (read, written int, err error) {
+	if len(dst) == 0 {
+		return 0, 0, nil
+	}
+	var chunk [4]byte
+	chunkLength := 0
+	index := 0
+	length := s.Length()
+	for {
+		index = r.skipAsciiWhitespace(s, index)
+		//
+		if index == length {
+			if chunkLength > 0 {
+				if lastChunkHandling == "stop-before-partial" {
+					return read, written, nil
+				}
+				if lastChunkHandling == "strict" {
+					return read, written, errors.New("missing padding in the last chunk")
+				}
+				// lastChunkHandling is "loose", and
+				if chunkLength == 1 {
+					return read, written, errors.New("a single extra base64 character in the last chunk")
+				}
+				dec, _ := r.decodeFinalBase64Chunk(chunk[:chunkLength], false)
+				written += copy(dst[written:], dec)
+			}
+			return length, written, nil
+		}
+		char := s.CharAt(index)
+		index++
+		if char == '=' {
+			if chunkLength < 2 {
+				return read, written, errors.New("unexpected padding character")
+			}
+			index = r.skipAsciiWhitespace(s, index)
+			if chunkLength == 2 {
+				if index == length {
+					if lastChunkHandling == "stop-before-partial" {
+						return read, written, nil
+					}
+					return read, written, errors.New("missing padding character")
+				}
+				if s.CharAt(index) == '=' {
+					index = r.skipAsciiWhitespace(s, index+1)
+				}
+			}
+			if index < length {
+				return read, written, errors.New("unexpected character after padding")
+			}
+			dec, decErr := r.decodeFinalBase64Chunk(chunk[:chunkLength], lastChunkHandling == "strict")
+			if decErr != nil {
+				return read, written, decErr
+			}
+			written += copy(dst[written:], dec)
+			return length, written, nil
+		}
+		if alphabet == "base64url" {
+			switch char {
+			case '+', '/':
+				return read, written, errors.New("invalid character in a base64url string")
+			case '-':
+				char = '+'
+			case '_':
+				char = '/'
+			}
+		}
+		if char >= 128 || base64ReverseTable[char] < 0 {
+			return read, written, errors.New("invalid base64 character")
+		}
+		remaining := len(dst) - written
+		if (remaining == 1 && chunkLength == 2) || (remaining == 2 && chunkLength == 3) {
+			return read, written, nil
+		}
+		chunk[chunkLength] = byte(char)
+		chunkLength++
+		if chunkLength == 4 {
+			dec := r.decodeFullLengthBase64Chunk(chunk)
+			written += copy(dst[written:], dec[:])
+			chunkLength = 0
+			read = index
+			if written == len(dst) {
+				return read, written, nil
+			}
+		}
+	}
+}
+
 // TC39 Abstract Operations for Uint8Array Objects - [FromHex(string)].
 //
 // [FromHex(string)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-fromhex
@@ -2074,7 +2389,7 @@ func (r *Runtime) fromHex(s String) ([]byte, error) {
 // TC39 Abstract Operations for Uint8Array Objects - [FromHex(string, maxLength)]
 //
 // [FromHex(string, maxLength)]: https://tc39.es/ecma262/multipage/indexed-collections.html#sec-fromhex
-func (r *Runtime) fromHexInto(s String, maxLength int, dst []byte) (int, error) {
+func (r *Runtime) fromHexInto(s String, maxLength int, dst []byte) (written int, err error) {
 	// Length() counts UTF-16 code units.
 	length := s.Length()
 	if length%2 != 0 {
