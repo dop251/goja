@@ -213,21 +213,37 @@ func (r *Runtime) setProto_difference(call FunctionCall) Value {
 	otherRecord := r.getSetRecord(call.Argument(0))
 	result := r.newSetObject()
 	// 4. Let resultSetData be a copy of set.[[SetData]].
-	so.m.copyTo(result.m)
 
 	// 5. If SetDataSize(set.[[SetData]]) ≤ otherRecord.[[Size]], then
 	if so.m.size <= otherRecord.size {
-		iter := so.m.newIter()
-		for {
-			entry := iter.next()
-			if entry == nil {
-				break
+		// We can skip the copy if we are certain that the other set is a native Set object
+		if otherRecord.isStd() {
+			otherSet := otherRecord.stdObj
+			iter := so.m.newIter()
+			for {
+				entry := iter.next()
+				if entry == nil {
+					break
+				}
+				if !otherSet.m.has(entry.key) {
+					result.m.set(entry.key, nil)
+				}
 			}
-			if otherRecord.has(entry.key) {
-				result.m.remove(entry.key)
+		} else {
+			so.m.copyTo(result.m)
+			iter := so.m.newIter()
+			for {
+				entry := iter.next()
+				if entry == nil {
+					break
+				}
+				if otherRecord.has(entry.key) {
+					result.m.remove(entry.key)
+				}
 			}
 		}
 	} else {
+		so.m.copyTo(result.m)
 		otherRecord.iterateKeys(func(key Value) bool {
 			result.m.remove(key)
 			return true
@@ -478,6 +494,11 @@ type setRecord struct {
 	size        int
 	has         func(Value) bool
 	iterateKeys func(func(Value) bool)
+	stdObj      *setObject
+}
+
+func (sr *setRecord) isStd() bool {
+	return sr.stdObj != nil
 }
 
 func (r *Runtime) getSetRecord(value Value) *setRecord {
@@ -524,9 +545,10 @@ func (r *Runtime) getSetRecord(value Value) *setRecord {
 	// common case for native Set objects
 	if setObj, ok := o.self.(*setObject); ok && has == r.global.setHas && keys == r.global.setValues {
 		return &setRecord{
-			o:    setObj.val,
-			size: setObj.m.size,
-			has:  setObj.m.has,
+			o:      o,
+			size:   intSize,
+			stdObj: setObj,
+			has:    setObj.m.has,
 			iterateKeys: func(f func(Value) bool) {
 				iter := setObj.m.newIter()
 				for {
