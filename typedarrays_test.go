@@ -878,6 +878,25 @@ func TestUint8ArraySetFromBase64PartialWrite(t *testing.T) {
 		arr2.subarray(2).setFromBase64("aGVs#nvalid");
 	}, "invalid-character-mid-string-subarray");
 	assert.sameValue(arr2.toHex(), "000068656c000000", "invalid-character-mid-string-subarray");
+
+	var arr3 = new Uint8Array(12);
+	assert.throws(SyntaxError, function() {
+		arr3.subarray(2).setFromBase64("aGVsBBBB#nvalidá"); // unicode
+	}, "invalid-character-mid-string-subarray");
+	assert.sameValue(arr3.toHex(), "000068656c04104100000000", "invalid-character-mid-string-subarray-unicode");
+
+	var arr4 = new Uint8Array(12);
+	assert.throws(SyntaxError, function() {
+		arr4.subarray(2).setFromBase64("aGVsBBB#nvalidá"); // unicode
+	}, "invalid-character-mid-string-subarray");
+	assert.sameValue(arr4.toHex(), "000068656c00000000000000", "invalid-character-mid-string-subarray-unicode 1");
+
+	var arr5 = new Uint8Array(12);
+	assert.throws(SyntaxError, function() {
+		arr5.subarray(2).setFromBase64("aGVsBBBĀnvalidá"); // unicode
+	}, "invalid-character-mid-string-subarray");
+	assert.sameValue(arr5.toHex(), "000068656c00000000000000", "invalid-character-mid-string-subarray-unicode 1");
+
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
@@ -942,79 +961,102 @@ func TestBase64HexWithoutUint8Array(t *testing.T) {
 	}
 }
 
-// -------------- Uint8Array-Base64 BenchMarks
+// -------------- Uint8Array Base64 Benchmarks
 
 // decoded byte lengths to measure
-var fromHexBenchSizes = []int{16, 1 << 10, 64 << 10, 1 << 20}
-
-type impl struct {
-	name string
-	fn   func(*Runtime) func(FunctionCall) Value
-}
-
-var fromHexImpls = []impl{
-	{"fromHex", func(r *Runtime) func(FunctionCall) Value { return r.uint8Array_fromHex }},
-	{"setFromHex", func(r *Runtime) func(FunctionCall) Value { return r.uint8ArrayProto_setFromHex }},
-	{"fromBase64", func(r *Runtime) func(FunctionCall) Value { return r.uint8Array_fromBase64 }},
-	{"setFromBase64", func(r *Runtime) func(FunctionCall) Value { return r.uint8ArrayProto_setFromBase64 }},
-	{"toHex", func(r *Runtime) func(FunctionCall) Value { return r.uint8ArrayProto_toHex }},
-	{"toBase64", func(r *Runtime) func(FunctionCall) Value { return r.uint8ArrayProto_toBase64 }},
-}
+var uint8ArrayBenchSizes = []int{16, 1 << 10, 64 << 10, 1 << 20}
 
 func hexInput(decodedLen int) String {
 	return asciiString(strings.Repeat("a7", decodedLen))
 }
 
 func base64Input(decodedLen int) String {
-	return asciiString(stdbase64.StdEncoding.EncodeToString([]byte(strings.Repeat("a7", decodedLen))))
+	return asciiString(stdbase64.StdEncoding.EncodeToString([]byte(strings.Repeat("a", decodedLen))))
 }
 
-// sink prevents the compiler from optimizing the call away.
-var sink Value
+func BenchmarkUint8ArrayTo(b *testing.B) {
+	r := New()
+	encoders := []struct {
+		name string
+		f    func(FunctionCall) Value
+	}{
+		{"hex", r.uint8ArrayProto_toHex},
+		{"base64", r.uint8ArrayProto_toBase64},
+	}
 
-func BenchmarkUint8ArrayCodec(b *testing.B) {
-	for _, impl := range fromHexImpls {
-		isBase64 := strings.Contains(impl.name, "Base64")
-		isSetInto := strings.HasPrefix(impl.name, "set")
-		isEncode := strings.HasPrefix(impl.name, "to")
-		b.Run(impl.name, func(b *testing.B) {
-			println("-----------------------------------------------------")
-			for _, size := range fromHexBenchSizes {
+	for _, encoder := range encoders {
+		b.Run(encoder.name, func(b *testing.B) {
+			for _, size := range uint8ArrayBenchSizes {
 				b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
-					r := New()
-					fn := impl.fn(r)
-
-					call := FunctionCall{}
-					nBytes := size
-					if isEncode {
-						// toHex/toBase64 encode the bytes of the receiver and take no input string
-						call.This = r.newTypedArrayWithData(bytes.Repeat([]byte{0xa7}, size), r.getUint8Array(), r.newUint8ArrayObject, nil).val
-					} else {
-						var in String
-						if isBase64 {
-							in = base64Input(size)
-							data, err := stdbase64.StdEncoding.DecodeString(in.String())
-							if err != nil {
-								b.Fatal(err)
-							}
-							nBytes = len(data)
-						} else {
-							in = hexInput(size)
-							nBytes = in.Length() / 2
-						}
-						call.Arguments = []Value{in}
-						if isSetInto {
-							// the receiver must be large enough to hold the whole input,
-							// otherwise the decoding stops at its length
-							call.This = r.newTypedArrayWithData(make([]byte, nBytes), r.getUint8Array(), r.newUint8ArrayObject, nil).val
-						}
+					call := FunctionCall{
+						This: r.newTypedArrayWithData(bytes.Repeat([]byte{0xa7}, size), r.getUint8Array(), r.newUint8ArrayObject, nil).val,
 					}
-
 					b.ReportAllocs()
-					b.SetBytes(int64(nBytes))
-					b.ResetTimer()
-					for i := 0; i < b.N; i++ {
-						sink = fn(call)
+					b.SetBytes(int64(size))
+					for b.Loop() {
+						encoder.f(call)
+					}
+				})
+			}
+		})
+	}
+}
+
+func BenchmarkUint8ArrayFrom(b *testing.B) {
+	r := New()
+	decoders := []struct {
+		name  string
+		input func(int) String
+		f     func(FunctionCall) Value
+	}{
+		{"hex", hexInput, r.uint8Array_fromHex},
+		{"base64", base64Input, r.uint8Array_fromBase64},
+	}
+	for _, decoder := range decoders {
+		b.Run(decoder.name, func(b *testing.B) {
+			for _, size := range uint8ArrayBenchSizes {
+				b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+					in := decoder.input(size)
+					call := FunctionCall{
+						Arguments: []Value{in},
+					}
+					b.ReportAllocs()
+					b.SetBytes(int64(size))
+					for b.Loop() {
+						decoder.f(call)
+					}
+				})
+			}
+		})
+	}
+}
+
+func BenchmarkUint8ArraySetFrom(b *testing.B) {
+	r := New()
+	decoders := []struct {
+		name  string
+		input func(int) String
+		f     func(FunctionCall) Value
+	}{
+		{"hex", hexInput, r.uint8ArrayProto_setFromHex},
+		{"base64", base64Input, r.uint8ArrayProto_setFromBase64},
+	}
+
+	for _, decoder := range decoders {
+		b.Run(decoder.name, func(b *testing.B) {
+			for _, size := range uint8ArrayBenchSizes {
+				b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
+					in := decoder.input(size)
+					call := FunctionCall{
+						Arguments: []Value{in},
+					}
+					// the receiver must be large enough to hold the whole input,
+					// otherwise the decoding stops at its length
+					call.This = r.newTypedArrayWithData(make([]byte, size), r.getUint8Array(), r.newUint8ArrayObject, nil).val
+					b.ReportAllocs()
+					b.SetBytes(int64(size))
+					for b.Loop() {
+						decoder.f(call)
 					}
 				})
 			}

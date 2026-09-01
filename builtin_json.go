@@ -540,24 +540,24 @@ func (r *Runtime) builtinJSON_rawJSON(call FunctionCall) Value {
 	case String:
 		jsonString = dd
 		if jsonString.Length() == 0 {
-			panic(r.newSyntaxError("\"\" is unacceptable as raw JSON", 0))
+			panic(r.newSyntaxError("\"\" is unacceptable as raw JSON"))
 		}
 		first := jsonString.CharAt(0)
 		last := jsonString.CharAt(jsonString.Length() - 1)
 		if first == '{' || first == '[' ||
 			first == ' ' || first == '\n' || first == '\r' || first == '\t' ||
 			last == ' ' || last == '\n' || last == '\r' || last == '\t' {
-			panic(r.newSyntaxError("\""+arg.String()+"\" is unacceptable as raw JSON", 0))
+			panic(r.newSyntaxError("\"" + arg.String() + "\" is unacceptable as raw JSON"))
 		}
 		if !json.Valid([]byte(jsonString.String())) {
-			panic(r.newSyntaxError("\""+arg.String()+"\" is not a valid JSON", 0))
+			panic(r.newSyntaxError("\"" + arg.String() + "\" is not a valid JSON"))
 		}
 	case valueBool, valueInt, *valueBigInt, valueFloat, valueNull:
 		jsonString = dd.toString()
 	case *Symbol:
 		panic(r.NewTypeError("Cannot convert a Symbol value to a string"))
 	default:
-		panic(r.newSyntaxError(arg.String()+" is not a valid JSON", 0))
+		panic(r.newSyntaxError(arg.String() + " is not a valid JSON"))
 	}
 
 	o := r.newBaseObject(nil, classRawJSON)

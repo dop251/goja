@@ -480,7 +480,7 @@ func (r *Runtime) newReferenceError(name unistring.String) Value {
 	return r.newErrorf(r.getReferenceError(), "%s is not defined", name)
 }
 
-func (r *Runtime) newSyntaxError(msg string, offset int) Value {
+func (r *Runtime) newSyntaxError(msg string) Value {
 	return r.builtin_new(r.getSyntaxError(), []Value{newStringValue(msg)})
 }
 
