@@ -2703,28 +2703,100 @@ type iteratorRecord struct {
 
 func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *iteratorRecord {
 	if method == nil {
-		method = toMethod(r.getV(obj, SymIterator))
-		if method == nil {
-			panic(r.NewTypeError("object is not iterable"))
+		if method = toMethod(r.getV(obj, SymIterator)); method != nil {
+			iter := r.toObject(method(FunctionCall{
+				This: obj,
+			}))
+
+			var next func(FunctionCall) Value
+
+			if obj, ok := iter.self.getStr("next", nil).(*Object); ok {
+				if call, ok := obj.self.assertCallable(); ok {
+					next = call
+				}
+			}
+
+			return &iteratorRecord{
+				iterator: iter,
+				next:     next,
+			}
+		}
+		if psblitr := obj.Export(); psblitr != nil {
+			var itertpe = reflect.TypeOf(psblitr)
+			if itertpe.Kind() == reflect.Func {
+
+				var itrnxt func() (reflect.Value, bool)
+				var itrstp func()
+
+				if itertpe.NumIn() == 1 && itertpe.NumOut() == 0 && itertpe.CanSeq() {
+					itrnxt, itrstp = iter.Pull(reflect.ValueOf(psblitr).Seq())
+				} else if itertpe.NumIn() == 0 && itertpe.NumOut() == 1 && itertpe.Out(0).CanSeq() {
+					if rslt := reflect.ValueOf(psblitr).Call(nil); len(rslt) > 0 {
+						itrnxt, itrstp = iter.Pull(rslt[0].Seq())
+					}
+				}
+
+				if itrnxt != nil && itrstp != nil {
+					var outcme = map[string]any{}
+					nxtval := func() (val any, vld bool) {
+						if itrstp != nil {
+							val, vld = itrnxt()
+							if vld {
+								vld = !vld
+								val = val.(reflect.Value).Interface()
+								return
+							}
+							val = nil
+							vld = true
+							return
+						}
+						return nil, true
+					}
+
+					rtrn := func() {
+						if itrstp != nil {
+							itrstp()
+							itrstp = nil
+						}
+					}
+
+					outcme["next"] = func() any {
+						val, vld := nxtval()
+						outcme["value"] = val
+						outcme["done"] = vld
+						if vld {
+							rtrn()
+							return outcme
+						}
+						return outcme
+					}
+
+					outcme["return"] = func() any {
+						rtrn()
+						outcme["value"] = nil
+						outcme["done"] = true
+						return outcme
+					}
+
+					iter := r.toObject(r.ToValue(outcme))
+
+					var next func(FunctionCall) Value
+
+					obj, ok := iter.self.getStr("next", nil).(*Object)
+					if ok {
+						if call, ok := obj.self.assertCallable(); ok {
+							next = call
+						}
+					}
+
+					return &iteratorRecord{
+						iterator: iter,
+						next:     next}
+				}
+			}
 		}
 	}
-
-	iter := r.toObject(method(FunctionCall{
-		This: obj,
-	}))
-
-	var next func(FunctionCall) Value
-
-	if obj, ok := iter.self.getStr("next", nil).(*Object); ok {
-		if call, ok := obj.self.assertCallable(); ok {
-			next = call
-		}
-	}
-
-	return &iteratorRecord{
-		iterator: iter,
-		next:     next,
-	}
+	panic(r.NewTypeError("object is not iterable"))
 }
 
 func iteratorComplete(iterResult *Object) bool {
