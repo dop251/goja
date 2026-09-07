@@ -172,7 +172,7 @@ func (f *wrappedFuncObject) export(*objectExportCtx) interface{} {
 
 func (f *funcObject) _addProto(n unistring.String) Value {
 	if n == "prototype" {
-		if _, exists := f.values[n]; !exists {
+		if _, exists := f._lookup(n); !exists {
 			return f.addPrototype()
 		}
 	}
@@ -229,7 +229,7 @@ func (f *funcObject) hasOwnPropertyStr(name unistring.String) bool {
 
 func (f *funcObject) stringKeys(all bool, accum []Value) []Value {
 	if all {
-		if _, exists := f.values["prototype"]; !exists {
+		if _, exists := f._lookup("prototype"); !exists {
 			accum = append(accum, asciiString("prototype"))
 		}
 	}
@@ -237,7 +237,7 @@ func (f *funcObject) stringKeys(all bool, accum []Value) []Value {
 }
 
 func (f *funcObject) iterateStringKeys() iterNextFunc {
-	if _, exists := f.values["prototype"]; !exists {
+	if _, exists := f._lookup("prototype"); !exists {
 		f.addPrototype()
 	}
 	return f.baseFuncObject.iterateStringKeys()

@@ -17,7 +17,7 @@ func (a *argumentsObject) getStr(name unistring.String, receiver Value) Value {
 }
 
 func (a *argumentsObject) getOwnPropStr(name unistring.String) Value {
-	if mapped, ok := a.values[name].(*mappedProperty); ok {
+	if mapped := a.getOwnMappedProperty(name); mapped != nil {
 		if mapped.writable && mapped.enumerable && mapped.configurable {
 			return *mapped.v
 		}
@@ -38,7 +38,7 @@ func (a *argumentsObject) init() {
 }
 
 func (a *argumentsObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
-	if prop, ok := a.values[name].(*mappedProperty); ok {
+	if prop := a.getOwnMappedProperty(name); prop != nil {
 		if !prop.writable {
 			a.val.runtime.typeErrorResult(throw, "Property is not writable: %s", name)
 			return false
@@ -54,7 +54,7 @@ func (a *argumentsObject) setForeignStr(name unistring.String, val, receiver Val
 }
 
 func (a *argumentsObject) deleteStr(name unistring.String, throw bool) bool {
-	if prop, ok := a.values[name].(*mappedProperty); ok {
+	if prop := a.getOwnMappedProperty(name); prop != nil {
 		if !a.checkDeleteProp(name, &prop.valueProperty, throw) {
 			return false
 		}
@@ -88,7 +88,7 @@ func (a *argumentsObject) iterateStringKeys() iterNextFunc {
 }
 
 func (a *argumentsObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
-	if mapped, ok := a.values[name].(*mappedProperty); ok {
+	if mapped := a.getOwnMappedProperty(name); mapped != nil {
 		existing := &valueProperty{
 			configurable: mapped.configurable,
 			writable:     true,
@@ -136,4 +136,13 @@ func (a *argumentsObject) export(ctx *objectExportCtx) interface{} {
 		}
 	}
 	return arr
+}
+
+func (a *argumentsObject) getOwnMappedProperty(name unistring.String) *mappedProperty {
+	if prop, ok := a._lookup(name); ok {
+		if mapped, ok := prop.(*mappedProperty); ok {
+			return mapped
+		}
+	}
+	return nil
 }
