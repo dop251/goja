@@ -14,6 +14,26 @@ func TestRegexp1(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestRegexpInvalidUnicodeControlEscapes(t *testing.T) {
+	const SCRIPT = `
+	["u", "iu"].forEach(function (flags) {
+		["", "0", "9", "_", "%", "й"].forEach(function (c) {
+			["\\c" + c, "[\\c" + c + "]"].forEach(function (pattern) {
+				try {
+					new RegExp(pattern, flags);
+				} catch (e) {
+					if (e instanceof SyntaxError) return;
+					throw e;
+				}
+				throw new Error("Expected SyntaxError: " + pattern);
+			});
+		});
+	});
+	/\cA/u.test("\x01") && /[\cz]/iu.test("\x1a");
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestRegexp2(t *testing.T) {
 	const SCRIPT = `
 	var r = new RegExp("(['\"])(.*?)['\"]");
