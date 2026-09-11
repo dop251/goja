@@ -34,56 +34,20 @@ var (
 
 		// out-of-date (https://github.com/tc39/test262/issues/3407)
 		"test/language/expressions/prefix-increment/S11.4.4_A6_T3.js":        true,
-		"test/language/expressions/prefix-increment/S11.4.4_A6_T2.js":        true,
-		"test/language/expressions/prefix-increment/S11.4.4_A6_T1.js":        true,
 		"test/language/expressions/prefix-decrement/S11.4.5_A6_T3.js":        true,
-		"test/language/expressions/prefix-decrement/S11.4.5_A6_T2.js":        true,
-		"test/language/expressions/prefix-decrement/S11.4.5_A6_T1.js":        true,
 		"test/language/expressions/postfix-increment/S11.3.1_A6_T3.js":       true,
-		"test/language/expressions/postfix-increment/S11.3.1_A6_T2.js":       true,
-		"test/language/expressions/postfix-increment/S11.3.1_A6_T1.js":       true,
 		"test/language/expressions/postfix-decrement/S11.3.2_A6_T3.js":       true,
-		"test/language/expressions/postfix-decrement/S11.3.2_A6_T2.js":       true,
-		"test/language/expressions/postfix-decrement/S11.3.2_A6_T1.js":       true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.1_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.1_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.1_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.11_T4.js": true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.11_T2.js": true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.11_T1.js": true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.10_T4.js": true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.10_T2.js": true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.10_T1.js": true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.9_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.9_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.9_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.8_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.8_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.8_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.7_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.7_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.7_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.6_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.6_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.6_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.5_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.5_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.5_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.4_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.4_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.4_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.3_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.3_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.3_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.2_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.2_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.2_T1.js":  true,
-		"test/language/expressions/assignment/S11.13.1_A7_T3.js":             true,
-
-		// timezone
-		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true,
-		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true,
-		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js": true,
 
 		// floating point date calculations
 		"test/built-ins/Date/UTC/fp-evaluation-order.js": true,
@@ -103,7 +67,6 @@ var (
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
 		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
-		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":            true,
 		"test/built-ins/RegExp/unicode_restricted_incomplete_quantifier.js":          true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_x.js":              true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_u.js":              true,
@@ -159,7 +122,6 @@ var (
 		"test/language/expressions/class/elements/after-same-line-static-gen-rs-static-async-generator-method-privatename-identifier-alt.js":          true,
 		"test/language/expressions/class/elements/after-same-line-gen-rs-static-async-generator-method-privatename-identifier.js":                     true,
 		"test/language/expressions/class/elements/after-same-line-gen-rs-static-async-generator-method-privatename-identifier-alt.js":                 true,
-		"test/built-ins/GeneratorFunction/is-a-constructor.js":                                                                                        true,
 
 		// async iterator
 		"test/language/expressions/optional-chaining/iteration-statement-for-await-of.js": true,
@@ -218,7 +180,6 @@ var (
 		"test/language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js":                         true,
 		"test/language/statements/class/elements/private-class-field-on-nonextensible-objects.js":                                           true,
 		"test/language/statements/with/set-mutable-binding-idref-compound-assign-with-proxy-env.js":                                         true,
-		"test/language/statements/with/set-mutable-binding-binding-deleted-with-typed-array-in-proto-chain.js":                              true,
 		"test/language/statements/with/set-mutable-binding-idref-with-proxy-env.js":                                                         true,
 		"test/language/statements/with/get-binding-value-idref-with-proxy-env.js":                                                           true,
 		"test/language/statements/with/get-binding-value-call-with-proxy-env.js":                                                            true,
@@ -230,9 +191,6 @@ var (
 
 		// Extended Unicode group names in non-unicode regexp
 		"test/built-ins/RegExp/named-groups/non-unicode-property-names-valid.js": true,
-
-		// \k without groups and Go regex engine
-		"test/annexB/built-ins/RegExp/named-groups/non-unicode-malformed.js": true,
 
 		// Duplicate group name and Go regex engine
 		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier.js":     true,
