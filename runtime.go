@@ -2721,78 +2721,76 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 				next:     next,
 			}
 		}
-		if psblitr := obj.Export(); psblitr != nil {
-			var itertpe = reflect.TypeOf(psblitr)
-			if itertpe.Kind() == reflect.Func {
-
-				var itrnxt func() (reflect.Value, bool)
-				var itrstp func()
-
-				if itertpe.NumIn() == 1 && itertpe.NumOut() == 0 && itertpe.CanSeq() {
-					itrnxt, itrstp = iter.Pull(reflect.ValueOf(psblitr).Seq())
-				} else if itertpe.NumIn() == 0 && itertpe.NumOut() == 1 && itertpe.Out(0).CanSeq() {
-					if rslt := reflect.ValueOf(psblitr).Call(nil); len(rslt) > 0 {
-						itrnxt, itrstp = iter.Pull(rslt[0].Seq())
+		if itertpe := obj.ExportType(); itertpe.Kind() == reflect.Func {
+			var itrnxt, itrstp, found = func() (nxt func() (reflect.Value, bool), stop func(), caniter bool) {
+				if itertpe.CanSeq() && itertpe.NumIn() == 1 && itertpe.NumOut() == 0 {
+					nxt, stop = iter.Pull(reflect.ValueOf(obj.Export()).Seq())
+					return nxt, stop, true
+				}
+				if itertpe.NumIn() == 0 && itertpe.NumOut() == 1 && itertpe.Out(0).CanSeq() {
+					if rslt := reflect.ValueOf(obj.Export()).Call(nil); len(rslt) > 0 {
+						nxt, stop = iter.Pull(rslt[0].Seq())
+						return nxt, stop, true
 					}
 				}
-
-				if itrnxt != nil && itrstp != nil {
-					var outcme = map[string]any{}
-					nxtval := func() (val any, vld bool) {
-						if itrstp != nil {
-							val, vld = itrnxt()
-							if vld {
-								vld = !vld
-								val = val.(reflect.Value).Interface()
-								return
-							}
-							val = nil
-							vld = true
+				return
+			}()
+			if found && itrnxt != nil && itrstp != nil {
+				var outcme = map[string]any{}
+				nxtval := func() (val any, vld bool) {
+					if itrstp != nil {
+						val, vld = itrnxt()
+						if vld {
+							vld = !vld
+							val = val.(reflect.Value).Interface()
 							return
 						}
-						return nil, true
+						val = nil
+						vld = true
+						return
 					}
-
-					rtrn := func() {
-						if itrstp != nil {
-							itrstp()
-							itrstp = nil
-						}
-					}
-
-					outcme["next"] = func() any {
-						val, vld := nxtval()
-						outcme["value"] = val
-						outcme["done"] = vld
-						if vld {
-							rtrn()
-							return outcme
-						}
-						return outcme
-					}
-
-					outcme["return"] = func() any {
-						rtrn()
-						outcme["value"] = nil
-						outcme["done"] = true
-						return outcme
-					}
-
-					iter := r.toObject(r.ToValue(outcme))
-
-					var next func(FunctionCall) Value
-
-					obj, ok := iter.self.getStr("next", nil).(*Object)
-					if ok {
-						if call, ok := obj.self.assertCallable(); ok {
-							next = call
-						}
-					}
-
-					return &iteratorRecord{
-						iterator: iter,
-						next:     next}
+					return nil, true
 				}
+
+				rtrn := func() {
+					if itrstp != nil {
+						itrstp()
+						itrstp = nil
+					}
+				}
+
+				outcme["next"] = func() any {
+					val, vld := nxtval()
+					outcme["value"] = val
+					outcme["done"] = vld
+					if vld {
+						rtrn()
+						return outcme
+					}
+					return outcme
+				}
+
+				outcme["return"] = func() any {
+					rtrn()
+					outcme["value"] = nil
+					outcme["done"] = true
+					return outcme
+				}
+
+				iter := r.toObject(r.ToValue(outcme))
+
+				var next func(FunctionCall) Value
+
+				obj, ok := iter.self.getStr("next", nil).(*Object)
+				if ok {
+					if call, ok := obj.self.assertCallable(); ok {
+						next = call
+					}
+				}
+
+				return &iteratorRecord{
+					iterator: iter,
+					next:     next}
 			}
 		}
 	}
