@@ -312,6 +312,14 @@ func (p *jsonParser) parseArray() *Object {
 		case ']':
 			p.pos++
 			p.depth--
+			if p.depth == 0 && cap(p.elements)-len(p.elements) <= len(p.elements)/8 {
+				// No outer array needs the scratch storage after the root closes.
+				// Reuse only tightly sized buffers to limit retained spare capacity.
+				values := p.elements
+				clear(values[len(values):cap(values)])
+				p.elements = nil
+				return p.r.newArrayValues(values)
+			}
 			values := make([]Value, len(p.elements)-base)
 			copy(values, p.elements[base:])
 			p.elements = p.elements[:base]

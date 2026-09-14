@@ -107,14 +107,9 @@ func (o *jsonObject) materialize() *baseObject {
 
 	shape := o.shape
 	values := o.values
-	base := &baseObject{
-		class:      o.class,
-		val:        o.val,
-		prototype:  o.prototype,
-		extensible: o.extensible,
-		values:     make(map[unistring.String]Value, len(shape.keys)),
-		propNames:  make([]unistring.String, len(shape.keys)),
-	}
+	base := &o.baseObject
+	base.values = make(map[unistring.String]Value, len(shape.keys))
+	base.propNames = make([]unistring.String, len(shape.keys))
 	copy(base.propNames, shape.keys)
 	for slot, key := range shape.keys {
 		base.values[key] = values[slot]

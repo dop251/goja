@@ -1,7 +1,6 @@
 package goja
 
 import (
-	"bytes"
 	"encoding/json"
 	"math"
 	"strconv"
@@ -71,7 +70,7 @@ type _builtinJSON_stringifyContext struct {
 	propertyList     []Value
 	replacerFunction func(FunctionCall) Value
 	gap, indent      string
-	buf              bytes.Buffer
+	buf              jsonStringifyBuffer
 	allAscii         bool
 }
 
@@ -229,6 +228,10 @@ func (ctx *_builtinJSON_stringifyContext) str(key jsonStringifyKey, holder *Obje
 }
 
 func (ctx *_builtinJSON_stringifyContext) strValue(key jsonStringifyKey, value Value, holder *Object) bool {
+	// Reserve headroom for a value to cross the flush point without buffer growth.
+	if ctx.buf.Buffer.Len() >= jsonStringifyChunkSize-jsonStringifyChunkSize/8 {
+		ctx.buf.flush()
+	}
 	switch value.(type) {
 	case *Object, *valueBigInt:
 		if toJSON, ok := ctx.r.getVStr(value, "toJSON").(*Object); ok {
