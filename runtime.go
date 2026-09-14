@@ -2701,6 +2701,44 @@ type iteratorRecord struct {
 	next     func(FunctionCall) Value
 }
 
+//getGoIterSeq1 handle check for Go iter.Seq
+func getGoIterSeq1(obj Value) (nxt func() (reflect.Value, bool), stop func(), caniter bool) {
+	if itertpe := obj.ExportType(); itertpe.Kind() == reflect.Func {
+		if itertpe.CanSeq() && itertpe.NumIn() == 1 && itertpe.NumOut() == 0 {
+			nxt, stop = iter.Pull(reflect.ValueOf(obj.Export()).Seq())
+			return nxt, stop, nxt != nil && stop != nil
+		}
+		if itertpe.NumIn() == 0 && itertpe.NumOut() == 1 && itertpe.Out(0).CanSeq() {
+			if rslt := reflect.ValueOf(obj.Export()).Call(nil); len(rslt) > 0 {
+				nxt, stop = iter.Pull(rslt[0].Seq())
+				return nxt, stop, nxt != nil && stop != nil
+			}
+			return
+		}
+		return
+	}
+	return
+}
+
+//getGoIterSeq2 handle check for Go iter.Seq2
+func getGoIterSeq2(obj Value) (nxt func() (reflect.Value, reflect.Value, bool), stop func(), caniter bool) {
+	if itertpe := obj.ExportType(); itertpe.Kind() == reflect.Func {
+		if itertpe.CanSeq2() && itertpe.NumIn() == 1 && itertpe.NumOut() == 0 {
+			nxt, stop = iter.Pull2(reflect.ValueOf(obj.Export()).Seq2())
+			return nxt, stop, nxt != nil && stop != nil
+		}
+		if itertpe.NumIn() == 0 && itertpe.NumOut() == 1 && itertpe.Out(0).CanSeq2() {
+			if rslt := reflect.ValueOf(obj.Export()).Call(nil); len(rslt) > 0 {
+				nxt, stop = iter.Pull2(rslt[0].Seq2())
+				return nxt, stop, nxt != nil && stop != nil
+			}
+			return
+		}
+		return
+	}
+	return
+}
+
 func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *iteratorRecord {
 	if method == nil {
 		if method = toMethod(r.getV(obj, SymIterator)); method != nil {
@@ -2721,76 +2759,123 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 				next:     next,
 			}
 		}
-		if itertpe := obj.ExportType(); itertpe.Kind() == reflect.Func {
-			var itrnxt, itrstp, found = func() (nxt func() (reflect.Value, bool), stop func(), caniter bool) {
-				if itertpe.CanSeq() && itertpe.NumIn() == 1 && itertpe.NumOut() == 0 {
-					nxt, stop = iter.Pull(reflect.ValueOf(obj.Export()).Seq())
-					return nxt, stop, true
-				}
-				if itertpe.NumIn() == 0 && itertpe.NumOut() == 1 && itertpe.Out(0).CanSeq() {
-					if rslt := reflect.ValueOf(obj.Export()).Call(nil); len(rslt) > 0 {
-						nxt, stop = iter.Pull(rslt[0].Seq())
-						return nxt, stop, true
-					}
-				}
-				return
-			}()
-			if found && itrnxt != nil && itrstp != nil {
-				var outcme = map[string]any{}
-				nxtval := func() (val any, vld bool) {
-					if itrstp != nil {
-						val, vld = itrnxt()
-						if vld {
-							vld = !vld
-							val = val.(reflect.Value).Interface()
-							return
-						}
-						val = nil
-						vld = true
+		if itrnxt, itrstp, found := getGoIterSeq1(obj); found {
+			//handle Go iter.Seq single-value iterator
+			var outcme = map[string]any{}
+			nxtval := func() (val any, vld bool) {
+				if itrstp != nil {
+					val, vld = itrnxt()
+					if vld {
+						vld = !vld
+						val = val.(reflect.Value).Interface()
 						return
 					}
-					return nil, true
+					val = nil
+					vld = true
+					return
 				}
+				return nil, true
+			}
 
-				rtrn := func() {
-					if itrstp != nil {
-						itrstp()
-						itrstp = nil
-					}
+			rtrn := func() {
+				if itrstp != nil {
+					itrstp()
+					itrstp = nil
 				}
+			}
 
-				outcme["next"] = func() any {
-					val, vld := nxtval()
-					outcme["value"] = val
-					outcme["done"] = vld
-					if vld {
-						rtrn()
-						return outcme
-					}
-					return outcme
-				}
-
-				outcme["return"] = func() any {
+			outcme["next"] = func() any {
+				val, vld := nxtval()
+				outcme["value"] = val
+				outcme["done"] = vld
+				if vld {
 					rtrn()
-					outcme["value"] = nil
-					outcme["done"] = true
 					return outcme
 				}
+				return outcme
+			}
 
-				iter := r.toObject(r.ToValue(outcme))
+			outcme["return"] = func() any {
+				rtrn()
+				outcme["value"] = nil
+				outcme["done"] = true
+				return outcme
+			}
 
-				var next func(FunctionCall) Value
+			iter := r.toObject(r.ToValue(outcme))
 
-				obj, ok := iter.self.getStr("next", nil).(*Object)
-				if ok {
-					if call, ok := obj.self.assertCallable(); ok {
-						next = call
-					}
+			var next func(FunctionCall) Value
+
+			obj, ok := iter.self.getStr("next", nil).(*Object)
+			if ok {
+				if call, ok := obj.self.assertCallable(); ok {
+					next = call
 				}
+			}
 
-				return &iteratorRecord{
-					iterator: iter,
-					next:     next}
+			return &iteratorRecord{
+				iterator: iter,
+				next:     next,
+			}
+		}
+		if itrnxt, itrstp, found := getGoIterSeq2(obj); found {
+			//handle Go iter.Seq single-value iterator
+			var outcme = map[string]any{}
+			var vl1, vl2 any
+			nxtval := func() (val any, vld bool) {
+				if itrstp != nil {
+					vl1, vl2, vld = itrnxt()
+					if vld {
+						vld = !vld
+						val = []any{vl1.(reflect.Value).Interface(), vl2.(reflect.Value).Interface()}
+						return
+					}
+					val = nil
+					vld = true
+					return
+				}
+				return nil, true
+			}
+
+			rtrn := func() {
+				if itrstp != nil {
+					itrstp()
+					itrstp = nil
+				}
+			}
+
+			outcme["next"] = func() any {
+				val, vld := nxtval()
+				outcme["value"] = val
+				outcme["done"] = vld
+				if vld {
+					rtrn()
+					return outcme
+				}
+				return outcme
+			}
+
+			outcme["return"] = func() any {
+				rtrn()
+				outcme["value"] = nil
+				outcme["done"] = true
+				return outcme
+			}
+
+			iter := r.toObject(r.ToValue(outcme))
+
+			var next func(FunctionCall) Value
+
+			obj, ok := iter.self.getStr("next", nil).(*Object)
+			if ok {
+				if call, ok := obj.self.assertCallable(); ok {
+					next = call
+				}
+			}
+
+			return &iteratorRecord{
+				iterator: iter,
+				next:     next,
 			}
 		}
 	}
