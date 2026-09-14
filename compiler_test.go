@@ -4974,6 +4974,53 @@ func TestClassDynCaptureThisInStaticFieldInit(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestClassCaptureThisInFieldInitInsideFunc(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		a = () => this
+	}
+
+	function f(x, y) {
+		let c = new C();
+		return c.a() === c;
+	}
+	f({}, {});
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassCapturePrivateThisInFieldInitInsideFunc(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		#a = () => this;
+		get a() {
+			return this.#a();
+		}
+	}
+
+	function f(x, y) {
+		let c = new C();
+		return c.a === c;
+	}
+	f({}, {});
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassCaptureThisInStaticFieldInitInsideFunc(t *testing.T) {
+	const SCRIPT = `
+	function f(x, y) {
+		let capture;
+		class C {
+			static #a = (capture = () => this, 0)
+		}
+		return capture() === C;
+	}
+	f({}, {});
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestCompileClass(t *testing.T) {
 	const SCRIPT = `
 	class C extends Error {

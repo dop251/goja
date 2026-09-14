@@ -330,6 +330,9 @@ func (f *classFuncObject) _initFields(instance *Object) {
 		vm.stash = f.stash
 		vm.privEnv = f.privEnv
 		vm.newTarget = nil
+		// enterFunc derives the stack base from vm.args, which otherwise still
+		// holds the argument count of whichever function is executing 'new'.
+		vm.args = 0
 
 		// so that 'super' base could be correctly resolved (including from direct eval())
 		vm.push(f.val)
