@@ -399,6 +399,10 @@ func (self *_RegExp_parser) scanEscape(inClass bool) {
 		} else if 'A' <= self.chr && self.chr <= 'Z' {
 			value = int64(self.chr - 'A' + 1)
 		} else {
+			if self.unicode {
+				self.error(true, "Invalid control escape")
+				return
+			}
 			self.writeByte('c')
 			return
 		}
