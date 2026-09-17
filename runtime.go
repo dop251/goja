@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go/ast"
 	"hash/maphash"
+	"iter"
 	"math"
 	"math/big"
 	"math/bits"
@@ -2703,28 +2704,112 @@ type iteratorRecord struct {
 
 func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *iteratorRecord {
 	if method == nil {
-		method = toMethod(r.getV(obj, SymIterator))
-		if method == nil {
-			panic(r.NewTypeError("object is not iterable"))
+		if method = toMethod(r.getV(obj, SymIterator)); method != nil {
+			iter := r.toObject(method(FunctionCall{
+				This: obj,
+			}))
+
+			var next func(FunctionCall) Value
+
+			if obj, ok := iter.self.getStr("next", nil).(*Object); ok {
+				if call, ok := obj.self.assertCallable(); ok {
+					next = call
+				}
+			}
+
+			return &iteratorRecord{
+				iterator: iter,
+				next:     next,
+			}
+		}
+		if exptype := obj.ExportType(); exptype.Kind() == reflect.Func {
+			//Check if the callable function is a Go single-value or double-value iterable sequence
+			if isseq, isseq2 := exptype.CanSeq(), exptype.CanSeq2(); isseq || isseq2 {
+				
+				var itrnext func() (reflect.Value, bool)
+				var itrstop func()
+				if isseq {
+					itrnext, itrstop = iter.Pull(reflect.ValueOf(obj.Export()).Seq())
+				} else {
+					var itrnext2 func() (reflect.Value, reflect.Value, bool)
+					itrnext2, itrstop = iter.Pull2(reflect.ValueOf(obj.Export()).Seq2())
+					
+					itrnext = func() (reflect.Value, bool) {
+						if rv1, rv2, nxt := itrnext2(); nxt {
+							//return double-value as a single value of an Array
+							return reflect.Append(reflect.ValueOf([]any{}), rv1, rv2), nxt
+						}
+						//return empty Array value if iteration was stop
+						return reflect.ValueOf([]any{}), false
+					}
+				}
+				var outcme = map[string]any{}
+
+				//nxtval wraps around [itrnext] calling the next iteration of the loop
+				var nxtval = func() (val any, vld bool) {
+					if itrstop != nil {
+						val, vld = itrnext()
+						if vld {
+							//make sure that false is returned to continue the iterating javascript
+							vld = !vld
+							val = val.(reflect.Value).Interface()
+							return
+						}
+						val = nil
+						vld = true
+						return
+					}
+					return nil, true
+				}
+
+				//this is used to make sure that the stop (interuption) function is called of the reflected go iterator sequence
+				rtrn := func() {
+					if itrstop != nil {
+						itrstop()
+						itrstop = nil
+					}
+				}
+
+				//sets up the "next" callable function for the iterator of [iteratorRecord]
+				outcme["next"] = func() any {
+					val, vld := nxtval()
+					outcme["value"] = val
+					outcme["done"] = vld
+					if vld {
+						//stop go iteration
+						rtrn()
+						return outcme
+					}
+					return outcme
+				}
+
+				//sets up the "return" callable function for the iterator of [iteratorRecord]
+				//to break the loop
+				outcme["return"] = func() any {
+					//stop go iteration
+					rtrn()
+					outcme["value"] = nil
+					outcme["done"] = true
+					return outcme
+				}
+
+				iter := r.toObject(r.ToValue(outcme))
+				var next func(FunctionCall) Value
+
+				if obj, ok := iter.self.getStr("next", nil).(*Object); ok {
+					if call, ok := obj.self.assertCallable(); ok {
+						next = call
+					}
+				}
+
+				return &iteratorRecord{
+					iterator: iter,
+					next:     next,
+				}
+			}
 		}
 	}
-
-	iter := r.toObject(method(FunctionCall{
-		This: obj,
-	}))
-
-	var next func(FunctionCall) Value
-
-	if obj, ok := iter.self.getStr("next", nil).(*Object); ok {
-		if call, ok := obj.self.assertCallable(); ok {
-			next = call
-		}
-	}
-
-	return &iteratorRecord{
-		iterator: iter,
-		next:     next,
-	}
+	panic(r.NewTypeError("object is not iterable"))
 }
 
 func iteratorComplete(iterResult *Object) bool {
