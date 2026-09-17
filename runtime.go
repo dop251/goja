@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go/ast"
 	"hash/maphash"
+	"iter"
 	"math"
 	"math/big"
 	"math/bits"
@@ -2701,44 +2702,6 @@ type iteratorRecord struct {
 	next     func(FunctionCall) Value
 }
 
-//getGoIterSeq1 handle check for Go iter.Seq
-func getGoIterSeq1(obj Value) (nxt func() (reflect.Value, bool), stop func(), caniter bool) {
-	if itertpe := obj.ExportType(); itertpe.Kind() == reflect.Func {
-		if itertpe.CanSeq() && itertpe.NumIn() == 1 && itertpe.NumOut() == 0 {
-			nxt, stop = iter.Pull(reflect.ValueOf(obj.Export()).Seq())
-			return nxt, stop, nxt != nil && stop != nil
-		}
-		if itertpe.NumIn() == 0 && itertpe.NumOut() == 1 && itertpe.Out(0).CanSeq() {
-			if rslt := reflect.ValueOf(obj.Export()).Call(nil); len(rslt) > 0 {
-				nxt, stop = iter.Pull(rslt[0].Seq())
-				return nxt, stop, nxt != nil && stop != nil
-			}
-			return
-		}
-		return
-	}
-	return
-}
-
-//getGoIterSeq2 handle check for Go iter.Seq2
-func getGoIterSeq2(obj Value) (nxt func() (reflect.Value, reflect.Value, bool), stop func(), caniter bool) {
-	if itertpe := obj.ExportType(); itertpe.Kind() == reflect.Func {
-		if itertpe.CanSeq2() && itertpe.NumIn() == 1 && itertpe.NumOut() == 0 {
-			nxt, stop = iter.Pull2(reflect.ValueOf(obj.Export()).Seq2())
-			return nxt, stop, nxt != nil && stop != nil
-		}
-		if itertpe.NumIn() == 0 && itertpe.NumOut() == 1 && itertpe.Out(0).CanSeq2() {
-			if rslt := reflect.ValueOf(obj.Export()).Call(nil); len(rslt) > 0 {
-				nxt, stop = iter.Pull2(rslt[0].Seq2())
-				return nxt, stop, nxt != nil && stop != nil
-			}
-			return
-		}
-		return
-	}
-	return
-}
-
 func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *iteratorRecord {
 	if method == nil {
 		if method = toMethod(r.getV(obj, SymIterator)); method != nil {
@@ -2759,123 +2722,90 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 				next:     next,
 			}
 		}
-		if itrnxt, itrstp, found := getGoIterSeq1(obj); found {
-			//handle Go iter.Seq single-value iterator
-			var outcme = map[string]any{}
-			nxtval := func() (val any, vld bool) {
-				if itrstp != nil {
-					val, vld = itrnxt()
-					if vld {
-						vld = !vld
-						val = val.(reflect.Value).Interface()
+		if exptype := obj.ExportType(); exptype.Kind() == reflect.Func {
+			//Check if the callable function is a Go single-value or double-value iterable sequence
+			if isseq, isseq2 := exptype.CanSeq(), exptype.CanSeq2(); isseq || isseq2 {
+				
+				var itrnext func() (reflect.Value, bool)
+				var itrstop func()
+				if isseq {
+					itrnext, itrstop = iter.Pull(reflect.ValueOf(obj.Export()).Seq())
+				} else {
+					var itrnext2 func() (reflect.Value, reflect.Value, bool)
+					itrnext2, itrstop = iter.Pull2(reflect.ValueOf(obj.Export()).Seq2())
+					
+					itrnext = func() (reflect.Value, bool) {
+						if rv1, rv2, nxt := itrnext2(); nxt {
+							//return double-value as a single value of an Array
+							return reflect.Append(reflect.ValueOf([]any{}), rv1, rv2), nxt
+						}
+						//return empty Array value if iteration was stop
+						return reflect.ValueOf([]any{}), false
+					}
+				}
+				var outcme = map[string]any{}
+
+				//nxtval wraps around [itrnext] calling the next iteration of the loop
+				var nxtval = func() (val any, vld bool) {
+					if itrstop != nil {
+						val, vld = itrnext()
+						if vld {
+							//make sure that false is returned to continue the iterating javascript
+							vld = !vld
+							val = val.(reflect.Value).Interface()
+							return
+						}
+						val = nil
+						vld = true
 						return
 					}
-					val = nil
-					vld = true
-					return
+					return nil, true
 				}
-				return nil, true
-			}
 
-			rtrn := func() {
-				if itrstp != nil {
-					itrstp()
-					itrstp = nil
-				}
-			}
-
-			outcme["next"] = func() any {
-				val, vld := nxtval()
-				outcme["value"] = val
-				outcme["done"] = vld
-				if vld {
-					rtrn()
-					return outcme
-				}
-				return outcme
-			}
-
-			outcme["return"] = func() any {
-				rtrn()
-				outcme["value"] = nil
-				outcme["done"] = true
-				return outcme
-			}
-
-			iter := r.toObject(r.ToValue(outcme))
-
-			var next func(FunctionCall) Value
-
-			obj, ok := iter.self.getStr("next", nil).(*Object)
-			if ok {
-				if call, ok := obj.self.assertCallable(); ok {
-					next = call
-				}
-			}
-
-			return &iteratorRecord{
-				iterator: iter,
-				next:     next,
-			}
-		}
-		if itrnxt, itrstp, found := getGoIterSeq2(obj); found {
-			//handle Go iter.Seq single-value iterator
-			var outcme = map[string]any{}
-			var vl1, vl2 any
-			nxtval := func() (val any, vld bool) {
-				if itrstp != nil {
-					vl1, vl2, vld = itrnxt()
-					if vld {
-						vld = !vld
-						val = []any{vl1.(reflect.Value).Interface(), vl2.(reflect.Value).Interface()}
-						return
+				//this is used to make sure that the stop (interuption) function is called of the reflected go iterator sequence
+				rtrn := func() {
+					if itrstop != nil {
+						itrstop()
+						itrstop = nil
 					}
-					val = nil
-					vld = true
-					return
 				}
-				return nil, true
-			}
 
-			rtrn := func() {
-				if itrstp != nil {
-					itrstp()
-					itrstp = nil
-				}
-			}
-
-			outcme["next"] = func() any {
-				val, vld := nxtval()
-				outcme["value"] = val
-				outcme["done"] = vld
-				if vld {
-					rtrn()
+				//sets up the "next" callable function for the iterator of [iteratorRecord]
+				outcme["next"] = func() any {
+					val, vld := nxtval()
+					outcme["value"] = val
+					outcme["done"] = vld
+					if vld {
+						//stop go iteration
+						rtrn()
+						return outcme
+					}
 					return outcme
 				}
-				return outcme
-			}
 
-			outcme["return"] = func() any {
-				rtrn()
-				outcme["value"] = nil
-				outcme["done"] = true
-				return outcme
-			}
-
-			iter := r.toObject(r.ToValue(outcme))
-
-			var next func(FunctionCall) Value
-
-			obj, ok := iter.self.getStr("next", nil).(*Object)
-			if ok {
-				if call, ok := obj.self.assertCallable(); ok {
-					next = call
+				//sets up the "return" callable function for the iterator of [iteratorRecord]
+				//to break the loop
+				outcme["return"] = func() any {
+					//stop go iteration
+					rtrn()
+					outcme["value"] = nil
+					outcme["done"] = true
+					return outcme
 				}
-			}
 
-			return &iteratorRecord{
-				iterator: iter,
-				next:     next,
+				iter := r.toObject(r.ToValue(outcme))
+				var next func(FunctionCall) Value
+
+				if obj, ok := iter.self.getStr("next", nil).(*Object); ok {
+					if call, ok := obj.self.assertCallable(); ok {
+						next = call
+					}
+				}
+
+				return &iteratorRecord{
+					iterator: iter,
+					next:     next,
+				}
 			}
 		}
 	}
