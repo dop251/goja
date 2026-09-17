@@ -668,6 +668,8 @@ func (self *_parser) parseDotMember(left ast.Expression) ast.Expression {
 		return &ast.BadExpression{From: period, To: self.idx}
 	}
 
+	// A member IdentifierName can end an expression even when lexed as a keyword.
+	self.insertSemicolon = true
 	self.next()
 
 	return &ast.DotExpression{
