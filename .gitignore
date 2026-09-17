@@ -1,3 +1,4 @@
 .idea
 *.iml
 testdata/test262
+testdata/json/*.json
