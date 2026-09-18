@@ -38,6 +38,8 @@ const (
 
 	classGenerator         = "Generator"
 	classGeneratorFunction = "GeneratorFunction"
+
+	objSmallValuesLimit = 8
 )
 
 var (
@@ -210,14 +212,20 @@ type objectImpl interface {
 	getPrivateEnv(typ *privateEnvType, create bool) *privateElements
 }
 
+type smallValueEntry struct {
+	name  unistring.String
+	value Value
+}
+
 type baseObject struct {
 	class      string
 	val        *Object
 	prototype  *Object
 	extensible bool
 
-	values    map[unistring.String]Value
-	propNames []unistring.String
+	values      map[unistring.String]Value
+	smallValues []smallValueEntry
+	propNames   []unistring.String
 
 	lastSortedPropLen, idxPropCount int
 
@@ -270,7 +278,7 @@ func (f ConstructorCall) Argument(idx int) Value {
 }
 
 func (o *baseObject) init() {
-	o.values = make(map[unistring.String]Value)
+
 }
 
 func (o *baseObject) className() string {
@@ -337,6 +345,36 @@ func (o *baseObject) getStrWithOwnProp(prop Value, name unistring.String, receiv
 	return prop
 }
 
+func (o *baseObject) _lookup(name unistring.String) (Value, bool) {
+	if o.values == nil {
+		for i := range o.smallValues {
+			if o.smallValues[i].name == name {
+				return o.smallValues[i].value, true
+			}
+		}
+		return nil, false
+	}
+
+	v, ok := o.values[name]
+	return v, ok
+}
+
+func (o *baseObject) _lookupIdx(name unistring.String) (Value, int) {
+	if o.values == nil {
+		for i := range o.smallValues {
+			if o.smallValues[i].name == name {
+				return o.smallValues[i].value, i
+			}
+		}
+		return nil, -1
+	}
+
+	if v, ok := o.values[name]; ok {
+		return v, 0
+	}
+	return nil, -1
+}
+
 func (o *baseObject) getIdx(idx valueInt, receiver Value) Value {
 	return o.val.self.getStr(idx.string(), receiver)
 }
@@ -346,7 +384,7 @@ func (o *baseObject) getSym(s *Symbol, receiver Value) Value {
 }
 
 func (o *baseObject) getStr(name unistring.String, receiver Value) Value {
-	prop := o.values[name]
+	prop, _ := o._lookup(name)
 	if prop == nil {
 		if o.prototype != nil {
 			if receiver == nil {
@@ -376,7 +414,8 @@ func (o *baseObject) getOwnPropSym(s *Symbol) Value {
 }
 
 func (o *baseObject) getOwnPropStr(name unistring.String) Value {
-	return o.values[name]
+	v, _ := o._lookup(name)
+	return v
 }
 
 func (o *baseObject) checkDeleteProp(name unistring.String, prop *valueProperty, throw bool) bool {
@@ -398,7 +437,24 @@ func (o *baseObject) checkDelete(name unistring.String, val Value, throw bool) b
 }
 
 func (o *baseObject) _delete(name unistring.String) {
-	delete(o.values, name)
+	if o.values == nil {
+		found := false
+		for i := range o.smallValues {
+			if o.smallValues[i].name == name {
+				o.smallValues[i] = o.smallValues[len(o.smallValues)-1]
+				o.smallValues[len(o.smallValues)-1] = smallValueEntry{}
+				o.smallValues = o.smallValues[:len(o.smallValues)-1]
+				found = true
+				break
+			}
+		}
+		if !found {
+			return
+		}
+	} else {
+		delete(o.values, name)
+	}
+
 	for i, n := range o.propNames {
 		if n == name {
 			names := o.propNames
@@ -440,7 +496,7 @@ func (o *baseObject) deleteSym(s *Symbol, throw bool) bool {
 }
 
 func (o *baseObject) deleteStr(name unistring.String, throw bool) bool {
-	if val, exists := o.values[name]; exists {
+	if val, exists := o._lookup(name); exists {
 		if !o.checkDelete(name, val, throw) {
 			return false
 		}
@@ -478,7 +534,7 @@ func (o *baseObject) setProto(proto *Object, throw bool) bool {
 }
 
 func (o *baseObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
-	ownDesc := o.values[name]
+	ownDesc, idx := o._lookupIdx(name)
 	if ownDesc == nil {
 		if proto := o.prototype; proto != nil {
 			// we know it's foreign because prototype loops are not allowed
@@ -490,11 +546,9 @@ func (o *baseObject) setOwnStr(name unistring.String, val Value, throw bool) boo
 		if !o.extensible {
 			o.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
 			return false
-		} else {
-			o.values[name] = val
-			names := copyNamesIfNeeded(o.propNames, 1)
-			o.propNames = append(names, name)
 		}
+
+		o._putNew(name, val, true)
 		return true
 	}
 	if prop, ok := ownDesc.(*valueProperty); ok {
@@ -505,7 +559,7 @@ func (o *baseObject) setOwnStr(name unistring.String, val Value, throw bool) boo
 			prop.set(o.val, val)
 		}
 	} else {
-		o.values[name] = val
+		o._putExistingIdx(name, val, idx)
 	}
 	return true
 }
@@ -598,7 +652,8 @@ func (o *baseObject) _setForeignIdx(idx valueInt, prop, val, receiver Value, thr
 }
 
 func (o *baseObject) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
-	return o._setForeignStr(name, o.values[name], val, receiver, throw)
+	propValue, _ := o._lookup(name)
+	return o._setForeignStr(name, propValue, val, receiver, throw)
 }
 
 func (o *baseObject) setForeignIdx(name valueInt, val, receiver Value, throw bool) (bool, bool) {
@@ -646,7 +701,7 @@ func (o *baseObject) hasOwnPropertySym(s *Symbol) bool {
 }
 
 func (o *baseObject) hasOwnPropertyStr(name unistring.String) bool {
-	_, exists := o.values[name]
+	_, exists := o._lookup(name)
 	return exists
 }
 
@@ -758,12 +813,12 @@ Reject:
 }
 
 func (o *baseObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
-	existingVal := o.values[name]
+	existingVal, existingIdx := o._lookupIdx(name)
 	if v, ok := o._defineOwnProperty(name, existingVal, descr, throw); ok {
-		o.values[name] = v
-		if existingVal == nil {
-			names := copyNamesIfNeeded(o.propNames, 1)
-			o.propNames = append(names, name)
+		if existingIdx >= 0 {
+			o._putExistingIdx(name, v, existingIdx)
+		} else {
+			o._putNew(name, v, true)
 		}
 		return true
 	}
@@ -790,12 +845,90 @@ func (o *baseObject) defineOwnPropertySym(s *Symbol, descr PropertyDescriptor, t
 }
 
 func (o *baseObject) _put(name unistring.String, v Value) {
-	if _, exists := o.values[name]; !exists {
-		names := copyNamesIfNeeded(o.propNames, 1)
-		o.propNames = append(names, name)
+	if o.values == nil {
+		if o.smallValues == nil {
+			o.smallValues = make([]smallValueEntry, 0, 4)
+		} else {
+			for i := range o.smallValues {
+				if o.smallValues[i].name == name {
+					o.smallValues[i].value = v
+					return
+				}
+			}
+		}
+		if len(o.smallValues) < objSmallValuesLimit {
+			o.smallValues = append(o.smallValues, smallValueEntry{name, v})
+		} else {
+			o._convertSmallValuesToMap()
+			o.values[name] = v
+		}
+	} else {
+		prevLen := len(o.values)
+		o.values[name] = v
+		// avoid extra lookup by checking length
+		if len(o.values) == prevLen {
+			return
+		}
+	}
+	names := copyNamesIfNeeded(o.propNames, 1)
+	o.propNames = append(names, name)
+}
+
+func (o *baseObject) _convertSmallValuesToMap() {
+	if o.values == nil {
+		o.values = make(map[unistring.String]Value, len(o.smallValues)*2)
+		for _, val := range o.smallValues {
+			o.values[val.name] = val.value
+		}
+		o.smallValues = nil
+	}
+}
+
+func (o *baseObject) _putExisting(name unistring.String, v Value) {
+	if o.values == nil {
+		for idx := range o.smallValues {
+			if o.smallValues[idx].name == name {
+				o.smallValues[idx].value = v
+				return
+			}
+		}
+		panic("unreachable")
 	}
 
 	o.values[name] = v
+}
+
+func (o *baseObject) _putExistingIdx(name unistring.String, v Value, idx int) {
+	if o.values == nil {
+		if o.smallValues[idx].name == name {
+			o.smallValues[idx].value = v
+			return
+		}
+		panic("invalid index for existing property")
+	}
+
+	o.values[name] = v
+}
+
+func (o *baseObject) _putNew(name unistring.String, v Value, addPropName bool) {
+	if o.values == nil {
+		if o.smallValues == nil {
+			o.smallValues = make([]smallValueEntry, 0, 4)
+		}
+		if len(o.smallValues) < objSmallValuesLimit {
+			o.smallValues = append(o.smallValues, smallValueEntry{name, v})
+		} else {
+			o._convertSmallValuesToMap()
+			o.values[name] = v
+		}
+	} else {
+		o.values[name] = v
+	}
+
+	if addPropName {
+		names := copyNamesIfNeeded(o.propNames, 1)
+		o.propNames = append(names, name)
+	}
 }
 
 func valueProp(value Value, writable, enumerable, configurable bool) Value {
@@ -1186,7 +1319,7 @@ func (i *objectPropIter) next() (propIterItem, iterNextFunc) {
 	for i.idx < len(i.propNames) {
 		name := i.propNames[i.idx]
 		i.idx++
-		prop := i.o.values[name]
+		prop, _ := i.o._lookup(name)
 		if prop != nil {
 			return propIterItem{name: stringValueFromRaw(name), value: prop}, i.next
 		}
@@ -1362,7 +1495,7 @@ func (o *baseObject) stringKeys(all bool, keys []Value) []Value {
 		}
 	} else {
 		for _, k := range o.propNames {
-			prop := o.values[k]
+			prop, _ := o._lookup(k)
 			if prop, ok := prop.(*valueProperty); ok && !prop.enumerable {
 				continue
 			}

@@ -2,10 +2,11 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dop251/goja/unistring"
 	"math"
 	"reflect"
 	"sort"
+
+	"github.com/dop251/goja/unistring"
 )
 
 type templatePropFactory func(*Runtime) Value
@@ -105,12 +106,12 @@ func (o *templatedObject) getSym(s *Symbol, receiver Value) Value {
 }
 
 func (o *templatedObject) getOwnPropStr(p unistring.String) Value {
-	if v, exists := o.values[p]; exists {
+	if v, exists := o._lookup(p); exists {
 		return v
 	}
 	if f := o.tmpl.props[p]; f != nil {
 		v := f(o.val.runtime)
-		o.values[p] = v
+		o._putNew(p, v, false)
 		return v
 	}
 	return nil
@@ -209,7 +210,7 @@ func (o *templatedObject) hasPropertySym(s *Symbol) bool {
 }
 
 func (o *templatedObject) hasOwnPropertyStr(name unistring.String) bool {
-	if v, exists := o.values[name]; exists {
+	if v, exists := o._lookup(name); exists {
 		return v != nil
 	}
 
@@ -228,11 +229,11 @@ func (o *templatedObject) hasOwnPropertySym(s *Symbol) bool {
 func (o *templatedObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	existingVal := o.getOwnPropStr(name)
 	if v, ok := o._defineOwnProperty(name, existingVal, descr, throw); ok {
-		o.values[name] = v
 		if existingVal == nil {
 			o.materialisePropNames()
-			names := copyNamesIfNeeded(o.propNames, 1)
-			o.propNames = append(names, name)
+			o._putNew(name, v, true)
+		} else {
+			o._putExisting(name, v)
 		}
 		return true
 	}
@@ -252,7 +253,7 @@ func (o *templatedObject) deleteStr(name unistring.String, throw bool) bool {
 		o.materialisePropNames()
 		o._delete(name)
 		if _, exists := o.tmpl.props[name]; exists {
-			o.values[name] = nil // white hole
+			o._put(name, nil) // white hole
 		}
 	}
 	return true
@@ -265,8 +266,8 @@ func (o *templatedObject) deleteSym(s *Symbol, throw bool) bool {
 
 func (o *templatedObject) materialiseProps() {
 	for name, f := range o.tmpl.props {
-		if _, exists := o.values[name]; !exists {
-			o.values[name] = f(o.val.runtime)
+		if _, exists := o._lookup(name); !exists {
+			o._putNew(name, f(o.val.runtime), false)
 		}
 	}
 	o.materialisePropNames()

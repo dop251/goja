@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"os"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -3264,5 +3265,68 @@ func BenchmarkNew(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		New()
+	}
+}
+
+func BenchmarkV8V7(b *testing.B) {
+	path := "testdata/js-engine-benchmark/v8-v7/"
+	if stat, err := os.Stat(path); err != nil || !stat.IsDir() {
+		b.Skipf("v8-v7 benchmark skipped: %v", err)
+	}
+	bts, err := os.ReadFile(path + "base.js")
+	if err != nil {
+		b.Fatal(err)
+	}
+	baseProgram := MustCompile("base.js", string(bts), true)
+
+	var programs []*Program
+	for _, name := range []string{
+		"crypto.js",
+		"deltablue.js",
+		"earley-boyer.js",
+		"navier-stokes.js",
+		"raytrace.js",
+		"regexp.js",
+		"richards.js",
+		"splay.js",
+	} {
+		bts, err = os.ReadFile(path + name)
+		if err != nil {
+			b.Fatal(err)
+		}
+		prg := MustCompile(name, string(bts), true)
+		programs = append(programs, prg)
+	}
+	runBench := MustCompile("run.js", `
+BenchmarkSuite.RunSuites({
+    NotifyError: _notifyError, 
+    NotifyResult: _notifyResult,
+});`, true)
+
+	for _, prg := range programs {
+		b.Run(prg.src.Name(), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				vm := New()
+				_ = vm.Set("_notifyError", func(name, error string) {
+					b.Error(name + ":" + error)
+				})
+				_ = vm.Set("_notifyResult", func(name, score string) {
+					//b.Log(name + ":" + score)
+				})
+				_, err0 := vm.RunProgram(baseProgram)
+				if err0 != nil {
+					b.Fatal(err0)
+				}
+				_, err0 = vm.RunProgram(prg)
+				if err0 != nil {
+					b.Fatal(err0)
+				}
+				_, err0 = vm.RunProgram(runBench)
+				if err0 != nil {
+					b.Fatal(err0)
+				}
+			}
+		})
 	}
 }
