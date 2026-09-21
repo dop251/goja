@@ -2724,16 +2724,18 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 		}
 		if exptype := obj.ExportType(); exptype.Kind() == reflect.Func {
 			//Check if the callable function is a Go single-value or double-value iterable sequence
+
 			if isseq, isseq2 := exptype.CanSeq(), exptype.CanSeq2(); isseq || isseq2 {
-				
 				var itrnext func() (reflect.Value, bool)
 				var itrstop func()
+				var expiter = obj.Export()
 				if isseq {
-					itrnext, itrstop = iter.Pull(reflect.ValueOf(obj.Export()).Seq())
-				} else {
+					itrnext, itrstop = iter.Pull(reflect.ValueOf(expiter).Seq())
+				}
+				if isseq2 {
 					var itrnext2 func() (reflect.Value, reflect.Value, bool)
-					itrnext2, itrstop = iter.Pull2(reflect.ValueOf(obj.Export()).Seq2())
-					
+					itrnext2, itrstop = iter.Pull2(reflect.ValueOf(expiter).Seq2())
+
 					itrnext = func() (reflect.Value, bool) {
 						if rv1, rv2, nxt := itrnext2(); nxt {
 							//return double-value as a single value of an Array
@@ -2743,7 +2745,7 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 						return reflect.ValueOf([]any{}), false
 					}
 				}
-				var outcme = map[string]any{}
+				var iter = r.NewObject()
 
 				//nxtval wraps around [itrnext] calling the next iteration of the loop
 				var nxtval = func() (val any, vld bool) {
@@ -2771,29 +2773,28 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 				}
 
 				//sets up the "next" callable function for the iterator of [iteratorRecord]
-				outcme["next"] = func() any {
+				iter.Set("next", func() any {
 					val, vld := nxtval()
-					outcme["value"] = val
-					outcme["done"] = vld
+					iter.Set("value", val)
+					iter.Set("done", vld)
 					if vld {
 						//stop go iteration
 						rtrn()
-						return outcme
+						return iter
 					}
-					return outcme
-				}
+					return iter
+				})
 
 				//sets up the "return" callable function for the iterator of [iteratorRecord]
 				//to break the loop
-				outcme["return"] = func() any {
+				iter.Set("return", func() any {
 					//stop go iteration
 					rtrn()
-					outcme["value"] = nil
-					outcme["done"] = true
-					return outcme
-				}
+					iter.Set("value", nil)
+					iter.Set("done", true)
+					return iter
+				})
 
-				iter := r.toObject(r.ToValue(outcme))
 				var next func(FunctionCall) Value
 
 				if obj, ok := iter.self.getStr("next", nil).(*Object); ok {
