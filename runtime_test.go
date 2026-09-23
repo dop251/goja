@@ -2956,6 +2956,17 @@ func TestNestedTopLevelConstructorPanicAsync(t *testing.T) {
 	}
 }
 
+func TestPromiseResolveNonPromise(t *testing.T) {
+	const SCRIPT = `
+	var o = {constructor: Promise};
+	var p = Promise.resolve(o);
+	assert(p !== o);
+	assert.sameValue(await p, o);
+	assert.sameValue(await o, o);
+	`
+	testAsyncFuncWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestAsyncFuncThrow(t *testing.T) {
 	const SCRIPT = `
 	class TestError extends Error {
