@@ -410,6 +410,7 @@ type (
 		Into   ForInto
 		Source Expression
 		Body   Statement
+		Await  bool
 	}
 
 	ForStatement struct {

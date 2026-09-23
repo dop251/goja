@@ -2727,6 +2727,69 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 	}
 }
 
+func (r *Runtime) getAsyncIterator(obj Value) *iteratorRecord {
+	if method := toMethod(r.getV(obj, SymAsyncIterator)); method != nil {
+		return r.getIterator(obj, method)
+	}
+	return r.createAsyncFromSyncIterator(r.getIterator(obj, nil))
+}
+
+// createAsyncFromSyncIterator implements CreateAsyncFromSyncIterator. The iterator object is only accessible
+// by for-await, so it only needs a 'return' method, 'next' is stored in the record.
+func (r *Runtime) createAsyncFromSyncIterator(syncIter *iteratorRecord) *iteratorRecord {
+	// AsyncFromSyncIteratorContinuation. Closing the sync iterator on rejection ignores any errors from return().
+	continuation := func(result *Object, pcap *promiseCapability, closeOnRejection bool) {
+		done := iteratorComplete(result)
+		value := iteratorValue(result)
+		closeOnRejection = closeOnRejection && !done
+		var valueWrapper *Object
+		if ex := r.vm.try(func() {
+			valueWrapper = r.promiseResolve(r.getPromise(), value)
+		}); ex != nil {
+			if closeOnRejection {
+				_ = r.vm.try(syncIter.returnIter)
+			}
+			panic(ex)
+		}
+		onFulfilled := r.newNativeFunc(func(call FunctionCall) Value {
+			return r.createIterResultObject(call.Argument(0), done)
+		}, "", 1)
+		var onRejected Value = _undefined
+		if closeOnRejection {
+			onRejected = r.newNativeFunc(func(call FunctionCall) Value {
+				_ = r.vm.try(syncIter.returnIter)
+				panic(call.Argument(0))
+			}, "", 1)
+		}
+		r.performPromiseThen(valueWrapper.self.(*Promise), onFulfilled, onRejected, pcap)
+	}
+
+	next := func(FunctionCall) Value {
+		pcap := r.newPromiseCapability(r.getPromise())
+		pcap.try(func() {
+			if syncIter.next == nil {
+				panic(r.NewTypeError("iterator.next is not a function"))
+			}
+			continuation(r.toObject(syncIter.next(FunctionCall{This: syncIter.iterator})), pcap, true)
+		})
+		return pcap.promise
+	}
+	ret := func(FunctionCall) Value {
+		pcap := r.newPromiseCapability(r.getPromise())
+		pcap.try(func() {
+			if method := toMethod(syncIter.iterator.self.getStr("return", nil)); method != nil {
+				continuation(r.toObject(method(FunctionCall{This: syncIter.iterator})), pcap, false)
+			} else {
+				pcap.resolve(r.createIterResultObject(_undefined, true))
+			}
+		})
+		return pcap.promise
+	}
+	iter := r.NewObject()
+	iter.self._putProp("return", r.newNativeFunc(ret, "return", 0), true, false, true)
+	return &iteratorRecord{iterator: iter, next: next}
+}
+
 func iteratorComplete(iterResult *Object) bool {
 	return nilSafe(iterResult.self.getStr("done", nil)).ToBoolean()
 }
