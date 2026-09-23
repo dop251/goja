@@ -8,7 +8,7 @@ import (
 func (r *Runtime) builtin_Object(args []Value, newTarget *Object) *Object {
 	if newTarget != nil && newTarget != r.getObject() {
 		proto := r.getPrototypeFromCtor(newTarget, nil, r.global.ObjectPrototype)
-		return r.newBaseObject(proto, classObject).val
+		return r.CreateObject(proto)
 	}
 	if len(args) > 0 {
 		arg := args[0]
@@ -230,7 +230,7 @@ func (r *Runtime) object_create(call FunctionCall) Value {
 			r.typeErrorResult(true, "Object prototype may only be an Object or null: %s", arg.String())
 		}
 	}
-	o := r.newBaseObject(proto, classObject).val
+	o := r.CreateObject(proto)
 
 	if props := call.Argument(1); props != _undefined {
 		r._defineProperties(o, props)
@@ -566,7 +566,7 @@ func (r *Runtime) object_fromEntries(call FunctionCall) Value {
 	o := call.Argument(0)
 	r.checkObjectCoercible(o)
 
-	result := r.newBaseObject(r.global.ObjectPrototype, classObject).val
+	result := r.NewObject()
 
 	iter := r.getIterator(o, nil)
 	iter.iterate(func(nextValue Value) {

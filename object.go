@@ -629,7 +629,7 @@ func (o *baseObject) setForeignSym(name *Symbol, val, receiver Value, throw bool
 		}
 	} else {
 		if proto := o.prototype; proto != nil {
-			if receiver != o.val {
+			if receiver != proto {
 				return proto.self.setForeignSym(name, val, receiver, throw)
 			}
 			return proto.self.setOwnSym(name, val, throw), true

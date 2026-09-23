@@ -722,8 +722,7 @@ func (r *Runtime) getGlobalRegexpMatches(rxObj *Object, s String, fullUnicode bo
 }
 
 func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, s String) Value {
-	rx := rxObj.self
-	flags := nilSafe(rx.getStr("flags", nil)).String()
+	flags := nilSafe(rxObj.self.getStr("flags", nil)).String()
 	global := strings.ContainsRune(flags, 'g')
 	if global {
 		a := r.getGlobalRegexpMatches(rxObj, s, strings.ContainsRune(flags, 'u'))
@@ -739,7 +738,7 @@ func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, s String) Value {
 		return r.newArrayValues(ar)
 	}
 
-	execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
+	execFn, ok := r.toObject(rxObj.self.getStr("exec", nil)).self.assertCallable()
 	if !ok {
 		panic(r.NewTypeError("exec is not a function"))
 	}
@@ -788,21 +787,20 @@ func (r *Runtime) regexpproto_stdMatcher(call FunctionCall) Value {
 }
 
 func (r *Runtime) regexpproto_stdSearchGeneric(rxObj *Object, arg String) Value {
-	rx := rxObj.self
-	previousLastIndex := nilSafe(rx.getStr("lastIndex", nil))
+	previousLastIndex := nilSafe(rxObj.self.getStr("lastIndex", nil))
 	zero := intToValue(0)
 	if !previousLastIndex.SameAs(zero) {
-		rx.setOwnStr("lastIndex", zero, true)
+		rxObj.self.setOwnStr("lastIndex", zero, true)
 	}
-	execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
+	execFn, ok := r.toObject(rxObj.self.getStr("exec", nil)).self.assertCallable()
 	if !ok {
 		panic(r.NewTypeError("exec is not a function"))
 	}
 
 	result := r.regExpExec(execFn, rxObj, arg)
-	currentLastIndex := nilSafe(rx.getStr("lastIndex", nil))
+	currentLastIndex := nilSafe(rxObj.self.getStr("lastIndex", nil))
 	if !currentLastIndex.SameAs(previousLastIndex) {
-		rx.setOwnStr("lastIndex", previousLastIndex, true)
+		rxObj.self.setOwnStr("lastIndex", previousLastIndex, true)
 	}
 
 	if result == _null {

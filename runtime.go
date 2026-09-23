@@ -188,6 +188,8 @@ type Runtime struct {
 	_collator       *collate.Collator
 	parserOptions   []parser.Option
 
+	rootClass *tinyClass
+
 	symbolRegistry map[unistring.String]*Symbol
 
 	fieldsInfoCache  map[reflect.Type]*reflectFieldsInfo
@@ -454,6 +456,11 @@ func (r *Runtime) init() {
 	r.globalObject = &Object{runtime: r}
 	r.newTemplatedObject(getGlobalObjectTemplate(), r.globalObject)
 
+	r.rootClass = &tinyClass{
+		prototype:  r.global.ObjectPrototype,
+		extensible: true,
+	}
+
 	r.vm = &vm{
 		r: r,
 	}
@@ -513,6 +520,17 @@ func (r *Runtime) newBaseObject(proto *Object, class string) (o *baseObject) {
 	return newBaseObjectObj(v, proto, class)
 }
 
+func (r *Runtime) newTinyObject(proto *Object) (o *tinyObject) {
+	stats.incTinyObjectCreates()
+	v := &Object{runtime: r}
+	o = &tinyObject{
+		class: r.rootClass.getForProto(proto),
+		val:   v,
+	}
+	v.self = o
+	return
+}
+
 func (r *Runtime) newGuardedObject(proto *Object, class string) (o *guardedObject) {
 	v := &Object{runtime: r}
 	o = newGuardedObj(proto, class)
@@ -522,13 +540,17 @@ func (r *Runtime) newGuardedObject(proto *Object, class string) (o *guardedObjec
 	return
 }
 
-func (r *Runtime) NewObject() (v *Object) {
+func (r *Runtime) newBaseObjectVal() *Object {
 	return r.newBaseObject(r.global.ObjectPrototype, classObject).val
+}
+
+func (r *Runtime) NewObject() (v *Object) {
+	return r.newTinyObject(r.global.ObjectPrototype).val
 }
 
 // CreateObject creates an object with given prototype. Equivalent of Object.create(proto).
 func (r *Runtime) CreateObject(proto *Object) *Object {
-	return r.newBaseObject(proto, classObject).val
+	return r.newTinyObject(proto).val
 }
 
 func (r *Runtime) NewArray(items ...interface{}) *Object {
@@ -693,7 +715,7 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 	v.self = f
 	f.init(name, intToValue(length))
 
-	proto := r.NewObject()
+	proto := r.newBaseObjectVal()
 	proto.self._putProp("constructor", v, true, false, true)
 	f._putProp("prototype", proto, true, false, false)
 

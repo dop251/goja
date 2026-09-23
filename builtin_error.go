@@ -231,9 +231,9 @@ func (r *Runtime) createErrorPrototype(name String, ctor *Object) *Object {
 func (r *Runtime) getErrorPrototype() *Object {
 	ret := r.global.ErrorPrototype
 	if ret == nil {
-		ret = r.NewObject()
+		o := r.newBaseObject(r.global.ObjectPrototype, classObject)
+		ret = o.val
 		r.global.ErrorPrototype = ret
-		o := ret.self
 		o._putProp("message", stringEmpty, true, false, true)
 		o._putProp("name", stringError, true, false, true)
 		o._putProp("toString", r.newNativeFunc(r.error_toString, "toString", 0), true, false, true)

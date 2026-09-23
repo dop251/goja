@@ -211,7 +211,7 @@ func (f *funcObject) deleteStr(name unistring.String, throw bool) bool {
 }
 
 func (f *funcObject) addPrototype() Value {
-	proto := f.val.runtime.NewObject()
+	proto := f.val.runtime.newBaseObjectVal()
 	proto.self._putProp("constructor", f.val, true, false, true)
 	return f._putProp("prototype", proto, true, false, false)
 }
@@ -250,7 +250,7 @@ func (f *baseFuncObject) createInstance(newTarget *Object) *Object {
 	}
 	proto := r.getPrototypeFromCtor(newTarget, nil, r.global.ObjectPrototype)
 
-	return f.val.runtime.newBaseObject(proto, classObject).val
+	return f.val.runtime.CreateObject(proto)
 }
 
 func (f *baseJsFuncObject) source() String {
@@ -269,7 +269,8 @@ func (f *baseJsFuncObject) construct(args []Value, newTarget *Object) *Object {
 		protoObj = f.val.runtime.global.ObjectPrototype
 	}
 
-	obj := f.val.runtime.newBaseObject(protoObj, classObject).val
+	//obj := f.val.runtime.newBaseObject(protoObj, classObject).val
+	obj := f.val.runtime.CreateObject(protoObj)
 	ret := f.call(FunctionCall{
 		This:      obj,
 		Arguments: args,

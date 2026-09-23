@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -784,6 +785,8 @@ func TestTC39(t *testing.T) {
 	}
 	ctx.init()
 	//ctx.enableBench = true
+	var memstatsBefore runtime.MemStats
+	runtime.ReadMemStats(&memstatsBefore)
 
 	t.Run("tc39", func(t *testing.T) {
 		ctx.t = t
@@ -799,6 +802,12 @@ func TestTC39(t *testing.T) {
 
 		ctx.flush()
 	})
+
+	var memstatsAfter runtime.MemStats
+	runtime.ReadMemStats(&memstatsAfter)
+	t.Logf("memory use estimate: %d", memstatsAfter.TotalAlloc-memstatsBefore.TotalAlloc)
+	t.Logf("allocs: %d", memstatsAfter.Mallocs)
+	printStats(t.Logf)
 
 	if ctx.enableBench {
 		sort.Slice(ctx.benchmark, func(i, j int) bool {
