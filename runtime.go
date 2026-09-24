@@ -2727,35 +2727,102 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 			//Check if the callable function is a Go single-value or double-value iterable sequence
 			var itrnext, itrstop, expiter = (func() (reflect.Value, bool))(nil), (func())(nil), obj.Export()
 			if isseq {
-				itrnext, itrstop = iter.Pull(reflect.ValueOf(expiter).Seq())
-			}
-			if isseq2 {
-				var itrnext2 func() (reflect.Value, reflect.Value, bool)
-				itrnext2, itrstop = iter.Pull2(reflect.ValueOf(expiter).Seq2())
+				if exptype.In(0) == reflectTypeError {
+					panic(fmt.Errorf("can not iterate over error(s)"))
+				}
+				var itrnext1 func() (reflect.Value, bool)
 
+				itrnext1, itrstop = iter.Pull(reflect.ValueOf(expiter).Seq())
+				var errok, errfnd = false, error(nil)
 				itrnext = func() (reflect.Value, bool) {
-					if rv1, rv2, nxt := itrnext2(); nxt {
-						if rv2.Type() != reflectTypeError {
-							//return double-value as a single value of an Array
-							return reflect.Append(reflect.ValueOf([]any{}), rv1, rv2), nxt
-						}
-						if rv2.IsNil() {
-							//return double-value as a single value of an Array
-							return reflect.Append(reflect.ValueOf([]any{}), rv1, rv2), nxt
+					rv1, nxt := itrnext1()
+					if nxt {
+						if errfnd, errok = rv1.Interface().(error); !errok {
+							return rv1, nxt
 						}
 						//make sure that Go sequence is stopped
 						if itrstop != nil {
 							itrstop()
 							itrstop = nil
 						}
+						if errfnd == nil {
+							errfnd = fmt.Errorf("input error is nil")
+						}
 						//throw error as GoError so that the entire iteration
 						//can be caught in a try catch script if needed to
-						panic(r.NewGoError(rv2.Interface().(error)))
+						panic(r.NewGoError(errfnd))
 					}
-					//return empty Array value if iteration was stop
-					return reflect.ValueOf([]any{}), false
+					return rv1, nxt
 				}
 			}
+			if isseq2 {
+				if exptype.In(0).In(0) == reflectTypeError {
+					panic(fmt.Errorf("can not iterate over error(s)"))
+				}
+				var itrnext2 func() (reflect.Value, reflect.Value, bool)
+				itrnext2, itrstop = iter.Pull2(reflect.ValueOf(expiter).Seq2())
+				var errok, errfnd = false, error(nil)
+				if exptype.In(0).In(1) == reflectTypeError {
+					itrnext = func() (reflect.Value, bool) {
+						if rv1, rv2, nxt := itrnext2(); nxt {
+							if rv2.IsNil() {
+								if errfnd, errok = rv1.Interface().(error); !errok {
+									return rv1, nxt
+								}
+								if errfnd == nil {
+									errfnd = fmt.Errorf("input error is nil")
+								}
+								//make sure that Go sequence is stopped
+								if itrstop != nil {
+									itrstop()
+									itrstop = nil
+								}
+								//can be caught in a try catch script if needed to
+								panic(r.NewGoError(errfnd))
+							}
+							//make sure that Go sequence is stopped
+							if itrstop != nil {
+								itrstop()
+								itrstop = nil
+							}
+							if errfnd, _ = rv2.Interface().(error); errfnd == nil {
+								errfnd = fmt.Errorf("input error is nil")
+							}
+							panic(r.NewGoError(errfnd))
+						}
+						//return empty Array value if iteration was stop
+						return reflect.ValueOf([]any{}), false
+					}
+				} else {
+					itrnext = func() (reflect.Value, bool) {
+						if rv1, rv2, nxt := itrnext2(); nxt {
+							if errfnd, errok = rv2.Interface().(error); !errok || (errok && errfnd == nil) {
+								if errfnd, errok = rv1.Interface().(error); !errok {
+									//return double-value as a single value of an Array
+									return reflect.Append(reflect.ValueOf([]any{}), rv1, rv2), nxt
+								}
+								if errfnd == nil {
+									errfnd = fmt.Errorf("input error is nil")
+								}
+								//throw error as GoError so that the entire iteration
+								//can be caught in a try catch script if needed to
+								panic(r.NewGoError(errfnd))
+							}
+							//make sure that Go sequence is stopped
+							if itrstop != nil {
+								itrstop()
+								itrstop = nil
+							}
+							//throw error as GoError so that the entire iteration
+							//can be caught in a try catch script if needed to
+							panic(r.NewGoError(errfnd))
+						}
+						//return empty Array value if iteration was stop
+						return reflect.ValueOf([]any{}), false
+					}
+				}
+			}
+			
 			var iter = r.NewObject()
 
 			//nxtval wraps around [itrnext] calling the next iteration of the loop
