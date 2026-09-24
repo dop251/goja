@@ -2733,7 +2733,6 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 				var itrnext2 func() (reflect.Value, reflect.Value, bool)
 				itrnext2, itrstop = iter.Pull2(reflect.ValueOf(expiter).Seq2())
 
-				var nilval = reflect.ValueOf(nil)
 				itrnext = func() (reflect.Value, bool) {
 					if rv1, rv2, nxt := itrnext2(); nxt {
 						if rv2.Type() != reflectTypeError {
@@ -2742,7 +2741,7 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 						}
 						if rv2.IsNil() {
 							//return double-value as a single value of an Array
-							return reflect.Append(reflect.ValueOf([]any{}), rv1, nilval), nxt
+							return reflect.Append(reflect.ValueOf([]any{}), rv1, rv2), nxt
 						}
 						//make sure that Go sequence is stopped
 						if itrstop != nil {
