@@ -2733,38 +2733,28 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 				var itrnext2 func() (reflect.Value, reflect.Value, bool)
 				itrnext2, itrstop = iter.Pull2(reflect.ValueOf(expiter).Seq2())
 
-				if exptype.In(0).In(1) != reflectTypeError {
-					//Check that the type of the second value is not an error
-					itrnext = func() (reflect.Value, bool) {
-						if rv1, rv2, nxt := itrnext2(); nxt {
+				var nilval = reflect.ValueOf(nil)
+				itrnext = func() (reflect.Value, bool) {
+					if rv1, rv2, nxt := itrnext2(); nxt {
+						if rv2.Type() != reflectTypeError {
 							//return double-value as a single value of an Array
 							return reflect.Append(reflect.ValueOf([]any{}), rv1, rv2), nxt
 						}
-						//return empty Array value if iteration was stop
-						return reflect.ValueOf([]any{}), false
-					}
-				} else {
-					//When the type of the second value is an error
-					//return only the first value as long as the second value is nil
-					//Stop the sequence and panic the second (error) value if it is not nil
-					itrnext = func() (reflect.Value, bool) {
-						if rv1, rv2, nxt := itrnext2(); nxt {
-							if rv2.IsNil() {
-								//return only the first value
-								return rv1, nxt
-							}
-							//make sure that Go sequence is stopped
-							if itrstop != nil {
-								itrstop()
-								itrstop = nil
-							}
-							//throw error as GoError so that the entire iteration
-							//can be caught in a try catch script if needed to
-							panic(r.NewGoError(rv2.Interface().(error)))
+						if rv2.IsNil() {
+							//return double-value as a single value of an Array
+							return reflect.Append(reflect.ValueOf([]any{}), rv1, nilval), nxt
 						}
-						//return nil value if iteration was stop
-						return reflect.ValueOf(reflect.ValueOf(nil)), false
+						//make sure that Go sequence is stopped
+						if itrstop != nil {
+							itrstop()
+							itrstop = nil
+						}
+						//throw error as GoError so that the entire iteration
+						//can be caught in a try catch script if needed to
+						panic(r.NewGoError(rv2.Interface().(error)))
 					}
+					//return empty Array value if iteration was stop
+					return reflect.ValueOf([]any{}), false
 				}
 			}
 			var iter = r.NewObject()
