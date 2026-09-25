@@ -348,3 +348,12 @@ func TestGoMapReflectKeyToString(t *testing.T) {
 	})
 
 }
+
+func TestGoMapReflectNil(t *testing.T) {
+	var m map[string]int
+	vm := New()
+	val := vm.ToValue(m)
+	if val != _null {
+		t.Fatal(val)
+	}
+}
