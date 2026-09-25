@@ -1133,6 +1133,19 @@ func TestPosition(t *testing.T) {
 		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.UnaryExpression)
 		is(parser.slice(node.Idx0(), node.Idx1()), "++a")
 
+		parser = newParser("", "f(() => (({ a: 1 })), 1)")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.CallExpression).ArgumentList[0].(*ast.ArrowFunctionLiteral)
+		is(parser.slice(node.Idx0(), node.Idx1()), "() => (({ a: 1 }))")
+		is(node.(*ast.ArrowFunctionLiteral).Source, "() => (({ a: 1 }))")
+
+		parser = newParser("", "(x => { return x; })")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.ArrowFunctionLiteral)
+		is(parser.slice(node.Idx0(), node.Idx1()), "x => { return x; }")
+
 		parser = newParser("", "xyz: for (i = 0; i < 10; i++) { if (i == 5) continue xyz; }")
 		program, err = parser.parse()
 		is(err, nil)

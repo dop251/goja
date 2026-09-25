@@ -177,6 +177,7 @@ type (
 		Body            ConciseBody
 		Source          string
 		DeclarationList []*VariableDeclaration
+		End             file.Idx
 		Async           bool
 	}
 
@@ -740,7 +741,7 @@ func (self *DotExpression) Idx1() file.Idx         { return self.Identifier.Idx1
 func (self *PrivateDotExpression) Idx1() file.Idx  { return self.Identifier.Idx1() }
 func (self *FunctionLiteral) Idx1() file.Idx       { return self.Body.Idx1() }
 func (self *ClassLiteral) Idx1() file.Idx          { return self.RightBrace + 1 }
-func (self *ArrowFunctionLiteral) Idx1() file.Idx  { return self.Body.Idx1() }
+func (self *ArrowFunctionLiteral) Idx1() file.Idx  { return self.End }
 func (self *Identifier) Idx1() file.Idx            { return file.Idx(int(self.Idx) + len(self.Name)) }
 func (self *NewExpression) Idx1() file.Idx {
 	if self.ArgumentList != nil {

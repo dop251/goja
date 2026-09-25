@@ -188,7 +188,7 @@ func isLineTerminator(chr rune) bool {
 }
 
 type parserState struct {
-	idx                                file.Idx
+	idx, prevTokenEnd                  file.Idx
 	tok                                token.Token
 	literal                            string
 	parsedLiteral                      unistring.String
@@ -202,16 +202,16 @@ func (self *_parser) mark(state *parserState) *parserState {
 	if state == nil {
 		state = &parserState{}
 	}
-	state.idx, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset =
-		self.idx, self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
+	state.idx, state.prevTokenEnd, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset =
+		self.idx, self.prevTokenEnd, self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
 
 	state.errorCount = len(self.errors)
 	return state
 }
 
 func (self *_parser) restore(state *parserState) {
-	self.idx, self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset =
-		state.idx, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset
+	self.idx, self.prevTokenEnd, self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset =
+		state.idx, state.prevTokenEnd, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset
 	self.errors = self.errors[:state.errorCount]
 }
 
