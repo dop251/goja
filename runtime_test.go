@@ -3132,6 +3132,284 @@ func TestClassReexport(t *testing.T) {
 	`, valueTrue, t)
 }
 
+func TestGoIterator(t *testing.T) {
+	t.Run("return", func(t *testing.T) {
+		iterSeq := func(yield func(string) bool) {
+			if !yield("one") {
+				t.Fatal("yield(1)")
+			}
+			if yield("two") {
+				t.Fatal("yield(2)")
+			}
+		}
+		vm := New()
+		vm.Set("iterSeq", iterSeq)
+		_, err := vm.RunString(`
+			let count = 0;
+			for (const label of iterSeq) {
+				if (++count === 2) {
+					break;
+				}
+			}
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+	})
+
+	t.Run("faulty", func(t *testing.T) {
+		returned := false
+		iterSeq := func(yield func(string, error) bool) {
+			defer func() {
+				returned = true
+			}()
+			if !yield("1", nil) {
+				return
+			}
+			if !yield("", errors.New("error")) { // yield should return false
+				return
+			}
+			panic("should not get here")
+		}
+		vm := New()
+		vm.Set("iterSeq", iterSeq)
+		_, err := vm.RunString(`
+			let caught;
+			try {
+				for (const label of iterSeq) {
+					res += label;
+				}
+			} catch(e) {
+				caught = e;
+			}
+			if (!caught) {
+				throw new Error("Expected exception");
+			}
+		`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !returned {
+			t.Fatal("Not returned")
+		}
+	})
+
+	t.Run("yielding nil", func(t *testing.T) {
+		iterSeq := func(yield func(any) bool) {
+			yield(nil)
+		}
+
+		vm := New()
+		vm.Set("iterSeq", iterSeq)
+		vm.testScriptWithTestLib(`
+			let count = 0;
+			for (const label of iterSeq) {
+				assert.sameValue(label, null);
+				count++;
+			}
+			assert.sameValue(count, 1);
+		`, _undefined, t)
+	})
+
+	t.Run("nil iterator", func(t *testing.T) {
+		var iterSeq func(func(string) bool)
+
+		vm := New()
+		vm.Set("iterSeq", iterSeq)
+		vm.testScriptWithTestLib(`
+			assert.throws(TypeError, () => {
+				for (const label of iterSeq) {
+				}
+			});
+		`, _undefined, t)
+	})
+
+	t.Run("delegate-return", func(t *testing.T) {
+		var returnedAt int
+		iterSeq := func() func(func(int) bool) {
+			return func(yield func(int) bool) {
+				for i := range 5 {
+					if !yield(i) {
+						returnedAt = i
+						return
+					}
+				}
+			}
+		}
+		vm := New()
+		vm.Set("iterSeq", iterSeq)
+		vm.testScriptWithTestLib(`
+			function* g() {
+				yield -1;
+				yield* iterSeq();
+			}
+
+			let count = -1;
+			for (const val of g()) {
+				assert.sameValue(val, count);
+				if (count === 2) {
+					break;
+				}
+				count++;
+			}
+		`, _undefined, t)
+		if returnedAt != 2 {
+			t.Fatal(returnedAt)
+		}
+	})
+
+	t.Run("over-iterate", func(t *testing.T) {
+		vm := New()
+		next := vm.getIterator(vm.ToValue(func(yield func(int) bool) {}), nil).next
+
+		vm.Set("next", next)
+		vm.testScriptWithTestLib(`
+			let res = next();
+			assert(res.done);
+			res = next();
+			assert(res.done);
+		`, _undefined, t)
+	})
+
+	t.Run("panic-exception", func(t *testing.T) {
+		vm := New()
+		iterSeq := func(yield func(any) bool) {
+			panic(vm.NewTypeError("test"))
+		}
+
+		vm.Set("iterSeq", iterSeq)
+		vm.testScriptWithTestLib(`
+			assert.throws(TypeError, () => {
+				for (const label of iterSeq) {
+				}
+				throw new Error("should not get here");
+			});
+		`, _undefined, t)
+	})
+
+	t.Run("reuse", func(t *testing.T) {
+		vm := New()
+		iterSeq := func(yield func(int) bool) {
+			for i := range 2 {
+				if !yield(i) {
+					return
+				}
+			}
+		}
+
+		vm.Set("iterSeq", iterSeq)
+		vm.testScript(`
+			let buf = "";
+			for (const i of iterSeq) {
+				buf += i;
+			}
+			for (const i of iterSeq) {
+				buf += i;
+			}
+		`, asciiString("0101"), t)
+	})
+
+	t.Run("is-iterable", func(t *testing.T) {
+		vm := New()
+		iterSeq := func(yield func(int) bool) {
+			for i := range 2 {
+				if !yield(i) {
+					return
+				}
+			}
+		}
+		vm.Set("iterSeq", iterSeq)
+		vm.testScript(`
+		function isIterable(value) {
+			if (value == null) return false;
+  			return typeof value[Symbol.iterator] === 'function';
+		}
+
+		isIterable(iterSeq);
+		`, valueTrue, t)
+	})
+
+}
+
+func ExampleRuntime_ToValue_seq() {
+	iterSeq := func(yield func(int) bool) {
+		for i := range 3 {
+			if !yield(i) {
+				return
+			}
+		}
+	}
+
+	vm := New()
+	vm.Set("iterSeq", iterSeq)
+	res, err := vm.RunString(`
+		let res = "";
+		for (const label of iterSeq) {
+			res += label;
+		}
+	`)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Print(res.String())
+	// Output: 012
+}
+
+func ExampleRuntime_ToValue_seq2() {
+	iterSeq := func(yield func(string, string) bool) {
+		var mapVals = map[string]string{"admin": "full access", "user": "minimal access"}
+		for role, level := range mapVals {
+			if !yield(role, level) {
+				return
+			}
+		}
+	}
+
+	vm := New()
+	vm.Set("iterSeq", iterSeq)
+	res, err := vm.RunString(`
+		let res = "";
+		for (const [role, level] of iterSeq) {
+			res += "{role: "+role+", level: "+level+"}";
+		}
+	`)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Print(res.String())
+	// Output: {role: admin, level: full access}{role: user, level: minimal access}
+}
+
+func ExampleRuntime_ToValue_seq2err() {
+	vm := New()
+	iterSeq := func(yield func(string, error) bool) {
+		if !yield("1", nil) {
+			return
+		}
+		if !yield("", errors.New("error")) {
+			return
+		}
+	}
+
+	vm.Set("iterSeq", iterSeq)
+	res, err := vm.RunString(`
+		let res = "";
+		try {
+			for (const label of iterSeq) {
+				res += label;
+			}
+		} catch(e) {
+			res += "!"+e.toString();
+		}
+	`)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Print(res.String())
+	// Output: 1!GoError: error
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
