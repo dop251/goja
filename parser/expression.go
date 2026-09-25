@@ -1199,7 +1199,10 @@ func (self *_parser) parseArrowFunction(start file.Idx, paramList *ast.Parameter
 		Async:         async,
 	}
 	node.Body, node.DeclarationList = self.parseArrowFunctionBody(async)
-	node.Source = self.slice(start, node.Body.Idx1())
+	// Use the end of the last consumed token rather than node.Body.Idx1(): a parenthesised
+	// concise body (e.g. `() => ({})`) does not include the closing parenthesis.
+	node.End = self.prevTokenEnd
+	node.Source = self.slice(start, node.End)
 	return node
 }
 

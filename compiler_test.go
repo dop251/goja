@@ -2175,6 +2175,30 @@ func TestFunctionToString(t *testing.T) {
 	testScript(SCRIPT, asciiString("function anonymous(arg1,arg2\n) {\nreturn 42\n}"), t)
 }
 
+func TestArrowFunctionToString(t *testing.T) {
+	for _, src := range []string{
+		"() => ({ a: 1 })",
+		"() => (1 + 2)",
+		"() => ([1, 2])",
+		"() => (({a:1}))",
+		"() => (1, 2)",
+		"async () => (1)",
+		"async x => (x)",
+		"(x) => x",
+		"() => { return 1 }",
+	} {
+		t.Run(src, func(t *testing.T) {
+			testScript("String("+src+")", newStringValue(src), t)
+			testScript("var f = "+src+" /* comment */\n;String(f)", newStringValue(src), t)
+		})
+	}
+
+	testScript("[1].map(x => (x)).concat([x => (x)].map(String)).join('|')", asciiString("1|x => (x)"), t)
+	testScript("function f(g, n) { return String(g) + n }; f(x => (x), 1)", asciiString("x => (x)1"), t)
+	testScript("var fns = [() => (1), () => (2)]; fns.map(String).join('|')", asciiString("() => (1)|() => (2)"), t)
+	testScript("String(function () { return ({ a: 1 }) })", asciiString("function () { return ({ a: 1 }) }"), t)
+}
+
 func TestObjectLiteral(t *testing.T) {
 	const SCRIPT = `
 	var getterCalled = false;
