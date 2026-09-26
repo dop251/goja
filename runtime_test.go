@@ -3358,9 +3358,12 @@ func ExampleRuntime_ToValue_seq() {
 
 func ExampleRuntime_ToValue_seq2() {
 	iterSeq := func(yield func(string, string) bool) {
-		var mapVals = map[string]string{"admin": "full access", "user": "minimal access"}
-		for role, level := range mapVals {
-			if !yield(role, level) {
+		vals := [][2]string{
+			{"admin", "full access"},
+			{"user", "minimal access"},
+		}
+		for _, val := range vals {
+			if !yield(val[0], val[1]) {
 				return
 			}
 		}
