@@ -425,10 +425,8 @@ func floatToValue(f float64) (result Value) {
 
 func toNumeric(value Value) Value {
 	switch v := value.(type) {
-	case valueInt, *valueBigInt:
+	case valueInt, *valueBigInt, valueFloat:
 		return v
-	case valueFloat:
-		return floatToValue(float64(v))
 	case *Object:
 		primValue := v.toPrimitiveNumber()
 		if bigint, ok := primValue.(*valueBigInt); ok {

@@ -44,6 +44,9 @@ var (
 	stringObjectNull      String = asciiString("[object Null]")
 	stringObjectUndefined String = asciiString("[object Undefined]")
 	stringInvalidDate     String = asciiString("Invalid Date")
+
+	stringValueLength Value = asciiString("length")
+	stringValueName   Value = asciiString("name")
 )
 
 type utf16Reader interface {

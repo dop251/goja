@@ -693,7 +693,7 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 		},
 	}
 
-	f.f = func(c FunctionCall) Value {
+	f.callFn = func(c FunctionCall) Value {
 		thisObj, _ := c.This.(*Object)
 		if thisObj != nil {
 			res := call(ConstructorCall{
@@ -708,7 +708,7 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 		return f.defaultConstruct(call, c.Arguments, nil)
 	}
 
-	f.construct = func(args []Value, newTarget *Object) *Object {
+	f.constructFn = func(args []Value, newTarget *Object) *Object {
 		return f.defaultConstruct(call, args, newTarget)
 	}
 
@@ -747,9 +747,9 @@ func (r *Runtime) newNativeFuncAndConstruct(v *Object, call func(call FunctionCa
 				extensible: true,
 				prototype:  r.getFunctionPrototype(),
 			},
+			callFn:      call,
+			constructFn: ctor,
 		},
-		f:         call,
-		construct: ctor,
 	}
 	v.self = f
 	f.init(name, l)
@@ -771,8 +771,8 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, name unistring.St
 				extensible: true,
 				prototype:  r.getFunctionPrototype(),
 			},
+			callFn: call,
 		},
-		f: call,
 	}
 	v.self = f
 	f.init(name, intToValue(int64(length)))
@@ -792,8 +792,8 @@ func (r *Runtime) newWrappedFunc(value reflect.Value) *Object {
 					extensible: true,
 					prototype:  r.getFunctionPrototype(),
 				},
+				callFn: r.wrapReflectFunc(value),
 			},
-			f: r.wrapReflectFunc(value),
 		},
 		wrapped: value,
 	}
@@ -812,9 +812,9 @@ func (r *Runtime) newNativeFuncConstructObj(v *Object, construct func(args []Val
 				extensible: true,
 				prototype:  r.getFunctionPrototype(),
 			},
+			callFn:      r.constructToCall(construct, proto),
+			constructFn: r.wrapNativeConstruct(construct, v, proto),
 		},
-		f:         r.constructToCall(construct, proto),
-		construct: r.wrapNativeConstruct(construct, v, proto),
 	}
 
 	f.init(name, intToValue(int64(length)))
@@ -835,8 +835,8 @@ func (r *Runtime) newNativeFuncConstructProto(v *Object, construct func(args []V
 	f.extensible = true
 	v.self = f
 	f.prototype = proto
-	f.f = r.constructToCall(construct, prototype)
-	f.construct = r.wrapNativeConstruct(construct, v, prototype)
+	f.callFn = r.constructToCall(construct, prototype)
+	f.constructFn = r.wrapNativeConstruct(construct, v, prototype)
 	f.init(name, intToValue(length))
 	if prototype != nil {
 		f._putProp("prototype", prototype, false, false, false)
@@ -2704,8 +2704,16 @@ func createDataPropertyOrThrow(o *Object, p Value, v Value) {
 	}, true)
 }
 
+func toStringValue(v Value) Value {
+	switch v.(type) {
+	case asciiString, unicodeString, valueInt, valueFloat, valueBool:
+		return v
+	}
+	return v.ToString()
+}
+
 func toPropertyKey(key Value) Value {
-	return key.ToString()
+	return toStringValue(key)
 }
 
 func (r *Runtime) getVStr(v Value, p unistring.String) Value {

@@ -732,7 +732,7 @@ func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, s String) Value {
 		ar := make([]Value, 0, len(a))
 		for _, result := range a {
 			obj := r.toObject(result)
-			matchStr := nilSafe(obj.self.getIdx(valueInt(0), nil)).ToString()
+			matchStr := toStringValue(nilSafe(obj.self.getIdx(valueInt(0), nil)))
 			ar = append(ar, matchStr)
 		}
 		return r.newArrayValues(ar)
@@ -1130,7 +1130,7 @@ func (r *Runtime) regexpproto_stdReplacerGeneric(rxObj *Object, s, replaceStr St
 		for n := int64(1); n <= nCaptures; n++ {
 			capN := nilSafe(obj.self.getIdx(valueInt(n), nil))
 			if capN != _undefined {
-				capN = capN.ToString()
+				capN = toStringValue(capN)
 			}
 			captures = append(captures, capN)
 		}

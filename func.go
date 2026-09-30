@@ -3,6 +3,7 @@ package goja
 import (
 	"fmt"
 	"reflect"
+	"slices"
 
 	"github.com/dop251/goja/unistring"
 )
@@ -59,7 +60,10 @@ type funcObjectImpl interface {
 type baseFuncObject struct {
 	baseObject
 
-	lenProp valueProperty
+	lenProp, nameProp *valueProperty
+
+	callFn      func(FunctionCall) Value
+	constructFn func(args []Value, newTarget *Object) *Object
 }
 
 type baseJsFuncObject struct {
@@ -121,9 +125,6 @@ type asyncArrowFuncObject struct {
 
 type nativeFuncObject struct {
 	baseFuncObject
-
-	f         func(FunctionCall) Value
-	construct func(args []Value, newTarget *Object) *Object
 }
 
 type wrappedFuncObject struct {
@@ -159,7 +160,7 @@ func (f *nativeFuncObject) source() String {
 }
 
 func (f *nativeFuncObject) export(*objectExportCtx) interface{} {
-	return f.f
+	return f.callFn
 }
 
 func (f *wrappedFuncObject) exportType() reflect.Type {
@@ -188,12 +189,12 @@ func (f *funcObject) getOwnPropStr(name unistring.String) Value {
 		return v
 	}
 
-	return f.baseObject.getOwnPropStr(name)
+	return f.baseJsFuncObject.getOwnPropStr(name)
 }
 
 func (f *funcObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
 	f._addProto(name)
-	return f.baseObject.setOwnStr(name, val, throw)
+	return f.baseJsFuncObject.setOwnStr(name, val, throw)
 }
 
 func (f *funcObject) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
@@ -202,12 +203,12 @@ func (f *funcObject) setForeignStr(name unistring.String, val, receiver Value, t
 
 func (f *funcObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	f._addProto(name)
-	return f.baseObject.defineOwnPropertyStr(name, descr, throw)
+	return f.baseJsFuncObject.defineOwnPropertyStr(name, descr, throw)
 }
 
 func (f *funcObject) deleteStr(name unistring.String, throw bool) bool {
 	f._addProto(name)
-	return f.baseObject.deleteStr(name, throw)
+	return f.baseJsFuncObject.deleteStr(name, throw)
 }
 
 func (f *funcObject) addPrototype() Value {
@@ -217,7 +218,7 @@ func (f *funcObject) addPrototype() Value {
 }
 
 func (f *funcObject) hasOwnPropertyStr(name unistring.String) bool {
-	if f.baseObject.hasOwnPropertyStr(name) {
+	if f.baseJsFuncObject.hasOwnPropertyStr(name) {
 		return true
 	}
 
@@ -228,19 +229,15 @@ func (f *funcObject) hasOwnPropertyStr(name unistring.String) bool {
 }
 
 func (f *funcObject) stringKeys(all bool, accum []Value) []Value {
-	if all {
-		if _, exists := f.values["prototype"]; !exists {
-			accum = append(accum, asciiString("prototype"))
-		}
-	}
-	return f.baseFuncObject.stringKeys(all, accum)
+	f._prepareValues()
+	return f.baseJsFuncObject.stringKeys(all, accum)
 }
 
 func (f *funcObject) iterateStringKeys() iterNextFunc {
 	if _, exists := f.values["prototype"]; !exists {
 		f.addPrototype()
 	}
-	return f.baseFuncObject.iterateStringKeys()
+	return f.baseJsFuncObject.iterateStringKeys()
 }
 
 func (f *baseFuncObject) createInstance(newTarget *Object) *Object {
@@ -251,6 +248,238 @@ func (f *baseFuncObject) createInstance(newTarget *Object) *Object {
 	proto := r.getPrototypeFromCtor(newTarget, nil, r.global.ObjectPrototype)
 
 	return f.val.runtime.CreateObject(proto)
+}
+
+func (f *baseFuncObject) getOwnPropStr(p unistring.String) Value {
+	if ownDesc := f._getShapePropPtr(p); ownDesc != nil {
+		if *ownDesc != nil {
+			return *ownDesc
+		}
+		return nil
+	}
+	return f.baseObject.getOwnPropStr(p)
+}
+
+func (f *baseFuncObject) getStr(p unistring.String, receiver Value) Value {
+	return f.getStrWithOwnProp(f.getOwnPropStr(p), p, receiver)
+}
+
+func (f *baseFuncObject) _getShapePropPtr(p unistring.String) **valueProperty {
+	switch p {
+	case "length":
+		return &f.lenProp
+	case "name":
+		return &f.nameProp
+	}
+	return nil
+}
+
+func (f *baseFuncObject) _materializePropNames() {
+	if f.propNames == nil {
+		if f.lenProp != nil {
+			f.propNames = append(f.propNames, "length")
+		}
+		if f.nameProp != nil {
+			f.propNames = append(f.propNames, "name")
+		}
+	}
+}
+
+func (f *baseFuncObject) _prepareValues() {
+	f._materializePropNames()
+	if f.values == nil {
+		f.values = make(map[unistring.String]Value, 2)
+	}
+}
+
+func (f *baseFuncObject) setOwnStr(p unistring.String, v Value, throw bool) bool {
+	ownDesc := f._getShapePropPtr(p)
+	if ownDesc != nil {
+		if *ownDesc != nil {
+			if !(*ownDesc).isWritable() {
+				f.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", p)
+				return false
+			}
+			(*ownDesc).set(f.val, v)
+		} else {
+			if !f.extensible {
+				f.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", p)
+				return false
+			}
+			*ownDesc = &valueProperty{
+				value:        v,
+				writable:     true,
+				enumerable:   true,
+				configurable: true,
+			}
+			if f.propNames != nil {
+				f.propNames = append(f.propNames, p)
+			}
+		}
+		return true
+	}
+
+	f._prepareValues()
+	return f.baseObject.setOwnStr(p, v, throw)
+}
+
+func (f *baseFuncObject) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
+	return f._setForeignStr(name, f.getOwnPropStr(name), val, receiver, throw)
+}
+
+func (f *baseFuncObject) hasOwnPropertyStr(p unistring.String) bool {
+	switch p {
+	case "length":
+		return f.lenProp != nil
+	case "name":
+		return f.nameProp != nil
+	}
+
+	return f.baseObject.hasOwnPropertyStr(p)
+}
+
+func (f *baseFuncObject) defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool {
+	ownDesc := f._getShapePropPtr(name)
+	if ownDesc != nil {
+		var existingValue Value
+		if *ownDesc != nil {
+			existingValue = *ownDesc
+		}
+		if val, ok := f._defineOwnProperty(name, existingValue, desc, throw); ok {
+			if *ownDesc == nil && f.propNames != nil {
+				f.propNames = append(f.propNames, name)
+			}
+			if prop, ok := val.(*valueProperty); ok {
+				*ownDesc = prop
+			} else {
+				*ownDesc = &valueProperty{
+					value:        val,
+					writable:     true,
+					enumerable:   true,
+					configurable: true,
+				}
+			}
+			return true
+		}
+		return false
+	}
+
+	f._prepareValues()
+	return f.baseObject.defineOwnPropertyStr(name, desc, throw)
+}
+
+func (f *baseFuncObject) deleteStr(name unistring.String, throw bool) bool {
+	ownDesc := f._getShapePropPtr(name)
+	if ownDesc != nil {
+		if *ownDesc != nil && !f.checkDeleteProp(name, *ownDesc, throw) {
+			return false
+		}
+		*ownDesc = nil
+		f._materializePropNames()
+		f._delete(name)
+		return true
+	}
+
+	return f.baseObject.deleteStr(name, throw)
+}
+
+type funcPropIter struct {
+	f         *baseFuncObject
+	propNames []unistring.String
+}
+
+func (i *funcPropIter) next() (propIterItem, iterNextFunc) {
+	for len(i.propNames) > 0 {
+		var propName unistring.String
+		propName, i.propNames = i.propNames[0], i.propNames[1:]
+		val := i.f.getOwnPropStr(propName)
+		if val != nil {
+			return propIterItem{name: stringValueFromRaw(propName), value: val}, i.next
+		}
+	}
+
+	return propIterItem{}, nil
+}
+
+func (f *baseFuncObject) _iterLength() (propIterItem, iterNextFunc) {
+	if f.lenProp != nil {
+		return propIterItem{
+			name:  stringValueLength,
+			value: f.lenProp,
+		}, f._iterName
+	}
+	return f._iterName()
+}
+
+func (f *baseFuncObject) _iterName() (propIterItem, iterNextFunc) {
+	if f.nameProp != nil {
+		return propIterItem{
+			name:  stringValueName,
+			value: f.nameProp,
+		}, f._iterStop
+	}
+	return propIterItem{}, nil
+}
+
+func (f *baseFuncObject) iterateStringKeys() iterNextFunc {
+	if f.propNames == nil {
+		return f._iterLength
+	}
+	f.ensurePropOrder()
+	propNames := prepareNamesForCopy(f.propNames)
+	f.propNames = propNames
+	return (&funcPropIter{
+		f:         f,
+		propNames: propNames,
+	}).next
+}
+
+func (f *baseFuncObject) stringKeys(all bool, keys []Value) []Value {
+	if f.propNames == nil {
+		if all || f.lenProp.enumerable {
+			keys = append(keys, stringValueLength)
+		}
+		if all || f.nameProp.enumerable {
+			keys = append(keys, stringValueName)
+		}
+		return keys
+	}
+	f._materializePropNames()
+	f.ensurePropOrder()
+	keys = slices.Grow(keys, len(f.propNames))
+	if all {
+		for _, k := range f.propNames {
+			keys = append(keys, stringValueFromRaw(k))
+		}
+	} else {
+		for _, k := range f.propNames {
+			prop := f.getOwnPropStr(k)
+			if prop, ok := prop.(*valueProperty); ok && !prop.enumerable {
+				continue
+			}
+			keys = append(keys, stringValueFromRaw(k))
+		}
+	}
+	return keys
+}
+
+func (f *baseFuncObject) _putProp(name unistring.String, value Value, writable, enumerable, configurable bool) Value {
+	ownDesc := f._getShapePropPtr(name)
+	if ownDesc != nil {
+		*ownDesc = &valueProperty{
+			value:        value,
+			writable:     writable,
+			enumerable:   enumerable,
+			configurable: configurable,
+		}
+		if writable && enumerable && configurable {
+			return value
+		}
+		return *ownDesc
+	}
+	f._prepareValues()
+
+	return f.baseObject._putProp(name, value, writable, enumerable, configurable)
 }
 
 func (f *baseJsFuncObject) source() String {
@@ -286,8 +515,9 @@ func (f *classFuncObject) Call(FunctionCall) Value {
 	panic(f.val.runtime.NewTypeError("Class constructor cannot be invoked without 'new'"))
 }
 
-func (f *classFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
-	return f.Call, true
+func (f *classFuncObject) init(name unistring.String, length Value) {
+	f.baseJsFuncObject.init(name, length)
+	f.callFn, f.constructFn = f.Call, f.construct
 }
 
 func (f *classFuncObject) vmCall(vm *vm, n int) {
@@ -386,10 +616,6 @@ func (f *classFuncObject) construct(args []Value, newTarget *Object) *Object {
 	}
 }
 
-func (f *classFuncObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
-	return f.construct
-}
-
 func (f *baseJsFuncObject) Call(call FunctionCall) Value {
 	return f.call(call, nil)
 }
@@ -463,7 +689,7 @@ func (f *baseJsFuncObject) call(call FunctionCall, newTarget Value) Value {
 }
 
 func (f *baseJsFuncObject) export(*objectExportCtx) interface{} {
-	return f.Call
+	return f.callFn
 }
 
 func (f *baseFuncObject) exportType() reflect.Type {
@@ -474,12 +700,22 @@ func (f *baseFuncObject) typeOf() String {
 	return stringFunction
 }
 
-func (f *baseJsFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
-	return f.Call, true
+func (f *baseFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
+	return f.callFn, f.callFn != nil
 }
 
-func (f *funcObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
-	return f.construct
+func (f *baseFuncObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
+	return f.constructFn
+}
+
+func (f *baseJsFuncObject) init(name unistring.String, length Value) {
+	f.baseFuncObject.init(name, length)
+	f.callFn = f.Call
+}
+
+func (f *funcObject) init(name unistring.String, length Value) {
+	f.baseJsFuncObject.init(name, length)
+	f.constructFn = f.construct
 }
 
 func (f *baseJsFuncObject) vmCall(vm *vm, n int) {
@@ -492,8 +728,9 @@ func (f *baseJsFuncObject) vmCall(vm *vm, n int) {
 	vm.stack[vm.sp-n-1], vm.stack[vm.sp-n-2] = vm.stack[vm.sp-n-2], vm.stack[vm.sp-n-1]
 }
 
-func (f *arrowFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
-	return f.Call, true
+func (f *arrowFuncObject) init(name unistring.String, length Value) {
+	f.baseJsFuncObject.init(name, length)
+	f.callFn = f.Call
 }
 
 func (f *arrowFuncObject) vmCall(vm *vm, n int) {
@@ -507,18 +744,15 @@ func (f *arrowFuncObject) vmCall(vm *vm, n int) {
 	vm.newTarget = f.newTarget
 }
 
-func (f *arrowFuncObject) export(*objectExportCtx) interface{} {
-	return f.Call
-}
-
 func (f *baseFuncObject) init(name unistring.String, length Value) {
-	f.baseObject.init()
-
-	f.lenProp.configurable = true
-	f.lenProp.value = length
-	f._put("length", &f.lenProp)
-
-	f._putProp("name", stringValueFromRaw(name), false, false, true)
+	f.lenProp = &valueProperty{
+		value:        length,
+		configurable: true,
+	}
+	f.nameProp = &valueProperty{
+		value:        stringValueFromRaw(name),
+		configurable: true,
+	}
 }
 
 func hasInstance(val *Object, v Value) bool {
@@ -560,19 +794,12 @@ func (f *nativeFuncObject) defaultConstruct(ccall func(ConstructorCall) *Object,
 	return obj
 }
 
-func (f *nativeFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
-	if f.f != nil {
-		return f.f, true
-	}
-	return nil, false
-}
-
 func (f *nativeFuncObject) vmCall(vm *vm, n int) {
-	if f.f != nil {
+	if f.callFn != nil {
 		vm.pushCtx()
 		vm.prg = nil
 		vm.sb = vm.sp - n // so that [sb-1] points to the callee
-		ret := f.f(FunctionCall{
+		ret := f.callFn(FunctionCall{
 			Arguments: vm.stack[vm.sp-n : vm.sp],
 			This:      vm.stack[vm.sp-n-2],
 		})
@@ -586,10 +813,6 @@ func (f *nativeFuncObject) vmCall(vm *vm, n int) {
 	}
 	vm.sp -= n + 1
 	vm.pc++
-}
-
-func (f *nativeFuncObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
-	return f.construct
 }
 
 func (f *boundFuncObject) hasInstance(v Value) bool {
@@ -628,24 +851,18 @@ func (f *asyncFuncObject) Call(call FunctionCall) Value {
 	return f.asyncCall(call, f.baseJsFuncObject.vmCall)
 }
 
-func (f *asyncFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
-	return f.Call, true
-}
-
-func (f *asyncFuncObject) export(*objectExportCtx) interface{} {
-	return f.Call
+func (f *asyncFuncObject) init(name unistring.String, length Value) {
+	f.baseJsFuncObject.init(name, length)
+	f.callFn = f.Call
 }
 
 func (f *asyncArrowFuncObject) Call(call FunctionCall) Value {
 	return f.asyncCall(call, f.arrowFuncObject.vmCall)
 }
 
-func (f *asyncArrowFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
-	return f.Call, true
-}
-
-func (f *asyncArrowFuncObject) export(*objectExportCtx) interface{} {
-	return f.Call
+func (f *asyncArrowFuncObject) init(name unistring.String, length Value) {
+	f.baseJsFuncObject.init(name, length)
+	f.callFn = f.Call
 }
 
 func (f *asyncArrowFuncObject) vmCall(vm *vm, n int) {
@@ -656,12 +873,9 @@ func (f *asyncMethodFuncObject) Call(call FunctionCall) Value {
 	return f.asyncCall(call, f.methodFuncObject.vmCall)
 }
 
-func (f *asyncMethodFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
-	return f.Call, true
-}
-
-func (f *asyncMethodFuncObject) export(ctx *objectExportCtx) interface{} {
-	return f.Call
+func (f *asyncMethodFuncObject) init(name unistring.String, length Value) {
+	f.baseJsFuncObject.init(name, length)
+	f.callFn = f.Call
 }
 
 func (f *asyncMethodFuncObject) vmCall(vm *vm, n int) {
@@ -1123,12 +1337,9 @@ func (f *generatorFuncObject) Call(call FunctionCall) Value {
 	return f.generatorCall(f.baseJsFuncObject.vmCall, len(call.Arguments))
 }
 
-func (f *generatorFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
-	return f.Call, true
-}
-
-func (f *generatorFuncObject) export(*objectExportCtx) interface{} {
-	return f.Call
+func (f *generatorFuncObject) init(name unistring.String, length Value) {
+	f.baseJsFuncObject.init(name, length)
+	f.callFn = f.Call
 }
 
 func (f *generatorFuncObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
@@ -1144,10 +1355,7 @@ func (f *generatorMethodFuncObject) Call(call FunctionCall) Value {
 	return f.generatorCall(f.methodFuncObject.vmCall, len(call.Arguments))
 }
 
-func (f *generatorMethodFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
-	return f.Call, true
-}
-
-func (f *generatorMethodFuncObject) export(*objectExportCtx) interface{} {
-	return f.Call
+func (f *generatorMethodFuncObject) init(name unistring.String, length Value) {
+	f.baseJsFuncObject.init(name, length)
+	f.callFn = f.Call
 }

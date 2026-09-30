@@ -211,19 +211,22 @@ type objectImpl interface {
 }
 
 type baseObject struct {
-	class      string
-	val        *Object
-	prototype  *Object
-	extensible bool
+	val       *Object
+	prototype *Object
 
-	values    map[unistring.String]Value
-	propNames []unistring.String
-
-	lastSortedPropLen, idxPropCount int
+	values map[unistring.String]Value
 
 	symValues *orderedMap
 
 	privateElements map[*privateEnvType]*privateElements
+
+	propNames []unistring.String
+
+	class string
+
+	lastSortedPropLen, idxPropCount int
+
+	extensible bool
 }
 
 type guardedObject struct {
@@ -1276,15 +1279,17 @@ func (i *objectSymbolIter) next() (propIterItem, iterNextFunc) {
 	return propIterItem{}, nil
 }
 
+func (o *baseObject) _iterStop() (propIterItem, iterNextFunc) {
+	return propIterItem{}, nil
+}
+
 func (o *baseObject) iterateSymbols() iterNextFunc {
 	if o.symValues != nil {
 		return (&objectSymbolIter{
 			iter: o.symValues.newIter(),
 		}).next
 	}
-	return func() (propIterItem, iterNextFunc) {
-		return propIterItem{}, nil
-	}
+	return o._iterStop
 }
 
 type objectAllPropIter struct {

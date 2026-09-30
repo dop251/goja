@@ -131,12 +131,12 @@ type memberUnresolved struct {
 
 type valueProperty struct {
 	value        Value
+	getterFunc   *Object
+	setterFunc   *Object
 	writable     bool
 	configurable bool
 	enumerable   bool
 	accessor     bool
-	getterFunc   *Object
-	setterFunc   *Object
 }
 
 var (
@@ -708,7 +708,7 @@ func (o *Object) string() unistring.String {
 }
 
 func (o *Object) ToString() Value {
-	return o.toPrimitiveString().ToString()
+	return toStringValue(o.toPrimitiveString())
 }
 
 func (o *Object) String() string {

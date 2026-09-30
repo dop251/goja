@@ -2,10 +2,11 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dop251/goja/unistring"
 	"math"
 	"reflect"
 	"sort"
+
+	"github.com/dop251/goja/unistring"
 )
 
 type templatePropFactory func(*Runtime) Value
@@ -338,7 +339,7 @@ func (f *templatedFuncObject) assertCallable() (func(FunctionCall) Value, bool) 
 
 func (f *templatedFuncObject) vmCall(vm *vm, n int) {
 	var nf nativeFuncObject
-	nf.f = f.f
+	nf.callFn = f.f
 	nf.vmCall(vm, n)
 }
 
