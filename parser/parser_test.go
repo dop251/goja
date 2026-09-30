@@ -1210,6 +1210,24 @@ func TestPosition(t *testing.T) {
 		is(err, nil)
 		node = program.Body[0].(*ast.FunctionDeclaration).Function.Body.List[0].(*ast.ReturnStatement).Argument.(*ast.MetaProperty)
 		is(parser.slice(node.Idx0(), node.Idx1()), "new.target")
+
+		parser = newParser("", "café + ñ + 𝒜")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression)
+		is(parser.slice(node.Idx0(), node.Idx1()), "café + ñ + 𝒜")
+		node = node.(*ast.BinaryExpression).Left.(*ast.BinaryExpression).Left
+		is(parser.slice(node.Idx0(), node.Idx1()), "café")
+
+		parser = newParser("", "class C { #x; m(o) { return this.#x + (#x in o) } }")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ClassDeclaration).Class.Body[0].(*ast.FieldDefinition).Key
+		is(parser.slice(node.Idx0(), node.Idx1()), "#x")
+		sum := program.Body[0].(*ast.ClassDeclaration).Class.Body[1].(*ast.MethodDefinition).Body.Body.List[0].(*ast.ReturnStatement).Argument.(*ast.BinaryExpression)
+		is(parser.slice(sum.Left.Idx0(), sum.Left.Idx1()), "this.#x")
+		node = sum.Right.(*ast.BinaryExpression).Left
+		is(parser.slice(node.Idx0(), node.Idx1()), "#x")
 	})
 }
 
