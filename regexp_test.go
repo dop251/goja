@@ -34,6 +34,24 @@ func TestRegexpInvalidUnicodeControlEscapes(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestRegexpUnicodePropertyEscapes(t *testing.T) {
+	const SCRIPT = `
+	["\\p{NotAProperty}", "\\p{", "\\p{L", "\\p{}", "[\\P{NotAProperty}]"].forEach(function (pattern) {
+		try {
+			new RegExp(pattern, "u");
+		} catch (e) {
+			if (e instanceof SyntaxError) return;
+			throw e;
+		}
+		throw new Error("Expected SyntaxError: " + pattern);
+	});
+	/^\p{L}$/u.test("a") && /^\p{L}$/u.test("\u{1d49c}") && !/^\p{L}$/u.test("1") && /^\P{L}$/u.test("1") &&
+	/^[\p{L}\p{N}]+$/u.test("café9") && /^\p{Lowercase_Letter}$/u.test("a") &&
+	/^\p{L}$/.test("p{L}") && /^\P$/.test("P");
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestRegexp2(t *testing.T) {
 	const SCRIPT = `
 	var r = new RegExp("(['\"])(.*?)['\"]");
