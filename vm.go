@@ -112,6 +112,8 @@ type iterStackItem struct {
 	val  Value
 	f    iterNextFunc
 	iter *iteratorRecord
+	// async iterators are closed by the compiled code, never by restoreStacks()
+	aiter *iteratorRecord
 }
 
 type ref interface {
@@ -5105,6 +5107,76 @@ func (_iterateP) exec(vm *vm) {
 	iter := vm.r.getIterator(vm.stack[vm.sp-1], nil)
 	vm.iterStack = append(vm.iterStack, iterStackItem{iter: iter})
 	vm.sp--
+	vm.pc++
+}
+
+type _iterateAsyncP struct{}
+
+var iterateAsyncP _iterateAsyncP
+
+func (_iterateAsyncP) exec(vm *vm) {
+	iter := vm.r.getAsyncIterator(vm.stack[vm.sp-1])
+	vm.iterStack = append(vm.iterStack, iterStackItem{aiter: iter})
+	vm.sp--
+	vm.pc++
+}
+
+type _asyncIterNext struct{}
+
+var asyncIterNext _asyncIterNext
+
+func (_asyncIterNext) exec(vm *vm) {
+	iter := vm.iterStack[len(vm.iterStack)-1].aiter
+	if iter.next == nil {
+		panic(vm.r.NewTypeError("iterator.next is not a function"))
+	}
+	vm.stack.expand(vm.sp + 1)
+	vm.stack[vm.sp] = iter.next(FunctionCall{This: iter.iterator})
+	vm.sp++
+	// await
+	vm.stack[vm.sp] = await
+	vm.sp++
+	vm.pc = -vm.pc
+}
+
+// asyncIterStep processes the awaited result of next(), jumps if the iterator is done.
+type asyncIterStep int32
+
+func (jmp asyncIterStep) exec(vm *vm) {
+	res := vm.r.toObject(vm.pop())
+	if iteratorComplete(res) {
+		vm.pc += int(jmp)
+		return
+	}
+	vm.iterStack[len(vm.iterStack)-1].val = iteratorValue(res)
+	vm.pc++
+}
+
+// asyncIterClose calls return(), pushes the result to be awaited and triggers await, jumps if there is no return method.
+// The iterator stays on iterStack.
+type asyncIterClose int32
+
+func (jmp asyncIterClose) exec(vm *vm) {
+	iter := vm.iterStack[len(vm.iterStack)-1].aiter
+	if ret := toMethod(iter.iterator.self.getStr("return", nil)); ret != nil {
+		vm.stack.expand(vm.sp + 1)
+		vm.stack[vm.sp] = ret(FunctionCall{This: iter.iterator})
+		vm.sp++
+		// await
+		vm.stack[vm.sp] = await
+		vm.sp++
+		vm.pc = -vm.pc
+	} else {
+		vm.pc += int(jmp)
+	}
+}
+
+type _checkObjectP struct{}
+
+var checkObjectP _checkObjectP
+
+func (_checkObjectP) exec(vm *vm) {
+	vm.r.toObject(vm.pop())
 	vm.pc++
 }
 
