@@ -704,6 +704,7 @@ func (self *_parser) parseNewExpression() ast.Expression {
 					Idx:  idx,
 				},
 				Property: self.parseIdentifier(),
+				Idx:      idx,
 			}
 		}
 		self.errorUnexpectedToken(token.IDENTIFIER)

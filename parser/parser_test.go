@@ -1196,6 +1196,18 @@ func TestPosition(t *testing.T) {
 	case 2:
 	default: x++;
 }`)
+
+		parser = newParser("", "x;\nif (a) b(); else c()")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[1].(*ast.IfStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "if (a) b(); else c()")
+
+		parser = newParser("", "function f() { return new.target }")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.FunctionDeclaration).Function.Body.List[0].(*ast.ReturnStatement).Argument.(*ast.MetaProperty)
+		is(parser.slice(node.Idx0(), node.Idx1()), "new.target")
 	})
 }
 
