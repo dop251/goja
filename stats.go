@@ -25,7 +25,7 @@ func (s *statsStruct) incTinyObjectCreates() {
 }
 
 func (s *statsStruct) incTinyObjectDeoptimizations() {
-	stats.tinyObjectDeoptimisations.Add(1)
+	stats.tinyObjectDeoptimizations.Add(1)
 }
 
 func (s *statsStruct) incTinyClassMultiTransitions() {
@@ -36,7 +36,7 @@ func printStats(printf func(string, ...any)) {
 	tinyObjectMisses := stats.tinyClassMisses.Load()
 	tinyObjectTotal := stats.tinyClassTotal.Load()
 	tinyObjectCreates := stats.tinyObjectCreates.Load()
-	tinyObjectDeoptimizations := stats.tinyObjectDeoptimisations.Load()
+	tinyObjectDeoptimizations := stats.tinyObjectDeoptimizations.Load()
 	tinyClassMultiTransitions := stats.tinyClassMultiTransitions.Load()
 
 	printf("tinyObject miss ratio: %.02f%% (%d/%d)", float64(tinyObjectMisses)/float64(tinyObjectTotal)*100, tinyObjectMisses, tinyObjectTotal)
