@@ -463,7 +463,7 @@ func (c *compiler) compileLabeledForInOfStatement(into ast.ForInto, source ast.E
 	start := len(c.p.code)
 	c.block.cont = start
 	if async {
-		c.emit(asyncIterNext, await)
+		c.emit(asyncIterNext)
 	}
 	next := len(c.p.code)
 	c.emit(nil)
@@ -493,7 +493,7 @@ func (c *compiler) compileLabeledForInOfStatement(into ast.ForInto, source ast.E
 	if async {
 		c.p.code[tryPos] = try{catchOffset: int32(len(c.p.code) - tryPos)}
 		// catch: close the iterator, ignoring any errors, then rethrow the original exception
-		c.emit(try{catchOffset: 6}, asyncIterClose(3), await, pop, leaveTry{}, jump(2), pop, enumPop, throw)
+		c.emit(try{catchOffset: 5}, asyncIterClose(2), pop, leaveTry{}, jump(2), pop, enumPop, throw)
 		c.p.code[next] = asyncIterStep(len(c.p.code) - next)
 	} else if iter {
 		c.p.code[next] = iterNext(len(c.p.code) - next)
@@ -510,7 +510,7 @@ func (c *compiler) compileLabeledForInOfStatement(into ast.ForInto, source ast.E
 
 func (c *compiler) emitIterClose(async bool) {
 	if async {
-		c.emit(asyncIterClose(3), await, checkObjectP, enumPop)
+		c.emit(asyncIterClose(2), checkObjectP, enumPop)
 	} else {
 		c.emit(enumPopClose)
 	}

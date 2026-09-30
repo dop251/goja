@@ -5130,8 +5130,13 @@ func (_asyncIterNext) exec(vm *vm) {
 	if iter.next == nil {
 		panic(vm.r.NewTypeError("iterator.next is not a function"))
 	}
-	vm.push(iter.next(FunctionCall{This: iter.iterator}))
-	vm.pc++
+	vm.stack.expand(vm.sp + 1)
+	vm.stack[vm.sp] = iter.next(FunctionCall{This: iter.iterator})
+	vm.sp++
+	// await
+	vm.stack[vm.sp] = await
+	vm.sp++
+	vm.pc = -vm.pc
 }
 
 // asyncIterStep processes the awaited result of next(), jumps if the iterator is done.
@@ -5147,15 +5152,20 @@ func (jmp asyncIterStep) exec(vm *vm) {
 	vm.pc++
 }
 
-// asyncIterClose calls return() and pushes the result to be awaited, jumps if there is no return method.
+// asyncIterClose calls return(), pushes the result to be awaited and triggers await, jumps if there is no return method.
 // The iterator stays on iterStack.
 type asyncIterClose int32
 
 func (jmp asyncIterClose) exec(vm *vm) {
 	iter := vm.iterStack[len(vm.iterStack)-1].aiter
 	if ret := toMethod(iter.iterator.self.getStr("return", nil)); ret != nil {
-		vm.push(ret(FunctionCall{This: iter.iterator}))
-		vm.pc++
+		vm.stack.expand(vm.sp + 1)
+		vm.stack[vm.sp] = ret(FunctionCall{This: iter.iterator})
+		vm.sp++
+		// await
+		vm.stack[vm.sp] = await
+		vm.sp++
+		vm.pc = -vm.pc
 	} else {
 		vm.pc += int(jmp)
 	}

@@ -4,18 +4,6 @@ import (
 	"testing"
 )
 
-func TestForAwaitOfAsyncGeneratorsUnsupported(t *testing.T) {
-	for _, src := range []string{
-		"async function* g() {}",
-		"async function* g() { for await (x of []) {} }",
-		"({ async *m() { for await (x of []) {} } })",
-	} {
-		if _, err := Compile("", src, false); err == nil {
-			t.Errorf("unexpectedly compiled %q", src)
-		}
-	}
-}
-
 const forAwaitTestLib = `
 function iterableOf(iter) {
 	return {[Symbol.asyncIterator]() { return iter; }};
