@@ -36,6 +36,8 @@ func (self *_parser) parseStatementList() (list []ast.Statement) {
 }
 
 func (self *_parser) parseStatement() ast.Statement {
+	self.enterNesting()
+	defer self.leaveNesting()
 
 	if self.token == token.EOF {
 		self.errorUnexpectedToken(self.token)
@@ -299,6 +301,8 @@ func (self *_parser) parseArrowFunctionBody(async bool) (ast.ConciseBody, []*ast
 }
 
 func (self *_parser) parseClass(declaration bool) *ast.ClassLiteral {
+	self.enterNesting()
+	defer self.leaveNesting()
 	if declaration && !self.scope.allowLet && self.token == token.CLASS {
 		self.errorUnexpectedToken(token.CLASS)
 	}
