@@ -875,9 +875,10 @@ func (self *_parser) parseWhileStatement() ast.Statement {
 }
 
 func (self *_parser) parseIfStatement() ast.Statement {
-	self.expect(token.IF)
+	idx := self.expect(token.IF)
 	self.expect(token.LEFT_PARENTHESIS)
 	node := &ast.IfStatement{
+		If:   idx,
 		Test: self.parseExpression(),
 	}
 	self.expect(token.RIGHT_PARENTHESIS)
