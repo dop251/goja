@@ -5715,6 +5715,23 @@ func TestPrivateIn(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestRelationalLeftAssociative(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		#a;
+		static check(inst) {
+			return #a in inst in {true: 1};
+		}
+	}
+	assert.sameValue(3 > 2 > 1, false, "3 > 2 > 1");
+	assert.sameValue(1 <= 0 <= 0, true, "1 <= 0 <= 0");
+	assert.sameValue({} instanceof Object instanceof Object, false, "instanceof");
+	assert.sameValue("a" in {a: 1} in {true: 1}, true, "in");
+	assert.sameValue(C.check(new C()), true, "#a in");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestDeletePropOfNonObject(t *testing.T) {
 	const SCRIPT = `
 	delete 'Test262'[100] && delete 'Test262'.a && delete 'Test262'['@'];

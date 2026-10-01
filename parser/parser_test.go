@@ -396,6 +396,7 @@ func TestParserErr(t *testing.T) {
 		test(`for (var abc, def in {}) {}`, "(anonymous): Line 1:19 Unexpected token in")
 
 		test(`for (abc, def in {}) {}`, "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
+		test(`for (a < b in c;;);`, "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
 
 		test(`for (var abc=def, ghi=("abc" in {}); true;) {}`, nil)
 

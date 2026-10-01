@@ -969,25 +969,21 @@ func (self *_parser) parseShiftExpression() ast.Expression {
 }
 
 func (self *_parser) parseRelationalExpression() ast.Expression {
+	var left ast.Expression
 	if self.scope.allowIn && self.token == token.PRIVATE_IDENTIFIER {
-		left := &ast.PrivateIdentifier{
+		left = &ast.PrivateIdentifier{
 			Identifier: ast.Identifier{
 				Idx:  self.idx,
 				Name: self.parsedLiteral,
 			},
 		}
 		self.next()
-		if self.token == token.IN {
-			self.next()
-			return &ast.BinaryExpression{
-				Operator: self.token,
-				Left:     left,
-				Right:    self.parseShiftExpression(),
-			}
+		if self.token != token.IN {
+			return left
 		}
-		return left
+	} else {
+		left = self.parseShiftExpression()
 	}
-	left := self.parseShiftExpression()
 
 	allowIn := self.scope.allowIn
 	self.scope.allowIn = true
@@ -995,38 +991,40 @@ func (self *_parser) parseRelationalExpression() ast.Expression {
 		self.scope.allowIn = allowIn
 	}()
 
-	switch self.token {
-	case token.LESS, token.LESS_OR_EQUAL, token.GREATER, token.GREATER_OR_EQUAL:
-		tkn := self.token
-		self.next()
-		return &ast.BinaryExpression{
-			Operator:   tkn,
-			Left:       left,
-			Right:      self.parseRelationalExpression(),
-			Comparison: true,
-		}
-	case token.INSTANCEOF:
-		tkn := self.token
-		self.next()
-		return &ast.BinaryExpression{
-			Operator: tkn,
-			Left:     left,
-			Right:    self.parseRelationalExpression(),
-		}
-	case token.IN:
-		if !allowIn {
+	for {
+		switch self.token {
+		case token.LESS, token.LESS_OR_EQUAL, token.GREATER, token.GREATER_OR_EQUAL:
+			tkn := self.token
+			self.next()
+			left = &ast.BinaryExpression{
+				Operator:   tkn,
+				Left:       left,
+				Right:      self.parseShiftExpression(),
+				Comparison: true,
+			}
+		case token.INSTANCEOF:
+			tkn := self.token
+			self.next()
+			left = &ast.BinaryExpression{
+				Operator: tkn,
+				Left:     left,
+				Right:    self.parseShiftExpression(),
+			}
+		case token.IN:
+			if !allowIn {
+				return left
+			}
+			tkn := self.token
+			self.next()
+			left = &ast.BinaryExpression{
+				Operator: tkn,
+				Left:     left,
+				Right:    self.parseShiftExpression(),
+			}
+		default:
 			return left
 		}
-		tkn := self.token
-		self.next()
-		return &ast.BinaryExpression{
-			Operator: tkn,
-			Left:     left,
-			Right:    self.parseRelationalExpression(),
-		}
 	}
-
-	return left
 }
 
 func (self *_parser) parseEqualityExpression() ast.Expression {
