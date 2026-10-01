@@ -60,7 +60,9 @@ type funcObjectImpl interface {
 type baseFuncObject struct {
 	baseObject
 
-	lenProp, nameProp *valueProperty
+	// These are set when the properties exist and have the default attributes (i.e. non-writable, non-enumerable, configurable).
+	// If the attributes change, these are set to nil and the property is added to baseObject.values as normal.
+	lenProp, nameProp Value
 
 	callFn      func(FunctionCall) Value
 	constructFn func(args []Value, newTarget *Object) *Object
@@ -251,20 +253,23 @@ func (f *baseFuncObject) createInstance(newTarget *Object) *Object {
 }
 
 func (f *baseFuncObject) getOwnPropStr(p unistring.String) Value {
-	if ownDesc := f._getShapePropPtr(p); ownDesc != nil {
-		if *ownDesc != nil {
-			return *ownDesc
+	if ownDesc := f._getShapePropPtr(p); ownDesc != nil && *ownDesc != nil {
+		return &valueProperty{
+			value:        *ownDesc,
+			configurable: true,
 		}
-		return nil
 	}
 	return f.baseObject.getOwnPropStr(p)
 }
 
 func (f *baseFuncObject) getStr(p unistring.String, receiver Value) Value {
-	return f.getStrWithOwnProp(f.getOwnPropStr(p), p, receiver)
+	if ownDesc := f._getShapePropPtr(p); ownDesc != nil && *ownDesc != nil {
+		return *ownDesc
+	}
+	return f.baseObject.getStr(p, receiver)
 }
 
-func (f *baseFuncObject) _getShapePropPtr(p unistring.String) **valueProperty {
+func (f *baseFuncObject) _getShapePropPtr(p unistring.String) *Value {
 	switch p {
 	case "length":
 		return &f.lenProp
@@ -294,29 +299,9 @@ func (f *baseFuncObject) _prepareValues() {
 
 func (f *baseFuncObject) setOwnStr(p unistring.String, v Value, throw bool) bool {
 	ownDesc := f._getShapePropPtr(p)
-	if ownDesc != nil {
-		if *ownDesc != nil {
-			if !(*ownDesc).isWritable() {
-				f.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", p)
-				return false
-			}
-			(*ownDesc).set(f.val, v)
-		} else {
-			if !f.extensible {
-				f.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", p)
-				return false
-			}
-			*ownDesc = &valueProperty{
-				value:        v,
-				writable:     true,
-				enumerable:   true,
-				configurable: true,
-			}
-			if f.propNames != nil {
-				f.propNames = append(f.propNames, p)
-			}
-		}
-		return true
+	if ownDesc != nil && *ownDesc != nil {
+		f.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", p)
+		return false
 	}
 
 	f._prepareValues()
@@ -324,15 +309,18 @@ func (f *baseFuncObject) setOwnStr(p unistring.String, v Value, throw bool) bool
 }
 
 func (f *baseFuncObject) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
-	return f._setForeignStr(name, f.getOwnPropStr(name), val, receiver, throw)
+	ownDesc := f._getShapePropPtr(name)
+	if ownDesc != nil && *ownDesc != nil {
+		f.val.runtime.typeErrorResult(throw, "Cannot assign to read only property '%s'", name)
+		return false, true
+	}
+	return f._setForeignStr(name, f.baseObject.getOwnPropStr(name), val, receiver, throw)
 }
 
 func (f *baseFuncObject) hasOwnPropertyStr(p unistring.String) bool {
-	switch p {
-	case "length":
-		return f.lenProp != nil
-	case "name":
-		return f.nameProp != nil
+	ownDesc := f._getShapePropPtr(p)
+	if ownDesc != nil && *ownDesc != nil {
+		return true
 	}
 
 	return f.baseObject.hasOwnPropertyStr(p)
@@ -340,25 +328,19 @@ func (f *baseFuncObject) hasOwnPropertyStr(p unistring.String) bool {
 
 func (f *baseFuncObject) defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool {
 	ownDesc := f._getShapePropPtr(name)
-	if ownDesc != nil {
-		var existingValue Value
-		if *ownDesc != nil {
-			existingValue = *ownDesc
+	if ownDesc != nil && *ownDesc != nil {
+		if desc.Configurable != FLAG_FALSE && desc.Writable != FLAG_TRUE && desc.Enumerable != FLAG_TRUE && desc.IsData() {
+			// compatible, just the value changed
+			*ownDesc = desc.Value
+			return true
 		}
-		if val, ok := f._defineOwnProperty(name, existingValue, desc, throw); ok {
-			if *ownDesc == nil && f.propNames != nil {
-				f.propNames = append(f.propNames, name)
-			}
-			if prop, ok := val.(*valueProperty); ok {
-				*ownDesc = prop
-			} else {
-				*ownDesc = &valueProperty{
-					value:        val,
-					writable:     true,
-					enumerable:   true,
-					configurable: true,
-				}
-			}
+		if v, ok := f.baseObject._defineOwnProperty(name, &valueProperty{
+			value:        *ownDesc,
+			configurable: true,
+		}, desc, throw); ok {
+			f._prepareValues()
+			f.values[name] = v
+			*ownDesc = nil
 			return true
 		}
 		return false
@@ -370,10 +352,7 @@ func (f *baseFuncObject) defineOwnPropertyStr(name unistring.String, desc Proper
 
 func (f *baseFuncObject) deleteStr(name unistring.String, throw bool) bool {
 	ownDesc := f._getShapePropPtr(name)
-	if ownDesc != nil {
-		if *ownDesc != nil && !f.checkDeleteProp(name, *ownDesc, throw) {
-			return false
-		}
+	if ownDesc != nil && *ownDesc != nil {
 		*ownDesc = nil
 		f._materializePropNames()
 		f._delete(name)
@@ -383,68 +362,43 @@ func (f *baseFuncObject) deleteStr(name unistring.String, throw bool) bool {
 	return f.baseObject.deleteStr(name, throw)
 }
 
-type funcPropIter struct {
-	f         *baseFuncObject
-	propNames []unistring.String
-}
-
-func (i *funcPropIter) next() (propIterItem, iterNextFunc) {
-	for len(i.propNames) > 0 {
-		var propName unistring.String
-		propName, i.propNames = i.propNames[0], i.propNames[1:]
-		val := i.f.getOwnPropStr(propName)
-		if val != nil {
-			return propIterItem{name: stringValueFromRaw(propName), value: val}, i.next
+func (f *baseFuncObject) _deoptimizeProps() {
+	if f.propNames == nil {
+		if f.values == nil {
+			f.values = make(map[unistring.String]Value, 2)
+		}
+		if f.lenProp != nil {
+			f.propNames = append(f.propNames, "length")
+			f.values["length"] = &valueProperty{
+				value:        f.lenProp,
+				configurable: true,
+			}
+			f.lenProp = nil
+		}
+		if f.nameProp != nil {
+			f.propNames = append(f.propNames, "name")
+			f.values["name"] = &valueProperty{
+				value:        f.nameProp,
+				configurable: true,
+			}
+			f.nameProp = nil
 		}
 	}
-
-	return propIterItem{}, nil
-}
-
-func (f *baseFuncObject) _iterLength() (propIterItem, iterNextFunc) {
-	if f.lenProp != nil {
-		return propIterItem{
-			name:  stringValueLength,
-			value: f.lenProp,
-		}, f._iterName
-	}
-	return f._iterName()
-}
-
-func (f *baseFuncObject) _iterName() (propIterItem, iterNextFunc) {
-	if f.nameProp != nil {
-		return propIterItem{
-			name:  stringValueName,
-			value: f.nameProp,
-		}, f._iterStop
-	}
-	return propIterItem{}, nil
 }
 
 func (f *baseFuncObject) iterateStringKeys() iterNextFunc {
-	if f.propNames == nil {
-		return f._iterLength
-	}
-	f.ensurePropOrder()
-	propNames := prepareNamesForCopy(f.propNames)
-	f.propNames = propNames
-	return (&funcPropIter{
-		f:         f,
-		propNames: propNames,
-	}).next
+	// Because Object.freeze() updates valueProperties returned by the iterator we have to deoptimise here
+	f._deoptimizeProps()
+	return f.baseObject.iterateStringKeys()
 }
 
 func (f *baseFuncObject) stringKeys(all bool, keys []Value) []Value {
 	if f.propNames == nil {
-		if all || f.lenProp.enumerable {
-			keys = append(keys, stringValueLength)
-		}
-		if all || f.nameProp.enumerable {
-			keys = append(keys, stringValueName)
+		if all {
+			keys = append(keys, stringValueLength, stringValueName)
 		}
 		return keys
 	}
-	f._materializePropNames()
 	f.ensurePropOrder()
 	keys = slices.Grow(keys, len(f.propNames))
 	if all {
@@ -465,17 +419,17 @@ func (f *baseFuncObject) stringKeys(all bool, keys []Value) []Value {
 
 func (f *baseFuncObject) _putProp(name unistring.String, value Value, writable, enumerable, configurable bool) Value {
 	ownDesc := f._getShapePropPtr(name)
-	if ownDesc != nil {
-		*ownDesc = &valueProperty{
-			value:        value,
-			writable:     writable,
-			enumerable:   enumerable,
-			configurable: configurable,
+	if ownDesc != nil && *ownDesc != nil {
+		if !writable && !enumerable && configurable {
+			*ownDesc = value
+			return &valueProperty{
+				value:        value,
+				writable:     writable,
+				enumerable:   enumerable,
+				configurable: configurable,
+			}
 		}
-		if writable && enumerable && configurable {
-			return value
-		}
-		return *ownDesc
+		*ownDesc = nil
 	}
 	f._prepareValues()
 
@@ -745,14 +699,8 @@ func (f *arrowFuncObject) vmCall(vm *vm, n int) {
 }
 
 func (f *baseFuncObject) init(name unistring.String, length Value) {
-	f.lenProp = &valueProperty{
-		value:        length,
-		configurable: true,
-	}
-	f.nameProp = &valueProperty{
-		value:        stringValueFromRaw(name),
-		configurable: true,
-	}
+	f.lenProp = length
+	f.nameProp = stringValueFromRaw(name)
 }
 
 func hasInstance(val *Object, v Value) bool {

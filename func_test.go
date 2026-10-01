@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"unsafe"
 )
 
 func TestFuncProto(t *testing.T) {
@@ -866,10 +865,6 @@ func TestGeneratorReturn7(t *testing.T) {
 }
 
 func TestGeneratorReturn8(t *testing.T) {
-	t.Log(unsafe.Sizeof(valueProperty{}))
-	t.Log(unsafe.Sizeof(baseObject{}))
-	t.Log(unsafe.Sizeof(baseFuncObject{}))
-
 	const SCRIPT = `
 	var inFinally = 0;
 	var afterYield = 0;
