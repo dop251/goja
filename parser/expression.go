@@ -1421,6 +1421,9 @@ func (self *_parser) parseExpression() ast.Expression {
 }
 
 func (self *_parser) checkComma(from, to file.Idx) {
+	if from >= to {
+		return
+	}
 	if pos := strings.IndexByte(self.str[int(from)-self.base:int(to)-self.base], ','); pos >= 0 {
 		self.error(from+file.Idx(pos), "Comma is not allowed here")
 	}

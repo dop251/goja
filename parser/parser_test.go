@@ -504,6 +504,8 @@ func TestParserErr(t *testing.T) {
 		test(`var{..(`, "(anonymous): Line 1:7 Unexpected token ILLEGAL")
 		test(`var{get..(`, "(anonymous): Line 1:10 Unexpected token ILLEGAL")
 		test(`var{set..(`, "(anonymous): Line 1:10 Unexpected token ILLEGAL")
+		test(`const [...[`, "(anonymous): Line 1:12 Unexpected end of input")
+		test(`const {a: [...[}`, "(anonymous): Line 1:16 Unexpected token }")
 		test(`(0 ?? 0 || true)`, "(anonymous): Line 1:9 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 		test(`(a || b ?? c)`, "(anonymous): Line 1:9 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 		test(`2 ?? 2 && 3 + 3`, "(anonymous): Line 1:3 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
