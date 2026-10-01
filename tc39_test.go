@@ -101,7 +101,6 @@ var (
 		"test/language/statements/class/elements/private-getter-is-not-a-own-property.js":  true,
 
 		// restricted unicode regexp syntax
-		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
 		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
 		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":            true,
 		"test/built-ins/RegExp/unicode_restricted_incomplete_quantifier.js":          true,
@@ -165,12 +164,6 @@ var (
 		"test/language/literals/string/S7.8.4_A4.3_T2.js":             true,
 		"test/language/literals/string/S7.8.4_A4.3_T1.js":             true,
 
-		// Regexp
-		"test/language/literals/regexp/invalid-range-negative-lookbehind.js":    true,
-		"test/language/literals/regexp/invalid-range-lookbehind.js":             true,
-		"test/language/literals/regexp/invalid-optional-negative-lookbehind.js": true,
-		"test/language/literals/regexp/invalid-optional-lookbehind.js":          true,
-
 		// unicode full case folding
 		"test/built-ins/RegExp/unicode_full_case_folding.js": true,
 
@@ -226,12 +219,6 @@ var (
 		"test/language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-import-star-as-and-export.js":                         true,
 		"test/language/module-code/top-level-await/pending-async-dep-from-cycle.js":                                                         true,
 		"test/language/module-code/top-level-await/module-graphs-does-not-hang.js":                                                          true,
-
-		// Extended Unicode group names in non-unicode regexp
-		"test/built-ins/RegExp/named-groups/non-unicode-property-names-valid.js": true,
-
-		// \k without groups and Go regex engine
-		"test/annexB/built-ins/RegExp/named-groups/non-unicode-malformed.js": true,
 
 		// Duplicate group name and Go regex engine
 		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier.js":     true,
