@@ -3105,6 +3105,12 @@ func TestIfStackLeaks(t *testing.T) {
 	testScript(SCRIPT, _positiveZero, t)
 }
 
+func TestDiscardedFalsyLogicalAndDoesNotLeak(t *testing.T) {
+	testScript(`1 == (0 && 1, 0)`, valueFalse, t)
+	testScript(`(0 && 1) === 0 && (1 && 2) === 2`, valueTrue, t)
+	testScript(`var n = 0; (n++, 0) && (n++, 1); n === 1`, valueTrue, t)
+}
+
 func TestWithCallee(t *testing.T) {
 	const SCRIPT = `
 	function O() {
