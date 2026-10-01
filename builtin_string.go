@@ -132,7 +132,7 @@ func (r *Runtime) string_fromcharcode(call FunctionCall) Value {
 func (r *Runtime) string_fromcodepoint(call FunctionCall) Value {
 	var sb StringBuilder
 	for _, arg := range call.Arguments {
-		num := arg.ToNumber()
+		num := toNumberValue(arg)
 		var c rune
 		if numInt, ok := num.(valueInt); ok {
 			if numInt < 0 || numInt > utf8.MaxRune {
@@ -333,7 +333,7 @@ func (r *Runtime) stringproto_indexOf(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	value := call.This.toString()
 	target := call.Argument(0).toString()
-	pos := call.Argument(1).ToNumber().ToInteger()
+	pos := toNumberValue(call.Argument(1)).ToInteger()
 
 	if pos < 0 {
 		pos = 0
@@ -351,7 +351,7 @@ func (r *Runtime) stringproto_lastIndexOf(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	value := call.This.toString()
 	target := call.Argument(0).toString()
-	numPos := call.Argument(1).ToNumber()
+	numPos := toNumberValue(call.Argument(1))
 
 	var pos int64
 	if f, ok := numPos.(valueFloat); ok && math.IsNaN(float64(f)) {
@@ -552,7 +552,7 @@ func (r *Runtime) stringproto_padStart(call FunctionCall) Value {
 func (r *Runtime) stringproto_repeat(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
-	n := call.Argument(0).ToNumber()
+	n := toNumberValue(call.Argument(0))
 	if n == _positiveInf {
 		panic(r.newError(r.getRangeError(), "Invalid count value"))
 	}

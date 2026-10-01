@@ -866,11 +866,11 @@ func (r *Runtime) builtin_Number(call FunctionCall) Value {
 			if bigint, ok := primValue.(*valueBigInt); ok {
 				return intToValue((*big.Int)(bigint).Int64())
 			}
-			return primValue.ToNumber()
+			return toNumberValue(primValue)
 		case *valueBigInt:
 			return intToValue((*big.Int)(t).Int64())
 		default:
-			return t.ToNumber()
+			return toNumberValue(t)
 		}
 	} else {
 		return valueInt(0)
@@ -886,12 +886,12 @@ func (r *Runtime) builtin_newNumber(args []Value, proto *Object) *Object {
 			if bigint, ok := primValue.(*valueBigInt); ok {
 				v = intToValue((*big.Int)(bigint).Int64())
 			} else {
-				v = primValue.ToNumber()
+				v = toNumberValue(primValue)
 			}
 		case *valueBigInt:
 			v = intToValue((*big.Int)(t).Int64())
 		default:
-			v = t.ToNumber()
+			v = toNumberValue(t)
 		}
 	} else {
 		v = intToValue(0)
@@ -1031,7 +1031,7 @@ func (r *Runtime) checkObjectCoercible(v Value) {
 }
 
 func toInt8(v Value) int8 {
-	v = v.ToNumber()
+	v = toNumberValue(v)
 	if i, ok := v.(valueInt); ok {
 		return int8(i)
 	}
@@ -1046,7 +1046,7 @@ func toInt8(v Value) int8 {
 }
 
 func toUint8(v Value) uint8 {
-	v = v.ToNumber()
+	v = toNumberValue(v)
 	if i, ok := v.(valueInt); ok {
 		return uint8(i)
 	}
@@ -1061,7 +1061,7 @@ func toUint8(v Value) uint8 {
 }
 
 func toUint8Clamp(v Value) uint8 {
-	v = v.ToNumber()
+	v = toNumberValue(v)
 	if i, ok := v.(valueInt); ok {
 		if i < 0 {
 			return 0
@@ -1100,7 +1100,7 @@ func toUint8Clamp(v Value) uint8 {
 }
 
 func toInt16(v Value) int16 {
-	v = v.ToNumber()
+	v = toNumberValue(v)
 	if i, ok := v.(valueInt); ok {
 		return int16(i)
 	}
@@ -1115,7 +1115,7 @@ func toInt16(v Value) int16 {
 }
 
 func toUint16(v Value) uint16 {
-	v = v.ToNumber()
+	v = toNumberValue(v)
 	if i, ok := v.(valueInt); ok {
 		return uint16(i)
 	}
@@ -1130,7 +1130,7 @@ func toUint16(v Value) uint16 {
 }
 
 func toInt32(v Value) int32 {
-	v = v.ToNumber()
+	v = toNumberValue(v)
 	if i, ok := v.(valueInt); ok {
 		return int32(i)
 	}
@@ -1145,7 +1145,7 @@ func toInt32(v Value) int32 {
 }
 
 func toUint32(v Value) uint32 {
-	v = v.ToNumber()
+	v = toNumberValue(v)
 	if i, ok := v.(valueInt); ok {
 		return uint32(i)
 	}
@@ -1160,7 +1160,7 @@ func toUint32(v Value) uint32 {
 }
 
 func toInt64(v Value) int64 {
-	v = v.ToNumber()
+	v = toNumberValue(v)
 	if i, ok := v.(valueInt); ok {
 		return int64(i)
 	}
@@ -1175,7 +1175,7 @@ func toInt64(v Value) int64 {
 }
 
 func toUint64(v Value) uint64 {
-	v = v.ToNumber()
+	v = toNumberValue(v)
 	if i, ok := v.(valueInt); ok {
 		return uint64(i)
 	}
@@ -1190,7 +1190,7 @@ func toUint64(v Value) uint64 {
 }
 
 func toInt(v Value) int {
-	v = v.ToNumber()
+	v = toNumberValue(v)
 	if i, ok := v.(valueInt); ok {
 		return int(i)
 	}
@@ -1205,7 +1205,7 @@ func toInt(v Value) int {
 }
 
 func toUint(v Value) uint {
-	v = v.ToNumber()
+	v = toNumberValue(v)
 	if i, ok := v.(valueInt); ok {
 		return uint(i)
 	}
@@ -1257,7 +1257,7 @@ repeat:
 	default:
 		// Legacy behaviour as specified in https://tc39.es/ecma262/#sec-arraysetlength (see the note)
 		n2 := toUint32(v)
-		n1 := v.ToNumber()
+		n1 := toNumberValue(v)
 		if f, ok := n1.(valueFloat); ok {
 			f := float64(f)
 			if f != 0 || !math.Signbit(f) {
@@ -2710,6 +2710,14 @@ func toStringValue(v Value) Value {
 		return v
 	}
 	return v.ToString()
+}
+
+func toNumberValue(v Value) Value {
+	switch v := v.(type) {
+	case valueInt, valueFloat:
+		return v
+	}
+	return v.ToNumber()
 }
 
 func toPropertyKey(key Value) Value {

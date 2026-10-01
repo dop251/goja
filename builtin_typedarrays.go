@@ -41,10 +41,10 @@ func (ctx *typedArraySortCtx) Less(i, j int) bool {
 	if ctx.compare != nil {
 		x := ctx.ta.typedArray.get(offset + i)
 		y := ctx.ta.typedArray.get(offset + j)
-		res := ctx.compare(FunctionCall{
+		res := toNumberValue(ctx.compare(FunctionCall{
 			This:      _undefined,
 			Arguments: []Value{x, y},
-		}).ToNumber()
+		}))
 		ctx.needValidate = true
 		if i, ok := res.(valueInt); ok {
 			return i < 0
@@ -296,14 +296,14 @@ func (r *Runtime) dataViewProto_getUint32(call FunctionCall) Value {
 
 func (r *Runtime) dataViewProto_getBigInt64(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
-		return (*valueBigInt)(dv.viewedArrayBuf.getBigInt64(dv.getIdxAndByteOrder(r.toIndex(call.Argument(0).ToNumber()), call.Argument(1), 8)))
+		return (*valueBigInt)(dv.viewedArrayBuf.getBigInt64(dv.getIdxAndByteOrder(r.toIndex(toNumberValue(call.Argument(0))), call.Argument(1), 8)))
 	}
 	panic(r.NewTypeError("Method DataView.prototype.getBigInt64 called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 }
 
 func (r *Runtime) dataViewProto_getBigUint64(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
-		return (*valueBigInt)(dv.viewedArrayBuf.getBigUint64(dv.getIdxAndByteOrder(r.toIndex(call.Argument(0).ToNumber()), call.Argument(1), 8)))
+		return (*valueBigInt)(dv.viewedArrayBuf.getBigUint64(dv.getIdxAndByteOrder(r.toIndex(toNumberValue(call.Argument(0))), call.Argument(1), 8)))
 	}
 	panic(r.NewTypeError("Method DataView.prototype.getBigUint64 called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 }
@@ -1242,7 +1242,7 @@ func (r *Runtime) typedArrayProto_with(call FunctionCall) Value {
 	case *bigInt64Array, *bigUint64Array:
 		numericValue = toBigInt(call.Argument(1))
 	default:
-		numericValue = call.Argument(1).ToNumber()
+		numericValue = toNumberValue(call.Argument(1))
 	}
 
 	if !ta.isValidIntegerIndex(actualIndex) {

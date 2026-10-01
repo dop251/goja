@@ -239,7 +239,7 @@ func (r *Runtime) bigint_asIntN(call FunctionCall) Value {
 	if len(call.Arguments) < 2 {
 		panic(r.NewTypeError("Cannot convert undefined to a BigInt"))
 	}
-	bits := r.toIndex(call.Argument(0).ToNumber())
+	bits := r.toIndex(toNumberValue(call.Argument(0)))
 	if bits < 0 {
 		panic(r.NewTypeError("Invalid value: not (convertible to) a safe integer"))
 	}
@@ -258,7 +258,7 @@ func (r *Runtime) bigint_asUintN(call FunctionCall) Value {
 	if len(call.Arguments) < 2 {
 		panic(r.NewTypeError("Cannot convert undefined to a BigInt"))
 	}
-	bits := r.toIndex(call.Argument(0).ToNumber())
+	bits := r.toIndex(toNumberValue(call.Argument(0)))
 	if bits < 0 {
 		panic(r.NewTypeError("Invalid value: not (convertible to) a safe integer"))
 	}

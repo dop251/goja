@@ -512,7 +512,7 @@ func (r *Runtime) getSetRecord(value Value) *setRecord {
 	rawSize := nilSafe(o.self.getStr("size", nil))
 	// 3. Let numberSize be ? ToNumber(rawSize).
 	// 4. NOTE: If rawSize is undefined, then numberSize will be NaN.
-	numberSize := rawSize.ToNumber()
+	numberSize := toNumberValue(rawSize)
 	// 5. If numberSize is NaN, throw a TypeError exception.
 	if IsNaN(numberSize) {
 		panic(r.NewTypeError("size is NaN"))

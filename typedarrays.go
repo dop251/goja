@@ -790,7 +790,7 @@ func (a *typedArrayObject) _putIdx(idx int, v Value) {
 	case *bigInt64Array, *bigUint64Array:
 		v = toBigInt(v)
 	default:
-		v = v.ToNumber()
+		v = toNumberValue(v)
 	}
 	if a.isValidIntegerIndex(idx) {
 		a.typedArray.set(idx+a.offset, v)

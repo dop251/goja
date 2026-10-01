@@ -429,8 +429,8 @@ func toNumeric(value Value) Value {
 		return v
 	case *Object:
 		primValue := v.toPrimitiveNumber()
-		if bigint, ok := primValue.(*valueBigInt); ok {
-			return bigint
+		if _, ok := primValue.(*valueBigInt); ok {
+			return primValue
 		}
 		return primValue.ToNumber()
 	}
@@ -1600,7 +1600,7 @@ type _plus struct{}
 var plus _plus
 
 func (_plus) exec(vm *vm) {
-	vm.stack[vm.sp-1] = vm.stack[vm.sp-1].ToNumber()
+	vm.stack[vm.sp-1] = toNumberValue(vm.stack[vm.sp-1])
 	vm.pc++
 }
 

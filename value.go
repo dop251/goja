@@ -696,7 +696,7 @@ func (f valueFloat) hash(*maphash.Hash) uint64 {
 }
 
 func (o *Object) ToInteger() int64 {
-	return o.toPrimitiveNumber().ToNumber().ToInteger()
+	return toNumberValue(o.toPrimitiveNumber()).ToInteger()
 }
 
 func (o *Object) toString() String {
@@ -728,7 +728,7 @@ func (o *Object) ToObject(*Runtime) *Object {
 }
 
 func (o *Object) ToNumber() Value {
-	return o.toPrimitiveNumber().ToNumber()
+	return toNumberValue(o.toPrimitiveNumber())
 }
 
 func (o *Object) SameAs(other Value) bool {

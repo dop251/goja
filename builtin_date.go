@@ -27,7 +27,7 @@ func (r *Runtime) makeDate(args []Value, utc bool) (t time.Time, valid bool) {
 			if val, ok := pv.(String); ok {
 				return dateParse(val.String())
 			}
-			pv = pv.ToNumber()
+			pv = toNumberValue(pv)
 			var n int64
 			if i, ok := pv.(valueInt); ok {
 				n = int64(i)
@@ -466,7 +466,7 @@ func (r *Runtime) dateproto_getTimezoneOffset(call FunctionCall) Value {
 func (r *Runtime) dateproto_setTime(call FunctionCall) Value {
 	obj := r.toObject(call.This)
 	if d, ok := obj.self.(*dateObject); ok {
-		n := call.Argument(0).ToNumber()
+		n := toNumberValue(call.Argument(0))
 		if IsNaN(n) {
 			d.unset()
 			return _NaN
@@ -537,7 +537,7 @@ func mkTime(year, m, day, hour, min, sec, nsec int64, loc *time.Location) (t tim
 }
 
 func _intArg(call FunctionCall, argNum int) (int64, bool) {
-	n := call.Argument(argNum).ToNumber()
+	n := toNumberValue(call.Argument(argNum))
 	if IsNaN(n) {
 		return 0, false
 	}
@@ -685,7 +685,7 @@ func (r *Runtime) dateproto_setMilliseconds(call FunctionCall) Value {
 	obj := r.toObject(call.This)
 	if d, ok := obj.self.(*dateObject); ok {
 		tv := d.msec
-		n := call.Argument(0).ToNumber()
+		n := toNumberValue(call.Argument(0))
 		if tv == timeUnset {
 			return _NaN
 		}
@@ -710,7 +710,7 @@ func (r *Runtime) dateproto_setUTCMilliseconds(call FunctionCall) Value {
 	obj := r.toObject(call.This)
 	if d, ok := obj.self.(*dateObject); ok {
 		tv := d.msec
-		n := call.Argument(0).ToNumber()
+		n := toNumberValue(call.Argument(0).ToNumber())
 		if tv == timeUnset {
 			return _NaN
 		}
