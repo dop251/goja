@@ -3558,3 +3558,24 @@ func BenchmarkNew(b *testing.B) {
 		New()
 	}
 }
+
+func TestToInt32LargeFloat(t *testing.T) {
+	vm := New()
+	v, err := vm.RunString(`
+		(Math.pow(2, 63) | 0) + "," +
+		(Math.pow(2, 63) >>> 0) + "," +
+		(1e20 | 0) + "," +
+		(-1e20 | 0) + "," +
+		((Math.pow(2, 63) + Math.pow(2, 31)) | 0) + "," +
+		((Math.pow(2, 32) + 1) | 0) + "," +
+		(-1.9 | 0) + "," +
+		String.fromCharCode(Math.pow(2, 63)).charCodeAt(0)
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "0,0,1661992960,-1661992960,-2147483648,1,-1,0"
+	if got := v.String(); got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
