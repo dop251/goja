@@ -457,13 +457,13 @@ func (r *Runtime) builtin_newIterator(_ []Value, newTarget *Object) *Object {
 
 // setterThatIgnoresPrototypeProperties implements SetterThatIgnoresPrototypeProperties. It is used by the
 // accessors on Iterator.prototype, which are accessors only for web compatibility.
-func (r *Runtime) setterThatIgnoresPrototypeProperties(this Value, home *Object, p Value, v Value) {
+func (r *Runtime) setterThatIgnoresPrototypeProperties(this Value, home *Object, homeName string, p Value, v Value) {
 	obj, ok := this.(*Object)
 	if !ok {
-		panic(r.NewTypeError("Iterator.prototype setter called on incompatible receiver %s", this.String()))
+		panic(r.NewTypeError("%s setter called on incompatible receiver %s", homeName, this.String()))
 	}
 	if obj == home {
-		panic(r.NewTypeError("Cannot assign to a read-only property of Iterator.prototype"))
+		panic(r.NewTypeError("Cannot assign to a read-only property of %s", homeName))
 	}
 	if obj.getOwnProp(p) == nil {
 		createDataPropertyOrThrow(obj, p, v)
@@ -479,7 +479,7 @@ func (r *Runtime) iteratorProtoAccessor(key Value, get func() Value, name string
 			return get()
 		}, unistring.String("get "+name), 0),
 		setterFunc: r.newNativeFunc(func(call FunctionCall) Value {
-			r.setterThatIgnoresPrototypeProperties(call.This, r.getIteratorPrototype(), key, call.Argument(0))
+			r.setterThatIgnoresPrototypeProperties(call.This, r.getIteratorPrototype(), "Iterator.prototype", key, call.Argument(0))
 			return _undefined
 		}, unistring.String("set "+name), 1),
 		configurable: true,
