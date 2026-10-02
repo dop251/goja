@@ -225,6 +225,7 @@ func (self *_parser) peek() token.Token {
 func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unistring.String, idx file.Idx) {
 
 	self.implicitSemicolon = false
+	start := self.chrOffset
 
 	for {
 		self.skipWhiteSpace()
@@ -353,6 +354,10 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 					insertSemicolon = true
 				}
 			case '-':
+				if self.chr == '-' && self._peek() == '>' && (start == 0 || strings.ContainsAny(self.str[start:self.chrOffset], "\r\n\u2028\u2029")) {
+					self.skipSingleLineComment()
+					continue
+				}
 				tkn = self.switch3(token.MINUS, token.SUBTRACT_ASSIGN, '-', token.DECREMENT)
 				if tkn == token.DECREMENT {
 					insertSemicolon = true
@@ -384,6 +389,10 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 			case '^':
 				tkn = self.switch2(token.EXCLUSIVE_OR, token.EXCLUSIVE_OR_ASSIGN)
 			case '<':
+				if strings.HasPrefix(self.str[self.chrOffset:], "!--") {
+					self.skipSingleLineComment()
+					continue
+				}
 				tkn = self.switch4(token.LESS, token.LESS_OR_EQUAL, '<', token.SHIFT_LEFT, token.SHIFT_LEFT_ASSIGN)
 			case '>':
 				tkn = self.switch6(token.GREATER, token.GREATER_OR_EQUAL, '>', token.SHIFT_RIGHT, token.SHIFT_RIGHT_ASSIGN, '>', token.UNSIGNED_SHIFT_RIGHT, token.UNSIGNED_SHIFT_RIGHT_ASSIGN)

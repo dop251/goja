@@ -807,6 +807,7 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/annexB/built-ins/escape")
 		ctx.runTC39Tests("test/annexB/built-ins/unescape")
 		ctx.runTC39Tests("test/annexB/built-ins/RegExp")
+		ctx.runTC39Tests("test/annexB/language/comments")
 
 		ctx.flush()
 	})

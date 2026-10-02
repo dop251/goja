@@ -305,6 +305,19 @@ func TestParserErr(t *testing.T) {
 
 		test("/*abc  *", "(anonymous): Line 1:9 Unexpected end of input")
 
+		test("x <!-- y", nil)
+
+		test("x\n--> y", nil)
+
+		test("--> y", nil)
+
+		test("/*\n*/ --> y", nil)
+
+		test("x; /* */ --> y", "(anonymous): Line 1:12 Unexpected token >")
+
+		program, _ = test("x-->y", nil)
+		is(program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression).Operator, token.GREATER)
+
 		test("\n]", "(anonymous): Line 2:1 Unexpected token ]")
 
 		test("\r\n]", "(anonymous): Line 2:1 Unexpected token ]")
