@@ -25,8 +25,8 @@ func newWeakMapRefs() *weakMapRefs {
 }
 
 type weakMap struct {
-	// Make sure it's not zero-sized so that runtime.Cleanup runs on it
-	_ uintptr
+	// Make sure it's not zero-sized and is not tiny-allocated so that runtime.Cleanup runs on it
+	_ [16]byte
 }
 
 func (wm *weakMap) set(key *Object, value Value) {
