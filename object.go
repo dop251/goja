@@ -49,6 +49,11 @@ var (
 type Object struct {
 	self    objectImpl
 	runtime *Runtime
+
+	// As Go does not have ephemerons, the only way to ensure the correct WeakMap semantics is to make the
+	// value reachable only through the key. This unfortunately bumps the size of Object from 24 to 32 bytes,
+	// but I could not find a better alternative.
+	weakMapRefs *weakMapRefs
 }
 
 type iterNextFunc func() (propIterItem, iterNextFunc)
@@ -1627,6 +1632,13 @@ func (o *Object) defineOwnProperty(n Value, desc PropertyDescriptor, throw bool)
 	default:
 		return o.self.defineOwnPropertyStr(n.string(), desc, throw)
 	}
+}
+
+func (o *Object) getWeakMapRefs(create bool) *weakMapRefs {
+	if o.weakMapRefs == nil && create {
+		o.weakMapRefs = newWeakMapRefs()
+	}
+	return o.weakMapRefs
 }
 
 func (o *guardedObject) guard(props ...unistring.String) {

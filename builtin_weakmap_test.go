@@ -2,8 +2,10 @@ package goja
 
 import (
 	"runtime"
+	"strings"
 	"testing"
 	"time"
+	"weak"
 )
 
 func TestWeakMap(t *testing.T) {
@@ -88,36 +90,55 @@ func TestWeakMapUpdateKey(t *testing.T) {
 	testScript(SCRIPT, intToValue(2), t)
 }
 
-func TestWeakMapCleanup(t *testing.T) {
-	t.Parallel()
+func TestWeakMapValueRefersKey(t *testing.T) {
 	vm := New()
-	_, err := vm.RunString(`
-		var m = new WeakMap();
-		var key = {};
-		m.set(key, true);
-	`)
-	if err != nil {
-		t.Fatal(err)
+	key := vm.NewObject()
+
+	key.Set("pad", strings.Repeat("x", 200))
+	value := vm.NewObject()
+	value.Set("owner", key)
+	var wm weakMap
+	wm.set(key, value)
+	if !wm.has(key) {
+		t.Fatal("weak map does not have key")
 	}
-	vm.Set("key", _undefined)
-	runtime.GC()
-	m, _ := vm.Get("m").(*Object)
-	if m == nil {
-		t.Fatal("m is not an Object")
-	}
-	wmo := m.self.(*weakMapObject)
-	if wmo == nil {
-		t.Fatal("m is not a WeakMap")
-	}
+	ref := weak.Make(key)
+	key = nil
+	value = nil
+
 	for range 5 {
-		wmo.m.Lock()
-		if l := len(wmo.m.m); l == 0 {
-			wmo.m.Unlock()
+		runtime.GC()
+		runtime.GC()
+		if ref.Value() == nil {
 			return
 		}
-		wmo.m.Unlock()
-		runtime.GC()
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatal("m is not empty")
+	runtime.KeepAlive(&wm)
+	t.Fatal("the key has not been garbage-collected")
+}
+
+func TestWeakMapValueRemovedAfterMapIsGone(t *testing.T) {
+	vm := New()
+	key := vm.NewObject()
+	value := vm.NewObject()
+	value.Set("pad", strings.Repeat("x", 200))
+	wm := &weakMap{}
+	wm.set(key, value)
+
+	ref := weak.Make(value)
+	wm = nil
+	value = nil
+
+	for range 5 {
+		runtime.GC()
+		runtime.GC()
+		if ref.Value() == nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	runtime.KeepAlive(key)
+	t.Fatal("the value has not been garbage-collected")
 }
