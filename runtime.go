@@ -2724,18 +2724,25 @@ type iteratorRecord struct {
 
 func (r *Runtime) wrapIterSeq(nextFunc reflect.Value) (func(FunctionCall) Value, func()) {
 	n, stop := iter.Pull(nextFunc.Seq())
+	var o Value
 	return func(FunctionCall) Value {
 		val, valid := n()
 		if !valid {
 			return r.createIterResultObject(_undefined, true)
 		}
-		return r.createIterResultObject(r.toValue(val.Interface(), val), false)
+		if o != nil {
+			r.setIterResultObject(o, r.toValue(val.Interface(), val), false)
+			return o
+		}
+		o = r.createIterResultObject(r.toValue(val.Interface(), val), false)
+		return o
 	}, stop
 }
 
 func (r *Runtime) wrapIterSeq2(nextFunc reflect.Value) (func(FunctionCall) Value, func()) {
 	n, stop := iter.Pull2(nextFunc.Seq2())
 	if nextFunc.Type().In(0).In(1) == reflectTypeError {
+		var o Value
 		return func(functionCall FunctionCall) Value {
 			val, errVal, valid := n()
 			if !valid {
@@ -2752,7 +2759,12 @@ func (r *Runtime) wrapIterSeq2(nextFunc reflect.Value) (func(FunctionCall) Value
 				}
 				panic(r.NewGoError(err))
 			}
-			return r.createIterResultObject(r.toValue(val.Interface(), val), false)
+			if o != nil {
+				r.setIterResultObject(o, r.toValue(val.Interface(), val), false)
+				return o
+			}
+			o = r.createIterResultObject(r.toValue(val.Interface(), val), false)
+			return o
 		}, stop
 	}
 
@@ -2972,6 +2984,13 @@ func (r *Runtime) createIterResultObject(value Value, done bool) Value {
 	o.self.setOwnStr("value", value, false)
 	o.self.setOwnStr("done", r.toBoolean(done), false)
 	return o
+}
+
+func (r *Runtime) setIterResultObject(o Value, value Value, done bool) {
+	if _, isobj := o.(*Object); isobj {
+		o.(*Object).self.setOwnStr("value", value, false)
+		o.(*Object).self.setOwnStr("done", r.toBoolean(done), false)
+	}
 }
 
 func (r *Runtime) getHash() *maphash.Hash {
