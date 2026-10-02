@@ -98,6 +98,8 @@ type _parser struct {
 
 	errors ErrorList
 
+	depth int
+
 	recover struct {
 		// Scratch when trying to seek to the next statement, etc.
 		idx   file.Idx
@@ -218,6 +220,21 @@ func (self *_parser) parse() (*ast.Program, error) {
 		self.errors.Sort()
 	}
 	return program, self.errors.Err()
+}
+
+const maxNestingDepth = 10000
+
+func (self *_parser) enterNesting() {
+	self.depth++
+	if self.depth == maxNestingDepth+1 {
+		self.error(self.idx, "Maximum nesting depth exceeded")
+		self.chr, self.chrOffset, self.offset = -1, self.length, self.length
+		self.token, self.literal, self.parsedLiteral, self.idx = token.EOF, "", "", self.idxOf(self.length)
+	}
+}
+
+func (self *_parser) leaveNesting() {
+	self.depth--
 }
 
 func (self *_parser) next() {
