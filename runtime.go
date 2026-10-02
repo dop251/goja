@@ -125,7 +125,10 @@ type global struct {
 
 	AsyncFunctionPrototype *Object
 
+	Iterator                      *Object
 	IteratorPrototype             *Object
+	IteratorHelperPrototype       *Object
+	WrapForValidIteratorPrototype *Object
 	ArrayIteratorPrototype        *Object
 	MapIteratorPrototype          *Object
 	SetIteratorPrototype          *Object
@@ -432,6 +435,7 @@ func (r *Runtime) createIterProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 
 	o._putSym(SymIterator, valueProp(r.newNativeFunc(r.returnThis, "[Symbol.iterator]", 0), true, false, true))
+	r.addIteratorHelpers(o)
 	return o
 }
 
@@ -2797,18 +2801,7 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *itera
 			This: obj,
 		}))
 
-		var next func(FunctionCall) Value
-
-		if obj, ok := iter.self.getStr("next", nil).(*Object); ok {
-			if call, ok := obj.self.assertCallable(); ok {
-				next = call
-			}
-		}
-
-		return &iteratorRecord{
-			iterator: iter,
-			next:     next,
-		}
+		return r.getIteratorDirect(iter)
 	}
 
 	panic(r.NewTypeError("object is not iterable"))

@@ -259,7 +259,6 @@ var (
 
 		"regexp-duplicate-named-groups",
 		"regexp-v-flag",
-		"iterator-helpers",
 		"symbols-as-weakmap-keys",
 		"String.prototype.toWellFormed",
 		"explicit-resource-management",

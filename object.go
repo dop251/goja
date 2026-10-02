@@ -30,6 +30,8 @@ const (
 	classGlobal        = "global"
 	classPromise       = "Promise"
 
+	classIterator             = "Iterator"
+	classIteratorHelper       = "Iterator Helper"
 	classArrayIterator        = "Array Iterator"
 	classMapIterator          = "Map Iterator"
 	classSetIterator          = "Set Iterator"
