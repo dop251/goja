@@ -1100,6 +1100,20 @@ func toInt16(v Value) int16 {
 	return 0
 }
 
+// floatToUint32 implements ECMAScript ToUint32.
+// int64(f) saturates at MaxInt64, so a float past that limit
+// keeps the wrong low bits. 2^63 becomes 4294967295 instead of 0.
+func floatToUint32(f float64) uint32 {
+	if f == 0 || math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0
+	}
+	f = math.Mod(math.Trunc(f), 4294967296)
+	if f < 0 {
+		f += 4294967296
+	}
+	return uint32(f)
+}
+
 func toUint16(v Value) uint16 {
 	v = v.ToNumber()
 	if i, ok := v.(valueInt); ok {
@@ -1107,10 +1121,7 @@ func toUint16(v Value) uint16 {
 	}
 
 	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return uint16(int64(f))
-		}
+		return uint16(floatToUint32(float64(f)))
 	}
 	return 0
 }
@@ -1122,10 +1133,7 @@ func toInt32(v Value) int32 {
 	}
 
 	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return int32(int64(f))
-		}
+		return int32(floatToUint32(float64(f)))
 	}
 	return 0
 }
@@ -1137,10 +1145,7 @@ func toUint32(v Value) uint32 {
 	}
 
 	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return uint32(int64(f))
-		}
+		return floatToUint32(float64(f))
 	}
 	return 0
 }
