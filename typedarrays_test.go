@@ -285,6 +285,35 @@ func TestTypedArrayDefinePropDetachedBuffer(t *testing.T) {
 	vm.testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestArrayBufferSliceDetachedZeroLen(t *testing.T) {
+	const SCRIPT = `
+	var b = new ArrayBuffer(8);
+	$DETACHBUFFER(b);
+	assert.throws(TypeError, function() {
+		b.slice(0, 0);
+	}, "slice(0,0) on a detached buffer must throw");
+	`
+	vm := New()
+	vm.Set("$DETACHBUFFER", func(buf *ArrayBuffer) {
+		buf.Detach()
+	})
+	vm.testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestArrayBufferSliceSameBufferSpeciesZeroLen(t *testing.T) {
+	const SCRIPT = `
+	var b = new ArrayBuffer(8);
+	var species = function() { return b; };
+	var ctor = function() {};
+	ctor[Symbol.species] = species;
+	Object.defineProperty(b, "constructor", {value: ctor});
+	assert.throws(TypeError, function() {
+		b.slice(0, 0);
+	}, "slice(0,0) with a species returning the source buffer must throw");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestTypedArrayDefineProperty(t *testing.T) {
 	const SCRIPT = `
 	var a = new Uint8Array(1);
