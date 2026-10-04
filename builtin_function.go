@@ -176,7 +176,7 @@ func (r *Runtime) functionproto_bind(call FunctionCall) Value {
 				// no-op, li == 0
 			default:
 				if !math.IsNaN(float64(lenProp)) {
-					li = int64(math.Abs(float64(lenProp)))
+					li = int64(lenProp)
 				} // else li = 0
 			}
 		}
