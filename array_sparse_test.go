@@ -281,3 +281,41 @@ func TestSparseArrayExportToSlice(t *testing.T) {
 		}
 	}
 }
+
+func TestSparseArrayExportToSliceInheritedHoles(t *testing.T) {
+	vm := New()
+	_, err := vm.RunString(`
+	var a = [];
+	a[100000] = 1;   // make it sparse
+	a.length = 3;     // length 3, indices 0..2 are holes
+	a[2] = "own";
+	Object.setPrototypeOf(a, {0: "inh0", 1: "inh1"});
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := vm.Get("a").(*Object)
+	if _, ok := a.self.(*sparseArrayObject); !ok {
+		t.Fatal("array is not sparse")
+	}
+
+	// ExportTo must resolve holes through the prototype chain, matching
+	// the default Array Iterator and Export().
+	var exp []string
+	err = vm.ExportTo(a, &exp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(exp) != 3 {
+		t.Fatalf("len: %d", len(exp))
+	}
+	if exp[0] != "inh0" {
+		t.Fatalf("0: %q", exp[0])
+	}
+	if exp[1] != "inh1" {
+		t.Fatalf("1: %q", exp[1])
+	}
+	if exp[2] != "own" {
+		t.Fatalf("2: %q", exp[2])
+	}
+}
