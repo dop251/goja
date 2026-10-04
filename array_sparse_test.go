@@ -22,6 +22,25 @@ func TestSparseArraySetLengthWithPropItems(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestSparseArraySetLengthNonConfigurableAtNewLength(t *testing.T) {
+	const SCRIPT = `
+	var a = [];
+	a[100000] = 5; // make it sparse
+	Object.defineProperty(a, "5", {value: 42, configurable: false, writable: false});
+	var thrown = false;
+	try {
+		Object.defineProperty(a, "length", {value: 5});
+	} catch (e) {
+		thrown = e instanceof TypeError;
+	}
+	// The element at index 5 (== new length) is non-configurable, so the
+	// operation must fail and the element must be preserved (length becomes 6).
+	thrown && a.length === 6 && a[5] === 42 && a[100000] === undefined;
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestSparseArraySwitch(t *testing.T) {
 	vm := New()
 	_, err := vm.RunString(`

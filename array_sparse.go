@@ -37,7 +37,7 @@ func (a *sparseArrayObject) _setLengthInt(l uint32, throw bool) bool {
 			// Slow path
 			for i := len(a.items) - 1; i >= 0; i-- {
 				item := a.items[i]
-				if item.idx <= l {
+				if item.idx < l {
 					break
 				}
 				if prop, ok := item.value.(*valueProperty); ok {
