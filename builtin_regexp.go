@@ -865,19 +865,19 @@ func regExpExec(r *Object, s String) Value {
 	panic(r.runtime.NewTypeError("no RegExpMatcher internal slot"))
 }
 
-func (ri *regExpStringIterObject) next() (v Value) {
+func (ri *regExpStringIterObject) nextResult(Value) (Value, bool) {
 	if ri.done {
-		return ri.val.runtime.createIterResultObject(_undefined, true)
+		return _undefined, false
 	}
 
 	match := regExpExec(ri.matcher, ri.s)
 	if IsNull(match) {
 		ri.done = true
-		return ri.val.runtime.createIterResultObject(_undefined, true)
+		return _undefined, false
 	}
 	if !ri.global {
 		ri.done = true
-		return ri.val.runtime.createIterResultObject(match, false)
+		return match, true
 	}
 
 	matchStr := nilSafe(ri.val.runtime.toObject(match).self.getIdx(valueInt(0), nil)).toString()
@@ -885,7 +885,12 @@ func (ri *regExpStringIterObject) next() (v Value) {
 		thisIndex := toLength(ri.matcher.self.getStr("lastIndex", nil))
 		ri.matcher.self.setOwnStr("lastIndex", valueInt(advanceStringIndex64(ri.s, thisIndex, ri.fullUnicode)), true)
 	}
-	return ri.val.runtime.createIterResultObject(match, false)
+	return match, true
+}
+
+func (ri *regExpStringIterObject) next() (v Value) {
+	value, valid := ri.nextResult(nil)
+	return ri.val.runtime.createIterResultObject(value, !valid)
 }
 
 func (r *Runtime) regexpproto_stdSearch(call FunctionCall) Value {
@@ -1297,7 +1302,12 @@ func (r *Runtime) regExpStringIteratorProto_next(call FunctionCall) Value {
 func (r *Runtime) createRegExpStringIteratorPrototype(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.getIteratorPrototype(), classObject)
 
-	o._putProp("next", r.newNativeFunc(r.regExpStringIteratorProto_next, "next", 0), true, false, true)
+	o._putProp("next", r.newIteratorNextFunc(r.regExpStringIteratorProto_next, 0, func(iterator *Object) func(Value) (Value, bool) {
+		if i, ok := iterator.self.(*regExpStringIterObject); ok {
+			return i.nextResult
+		}
+		return nil
+	}), true, false, true)
 	o._putSym(SymToStringTag, valueProp(asciiString(classRegExpStringIterator), false, false, true))
 
 	return o

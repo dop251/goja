@@ -126,6 +126,13 @@ type nativeFuncObject struct {
 	construct func(args []Value, newTarget *Object) *Object
 }
 
+// iteratorNextFunction contains a special shortcut which can be used to get the next iterator result without
+// creating an IteratorResult object. This saves memory for for-of loops.
+type iteratorNextFunction struct {
+	nativeFuncObject
+	getNextResult func(this *Object) func(Value) (Value, bool)
+}
+
 type wrappedFuncObject struct {
 	nativeFuncObject
 	wrapped reflect.Value
@@ -949,6 +956,33 @@ func (g *generatorObject) step(res Value, resType resultType, ex *Exception) Val
 	}
 }
 
+func (g *generatorObject) stepResult(res Value, resType resultType, ex *Exception) (Value, bool) {
+	if ex != nil {
+		g.delegated = nil
+		g.state = genStateCompleted
+		panic(ex)
+	}
+	switch resType {
+	case resultYield:
+		g.state = genStateSuspendedYield
+		return res, true
+	case resultYieldDelegate:
+		g.state = genStateSuspendedYield
+		return g.delegateResult(res)
+	case resultYieldRes:
+		g.state = genStateSuspendedYieldRes
+		return res, true
+	case resultYieldDelegateRes:
+		g.state = genStateSuspendedYieldRes
+		return g.delegateResult(res)
+	case resultNormal:
+		g.state = genStateCompleted
+		return res, false
+	default:
+		panic(g.val.runtime.NewTypeError("Runtime bug: unexpected result type: %v", resType))
+	}
+}
+
 func (g *generatorObject) delegate(v Value) Value {
 	ex := g.val.runtime.try(func() {
 		g.delegated = g.val.runtime.getIterator(v, nil)
@@ -959,6 +993,18 @@ func (g *generatorObject) delegate(v Value) Value {
 		return g.step(g.gen.nextThrow(ex))
 	}
 	return g.next(_undefined)
+}
+
+func (g *generatorObject) delegateResult(v Value) (Value, bool) {
+	ex := g.val.runtime.try(func() {
+		g.delegated = g.val.runtime.getIterator(v, nil)
+	})
+	if ex != nil {
+		g.delegated = nil
+		g.state = genStateCompleted
+		return g.stepResult(g.gen.nextThrow(ex))
+	}
+	return g.nextResult(_undefined)
 }
 
 func (g *generatorObject) tryCallDelegated(fn func() (Value, bool)) (ret Value, done bool) {
@@ -980,6 +1026,43 @@ func (g *generatorObject) callDelegated(method func(FunctionCall) Value, v Value
 		return iteratorValue(res), true
 	}
 	return res, false
+}
+
+func (g *generatorObject) nextResult(v Value) (Value, bool) {
+	g.validate()
+	if g.state == genStateCompleted {
+		return _undefined, false
+	}
+	if g.delegated != nil {
+		var value Value
+		var valid bool
+		ex := g.val.runtime.try(func() {
+			if g.delegated.nextRes != nil {
+				value, valid = g.delegated.nextRes(v)
+			} else {
+				res := g.val.runtime.toObject(g.delegated.next(FunctionCall{This: g.delegated.iterator, Arguments: []Value{v}}))
+				value = iteratorValue(res)
+				valid = !iteratorComplete(res)
+			}
+		})
+		if ex != nil {
+			g.delegated = nil
+			g.state = genStateExecuting
+			return g.stepResult(g.gen.nextThrow(ex))
+		}
+
+		if valid {
+			return value, true
+		} else {
+			g.delegated = nil
+			v = value
+		}
+	}
+	if g.state != genStateSuspendedYieldRes {
+		v = nil
+	}
+	g.state = genStateExecuting
+	return g.stepResult(g.gen.next(v))
 }
 
 func (g *generatorObject) next(v Value) Value {

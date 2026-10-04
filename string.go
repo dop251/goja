@@ -85,16 +85,21 @@ func isUTF16SecondSurrogate(c uint16) bool {
 	return c >= 0xDC00 && c <= 0xDFFF
 }
 
-func (si *stringIterObject) next() Value {
+func (si *stringIterObject) nextResult(Value) (Value, bool) {
 	if si.reader == nil {
-		return si.val.runtime.createIterResultObject(_undefined, true)
+		return _undefined, false
 	}
 	r, _, err := si.reader.ReadRune()
 	if err == io.EOF {
 		si.reader = nil
-		return si.val.runtime.createIterResultObject(_undefined, true)
+		return _undefined, false
 	}
-	return si.val.runtime.createIterResultObject(stringFromRune(r), false)
+	return stringFromRune(r), true
+}
+
+func (si *stringIterObject) next() Value {
+	value, valid := si.nextResult(nil)
+	return si.val.runtime.createIterResultObject(value, !valid)
 }
 
 func stringFromRune(r rune) String {

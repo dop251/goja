@@ -3558,3 +3558,35 @@ func BenchmarkNew(b *testing.B) {
 		New()
 	}
 }
+
+func BenchmarkGoIteratorForOf(b *testing.B) {
+	iterSeq := func(yield func(Value) bool) {
+		for range 110 {
+			yield(valueTrue)
+		}
+	}
+
+	vm := New()
+	vm.Set("iterSeq", iterSeq)
+	prg := MustCompile("test.js", `
+		{
+			let count = 0;
+			for (const v of iterSeq) {
+				if (v !== true) {
+					throw new Error(v);
+				}
+				count++;
+			}
+			if (count !== 110) {
+					throw new Error(count);
+			}
+		}
+	`, true)
+	b.ReportAllocs()
+	for b.Loop() {
+		_, err := vm.RunProgram(prg)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}

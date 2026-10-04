@@ -20,19 +20,19 @@ const (
 type iteratorHelperObject struct {
 	baseObject
 	underlying *iteratorRecord
-	state      iteratorHelperState
 	step       func() (value Value, ok bool)
 	// abort, if set, replaces the default closing of the underlying iterator in return().
 	abort func()
+	state iteratorHelperState
 }
 
-func (h *iteratorHelperObject) next() Value {
+func (h *iteratorHelperObject) nextResult(_ Value) (Value, bool) {
 	r := h.val.runtime
 	switch h.state {
 	case iteratorHelperExecuting:
 		panic(r.NewTypeError("Iterator Helper is already running"))
 	case iteratorHelperCompleted:
-		return r.createIterResultObject(_undefined, true)
+		return _undefined, false
 	}
 	h.state = iteratorHelperExecuting
 	defer func() {
@@ -43,10 +43,15 @@ func (h *iteratorHelperObject) next() Value {
 	value, ok := h.step()
 	if !ok {
 		h.state = iteratorHelperCompleted
-		return r.createIterResultObject(_undefined, true)
+		return _undefined, false
 	}
 	h.state = iteratorHelperSuspendedYield
-	return r.createIterResultObject(value, false)
+	return value, true
+}
+
+func (h *iteratorHelperObject) next() Value {
+	value, valid := h.nextResult(nil)
+	return h.val.runtime.createIterResultObject(value, !valid)
 }
 
 func (h *iteratorHelperObject) _return() Value {
@@ -97,14 +102,19 @@ func (r *Runtime) newIteratorHelper(underlying *iteratorRecord, step func() (Val
 
 func (r *Runtime) getIteratorDirect(obj *Object) *iteratorRecord {
 	var next func(FunctionCall) Value
+	var nextRes func(Value) (Value, bool)
 	if nextObj, ok := obj.self.getStr("next", nil).(*Object); ok {
 		if call, ok := nextObj.self.assertCallable(); ok {
 			next = call
+			if nf, ok := nextObj.self.(*iteratorNextFunction); ok {
+				nextRes = nf.getNextResult(obj)
+			}
 		}
 	}
 	return &iteratorRecord{
 		iterator: obj,
 		next:     next,
+		nextRes:  nextRes,
 	}
 }
 
@@ -114,32 +124,27 @@ func (r *Runtime) getIteratorFlattenable(obj Value, iterateStrings bool) *iterat
 			panic(r.NewTypeError("%s is not an object", obj.String()))
 		}
 	}
-	var iter Value = obj
+	var iter = obj
 	if method := toMethod(r.getV(obj, SymIterator)); method != nil {
 		iter = method(FunctionCall{This: obj})
 	}
 	return r.getIteratorDirect(r.toObject(iter))
 }
 
-// stepResult implements IteratorStep. It returns nil if the iterator is exhausted.
-func (ir *iteratorRecord) stepResult() *Object {
+// stepValue implements IteratorStepValue. It returns false if the iterator is exhausted.
+func (ir *iteratorRecord) stepValue() (Value, bool) {
 	r := ir.iterator.runtime
 	if ir.next == nil {
 		panic(r.NewTypeError("iterator.next is missing or not a function"))
 	}
+	if ir.nextRes != nil {
+		return ir.nextRes(_undefined)
+	}
 	res := r.toObject(ir.next(FunctionCall{This: ir.iterator}))
 	if iteratorComplete(res) {
-		return nil
+		return nil, false
 	}
-	return res
-}
-
-// stepValue implements IteratorStepValue. It returns false if the iterator is exhausted.
-func (ir *iteratorRecord) stepValue() (Value, bool) {
-	if res := ir.stepResult(); res != nil {
-		return iteratorValue(res), true
-	}
-	return nil, false
+	return iteratorValue(res), true
 }
 
 // closeOnThrow runs f and, if it throws, closes the iterator (ignoring any error from return()) before rethrowing.
@@ -254,7 +259,7 @@ func (r *Runtime) iteratorProto_drop(call FunctionCall) Value {
 			if !math.IsInf(remaining, 1) {
 				remaining--
 			}
-			if iterated.stepResult() == nil {
+			if _, valid := iterated.stepValue(); !valid {
 				return nil, false
 			}
 		}
@@ -510,7 +515,12 @@ func (r *Runtime) addIteratorHelpers(o *baseObject) {
 func (r *Runtime) createIteratorHelperProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.getIteratorPrototype(), classObject)
 
-	o._putProp("next", r.newNativeFunc(r.iteratorHelperProto_next, "next", 0), true, false, true)
+	o._putProp("next", r.newIteratorNextFunc(r.iteratorHelperProto_next, 0, func(iterator *Object) func(Value) (Value, bool) {
+		if i, ok := iterator.self.(*iteratorHelperObject); ok {
+			return i.nextResult
+		}
+		return nil
+	}), true, false, true)
 	o._putProp("return", r.newNativeFunc(r.iteratorHelperProto_return, "return", 0), true, false, true)
 	o._putSym(SymToStringTag, valueProp(asciiString(classIteratorHelper), false, false, true))
 
@@ -530,7 +540,12 @@ func (r *Runtime) getIteratorHelperPrototype() *Object {
 func (r *Runtime) createWrapForValidIteratorProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.getIteratorPrototype(), classObject)
 
-	o._putProp("next", r.newNativeFunc(r.wrapForValidIteratorProto_next, "next", 0), true, false, true)
+	o._putProp("next", r.newIteratorNextFunc(r.wrapForValidIteratorProto_next, 0, func(iterator *Object) func(Value) (Value, bool) {
+		if i, ok := iterator.self.(*wrapForValidIteratorObject); ok {
+			return i.iterated.nextRes
+		}
+		return nil
+	}), true, false, true)
 	o._putProp("return", r.newNativeFunc(r.wrapForValidIteratorProto_return, "return", 0), true, false, true)
 
 	return o

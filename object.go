@@ -1035,19 +1035,18 @@ func (o *baseObject) exportToMap(m reflect.Value, typ reflect.Type, ctx *objectE
 	return genericExportToMap(o.val, m, typ, ctx)
 }
 
-func genericExportToArrayOrSlice(o *Object, dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) (err error) {
+func exportToArrayOrSliceWithIterator(ir *iteratorRecord, o *Object, dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) (err error) {
 	r := o.runtime
-
-	if method := toMethod(r.getV(o, SymIterator)); method != nil {
-		// iterable
-
+	if ir != nil {
 		var values []Value
 		// cannot change (append to) the slice once it's been put into the cache, so we need to know its length beforehand
-		ex := r.try(func() {
-			values = r.iterableToList(o, method)
+		err = r.try(func() {
+			ir.iterate(func(item Value) {
+				values = append(values, item)
+			})
 		})
-		if ex != nil {
-			return ex
+		if err != nil {
+			return
 		}
 		if typ.Kind() == reflect.Array {
 			if dst.Len() != len(values) {
@@ -1076,9 +1075,9 @@ func genericExportToArrayOrSlice(o *Object, dst reflect.Value, typ reflect.Type,
 		if dst.Len() != l {
 			if typ.Kind() == reflect.Array {
 				return fmt.Errorf("cannot convert an array-like object into an array, lengths mismatch (have %d, need %d)", l, dst.Len())
-			} else {
-				dst.Set(reflect.MakeSlice(typ, l, l))
 			}
+
+			dst.Set(reflect.MakeSlice(typ, l, l))
 		}
 		ctx.putTyped(o, typ, dst.Interface())
 		for i := 0; i < l; i++ {
@@ -1089,8 +1088,17 @@ func genericExportToArrayOrSlice(o *Object, dst reflect.Value, typ reflect.Type,
 			}
 		}
 	}
-
 	return
+}
+
+func genericExportToArrayOrSlice(o *Object, dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) (err error) {
+	r := o.runtime
+	ir, err := r.getOptionalIterator(o, nil)
+	if err != nil {
+		return err
+	}
+
+	return exportToArrayOrSliceWithIterator(ir, o, dst, typ, ctx)
 }
 
 func (o *baseObject) exportToArrayOrSlice(dst reflect.Value, typ reflect.Type, ctx *objectExportCtx) error {
