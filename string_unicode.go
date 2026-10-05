@@ -710,13 +710,48 @@ func toLower(s string) String {
 	return unicodeStringFromRunes(r)
 }
 
+func toUpper(s string) String {
+	caser := cases.Upper(language.Und)
+	return newStringValue(caser.String(s))
+}
+
+func (s unicodeString) toCase(conv func(string) String) String {
+	var b StringBuilder
+	b.LikelyUnicode(len(s))
+	u := s[1:]
+	start := 0
+	for i := 0; i < len(u); i++ {
+		c := u[i]
+		if isUTF16FirstSurrogate(c) {
+			if i+1 < len(u) && isUTF16SecondSurrogate(u[i+1]) {
+				i++
+				continue
+			}
+			if start < i {
+				b.WriteString(conv(string(utf16.Decode(u[start:i]))))
+			}
+			b.WriteRune(rune(c))
+			start = i + 1
+		} else if isUTF16SecondSurrogate(c) {
+			if start < i {
+				b.WriteString(conv(string(utf16.Decode(u[start:i]))))
+			}
+			b.WriteRune(rune(c))
+			start = i + 1
+		}
+	}
+	if start < len(u) {
+		b.WriteString(conv(string(utf16.Decode(u[start:]))))
+	}
+	return b.String()
+}
+
 func (s unicodeString) toLower() String {
-	return toLower(s.String())
+	return s.toCase(toLower)
 }
 
 func (s unicodeString) toUpper() String {
-	caser := cases.Upper(language.Und)
-	return newStringValue(caser.String(s.String()))
+	return s.toCase(toUpper)
 }
 
 func (s unicodeString) Export() interface{} {
