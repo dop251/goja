@@ -10,7 +10,7 @@ jobs:
         exclude:
           # 386 binaries can't run on arm64 runners
           - os: ubuntu-24.04-arm
-            goarch: "386"
+            arch: "386"
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
