@@ -457,7 +457,6 @@ func (r *Runtime) init() {
 	r.newTemplatedObject(getGlobalObjectTemplate(), r.globalObject)
 
 	r.rootClass = &tinyClass{
-		prototype:  r.global.ObjectPrototype,
 		extensible: true,
 	}
 
@@ -524,8 +523,9 @@ func (r *Runtime) newTinyObject(proto *Object) (o *tinyObject) {
 	stats.incTinyObjectCreates()
 	v := &Object{runtime: r}
 	o = &tinyObject{
-		class: r.rootClass.getForProto(proto),
-		val:   v,
+		class:     r.rootClass,
+		prototype: proto,
+		val:       v,
 	}
 	v.self = o
 	return

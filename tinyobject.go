@@ -16,13 +16,11 @@ type propTransition struct {
 }
 
 type tinyClass struct {
-	parent    *tinyClass
-	prototype *Object
-	keys      []unistring.String
+	parent *tinyClass
+	keys   []unistring.String
 
 	singlePropTransition propTransition
 	propTransitions      map[unistring.String]weak.Pointer[tinyClass]
-	protoTransitions     map[weak.Pointer[Object]]weak.Pointer[tinyClass]
 
 	notExtensible weak.Pointer[tinyClass]
 
@@ -40,41 +38,10 @@ type tinyClass struct {
 // Deoptimisation also occurs if a property is deleted, unless it's the property that was added last
 // (in this case the class gets changed to parent).
 type tinyObject struct {
-	class  *tinyClass
-	val    *Object
-	values []Value
-}
-
-func (c *tinyClass) getForProto(proto *Object) *tinyClass {
-	if proto == c.prototype {
-		return c
-	}
-
-	stats.incTinyClassTotal()
-
-	ptr := weak.Make(proto)
-
-	t, exists := c.protoTransitions[ptr]
-	if exists {
-		if child := t.Value(); child != nil {
-			return child
-		}
-	}
-
-	stats.incTinyClassMisses()
-
-	cls := &tinyClass{
-		parent:     c,
-		keys:       c.keys,
-		prototype:  proto,
-		extensible: c.extensible,
-	}
-	if c.protoTransitions == nil {
-		c.protoTransitions = make(map[weak.Pointer[Object]]weak.Pointer[tinyClass])
-	}
-	c.protoTransitions[ptr] = weak.Make(cls)
-
-	return cls
+	class     *tinyClass
+	prototype *Object
+	val       *Object
+	values    []Value
 }
 
 func (c *tinyClass) getForProp(name unistring.String) *tinyClass {
@@ -99,7 +66,6 @@ func (c *tinyClass) getForProp(name unistring.String) *tinyClass {
 
 	child := &tinyClass{
 		parent:     c,
-		prototype:  c.prototype,
 		keys:       newKeys,
 		extensible: c.extensible,
 	}
@@ -134,9 +100,8 @@ func (c *tinyClass) getNotExtensible() *tinyClass {
 	if cls == nil {
 		stats.incTinyClassMisses()
 		cls = &tinyClass{
-			parent:    c,
-			keys:      c.keys,
-			prototype: c.prototype,
+			parent: c,
+			keys:   c.keys,
 		}
 		c.notExtensible = weak.Make(cls)
 	}
@@ -145,7 +110,7 @@ func (c *tinyClass) getNotExtensible() *tinyClass {
 
 func (o *tinyObject) deoptimize() *baseObject {
 	stats.incTinyObjectDeoptimizations()
-	bo := newBaseObjectObj(o.val, o.class.prototype, o.className())
+	bo := newBaseObjectObj(o.val, o.prototype, o.className())
 	bo.propNames = append(([]unistring.String)(nil), o.class.keys...)
 	for i, name := range bo.propNames {
 		bo.values[name] = o.values[i]
@@ -200,8 +165,8 @@ func (o *tinyObject) hasPropertyStr(name unistring.String) bool {
 	if o.hasOwnPropertyStr(name) {
 		return true
 	}
-	if o.class.prototype != nil {
-		return o.class.prototype.self.hasPropertyStr(name)
+	if o.prototype != nil {
+		return o.prototype.self.hasPropertyStr(name)
 	}
 	return false
 }
@@ -210,15 +175,15 @@ func (o *tinyObject) hasPropertyIdx(idx valueInt) bool {
 	if toIdx(idx) == math.MaxUint32 {
 		return o.hasPropertyStr(idx.string())
 	}
-	if o.class.prototype != nil {
-		return o.class.prototype.self.hasPropertyIdx(idx)
+	if o.prototype != nil {
+		return o.prototype.self.hasPropertyIdx(idx)
 	}
 	return false
 }
 
 func (o *tinyObject) hasPropertySym(s *Symbol) bool {
-	if o.class.prototype != nil {
-		return o.class.prototype.self.hasPropertySym(s)
+	if o.prototype != nil {
+		return o.prototype.self.hasPropertySym(s)
 	}
 	return false
 }
@@ -226,11 +191,11 @@ func (o *tinyObject) hasPropertySym(s *Symbol) bool {
 func (o *tinyObject) getStr(name unistring.String, receiver Value) Value {
 	prop := o.getOwnPropStr(name)
 	if prop == nil {
-		if o.class.prototype != nil {
+		if o.prototype != nil {
 			if receiver == nil {
-				return o.class.prototype.self.getStr(name, o.val)
+				return o.prototype.self.getStr(name, o.val)
 			}
-			return o.class.prototype.self.getStr(name, receiver)
+			return o.prototype.self.getStr(name, receiver)
 		}
 	}
 	return prop
@@ -241,21 +206,21 @@ func (o *tinyObject) getIdx(idx valueInt, receiver Value) Value {
 		return o.getStr(idx.string(), receiver)
 	}
 
-	if o.class.prototype != nil {
+	if o.prototype != nil {
 		if receiver == nil {
-			return o.class.prototype.self.getIdx(idx, o.val)
+			return o.prototype.self.getIdx(idx, o.val)
 		}
-		return o.class.prototype.self.getIdx(idx, receiver)
+		return o.prototype.self.getIdx(idx, receiver)
 	}
 	return nil
 }
 
 func (o *tinyObject) getSym(s *Symbol, receiver Value) Value {
-	if o.class.prototype != nil {
+	if o.prototype != nil {
 		if receiver == nil {
-			return o.class.prototype.self.getSym(s, o.val)
+			return o.prototype.self.getSym(s, o.val)
 		}
-		return o.class.prototype.self.getSym(s, receiver)
+		return o.prototype.self.getSym(s, receiver)
 	}
 	return nil
 }
@@ -282,7 +247,7 @@ func (o *tinyObject) _addProp(name unistring.String, val Value, throw bool) bool
 func (o *tinyObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
 	idx := o.class.idxForName(name)
 	if idx == -1 {
-		if proto := o.class.prototype; proto != nil {
+		if proto := o.prototype; proto != nil {
 			// we know it's foreign because prototype loops are not allowed
 			if res, handled := proto.self.setForeignStr(name, val, o.val, throw); handled {
 				return res
@@ -299,7 +264,7 @@ func (o *tinyObject) setOwnIdx(idx valueInt, val Value, throw bool) bool {
 	if toIdx(idx) == math.MaxUint32 {
 		return o.setOwnStr(idx.string(), val, throw)
 	}
-	if proto := o.class.prototype; proto != nil {
+	if proto := o.prototype; proto != nil {
 		// we know it's foreign because prototype loops are not allowed
 		if res, handled := proto.self.setForeignIdx(idx, val, o.val, throw); handled {
 			return res
@@ -316,7 +281,7 @@ func (o *tinyObject) setOwnIdx(idx valueInt, val Value, throw bool) bool {
 }
 
 func (o *tinyObject) setOwnSym(name *Symbol, val Value, throw bool) bool {
-	if proto := o.class.prototype; proto != nil {
+	if proto := o.prototype; proto != nil {
 		// we know it's foreign because prototype loops are not allowed
 		if res, handled := proto.self.setForeignSym(name, val, o.val, throw); handled {
 			return res
@@ -334,7 +299,7 @@ func (o *tinyObject) setOwnSym(name *Symbol, val Value, throw bool) bool {
 
 func (o *tinyObject) setForeignStr(name unistring.String, val, receiver Value, throw bool) (bool, bool) {
 	if idx := o.class.idxForName(name); idx == -1 {
-		if proto := o.class.prototype; proto != nil {
+		if proto := o.prototype; proto != nil {
 			if receiver != proto {
 				return proto.self.setForeignStr(name, val, receiver, throw)
 			}
@@ -347,7 +312,7 @@ func (o *tinyObject) setForeignStr(name unistring.String, val, receiver Value, t
 
 func (o *tinyObject) setForeignIdx(name valueInt, val, receiver Value, throw bool) (bool, bool) {
 	if idx := toIdx(name); idx != math.MaxUint32 {
-		if proto := o.class.prototype; proto != nil {
+		if proto := o.prototype; proto != nil {
 			if receiver != proto {
 				return proto.self.setForeignIdx(name, val, receiver, throw)
 			}
@@ -358,7 +323,7 @@ func (o *tinyObject) setForeignIdx(name valueInt, val, receiver Value, throw boo
 }
 
 func (o *tinyObject) setForeignSym(name *Symbol, val, receiver Value, throw bool) (bool, bool) {
-	if proto := o.class.prototype; proto != nil {
+	if proto := o.prototype; proto != nil {
 		if receiver != proto {
 			return proto.self.setForeignSym(name, val, receiver, throw)
 		}
@@ -427,7 +392,7 @@ func (o *tinyObject) assertConstructor() func(args []Value, newTarget *Object) *
 }
 
 func (o *tinyObject) proto() *Object {
-	return o.class.prototype
+	return o.prototype
 }
 
 func (o *tinyObject) isExtensible() bool {
@@ -547,7 +512,7 @@ func (o *tinyObject) deleteSym(*Symbol, bool) bool {
 }
 
 func (o *tinyObject) setProto(proto *Object, throw bool) bool {
-	if o.class.prototype.SameAs(proto) {
+	if o.prototype.SameAs(proto) {
 		return true
 	}
 
@@ -565,7 +530,7 @@ func (o *tinyObject) setProto(proto *Object, throw bool) bool {
 		}
 	}
 
-	o.class = o.class.getForProto(proto)
+	o.prototype = proto
 	return true
 }
 
