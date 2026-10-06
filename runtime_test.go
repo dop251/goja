@@ -3552,6 +3552,43 @@ func BenchmarkAsciiStringMapGet(b *testing.B) {
 	}
 }
 
+func TestToInt32LargeFloat(t *testing.T) {
+	vm := New()
+	v, err := vm.RunString(`
+		(Math.pow(2, 63) | 0) + "," +
+		(Math.pow(2, 63) >>> 0) + "," +
+		(1e20 | 0) + "," +
+		(-1e20 | 0) + "," +
+		((Math.pow(2, 63) + Math.pow(2, 31)) | 0) + "," +
+		((Math.pow(2, 32) + 1) | 0) + "," +
+		(-1.9 | 0) + "," +
+		String.fromCharCode(Math.pow(2, 63)).charCodeAt(0)
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "0,0,1661992960,-1661992960,-2147483648,1,-1,0"
+	if got := v.String(); got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
+
+func BenchmarkToInt32Float(b *testing.B) {
+	b.Run("fast", func(b *testing.B) {
+		f := float64(1)
+		for b.Loop() {
+			floatToUint32(f)
+		}
+	})
+
+	b.Run("slow", func(b *testing.B) {
+		f := float64(math.MaxUint64)
+		for b.Loop() {
+			floatToUint32(f)
+		}
+	})
+}
+
 func BenchmarkNew(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
