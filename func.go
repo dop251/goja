@@ -231,7 +231,7 @@ func (f *funcObject) hasOwnPropertyStr(name unistring.String) bool {
 }
 
 func (f *funcObject) stringKeys(all bool, accum []Value) []Value {
-	f._prepareValues()
+	f._materializePropNames()
 	return f.baseJsFuncObject.stringKeys(all, accum)
 }
 
@@ -291,10 +291,8 @@ func (f *baseFuncObject) _materializePropNames() {
 }
 
 func (f *baseFuncObject) _prepareValues() {
+	f.baseObject._prepareValues()
 	f._materializePropNames()
-	if f.values == nil {
-		f.values = make(map[unistring.String]Value, 2)
-	}
 }
 
 func (f *baseFuncObject) setOwnStr(p unistring.String, v Value, throw bool) bool {

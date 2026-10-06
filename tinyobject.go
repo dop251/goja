@@ -112,6 +112,7 @@ func (o *tinyObject) deoptimize() *baseObject {
 	stats.incTinyObjectDeoptimizations()
 	bo := newBaseObjectObj(o.val, o.prototype, o.className())
 	bo.propNames = append(([]unistring.String)(nil), o.class.keys...)
+	bo._prepareValues()
 	for i, name := range bo.propNames {
 		bo.values[name] = o.values[i]
 	}

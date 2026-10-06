@@ -273,7 +273,6 @@ func (f ConstructorCall) Argument(idx int) Value {
 }
 
 func (o *baseObject) init() {
-	o.values = make(map[unistring.String]Value)
 }
 
 func (o *baseObject) className() string {
@@ -494,6 +493,7 @@ func (o *baseObject) setOwnStr(name unistring.String, val Value, throw bool) boo
 			o.val.runtime.typeErrorResult(throw, "Cannot add property %s, object is not extensible", name)
 			return false
 		} else {
+			o._prepareValues()
 			o.values[name] = val
 			names := copyNamesIfNeeded(o.propNames, 1)
 			o.propNames = append(names, name)
@@ -508,6 +508,7 @@ func (o *baseObject) setOwnStr(name unistring.String, val Value, throw bool) boo
 			prop.set(o.val, val)
 		}
 	} else {
+		o._prepareValues()
 		o.values[name] = val
 	}
 	return true
@@ -763,6 +764,7 @@ Reject:
 func (o *baseObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	existingVal := o.values[name]
 	if v, ok := o._defineOwnProperty(name, existingVal, descr, throw); ok {
+		o._prepareValues()
 		o.values[name] = v
 		if existingVal == nil {
 			names := copyNamesIfNeeded(o.propNames, 1)
@@ -792,12 +794,19 @@ func (o *baseObject) defineOwnPropertySym(s *Symbol, descr PropertyDescriptor, t
 	return false
 }
 
+func (o *baseObject) _prepareValues() {
+	if o.values == nil {
+		o.values = make(map[unistring.String]Value)
+	}
+}
+
 func (o *baseObject) _put(name unistring.String, v Value) {
 	if _, exists := o.values[name]; !exists {
 		names := copyNamesIfNeeded(o.propNames, 1)
 		o.propNames = append(names, name)
 	}
 
+	o._prepareValues()
 	o.values[name] = v
 }
 
