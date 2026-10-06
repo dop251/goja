@@ -20,10 +20,66 @@ func TestSetEvilIterator(t *testing.T) {
 			}
 		}
 	}
-	new Set(o);
-	undefined;
+	new Set(o).has(undefined);
 	`
-	testScript(SCRIPT, _undefined, t)
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestSetEvilIterator1(t *testing.T) {
+	const SCRIPT = `
+	var o = [];
+	o[Symbol.iterator] = function() {
+		return {
+			next: function() {
+				if (!this.flag) {
+					this.flag = true;
+					return {};
+				}
+				return {done: true};
+			}
+		}
+	}
+	new Set(o).has(undefined);
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestSetEvilIterator2(t *testing.T) {
+	const SCRIPT = `
+	var o = [];
+	o[Symbol.iterator] = Set.prototype[Symbol.iterator];
+	assert.throws(TypeError, () => new Set(o));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestSetEvilStdIterator(t *testing.T) {
+	const SCRIPT = `
+	const ArrayIteratorPrototype = Object.getPrototypeOf([].values());
+	let values = [1, 2, 3, 4];
+	ArrayIteratorPrototype.next = function() {
+	  let done = values.length === 0;
+	  let value = values.pop();
+	  return {value, done};
+	};
+	
+	const s = new Set([]);
+	assert.sameValue(s.size, 4);
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestSetEvilStdIterator1(t *testing.T) {
+	const SCRIPT = `
+	const ArrayIteratorPrototype = Object.getPrototypeOf([].values());
+	const SetIteratorPrototype = Object.getPrototypeOf(new Set().values());
+	ArrayIteratorPrototype.next = SetIteratorPrototype.next;
+	
+	assert.throws(TypeError, () => new Set([]));
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func ExampleRuntime_ExportTo_setToMap() {
@@ -177,4 +233,20 @@ func TestSetGetAdderGetIteratorOrder(t *testing.T) {
 	thrown && getterCalled === 1 && getIteratorCalled === 0;
 	`
 	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestSetDifferenceEvilStdIterator(t *testing.T) {
+	const SCRIPT = `
+	const SetIteratorPrototype = Object.getPrototypeOf(new Set().values());
+
+	SetIteratorPrototype.next = function() {
+	  return {done: true};
+	}
+
+	var s1 = new Set([1,2,3]);
+	var s2 = new Set([2]);
+	var s3 = s1.difference(s2);
+	s3.size;
+	`
+	testScript(SCRIPT, intToValue(3), t)
 }

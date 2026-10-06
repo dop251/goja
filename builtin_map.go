@@ -17,15 +17,15 @@ type mapIterObject struct {
 	kind iterationKind
 }
 
-func (o *mapIterObject) next() Value {
+func (o *mapIterObject) nextResult(Value) (Value, bool) {
 	if o.iter == nil {
-		return o.val.runtime.createIterResultObject(_undefined, true)
+		return _undefined, false
 	}
 
 	entry := o.iter.next()
 	if entry == nil {
 		o.iter = nil
-		return o.val.runtime.createIterResultObject(_undefined, true)
+		return _undefined, false
 	}
 
 	var result Value
@@ -38,7 +38,12 @@ func (o *mapIterObject) next() Value {
 		result = o.val.runtime.newArrayValues([]Value{entry.key, entry.value})
 	}
 
-	return o.val.runtime.createIterResultObject(result, false)
+	return result, true
+}
+
+func (o *mapIterObject) next() Value {
+	value, valid := o.nextResult(nil)
+	return o.val.runtime.createIterResultObject(value, !valid)
 }
 
 func (mo *mapObject) init() {
@@ -305,7 +310,12 @@ func (r *Runtime) createMap(val *Object) objectImpl {
 func (r *Runtime) createMapIterProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.getIteratorPrototype(), classObject)
 
-	o._putProp("next", r.newNativeFunc(r.mapIterProto_next, "next", 0), true, false, true)
+	o._putProp("next", r.newIteratorNextFunc(r.mapIterProto_next, 0, func(iterator *Object) func(Value) (Value, bool) {
+		if i, ok := iterator.self.(*mapIterObject); ok {
+			return i.nextResult
+		}
+		return nil
+	}), true, false, true)
 	o._putSym(SymToStringTag, valueProp(asciiString(classMapIterator), false, false, true))
 
 	return o

@@ -22,6 +22,25 @@ func TestSparseArraySetLengthWithPropItems(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestSparseArraySetLengthNonConfigurableAtNewLength(t *testing.T) {
+	const SCRIPT = `
+	var a = [];
+	a[100000] = 5; // make it sparse
+	Object.defineProperty(a, "5", {value: 42, configurable: false, writable: false});
+	var thrown = false;
+	try {
+		Object.defineProperty(a, "length", {value: 5});
+	} catch (e) {
+		thrown = e instanceof TypeError;
+	}
+	// The element at index 5 (== new length) is non-configurable, so the
+	// operation must fail and the element must be preserved (length becomes 6).
+	thrown && a.length === 6 && a[5] === 42 && a[100000] === undefined;
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestSparseArraySwitch(t *testing.T) {
 	vm := New()
 	_, err := vm.RunString(`
@@ -260,5 +279,43 @@ func TestSparseArrayExportToSlice(t *testing.T) {
 		if exp[i] != 0 {
 			t.Fatalf("at %d: %d", i, exp[i])
 		}
+	}
+}
+
+func TestSparseArrayExportToSliceInheritedHoles(t *testing.T) {
+	vm := New()
+	_, err := vm.RunString(`
+	var a = [];
+	a[100000] = 1;   // make it sparse
+	a.length = 3;     // length 3, indices 0..2 are holes
+	a[2] = "own";
+	Object.setPrototypeOf(a, {0: "inh0", 1: "inh1"});
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := vm.Get("a").(*Object)
+	if _, ok := a.self.(*sparseArrayObject); !ok {
+		t.Fatal("array is not sparse")
+	}
+
+	// ExportTo must resolve holes through the prototype chain, matching
+	// the default Array Iterator and Export().
+	var exp []string
+	err = vm.ExportTo(a, &exp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(exp) != 3 {
+		t.Fatalf("len: %d", len(exp))
+	}
+	if exp[0] != "inh0" {
+		t.Fatalf("0: %q", exp[0])
+	}
+	if exp[1] != "inh1" {
+		t.Fatalf("1: %q", exp[1])
+	}
+	if exp[2] != "own" {
+		t.Fatalf("2: %q", exp[2])
 	}
 }

@@ -1454,16 +1454,6 @@ func (r *Runtime) checkStdArray(v Value) *arrayObject {
 	return nil
 }
 
-func (r *Runtime) checkStdArrayIter(v Value) *arrayObject {
-	if arr := r.checkStdArray(v); arr != nil &&
-		arr.getSym(SymIterator, nil) == r.getArrayValues() {
-
-		return arr
-	}
-
-	return nil
-}
-
 func (r *Runtime) array_from(call FunctionCall) Value {
 	var mapFn func(FunctionCall) Value
 	if mapFnArg := call.Argument(1); mapFnArg != _undefined {
@@ -1478,13 +1468,6 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 	}
 	t := call.Argument(2)
 	items := call.Argument(0)
-	if mapFn == nil && call.This == r.global.Array { // mapFn may mutate the array
-		if arr := r.checkStdArrayIter(items); arr != nil {
-			items := make([]Value, len(arr.values))
-			copy(items, arr.values)
-			return r.newArrayValues(items)
-		}
-	}
 
 	var ctor func(args []Value, newTarget *Object) *Object
 	if call.This != r.global.Array {
@@ -1505,9 +1488,14 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		if mapFn == nil {
 			if a := r.checkStdArrayObjWithProto(arr); a != nil {
 				var values []Value
-				iter.iterate(func(val Value) {
-					values = append(values, val)
-				})
+				if src := r.checkStdArray(items); src != nil && iter.nextRes != nil {
+					values = make([]Value, len(src.values))
+					copy(values, src.values)
+				} else {
+					iter.iterate(func(val Value) {
+						values = append(values, val)
+					})
+				}
 				setArrayValues(a, values)
 				return arr
 			}
@@ -1714,7 +1702,12 @@ func (r *Runtime) createArray(val *Object) objectImpl {
 func (r *Runtime) createArrayIterProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.getIteratorPrototype(), classObject)
 
-	o._putProp("next", r.newNativeFunc(r.arrayIterProto_next, "next", 0), true, false, true)
+	o._putProp("next", r.newIteratorNextFunc(r.arrayIterProto_next, 0, func(iterator *Object) func(Value) (Value, bool) {
+		if i, ok := iterator.self.(*arrayIterObject); ok {
+			return i.nextResult
+		}
+		return nil
+	}), true, false, true)
 	o._putSym(SymToStringTag, valueProp(asciiString(classArrayIterator), false, false, true))
 
 	return o

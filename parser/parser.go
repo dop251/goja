@@ -87,6 +87,7 @@ type _parser struct {
 	offset    int  // The offset after current character (may be greater than 1)
 
 	idx           file.Idx    // The index of token
+	prevTokenEnd  file.Idx    // The index right after the previous token
 	token         token.Token // The token
 	literal       string      // The literal of the token, if any
 	parsedLiteral unistring.String
@@ -220,6 +221,7 @@ func (self *_parser) parse() (*ast.Program, error) {
 }
 
 func (self *_parser) next() {
+	self.prevTokenEnd = self.idxOf(self.chrOffset)
 	self.token, self.literal, self.parsedLiteral, self.idx = self.scan()
 }
 

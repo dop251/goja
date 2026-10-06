@@ -6,55 +6,104 @@ import (
 	"weak"
 )
 
-type weakMap struct {
-	m map[weak.Pointer[Object]]Value
+type weakMapRefsValue struct {
+	value Value
+
+	// Keep these so that they can be stopped after an entry is removed from the weakMap to prevent memory leaks
+	keyCleanup, wmCleanup runtime.Cleanup
+}
+
+type weakMapRefs struct {
+	m map[weak.Pointer[weakMap]]*weakMapRefsValue
 	sync.Mutex
 }
 
-func (wm *weakMap) set(key *Object, value Value) {
-	p := weak.Make(key)
-	wm.Lock()
-	_, exists := wm.m[p]
-	wm.m[p] = value
-	wm.Unlock()
-	if !exists {
-		wmPtr := weak.Make(wm) // do not hold strong reference to wm so that it could be collected by GC
-		runtime.AddCleanup(key, func(p weak.Pointer[Object]) {
-			wm := wmPtr.Value()
-			if wm == nil {
-				return
-			}
-			wm.Lock()
-			delete(wm.m, p)
-			wm.Unlock()
-		}, p)
+func newWeakMapRefs() *weakMapRefs {
+	return &weakMapRefs{
+		m: make(map[weak.Pointer[weakMap]]*weakMapRefsValue),
 	}
 }
 
+type weakMap struct {
+	// Make sure it's not zero-sized and is not tiny-allocated so that runtime.Cleanup runs on it
+	_ [16]byte
+}
+
+func (wm *weakMap) set(key *Object, value Value) {
+	type wmCleanupArg struct {
+		refPtr weak.Pointer[weakMapRefs]
+		wmPtr  weak.Pointer[weakMap]
+	}
+
+	refs := key.getWeakMapRefs(true)
+	p := weak.Make(wm)
+	refs.Lock()
+	if v, exists := refs.m[p]; !exists {
+		// This is to ensure keys do not keep values alive after weakMap becomes unreachable
+		wmCleanup := runtime.AddCleanup(wm, func(arg wmCleanupArg) {
+			refs := arg.refPtr.Value()
+			if refs == nil {
+				return
+			}
+			refs.Lock()
+			if v, exists := refs.m[arg.wmPtr]; exists {
+				v.keyCleanup.Stop()
+				delete(refs.m, arg.wmPtr)
+			}
+			refs.Unlock()
+		}, wmCleanupArg{weak.Make(refs), p})
+
+		// This is to prevent wmCleanup from taking memory after key becomes unreachable (which makes wmCleanup a no-op)
+		keyCleanup := runtime.AddCleanup(refs, func(c runtime.Cleanup) {
+			c.Stop()
+		}, wmCleanup)
+
+		refs.m[p] = &weakMapRefsValue{
+			value:      value,
+			keyCleanup: keyCleanup,
+			wmCleanup:  wmCleanup,
+		}
+	} else {
+		v.value = value
+	}
+	refs.Unlock()
+}
+
 func (wm *weakMap) get(key *Object) (res Value) {
-	p := weak.Make(key)
-	wm.Lock()
-	res = wm.m[p]
-	wm.Unlock()
+	if refs := key.getWeakMapRefs(false); refs != nil {
+		p := weak.Make(wm)
+		refs.Lock()
+		if v, exists := refs.m[p]; exists {
+			res = v.value
+		}
+		refs.Unlock()
+	}
 	return
 }
 
 func (wm *weakMap) remove(key *Object) (removed bool) {
-	p := weak.Make(key)
-	wm.Lock()
-	if _, removed = wm.m[p]; removed {
-		delete(wm.m, p)
+	if refs := key.getWeakMapRefs(false); refs != nil {
+		p := weak.Make(wm)
+		refs.Lock()
+		if v, exists := refs.m[p]; exists {
+			delete(refs.m, p)
+			v.wmCleanup.Stop()
+			v.keyCleanup.Stop()
+			removed = true
+		}
+		refs.Unlock()
 	}
-	wm.Unlock()
 	return
 }
 
-func (wm *weakMap) has(key *Object) bool {
-	p := weak.Make(key)
-	wm.Lock()
-	_, exists := wm.m[p]
-	wm.Unlock()
-	return exists
+func (wm *weakMap) has(key *Object) (exists bool) {
+	if refs := key.getWeakMapRefs(false); refs != nil {
+		p := weak.Make(wm)
+		refs.Lock()
+		_, exists = refs.m[p]
+		refs.Unlock()
+	}
+	return
 }
 
 type weakMapObject struct {
@@ -64,9 +113,6 @@ type weakMapObject struct {
 
 func (wmo *weakMapObject) init() {
 	wmo.baseObject.init()
-	wmo.m = weakMap{
-		m: make(map[weak.Pointer[Object]]Value),
-	}
 }
 
 func (r *Runtime) weakMapProto_delete(call FunctionCall) Value {

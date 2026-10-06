@@ -2175,6 +2175,30 @@ func TestFunctionToString(t *testing.T) {
 	testScript(SCRIPT, asciiString("function anonymous(arg1,arg2\n) {\nreturn 42\n}"), t)
 }
 
+func TestArrowFunctionToString(t *testing.T) {
+	for _, src := range []string{
+		"() => ({ a: 1 })",
+		"() => (1 + 2)",
+		"() => ([1, 2])",
+		"() => (({a:1}))",
+		"() => (1, 2)",
+		"async () => (1)",
+		"async x => (x)",
+		"(x) => x",
+		"() => { return 1 }",
+	} {
+		t.Run(src, func(t *testing.T) {
+			testScript("String("+src+")", newStringValue(src), t)
+			testScript("var f = "+src+" /* comment */\n;String(f)", newStringValue(src), t)
+		})
+	}
+
+	testScript("[1].map(x => (x)).concat([x => (x)].map(String)).join('|')", asciiString("1|x => (x)"), t)
+	testScript("function f(g, n) { return String(g) + n }; f(x => (x), 1)", asciiString("x => (x)1"), t)
+	testScript("var fns = [() => (1), () => (2)]; fns.map(String).join('|')", asciiString("() => (1)|() => (2)"), t)
+	testScript("String(function () { return ({ a: 1 }) })", asciiString("function () { return ({ a: 1 }) }"), t)
+}
+
 func TestObjectLiteral(t *testing.T) {
 	const SCRIPT = `
 	var getterCalled = false;
@@ -3079,6 +3103,12 @@ func TestIfStackLeaks(t *testing.T) {
 	}
 	`
 	testScript(SCRIPT, _positiveZero, t)
+}
+
+func TestDiscardedFalsyLogicalAndDoesNotLeak(t *testing.T) {
+	testScript(`1 == (0 && 1, 0)`, valueFalse, t)
+	testScript(`(0 && 1) === 0 && (1 && 2) === 2`, valueTrue, t)
+	testScript(`var n = 0; (n++, 0) && (n++, 1); n === 1`, valueTrue, t)
 }
 
 func TestWithCallee(t *testing.T) {
@@ -5689,6 +5719,23 @@ func TestPrivateIn(t *testing.T) {
 	C.check(c);
 	`
 	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestRelationalLeftAssociative(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		#a;
+		static check(inst) {
+			return #a in inst in {true: 1};
+		}
+	}
+	assert.sameValue(3 > 2 > 1, false, "3 > 2 > 1");
+	assert.sameValue(1 <= 0 <= 0, true, "1 <= 0 <= 0");
+	assert.sameValue({} instanceof Object instanceof Object, false, "instanceof");
+	assert.sameValue("a" in {a: 1} in {true: 1}, true, "in");
+	assert.sameValue(C.check(new C()), true, "#a in");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestDeletePropOfNonObject(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go/ast"
 	"hash/maphash"
+	"iter"
 	"math"
 	"math/big"
 	"math/bits"
@@ -124,7 +125,10 @@ type global struct {
 
 	AsyncFunctionPrototype *Object
 
+	Iterator                      *Object
 	IteratorPrototype             *Object
+	IteratorHelperPrototype       *Object
+	WrapForValidIteratorPrototype *Object
 	ArrayIteratorPrototype        *Object
 	MapIteratorPrototype          *Object
 	SetIteratorPrototype          *Object
@@ -144,7 +148,6 @@ type global struct {
 	mapAdder      *Object
 	setAdder      *Object
 	setHas        *Object
-	setValues     *Object
 	arrayValues   *Object
 	arrayToString *Object
 
@@ -433,6 +436,7 @@ func (r *Runtime) createIterProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 
 	o._putSym(SymIterator, valueProp(r.newNativeFunc(r.returnThis, "[Symbol.iterator]", 0), true, false, true))
+	r.addIteratorHelpers(o)
 	return o
 }
 
@@ -779,6 +783,28 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, name unistring.St
 	return v
 }
 
+func (r *Runtime) newIteratorNextFunc(call func(FunctionCall) Value, length int64, getNextResult func(*Object) func(Value) (Value, bool)) *Object {
+	v := &Object{runtime: r}
+
+	f := &iteratorNextFunction{
+		nativeFuncObject: nativeFuncObject{
+			baseFuncObject: baseFuncObject{
+				baseObject: baseObject{
+					class:      classFunction,
+					val:        v,
+					extensible: true,
+					prototype:  r.getFunctionPrototype(),
+				},
+				callFn: call,
+			},
+		},
+		getNextResult: getNextResult,
+	}
+	v.self = f
+	f.init("next", intToValue(length))
+	return v
+}
+
 func (r *Runtime) newWrappedFunc(value reflect.Value) *Object {
 
 	v := &Object{runtime: r}
@@ -800,6 +826,9 @@ func (r *Runtime) newWrappedFunc(value reflect.Value) *Object {
 	v.self = f
 	name := unistring.NewFromString(runtime.FuncForPC(value.Pointer()).Name())
 	f.init(name, intToValue(int64(value.Type().NumIn())))
+	if iter := r.getGoFuncIterator(value); iter != nil {
+		f._putSym(SymIterator, valueProp(r.newNativeFunc(iter, "[Symbol.iterator]", 0), true, false, true))
+	}
 	return v
 }
 
@@ -1114,6 +1143,27 @@ func toInt16(v Value) int16 {
 	return 0
 }
 
+// floatToUint32 implements ECMAScript ToUint32 for float64 values.
+func floatToUint32(f float64) uint32 {
+	b := math.Float64bits(f)
+	exp := int(b>>52&0x7ff) - 1075 // value = mant * 2^exp
+	mant := b&(1<<52-1) | 1<<52
+
+	var r uint64
+	switch {
+	case exp >= 32: // multiple of 2^32; also Inf/NaN (exp = 972)
+		r = 0
+	case exp >= 0:
+		r = mant << uint(exp) // high bits wrap away, low 32 are exact
+	default:
+		r = mant >> uint(-exp) // truncates toward zero; Go gives 0 for shifts >= 64
+	}
+	if int64(b) < 0 {
+		r = -r
+	}
+	return uint32(r)
+}
+
 func toUint16(v Value) uint16 {
 	v = toNumberValue(v)
 	if i, ok := v.(valueInt); ok {
@@ -1121,10 +1171,7 @@ func toUint16(v Value) uint16 {
 	}
 
 	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return uint16(int64(f))
-		}
+		return uint16(floatToUint32(float64(f)))
 	}
 	return 0
 }
@@ -1136,10 +1183,7 @@ func toInt32(v Value) int32 {
 	}
 
 	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return int32(int64(f))
-		}
+		return int32(floatToUint32(float64(f)))
 	}
 	return 0
 }
@@ -1151,10 +1195,7 @@ func toUint32(v Value) uint32 {
 	}
 
 	if f, ok := v.(valueFloat); ok {
-		f := float64(f)
-		if !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return uint32(int64(f))
-		}
+		return floatToUint32(float64(f))
 	}
 	return 0
 }
@@ -1722,6 +1763,13 @@ converted into a JS exception. If the error is *Exception, it is thrown as is, o
 Note that if there are exactly two return values and the last is an `error`, the function returns the first value as is,
 not an Array.
 
+Iterator functions (https://pkg.go.dev/iter) have Symbol.iterator property and therefore can be iterated over using
+for-of loops. Both single-value and 2-value iterators are supported. In case of 2-value iterators the yielded value
+is a 2-element array, unless the second value's type is `error`. If the second value is error, and the iterator yields
+a non-nil value for it, it is thrown as an exception (and iteration stops), otherwise a single value is yielded.
+
+See ExampleRuntime_ToValue_seq, ExampleRuntime_ToValue_seq2 and ExampleRuntime_ToValue_seq2err.
+
 # Structs
 
 Structs are converted to Object-like values. Fields and methods are available as properties, their values are
@@ -1937,6 +1985,9 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 
 	switch value.Kind() {
 	case reflect.Map:
+		if value.IsNil() {
+			return _null
+		}
 		if value.Type().NumMethod() == 0 {
 			switch value.Type().Key().Kind() {
 			case reflect.String, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
@@ -1990,6 +2041,9 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 		obj.self = a
 		return obj
 	case reflect.Func:
+		if value.IsNil() {
+			return _null
+		}
 		return r.newWrappedFunc(value)
 	}
 
@@ -2737,32 +2791,176 @@ func (r *Runtime) getV(v Value, p Value) Value {
 type iteratorRecord struct {
 	iterator *Object
 	next     func(FunctionCall) Value
+	nextRes  func(Value) (Value, bool)
+}
+
+func (r *Runtime) wrapIterSeq(nextFunc reflect.Value) (func(Value) (Value, bool), func()) {
+	n, stop := iter.Pull(nextFunc.Seq())
+	return func(Value) (Value, bool) {
+		val, valid := n()
+		if !valid {
+			return _undefined, false
+		}
+		return r.toValue(val.Interface(), val), true
+	}, stop
+}
+
+func (r *Runtime) wrapIterSeq2(nextFunc reflect.Value) (func(Value) (Value, bool), func()) {
+	n, stop := iter.Pull2(nextFunc.Seq2())
+	if nextFunc.Type().In(0).In(1) == reflectTypeError {
+		return func(Value) (Value, bool) {
+			val, errVal, valid := n()
+			if !valid {
+				return _undefined, false
+			}
+			if !errVal.IsNil() {
+				stop()
+				err := errVal.Interface().(error)
+				if _, ok := err.(*Exception); ok {
+					panic(err)
+				}
+				if isUncatchableException(err) {
+					panic(err)
+				}
+				panic(r.NewGoError(err))
+			}
+			return r.toValue(val.Interface(), val), true
+		}, stop
+	}
+
+	return func(Value) (Value, bool) {
+		val1, val2, valid := n()
+		if !valid {
+			return _undefined, false
+		}
+		return r.newArrayValues([]Value{r.toValue(val1.Interface(), val1), r.toValue(val2.Interface(), val2)}), true
+	}, stop
+}
+
+func (r *Runtime) newGoIter(next func(Value) (Value, bool), stop func()) *Object {
+	iterObj := r.NewObject()
+	iterObj.self.setOwnStr("next", r.newIteratorNextFunc(func(functionCall FunctionCall) Value {
+		value, valid := next(nil)
+		return r.createIterResultObject(value, !valid)
+	}, 0, func(*Object) func(Value) (Value, bool) {
+		return next
+	}), false)
+	if stop != nil {
+		iterObj.self.setOwnStr("return", r.ToValue(func(call FunctionCall) Value {
+			stop()
+			return r.createIterResultObject(call.Argument(0), true)
+		}), false)
+	}
+	return iterObj
+}
+
+func (r *Runtime) getGoFuncIterator(fn reflect.Value) func(FunctionCall) Value {
+	typ := fn.Type()
+	if typ.CanSeq() {
+		return func(FunctionCall) Value {
+			return r.newGoIter(r.wrapIterSeq(fn))
+		}
+	}
+	if typ.CanSeq2() {
+		return func(FunctionCall) Value {
+			return r.newGoIter(r.wrapIterSeq2(fn))
+		}
+	}
+	return nil
 }
 
 func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *iteratorRecord {
 	if method == nil {
 		method = toMethod(r.getV(obj, SymIterator))
+	}
+	if method != nil {
+		iter := r.toObject(method(FunctionCall{
+			This: obj,
+		}))
+
+		return r.getIteratorDirect(iter)
+	}
+
+	panic(r.NewTypeError("object is not iterable"))
+}
+
+func (r *Runtime) getOptionalIterator(obj Value, method func(FunctionCall) Value) (ir *iteratorRecord, err error) {
+	err = r.try(func() {
 		if method == nil {
-			panic(r.NewTypeError("object is not iterable"))
+			method = toMethod(r.getV(obj, SymIterator))
 		}
-	}
+		if method != nil {
+			iter := r.toObject(method(FunctionCall{
+				This: obj,
+			}))
 
-	iter := r.toObject(method(FunctionCall{
-		This: obj,
-	}))
-
-	var next func(FunctionCall) Value
-
-	if obj, ok := iter.self.getStr("next", nil).(*Object); ok {
-		if call, ok := obj.self.assertCallable(); ok {
-			next = call
+			ir = r.getIteratorDirect(iter)
 		}
+	})
+	return
+}
+
+func (r *Runtime) getAsyncIterator(obj Value) *iteratorRecord {
+	if method := toMethod(r.getV(obj, SymAsyncIterator)); method != nil {
+		return r.getIterator(obj, method)
+	}
+	return r.createAsyncFromSyncIterator(r.getIterator(obj, nil))
+}
+
+// createAsyncFromSyncIterator implements CreateAsyncFromSyncIterator. The iterator object is only accessible
+// by for-await, so it only needs a 'return' method, 'next' is stored in the record.
+func (r *Runtime) createAsyncFromSyncIterator(syncIter *iteratorRecord) *iteratorRecord {
+	// AsyncFromSyncIteratorContinuation. Closing the sync iterator on rejection ignores any errors from return().
+	continuation := func(result *Object, pcap *promiseCapability, closeOnRejection bool) {
+		done := iteratorComplete(result)
+		value := iteratorValue(result)
+		closeOnRejection = closeOnRejection && !done
+		var valueWrapper *Object
+		if ex := r.vm.try(func() {
+			valueWrapper = r.promiseResolve(r.getPromise(), value)
+		}); ex != nil {
+			if closeOnRejection {
+				_ = r.vm.try(syncIter.returnIter)
+			}
+			panic(ex)
+		}
+		onFulfilled := r.newNativeFunc(func(call FunctionCall) Value {
+			return r.createIterResultObject(call.Argument(0), done)
+		}, "", 1)
+		var onRejected Value = _undefined
+		if closeOnRejection {
+			onRejected = r.newNativeFunc(func(call FunctionCall) Value {
+				_ = r.vm.try(syncIter.returnIter)
+				panic(call.Argument(0))
+			}, "", 1)
+		}
+		r.performPromiseThen(valueWrapper.self.(*Promise), onFulfilled, onRejected, pcap)
 	}
 
-	return &iteratorRecord{
-		iterator: iter,
-		next:     next,
+	next := func(FunctionCall) Value {
+		pcap := r.newPromiseCapability(r.getPromise())
+		pcap.try(func() {
+			if syncIter.next == nil {
+				panic(r.NewTypeError("iterator.next is not a function"))
+			}
+			continuation(r.toObject(syncIter.next(FunctionCall{This: syncIter.iterator})), pcap, true)
+		})
+		return pcap.promise
 	}
+	ret := func(FunctionCall) Value {
+		pcap := r.newPromiseCapability(r.getPromise())
+		pcap.try(func() {
+			if method := toMethod(syncIter.iterator.self.getStr("return", nil)); method != nil {
+				continuation(r.toObject(method(FunctionCall{This: syncIter.iterator})), pcap, false)
+			} else {
+				pcap.resolve(r.createIterResultObject(_undefined, true))
+			}
+		})
+		return pcap.promise
+	}
+	iter := r.NewObject()
+	iter.self._putProp("return", r.newNativeFunc(ret, "return", 0), true, false, true)
+	return &iteratorRecord{iterator: iter, next: next}
 }
 
 func iteratorComplete(iterResult *Object) bool {
@@ -2779,11 +2977,10 @@ func (ir *iteratorRecord) iterate(step func(Value)) {
 		if ir.next == nil {
 			panic(r.NewTypeError("iterator.next is missing or not a function"))
 		}
-		res := r.toObject(ir.next(FunctionCall{This: ir.iterator}))
-		if iteratorComplete(res) {
+		value, valid := ir.stepValue()
+		if !valid {
 			break
 		}
-		value := iteratorValue(res)
 		ret := tryFunc(func() {
 			step(value)
 		})
@@ -2799,11 +2996,10 @@ func (ir *iteratorRecord) iterate(step func(Value)) {
 func (ir *iteratorRecord) step() (value Value, ex *Exception) {
 	r := ir.iterator.runtime
 	ex = r.vm.try(func() {
-		res := r.toObject(ir.next(FunctionCall{This: ir.iterator}))
-		done := iteratorComplete(res)
-		if !done {
-			value = iteratorValue(res)
-		} else {
+		var valid bool
+		value, valid = ir.stepValue()
+		if !valid {
+			value = nil
 			ir.close()
 		}
 	})
@@ -2820,11 +3016,13 @@ func (ir *iteratorRecord) returnIter() {
 	}
 	ir.iterator = nil
 	ir.next = nil
+	ir.nextRes = nil
 }
 
 func (ir *iteratorRecord) close() {
 	ir.iterator = nil
 	ir.next = nil
+	ir.nextRes = nil
 }
 
 // ForOf is a Go equivalent of for-of loop. The function panics if an exception is thrown at any point
