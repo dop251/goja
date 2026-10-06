@@ -206,8 +206,6 @@ var (
 
 		// Language tests (class, with, module, expressions, identifiers)
 		"test/language/statements/class/subclass/private-class-field-on-nonextensible-return-override.js":                                   true,
-		"test/language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js":                         true,
-		"test/language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js":                         true,
 		"test/language/statements/class/elements/private-class-field-on-nonextensible-objects.js":                                           true,
 		"test/language/statements/with/set-mutable-binding-idref-compound-assign-with-proxy-env.js":                                         true,
 		"test/language/statements/with/set-mutable-binding-binding-deleted-with-typed-array-in-proto-chain.js":                              true,
