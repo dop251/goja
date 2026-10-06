@@ -1100,18 +1100,25 @@ func toInt16(v Value) int16 {
 	return 0
 }
 
-// floatToUint32 implements ECMAScript ToUint32.
-// int64(f) saturates at MaxInt64, so a float past that limit
-// keeps the wrong low bits. 2^63 becomes 4294967295 instead of 0.
+// floatToUint32 implements ECMAScript ToUint32 for float64 values.
 func floatToUint32(f float64) uint32 {
-	if f == 0 || math.IsNaN(f) || math.IsInf(f, 0) {
-		return 0
+	b := math.Float64bits(f)
+	exp := int(b>>52&0x7ff) - 1075 // value = mant * 2^exp
+	mant := b&(1<<52-1) | 1<<52
+
+	var r uint64
+	switch {
+	case exp >= 32: // multiple of 2^32; also Inf/NaN (exp = 972)
+		r = 0
+	case exp >= 0:
+		r = mant << uint(exp) // high bits wrap away, low 32 are exact
+	default:
+		r = mant >> uint(-exp) // truncates toward zero; Go gives 0 for shifts >= 64
 	}
-	f = math.Mod(math.Trunc(f), 4294967296)
-	if f < 0 {
-		f += 4294967296
+	if int64(b) < 0 {
+		r = -r
 	}
-	return uint32(f)
+	return uint32(r)
 }
 
 func toUint16(v Value) uint16 {

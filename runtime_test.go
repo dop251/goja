@@ -3552,13 +3552,6 @@ func BenchmarkAsciiStringMapGet(b *testing.B) {
 	}
 }
 
-func BenchmarkNew(b *testing.B) {
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		New()
-	}
-}
-
 func TestToInt32LargeFloat(t *testing.T) {
 	vm := New()
 	v, err := vm.RunString(`
@@ -3577,5 +3570,28 @@ func TestToInt32LargeFloat(t *testing.T) {
 	const want = "0,0,1661992960,-1661992960,-2147483648,1,-1,0"
 	if got := v.String(); got != want {
 		t.Fatalf("got %s, want %s", got, want)
+	}
+}
+
+func BenchmarkToInt32Float(b *testing.B) {
+	b.Run("fast", func(b *testing.B) {
+		f := float64(1)
+		for b.Loop() {
+			floatToUint32(f)
+		}
+	})
+
+	b.Run("slow", func(b *testing.B) {
+		f := float64(math.MaxUint64)
+		for b.Loop() {
+			floatToUint32(f)
+		}
+	})
+}
+
+func BenchmarkNew(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		New()
 	}
 }
