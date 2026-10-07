@@ -259,7 +259,6 @@ var (
 		"symbols-as-weakmap-keys",
 		"String.prototype.toWellFormed",
 		"explicit-resource-management",
-		"promise-with-resolvers",
 		"array-grouping",
 		"Math.sumPrecise",
 		"Float16Array",
