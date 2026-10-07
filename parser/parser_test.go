@@ -122,15 +122,19 @@ func TestParserErr(t *testing.T) {
 
 		test("3e-", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
+		test("08n", "(anonymous): Line 1:1 Illegal numeric literal")
+
+		test("017.5", "(anonymous): Line 1:4 Unexpected number")
+
 		test("3x", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
 		test("3x0", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
 		test("0x", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
-		test("09", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
+		test("09", nil)
 
-		test("018", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
+		test("018", nil)
 
 		test("01.0", "(anonymous): Line 1:3 Unexpected number")
 

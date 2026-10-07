@@ -173,6 +173,14 @@ func TestBinOctalNumbers(t *testing.T) {
 	testScript(SCRIPT, valueInt(7), t)
 }
 
+func TestNonOctalDecimalNumbers(t *testing.T) {
+	const SCRIPT = `
+	08 === 8 && 019 === 19 && 09.5 === 9.5 && 08e1 === 80 && 017 === 15;
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestSetFunc(t *testing.T) {
 	const SCRIPT = `
 	sum(40, 2);

@@ -1175,7 +1175,10 @@ func (self *_parser) scanNumericLiteral(decimalPoint bool) (token.Token, string)
 			default:
 				// legacy octal
 				self.scanMantissa(8, false)
-				goto end
+				if !isDecimalDigit(self.chr) {
+					goto end
+				}
+				self.scanMantissa(10, false)
 			}
 			if base > 0 {
 				self.read()

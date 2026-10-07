@@ -160,9 +160,8 @@ var (
 		"test/built-ins/GeneratorFunction/is-a-constructor.js":                                                                                        true,
 
 		// legacy number literals
-		"test/language/literals/numeric/non-octal-decimal-integer.js": true,
-		"test/language/literals/string/S7.8.4_A4.3_T2.js":             true,
-		"test/language/literals/string/S7.8.4_A4.3_T1.js":             true,
+		"test/language/literals/string/S7.8.4_A4.3_T2.js": true,
+		"test/language/literals/string/S7.8.4_A4.3_T1.js": true,
 
 		// unicode full case folding
 		"test/built-ins/RegExp/unicode_full_case_folding.js": true,
