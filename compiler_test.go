@@ -5889,8 +5889,13 @@ func TestClassFieldSpecial(t *testing.T) {
 		async;
 		static;
 	}
+	class D {
+		async = 1
+		static async
+	}
+	new D().async === 1 && "async" in D;
 	`
-	testScript(SCRIPT, _undefined, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestClassMethodSpecial(t *testing.T) {

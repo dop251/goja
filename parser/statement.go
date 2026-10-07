@@ -365,7 +365,8 @@ func (self *_parser) parseClass(declaration bool) *ast.ClassLiteral {
 				self.next()
 			}
 		} else if self.token == token.ASYNC {
-			if tok := self.peek(); tok != token.SEMICOLON && tok != token.LEFT_PARENTHESIS {
+			if tok := self.peek(); tok == token.LEFT_BRACKET || tok == token.STRING ||
+				tok == token.NUMBER || tok == token.PRIVATE_IDENTIFIER || tok == token.MULTIPLY || token.IsId(tok) {
 				async = true
 				kind = ast.PropertyKindMethod
 				self.next()
