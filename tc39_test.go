@@ -261,7 +261,6 @@ var (
 		"explicit-resource-management",
 		"promise-try",
 		"promise-with-resolvers",
-		"array-grouping",
 		"Math.sumPrecise",
 		"Float16Array",
 		"arraybuffer-transfer",
