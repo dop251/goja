@@ -547,18 +547,20 @@ func (r *Runtime) promise_resolve(call FunctionCall) Value {
 }
 
 func (r *Runtime) promise_try(call FunctionCall) Value {
-	pcap := r.newPromiseCapability(r.toObject(call.This))
+	c := r.toObject(call.This)
 	var args []Value
 	if len(call.Arguments) > 1 {
 		args = call.Arguments[1:]
 	}
 	var result Value
-	if pcap.try(func() {
+	if ex := r.vm.try(func() {
 		result = r.toCallable(call.Argument(0))(FunctionCall{This: _undefined, Arguments: args})
-	}) {
-		pcap.resolve(result)
+	}); ex != nil {
+		pcap := r.newPromiseCapability(c)
+		pcap.reject(ex.val)
+		return pcap.promise
 	}
-	return pcap.promise
+	return r.promiseResolve(c, result)
 }
 
 func (r *Runtime) promise_withResolvers(call FunctionCall) Value {
