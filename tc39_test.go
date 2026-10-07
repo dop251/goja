@@ -260,7 +260,6 @@ var (
 		"String.prototype.toWellFormed",
 		"explicit-resource-management",
 		"promise-try",
-		"promise-with-resolvers",
 		"Math.sumPrecise",
 		"Float16Array",
 		"arraybuffer-transfer",
