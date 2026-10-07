@@ -257,7 +257,6 @@ var (
 		"regexp-duplicate-named-groups",
 		"regexp-v-flag",
 		"symbols-as-weakmap-keys",
-		"String.prototype.toWellFormed",
 		"explicit-resource-management",
 		"promise-try",
 		"array-grouping",
@@ -265,7 +264,6 @@ var (
 		"Float16Array",
 		"arraybuffer-transfer",
 		"Array.fromAsync",
-		"String.prototype.isWellFormed",
 
 		"source-phase-imports",
 		"import-attributes",

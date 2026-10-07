@@ -462,6 +462,25 @@ func (s unicodeString) Length() int {
 	return len(s) - 1
 }
 
+// loneSurrogateIndex returns the index of the first code unit in s that is not part of a valid surrogate pair,
+// or -1 if s is a well-formed UTF-16 string.
+func (s unicodeString) loneSurrogateIndex() int {
+	for i := 1; i < len(s); i++ {
+		c := s[i]
+		if isUTF16FirstSurrogate(c) {
+			if i+1 < len(s) && isUTF16SecondSurrogate(s[i+1]) {
+				i++
+				continue
+			}
+			return i - 1
+		}
+		if isUTF16SecondSurrogate(c) {
+			return i - 1
+		}
+	}
+	return -1
+}
+
 func (s unicodeString) Concat(other String) String {
 	a, u := devirtualizeString(other)
 	if u != nil {
