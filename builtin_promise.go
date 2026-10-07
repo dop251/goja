@@ -546,6 +546,21 @@ func (r *Runtime) promise_resolve(call FunctionCall) Value {
 	return r.promiseResolve(r.toObject(call.This), call.Argument(0))
 }
 
+func (r *Runtime) promise_try(call FunctionCall) Value {
+	pcap := r.newPromiseCapability(r.toObject(call.This))
+	var args []Value
+	if len(call.Arguments) > 1 {
+		args = call.Arguments[1:]
+	}
+	var result Value
+	if pcap.try(func() {
+		result = r.toCallable(call.Argument(0))(FunctionCall{This: _undefined, Arguments: args})
+	}) {
+		pcap.resolve(result)
+	}
+	return pcap.promise
+}
+
 func (r *Runtime) createPromiseProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 	o._putProp("constructor", r.getPromise(), true, false, true)
@@ -568,6 +583,7 @@ func (r *Runtime) createPromise(val *Object) objectImpl {
 	o._putProp("race", r.newNativeFunc(r.promise_race, "race", 1), true, false, true)
 	o._putProp("reject", r.newNativeFunc(r.promise_reject, "reject", 1), true, false, true)
 	o._putProp("resolve", r.newNativeFunc(r.promise_resolve, "resolve", 1), true, false, true)
+	o._putProp("try", r.newNativeFunc(r.promise_try, "try", 1), true, false, true)
 
 	r.putSpeciesReturnThis(o)
 
