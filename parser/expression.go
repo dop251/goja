@@ -446,6 +446,10 @@ func (self *_parser) parseObjectProperty() ast.Property {
 				self.errorUnexpectedToken(self.token)
 			}
 		case (literal == "get" || literal == "set" || tkn == token.ASYNC) && self.token != token.COLON:
+			if tkn == token.ASYNC && self.token == token.MULTIPLY {
+				generator = true
+				self.next()
+			}
 			_, _, keyValue, tkn1 := self.parseObjectPropertyKey()
 			if keyValue == nil {
 				return nil
@@ -465,7 +469,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 			return &ast.PropertyKeyed{
 				Key:      keyValue,
 				Kind:     kind,
-				Value:    self.parseMethodDefinition(keyStartIdx, kind, false, async),
+				Value:    self.parseMethodDefinition(keyStartIdx, kind, generator, async),
 				Computed: tkn1 == token.ILLEGAL,
 			}
 		}

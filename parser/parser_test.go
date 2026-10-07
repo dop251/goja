@@ -953,6 +953,15 @@ func TestParser(t *testing.T) {
 		test("function f() { let A; if (false) {} else A = class A {} }", nil)
 
 		{
+			program := test("({ async *m() { yield await 1 } })", nil)
+			fn := program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.ObjectLiteral).Value[0].(*ast.PropertyKeyed).Value.(*ast.FunctionLiteral)
+			is(fn.Async, true)
+			is(fn.Generator, true)
+		}
+		test("({ async *[k]() {} })", nil)
+		test("({ async\n*m() {} })", "(anonymous): Line 2:1 Unexpected token *")
+
+		{
 			program := test(`(-2)**53`, nil)
 			st := program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression)
 			is(st.Operator, token.EXPONENT)
