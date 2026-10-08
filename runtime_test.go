@@ -3432,6 +3432,27 @@ func ExampleRuntime_ToValue_seq2err() {
 	// Output: 1!GoError: error
 }
 
+func TestObjectRedefinePropertyNonConfigurable(t *testing.T) {
+	const SCRIPT = `
+	var o = {};
+	Object.defineProperty(o, "x", {value: 1});
+
+	assert.throws(TypeError, () => {
+		Object.defineProperty(o, "x", {get: undefined});
+	});
+	assert(deepEqual(Object.getOwnPropertyDescriptor(o, "x"), { value: 1, writable: false, enumerable: false, configurable: false }));
+
+	var p = {};
+	var getter = function() {}
+	Object.defineProperty(p, "x", {get: getter});
+	assert.throws(TypeError, () => {
+		Object.defineProperty(p, "x", {writable: false});
+	});
+	assert(deepEqual(Object.getOwnPropertyDescriptor(p, "x"), { get: getter, set: undefined, enumerable: false, configurable: false }));
+	`
+	testScriptWithTestLibX(SCRIPT, _undefined, t)
+}
+
 /*
 func TestArrayConcatSparse(t *testing.T) {
 function foo(a,b,c)
