@@ -227,10 +227,14 @@ const maxNestingDepth = 10000
 func (self *_parser) enterNesting() {
 	self.depth++
 	if self.depth == maxNestingDepth+1 {
-		self.error(self.idx, "Maximum nesting depth exceeded")
-		self.chr, self.chrOffset, self.offset = -1, self.length, self.length
-		self.token, self.literal, self.parsedLiteral, self.idx = token.EOF, "", "", self.idxOf(self.length)
+		self.nestingExceeded()
 	}
+}
+
+func (self *_parser) nestingExceeded() {
+	self.error(self.idx, "Maximum nesting depth exceeded")
+	self.chr, self.chrOffset, self.offset = -1, self.length, self.length
+	self.token, self.literal, self.parsedLiteral, self.idx = token.EOF, "", "", self.idxOf(self.length)
 }
 
 func (self *_parser) leaveNesting() {
