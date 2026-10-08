@@ -928,7 +928,7 @@ func (p *proxyObject) __isCompatibleDescriptor(extensible bool, desc *PropertyDe
 		}
 
 		if desc.IsData() != !current.accessor {
-			return desc.Configurable != FLAG_FALSE
+			return false
 		}
 
 		if desc.IsData() && !current.accessor {
@@ -946,10 +946,12 @@ func (p *proxyObject) __isCompatibleDescriptor(extensible bool, desc *PropertyDe
 		}
 		if desc.IsAccessor() && current.accessor {
 			if !current.configurable {
-				if desc.Setter != nil && desc.Setter.SameAs(current.setterFunc) {
+				getterObj, _ := desc.Getter.(*Object)
+				setterObj, _ := desc.Setter.(*Object)
+				if desc.Setter != nil && setterObj != current.setterFunc {
 					return false
 				}
-				if desc.Getter != nil && desc.Getter.SameAs(current.getterFunc) {
+				if desc.Getter != nil && getterObj != current.getterFunc {
 					return false
 				}
 			}
