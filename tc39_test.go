@@ -258,7 +258,6 @@ var (
 		"regexp-v-flag",
 		"symbols-as-weakmap-keys",
 		"explicit-resource-management",
-		"promise-try",
 		"array-grouping",
 		"Math.sumPrecise",
 		"Float16Array",
