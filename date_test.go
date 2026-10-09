@@ -277,6 +277,23 @@ func TestDateMaxValues(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestDateTimeClipOverflow(t *testing.T) {
+	const SCRIPT = `
+	// the time values for these years do not fit into int64 milliseconds
+	assert.sameValue(Date.UTC(584554049, 0, 1), NaN, "Date.UTC");
+	assert.sameValue(new Date(584554049, 0, 1).getTime(), NaN, "new Date");
+	assert.sameValue(Date.parse("Jan 1 584554049"), NaN, "Date.parse");
+	assert.sameValue(new Date(0).setUTCFullYear(584554049), NaN, "setUTCFullYear");
+	assert.sameValue(new Date(0).setFullYear(584554049), NaN, "setFullYear");
+
+	assert.sameValue(Date.UTC(275760, 8, 13), 8.64e15, "max");
+	assert.sameValue(Date.UTC(275760, 8, 13, 0, 0, 0, 1), NaN, "max + 1");
+	assert.sameValue(Date.UTC(-271821, 3, 20), -8.64e15, "min");
+	assert.sameValue(Date.UTC(-271821, 3, 19, 23, 59, 59, 999), NaN, "min - 1");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestDateExport(t *testing.T) {
 	vm := New()
 	res, err := vm.RunString(`new Date(1000)`)

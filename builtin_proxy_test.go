@@ -438,6 +438,49 @@ func TestProxy_native_proxy_getOwnPropertyDescriptor_non_existing(t *testing.T) 
 	}
 }
 
+func TestProxy_proxy_getOwnPropertyDescriptor_nonConfigurable(t *testing.T) {
+	const SCRIPT = `
+	function g() {}
+	function other() {}
+
+	var accessorTarget = {};
+	Object.defineProperty(accessorTarget, "x", {get: g});
+	var dataTarget = {};
+	Object.defineProperty(dataTarget, "x", {value: 1});
+
+	function reporting(target, desc) {
+		return new Proxy(target, {
+			getOwnPropertyDescriptor: function() {
+				return desc;
+			}
+		});
+	}
+
+	var forward = new Proxy(accessorTarget, {
+		getOwnPropertyDescriptor: function(target, prop) {
+			return Reflect.getOwnPropertyDescriptor(target, prop);
+		}
+	});
+	assert.sameValue(Object.getOwnPropertyDescriptor(forward, "x").get, g);
+	assert.sameValue(Object.getOwnPropertyDescriptor(reporting(accessorTarget, {get: g, set: undefined}), "x").get, g);
+
+	assert.throws(TypeError, function() {
+		Object.getOwnPropertyDescriptor(reporting(accessorTarget, {get: other}), "x");
+	}, "different getter");
+	assert.throws(TypeError, function() {
+		Object.getOwnPropertyDescriptor(reporting(accessorTarget, {get: g, set: other}), "x");
+	}, "different setter");
+	assert.throws(TypeError, function() {
+		Object.getOwnPropertyDescriptor(reporting(accessorTarget, {value: undefined}), "x");
+	}, "accessor reported as data");
+	assert.throws(TypeError, function() {
+		Object.getOwnPropertyDescriptor(reporting(dataTarget, {get: g}), "x");
+	}, "data reported as accessor");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestProxy_Object_target_defineProperty(t *testing.T) {
 	const SCRIPT = `
 	var obj = {};
@@ -506,6 +549,65 @@ func TestProxy_native_proxy_defineProperty(t *testing.T) {
 	runtime.Set("proxy", proxy)
 
 	runtime.testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestProxy_proxy_defineProperty_nonConfigurable(t *testing.T) {
+	const SCRIPT = `
+	function g() {}
+	function s(v) {}
+	function other() {}
+
+	var accessorTarget = {};
+	Object.defineProperty(accessorTarget, "x", {get: g, set: s});
+	var dataTarget = {};
+	Object.defineProperty(dataTarget, "x", {value: 1});
+
+	var forward = new Proxy(accessorTarget, {
+		defineProperty: function(target, prop, desc) {
+			return Reflect.defineProperty(target, prop, desc);
+		}
+	});
+	Object.defineProperty(forward, "x", {get: g});
+	Object.defineProperty(forward, "x", {get: g, set: s, enumerable: false, configurable: false});
+
+	var acc = new Proxy(accessorTarget, {
+		defineProperty: function() {
+			return true;
+		}
+	});
+	Object.defineProperty(acc, "x", {set: s});
+	Object.defineProperty(acc, "x", {enumerable: false});
+	assert.throws(TypeError, function() {
+		Object.defineProperty(acc, "x", {get: other});
+	}, "different getter");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(acc, "x", {set: other});
+	}, "different setter");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(acc, "x", {set: undefined});
+	}, "setter removed");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(acc, "x", {value: 1});
+	}, "accessor to data");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(acc, "x", {writable: false});
+	}, "accessor to data (writable only)");
+
+	var data = new Proxy(dataTarget, {
+		defineProperty: function() {
+			return true;
+		}
+	});
+	Object.defineProperty(data, "x", {value: 1, writable: false});
+	assert.throws(TypeError, function() {
+		Object.defineProperty(data, "x", {get: g});
+	}, "data to accessor");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(data, "x", {get: undefined});
+	}, "data to accessor (undefined getter)");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestProxy_target_has_in(t *testing.T) {

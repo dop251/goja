@@ -11,9 +11,6 @@ import (
 
 	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
-
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 // Represents a string imported from Go. The idea is to delay the scanning for unicode characters and converting
@@ -300,8 +297,7 @@ func (i *importedString) toLower() String {
 func (i *importedString) toUpper() String {
 	i.ensureScanned()
 	if i.u != nil {
-		caser := cases.Upper(language.Und)
-		return newStringValue(caser.String(i.s))
+		return toUpper(i.s)
 	}
 	return asciiString(i.s).toUpper()
 }

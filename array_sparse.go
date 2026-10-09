@@ -342,7 +342,7 @@ func (a *sparseArrayObject) _defineIdxProperty(idx uint32, desc PropertyDescript
 	if i < len(a.items) && a.items[i].idx == idx {
 		existing = a.items[i].value
 	}
-	prop, ok := a.baseObject._defineOwnProperty(unistring.String(strconv.FormatUint(uint64(idx), 10)), existing, desc, throw)
+	prop, ok := a.baseObject._defineOwnProperty("", func() unistring.String { return unistring.String(strconv.FormatUint(uint64(idx), 10)) }, existing, desc, throw)
 	if ok {
 		if idx >= a.length {
 			if !a.setLengthInt(idx+1, throw) {

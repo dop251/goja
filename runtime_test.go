@@ -2975,6 +2975,32 @@ func TestPromiseResolveNonPromise(t *testing.T) {
 	testAsyncFuncWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestPromiseTry(t *testing.T) {
+	const SCRIPT = `
+	var p = Promise.resolve(1);
+	assert.sameValue(Promise.try(function () { return p; }), p, "returned promise is passed through");
+
+	var called = false;
+	var Ctor = function () { throw new Test262Error(); };
+	assert.throws(Test262Error, function () {
+		Promise.try.call(Ctor, function () { called = true; });
+	});
+	assert(called, "callback is called before the constructor");
+
+	var err = new Error();
+	var rejected = Promise.try(function () { throw err; });
+	assert(rejected instanceof Promise);
+	try {
+		await rejected;
+		assert(false, "should have been rejected");
+	} catch (e) {
+		assert.sameValue(e, err);
+	}
+	assert.sameValue(await Promise.try(function (a, b) { return a + b; }, 1, 2), 3);
+	`
+	testAsyncFuncWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestAsyncFuncThrow(t *testing.T) {
 	const SCRIPT = `
 	class TestError extends Error {
@@ -3430,6 +3456,27 @@ func ExampleRuntime_ToValue_seq2err() {
 	}
 	fmt.Print(res.String())
 	// Output: 1!GoError: error
+}
+
+func TestObjectRedefinePropertyNonConfigurable(t *testing.T) {
+	const SCRIPT = `
+	var o = {};
+	Object.defineProperty(o, "x", {value: 1});
+
+	assert.throws(TypeError, () => {
+		Object.defineProperty(o, "x", {get: undefined});
+	});
+	assert(deepEqual(Object.getOwnPropertyDescriptor(o, "x"), { value: 1, writable: false, enumerable: false, configurable: false }));
+
+	var p = {};
+	var getter = function() {}
+	Object.defineProperty(p, "x", {get: getter});
+	assert.throws(TypeError, () => {
+		Object.defineProperty(p, "x", {writable: false});
+	});
+	assert(deepEqual(Object.getOwnPropertyDescriptor(p, "x"), { get: getter, set: undefined, enumerable: false, configurable: false }));
+	`
+	testScriptWithTestLibX(SCRIPT, _undefined, t)
 }
 
 /*

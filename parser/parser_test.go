@@ -1425,3 +1425,26 @@ func TestParseTemplateLiteralWithTail(t *testing.T) {
 		t.Fatal(prg.Body[0])
 	}
 }
+
+func TestParseNestingDepth(t *testing.T) {
+	const n = 1000000
+	for _, src := range []string{
+		strings.Repeat("(", n) + "a" + strings.Repeat(")", n),
+		strings.Repeat("[", n) + strings.Repeat("]", n),
+		strings.Repeat("{", n) + strings.Repeat("}", n),
+		strings.Repeat("!", n) + "a",
+		strings.Repeat("a => ", n) + "a",
+		strings.Repeat("a ** ", n) + "a",
+		strings.Repeat("new ", n) + "a",
+		"(" + strings.Repeat("class extends ", n) + "a" + strings.Repeat("{}", n) + ")",
+	} {
+		_, err := ParseFile(nil, "", src, 0)
+		if err == nil || !strings.Contains(err.Error(), "Maximum nesting depth exceeded") {
+			t.Fatalf("%.10q...: %v", src, err)
+		}
+	}
+	src := strings.Repeat("(", maxNestingDepth/4) + "a" + strings.Repeat(")", maxNestingDepth/4)
+	if _, err := ParseFile(nil, "", src, 0); err != nil {
+		t.Fatal(err)
+	}
+}
