@@ -242,3 +242,22 @@ func BenchmarkMapDeleteJS(b *testing.B) {
 		}
 	}
 }
+
+func TestGroupBy(t *testing.T) {
+	const SCRIPT = `
+const sym = Symbol("s");
+const o = Object.groupBy([1, "1", 1.5, sym, "a", sym], function(v) { return v; });
+assert(compareArray(Reflect.ownKeys(o), ["1", "1.5", "a", sym]));
+assert(compareArray(o["1"], [1, "1"]));
+assert(compareArray(o[sym], [sym, sym]));
+
+const key = {};
+const m = Map.groupBy([-0, 0, NaN, NaN, key, {}], function(v) { return v; });
+assert.sameValue(m.size, 4);
+assert(compareArray(m.get(0), [-0, 0]));
+assert(Object.is([...m.keys()][0], 0), "-0 key is normalised");
+assert.sameValue(m.get(NaN).length, 2);
+assert(compareArray(m.get(key), [key]));
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

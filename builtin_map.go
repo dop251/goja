@@ -241,6 +241,16 @@ func (r *Runtime) builtin_newMap(args []Value, newTarget *Object) *Object {
 	return o
 }
 
+func (r *Runtime) map_groupBy(call FunctionCall) Value {
+	keys, groups := r.groupBy(call.Argument(0), call.Argument(1), false)
+	o := r.builtin_newMap(nil, r.getMap())
+	mo := o.self.(*mapObject)
+	for i, key := range keys {
+		mo.m.set(key, r.newArrayValues(groups[i]))
+	}
+	return o
+}
+
 func (r *Runtime) createMapIterator(mapValue Value, kind iterationKind) Value {
 	obj := r.toObject(mapValue)
 	mapObj, ok := obj.self.(*mapObject)
@@ -302,6 +312,7 @@ func (r *Runtime) createMapProto(val *Object) objectImpl {
 
 func (r *Runtime) createMap(val *Object) objectImpl {
 	o := r.newNativeConstructOnly(val, r.builtin_newMap, r.getMapPrototype(), "Map", 0)
+	o._putProp("groupBy", r.newNativeFunc(r.map_groupBy, "groupBy", 2), true, false, true)
 	r.putSpeciesReturnThis(o)
 
 	return o
