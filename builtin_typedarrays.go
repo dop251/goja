@@ -146,6 +146,44 @@ func (r *Runtime) arrayBufferProto_slice(call FunctionCall) Value {
 	panic(r.NewTypeError("Object is not ArrayBuffer: %s", o))
 }
 
+func (r *Runtime) arrayBufferProto_getDetached(call FunctionCall) Value {
+	o := r.toObject(call.This)
+	if b, ok := o.self.(*arrayBufferObject); ok {
+		return r.toBoolean(b.detached)
+	}
+	panic(r.NewTypeError("Object is not ArrayBuffer: %s", o))
+}
+
+// arrayBufferCopyAndDetach implements ArrayBufferCopyAndDetach (https://tc39.es/ecma262/#sec-arraybuffercopyanddetach).
+// Resizable buffers are not supported, so the result is always a fixed-length buffer.
+func (r *Runtime) arrayBufferCopyAndDetach(this, newLength Value) Value {
+	o := r.toObject(this)
+	b, ok := o.self.(*arrayBufferObject)
+	if !ok {
+		panic(r.NewTypeError("Object is not ArrayBuffer: %s", o))
+	}
+	var newByteLength int
+	if newLength == _undefined {
+		newByteLength = len(b.data)
+	} else {
+		newByteLength = r.toIndex(newLength)
+	}
+	b.ensureNotDetached(true)
+	newBuffer := r._newArrayBuffer(r.getArrayBufferPrototype(), nil)
+	newBuffer.data = allocByteSlice(newByteLength)
+	copy(newBuffer.data, b.data)
+	b.detach()
+	return newBuffer.val
+}
+
+func (r *Runtime) arrayBufferProto_transfer(call FunctionCall) Value {
+	return r.arrayBufferCopyAndDetach(call.This, call.Argument(0))
+}
+
+func (r *Runtime) arrayBufferProto_transferToFixedLength(call FunctionCall) Value {
+	return r.arrayBufferCopyAndDetach(call.This, call.Argument(0))
+}
+
 func (r *Runtime) arrayBuffer_isView(call FunctionCall) Value {
 	if o, ok := call.Argument(0).(*Object); ok {
 		if _, ok := o.self.(*dataViewObject); ok {
@@ -1799,7 +1837,14 @@ func (r *Runtime) createArrayBufferProto(val *Object) objectImpl {
 	}
 	b._put("byteLength", byteLengthProp)
 	b._putProp("constructor", r.getArrayBuffer(), true, false, true)
+	b._put("detached", &valueProperty{
+		accessor:     true,
+		configurable: true,
+		getterFunc:   r.newNativeFunc(r.arrayBufferProto_getDetached, "get detached", 0),
+	})
 	b._putProp("slice", r.newNativeFunc(r.arrayBufferProto_slice, "slice", 2), true, false, true)
+	b._putProp("transfer", r.newNativeFunc(r.arrayBufferProto_transfer, "transfer", 0), true, false, true)
+	b._putProp("transferToFixedLength", r.newNativeFunc(r.arrayBufferProto_transferToFixedLength, "transferToFixedLength", 0), true, false, true)
 	b._putSym(SymToStringTag, valueProp(asciiString("ArrayBuffer"), false, false, true))
 	return b
 }

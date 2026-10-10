@@ -258,7 +258,6 @@ var (
 		"symbols-as-weakmap-keys",
 		"explicit-resource-management",
 		"Float16Array",
-		"arraybuffer-transfer",
 		"Array.fromAsync",
 
 		"source-phase-imports",

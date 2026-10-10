@@ -512,3 +512,38 @@ func TestToSortedSubarray(t *testing.T) {
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func TestArrayBufferTransfer(t *testing.T) {
+	const SCRIPT = `
+var buf = new Uint8Array([1, 2, 3, 4]).buffer;
+var ta = new Uint8Array(buf);
+var grown = buf.transfer(6);
+assert(buf.detached, "source is detached");
+assert.sameValue(buf.byteLength, 0, "source byteLength");
+assert.sameValue(ta.length, 0, "view on the source");
+assert(!grown.detached, "result is not detached");
+assert(compareArray(new Uint8Array(grown), [1, 2, 3, 4, 0, 0]), "grown contents");
+
+var shrunk = grown.transferToFixedLength(2);
+assert(compareArray(new Uint8Array(shrunk), [1, 2]), "shrunk contents");
+assert.sameValue(shrunk.transfer().byteLength, 2, "default length");
+assert.throws(TypeError, function() { shrunk.transfer(); }, "detached source");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestArrayBufferTransferFromGo(t *testing.T) {
+	vm := New()
+	ab := vm.NewArrayBuffer([]byte{1, 2, 3})
+	vm.Set("ab", ab)
+	v, err := vm.RunString(`ab.transfer()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ab.Detached() || ab.Bytes() != nil {
+		t.Fatal("source ArrayBuffer is not detached")
+	}
+	if b := v.Export().(ArrayBuffer).Bytes(); !bytes.Equal(b, []byte{1, 2, 3}) {
+		t.Fatalf("unexpected contents: %v", b)
+	}
+}
