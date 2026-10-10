@@ -4,7 +4,7 @@ jobs:
   test:
     strategy:
       matrix:
-        go-version: [1.25.x, 1.x]
+        go-version: [1.26.x, 1.x]
         os: [ubuntu-latest, ubuntu-24.04-arm]
         arch: ["", "386"]
         exclude:
