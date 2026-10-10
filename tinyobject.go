@@ -17,13 +17,14 @@ type propTransition struct {
 
 type tinyClass struct {
 	parent *tinyClass
-	keys   []unistring.String
+	keys   *[]unistring.String
 
 	singlePropTransition propTransition
 	propTransitions      map[unistring.String]weak.Pointer[tinyClass]
 
 	notExtensible weak.Pointer[tinyClass]
 
+	keysLen    uint8
 	extensible bool
 }
 
@@ -60,16 +61,32 @@ func (c *tinyClass) getForProp(name unistring.String) *tinyClass {
 
 	stats.incTinyClassMisses()
 
-	newKeys := make([]unistring.String, len(c.keys)+1)
-	copy(newKeys, c.keys)
-	newKeys[len(newKeys)-1] = name
-
 	child := &tinyClass{
 		parent:     c,
-		keys:       newKeys,
+		keysLen:    c.keysLen + 1,
 		extensible: c.extensible,
 	}
-	if c.singlePropTransition.class.Value() == nil {
+
+	singleIsFree := c.singlePropTransition.class.Value() == nil
+
+	// The decision of whether to copy or re-use the keys slice needs to be made carefully.
+	// For root class we always copy because the original empty keys slice is strongly referenced from the Runtime.
+	// Otherwise, we can only do it if it's currently a leaf class.
+	// If single transition is currently free (which means it's either never been used or it was, but the child got
+	// freed) and the propTransitions hasn't been created we can re-use the slice as the tail is not currently used
+	// by any class. The only other possible transition is to a non-extensible class which by definition cannot add
+	// properties.
+	if c.keysLen > 0 && singleIsFree && c.propTransitions == nil {
+		*c.keys = append(*c.keys, name)
+		child.keys = c.keys
+	} else {
+		newKeys := make([]unistring.String, c.keysLen+1)
+		copy(newKeys, *c.keys)
+		newKeys[len(newKeys)-1] = name
+		child.keys = &newKeys
+	}
+
+	if singleIsFree {
 		c.singlePropTransition.class = weak.Make(child)
 		c.singlePropTransition.prop = name
 	} else {
@@ -83,7 +100,7 @@ func (c *tinyClass) getForProp(name unistring.String) *tinyClass {
 }
 
 func (c *tinyClass) idxForName(name unistring.String) int {
-	for i, key := range c.keys {
+	for i, key := range (*c.keys)[:c.keysLen] {
 		if len(key) != len(name) {
 			continue
 		}
@@ -100,8 +117,9 @@ func (c *tinyClass) getNotExtensible() *tinyClass {
 	if cls == nil {
 		stats.incTinyClassMisses()
 		cls = &tinyClass{
-			parent: c,
-			keys:   c.keys,
+			parent:  c,
+			keys:    c.keys,
+			keysLen: c.keysLen,
 		}
 		c.notExtensible = weak.Make(cls)
 	}
@@ -111,7 +129,7 @@ func (c *tinyClass) getNotExtensible() *tinyClass {
 func (o *tinyObject) deoptimize() *baseObject {
 	stats.incTinyObjectDeoptimizations()
 	bo := newBaseObjectObj(o.val, o.prototype, o.className())
-	bo.propNames = append(([]unistring.String)(nil), o.class.keys...)
+	bo.propNames = append(([]unistring.String)(nil), (*o.class.keys)[:o.class.keysLen]...)
 	bo._prepareValues()
 	for i, name := range bo.propNames {
 		bo.values[name] = o.values[i]
@@ -419,7 +437,7 @@ func (o *tinyObject) swap(int, int) {
 }
 
 func (o *tinyObject) stringKeys(_ bool, keys []Value) []Value {
-	for _, k := range o.class.keys {
+	for _, k := range (*o.class.keys)[:o.class.keysLen] {
 		keys = append(keys, stringValueFromRaw(k))
 	}
 	return keys
@@ -468,7 +486,7 @@ func (i *tinyObjectPropIter) next() (propIterItem, iterNextFunc) {
 func (o *tinyObject) iterateStringKeys() iterNextFunc {
 	return (&tinyObjectPropIter{
 		o:    o,
-		keys: o.class.keys,
+		keys: (*o.class.keys)[:o.class.keysLen],
 	}).next
 }
 
@@ -490,7 +508,7 @@ func (o *tinyObject) equal(objectImpl) bool {
 func (o *tinyObject) deleteStr(name unistring.String, throw bool) bool {
 	idx := o.class.idxForName(name)
 	if idx != -1 {
-		if idx == len(o.class.keys)-1 && len(o.class.parent.keys) == len(o.class.keys)-1 {
+		if idx == int(o.class.keysLen-1) && o.class.parent.keysLen == o.class.keysLen-1 {
 			o.class = o.class.parent
 			o.values[idx] = nil
 			o.values = o.values[:idx]

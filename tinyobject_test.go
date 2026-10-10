@@ -7,7 +7,10 @@ import (
 )
 
 func BenchmarkTinyObject(b *testing.B) {
-	rootClass := &tinyClass{}
+	keys := make([]unistring.String, 0)
+	rootClass := &tinyClass{
+		keys: &keys,
+	}
 
 	class1 := rootClass.getForProp("a")
 	class2 := class1.getForProp("key")

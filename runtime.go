@@ -460,7 +460,9 @@ func (r *Runtime) init() {
 	r.globalObject = &Object{runtime: r}
 	r.newTemplatedObject(getGlobalObjectTemplate(), r.globalObject)
 
+	rootClassKeys := make([]unistring.String, 0)
 	r.rootClass = &tinyClass{
+		keys:       &rootClassKeys,
 		extensible: true,
 	}
 
