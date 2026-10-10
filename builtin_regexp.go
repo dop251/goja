@@ -1118,7 +1118,7 @@ func (r *Runtime) regexpproto_stdSplitter(call FunctionCall) Value {
 	for _, result := range results {
 		if result.indexes[0] == result.indexes[1] {
 			// FIXME Ugh, this is a hack
-			if result.indexes[0] == 0 || result.indexes[0] == targetLength {
+			if result.indexes[0] == 0 || result.indexes[0] == targetLength || result.indexes[0] == lastIndex {
 				continue
 			}
 		}
