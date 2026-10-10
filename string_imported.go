@@ -289,7 +289,10 @@ func (i *importedString) lastIndex(v String, pos int) int {
 func (i *importedString) toLower() String {
 	i.ensureScanned()
 	if i.u != nil {
-		return toLower(i.s)
+		var b StringBuilder
+		b.Grow(len(i.s))
+		toLower(i.s, &b)
+		return b.String()
 	}
 	return asciiString(i.s).toLower()
 }
@@ -297,7 +300,10 @@ func (i *importedString) toLower() String {
 func (i *importedString) toUpper() String {
 	i.ensureScanned()
 	if i.u != nil {
-		return toUpper(i.s)
+		var b StringBuilder
+		b.Grow(len(i.s))
+		toUpper(i.s, &b)
+		return b.String()
 	}
 	return asciiString(i.s).toUpper()
 }

@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
 	"unsafe"
@@ -17,6 +18,8 @@ import (
 	"github.com/dop251/goja/unistring"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/rangetable"
 )
 
 const utf16IndexNaiveCrossover = 32
@@ -57,6 +60,24 @@ type unicodeStringBuilder struct {
 var (
 	InvalidRuneError = errors.New("invalid rune")
 )
+
+var caseIgnorable = rangetable.Merge(
+	unicode.Mn, unicode.Me, unicode.Cf, unicode.Lm, unicode.Sk,
+	// Go's unicode package doesn't expose Word_Break
+	rangetable.New(
+		0x0027, 0x002E, 0x003A, 0x00B7, 0x0387, 0x055F, 0x05F4,
+		0x2018, 0x2019, 0x2024, 0x2027, 0xFE13, 0xFE52, 0xFE55,
+		0xFF07, 0xFF0E, 0xFF1A,
+	),
+)
+
+var cased = rangetable.Merge(
+	unicode.Lu, unicode.Ll, unicode.Lt,
+	unicode.Other_Lowercase, unicode.Other_Uppercase,
+)
+
+func isCaseIgnorable(r rune) bool { return unicode.Is(caseIgnorable, r) }
+func isCased(r rune) bool         { return unicode.Is(cased, r) }
 
 func (rr *utf16RuneReader) readChar() (c uint16, err error) {
 	if rr.pos < len(rr.s) {
@@ -706,38 +727,95 @@ func unicodeStringFromRunes(r []rune) unicodeString {
 	return unistring.NewFromRunes(r).AsUtf16()
 }
 
-func toLower(s string) String {
+func caserTransform(caser cases.Caser, s string) string {
+	if s == "" {
+		return s
+	}
+	dst := make([]byte, len(s))
+	src := unsafe.Slice(unsafe.StringData(s), len(s))
+
+	for {
+		nDst, _, err := caser.Transform(dst, src, true)
+		if errors.Is(err, transform.ErrShortDst) {
+			// Replicating the grow() logic from the text package
+			m := len(dst)
+			if m <= 32 {
+				m = 64
+			} else if m <= 256 {
+				m *= 2
+			} else {
+				m += m >> 1
+			}
+			dst = make([]byte, m)
+			caser.Reset()
+			continue
+		}
+		if nDst == 0 {
+			return ""
+		}
+		return unsafe.String(&dst[0], nDst)
+	}
+}
+
+// isFinalSigma reports whether the Σ at byte offset i in s is final.
+// Ignorability is tested BEFORE casedness, as per ECMAScript rules.
+func isFinalSigma(s string, i int) bool {
+	// Backward: skip ignorables, next rune must be cased.
+	before := false
+	for j := i; j > 0; {
+		r, n := utf8.DecodeLastRuneInString(s[:j])
+		j -= n
+		if isCaseIgnorable(r) {
+			continue
+		}
+		before = isCased(r)
+		break
+	}
+	if !before {
+		return false
+	}
+	// Forward: skip ignorables, next rune must NOT be cased.
+	for j := i + len("Σ"); j < len(s); {
+		r, n := utf8.DecodeRuneInString(s[j:])
+		j += n
+		if isCaseIgnorable(r) {
+			continue
+		}
+		return !isCased(r)
+	}
+	return true
+}
+
+func toLower(s string, sb *StringBuilder) {
 	caser := cases.Lower(language.Und)
-	r := []rune(caser.String(s))
-	// Workaround
-	ascii := true
-	for i := 0; i < len(r)-1; i++ {
-		if (i == 0 || r[i-1] != 0x3b1) && r[i] == 0x345 && r[i+1] == 0x3c2 {
-			i++
-			r[i] = 0x3c3
+
+	// Workaround for the final sigma rule
+	start := 0
+	for {
+		k := strings.IndexRune(s[start:], 'Σ')
+		if k < 0 {
+			sb.WriteUTF8String(caserTransform(caser, s[start:]))
+			return
 		}
-		if r[i] >= utf8.RuneSelf {
-			ascii = false
+		k += start
+		sb.WriteUTF8String(caserTransform(caser, s[start:k]))
+		if isFinalSigma(s, k) {
+			sb.WriteRune('ς')
+		} else {
+			sb.WriteRune('σ')
 		}
+		start = k + len("Σ")
 	}
-	if ascii {
-		ascii = r[len(r)-1] < utf8.RuneSelf
-	}
-	if ascii {
-		return asciiString(r)
-	}
-	return unicodeStringFromRunes(r)
 }
 
-func toUpper(s string) String {
-	caser := cases.Upper(language.Und)
-	return newStringValue(caser.String(s))
+func toUpper(s string, sb *StringBuilder) {
+	sb.WriteUTF8String(caserTransform(cases.Upper(language.Und), s))
 }
 
-func (s unicodeString) toCase(conv func(string) String) String {
+func (s unicodeString) toCase(conv func(string, *StringBuilder)) String {
 	var b StringBuilder
-	b.LikelyUnicode(len(s))
 	u := s[1:]
+	b.LikelyUnicode(len(u))
 	start := 0
 	for i := 0; i < len(u); i++ {
 		c := u[i]
@@ -747,20 +825,20 @@ func (s unicodeString) toCase(conv func(string) String) String {
 				continue
 			}
 			if start < i {
-				b.WriteString(conv(string(utf16.Decode(u[start:i]))))
+				conv(string(utf16.Decode(u[start:i])), &b)
 			}
 			b.WriteRune(rune(c))
 			start = i + 1
 		} else if isUTF16SecondSurrogate(c) {
 			if start < i {
-				b.WriteString(conv(string(utf16.Decode(u[start:i]))))
+				conv(string(utf16.Decode(u[start:i])), &b)
 			}
 			b.WriteRune(rune(c))
 			start = i + 1
 		}
 	}
 	if start < len(u) {
-		b.WriteString(conv(string(utf16.Decode(u[start:]))))
+		conv(string(utf16.Decode(u[start:])), &b)
 	}
 	return b.String()
 }
