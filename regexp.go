@@ -156,6 +156,73 @@ func (p *regexpPattern) findSubmatchIndex(s String, start int) regexpResult {
 	return p.regexpWrapper.findSubmatchIndex(s, p.unicode)
 }
 
+func (p *regexpPattern) canMatchEmpty() bool {
+	if p.regexpWrapper != nil {
+		if (*regexp.Regexp)(p.regexpWrapper).MatchString("") {
+			return true
+		}
+		if strings.Contains(p.src, `\b`) || strings.Contains(p.src, `\B`) {
+			return true
+		}
+		return false
+	}
+	return true
+}
+
+func (p *regexpPattern) restoreEmptyMatches(s String, res []regexpResult, limit int, sticky bool) []regexpResult {
+	if !p.canMatchEmpty() {
+		if sticky {
+			return filterStickyResults(res, s, p.unicode)
+		}
+		return res
+	}
+
+	var finalResults []regexpResult
+	sLen := s.Length()
+	for _, result := range res {
+		finalResults = append(finalResults, result)
+		if limit > 0 && len(finalResults) == limit {
+			break
+		}
+		if len(result.indexes) > 1 && result.indexes[0] < result.indexes[1] {
+			endPos := result.indexes[1]
+			if endPos <= sLen {
+				emptyRes := p.findSubmatchIndex(s, endPos)
+				if len(emptyRes.indexes) > 1 && emptyRes.indexes[0] == endPos && emptyRes.indexes[1] == endPos {
+					finalResults = append(finalResults, emptyRes)
+					if limit > 0 && len(finalResults) == limit {
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if sticky {
+		return filterStickyResults(finalResults, s, p.unicode)
+	}
+	return finalResults
+}
+
+func filterStickyResults(results []regexpResult, s String, unicode bool) []regexpResult {
+	pos := 0
+	var filtered []regexpResult
+	for _, result := range results {
+		if len(result.indexes) > 1 {
+			if result.indexes[0] != pos {
+				break
+			}
+			if result.indexes[0] == result.indexes[1] {
+				pos = advanceStringIndex(s, pos, unicode)
+			} else {
+				pos = result.indexes[1]
+			}
+			filtered = append(filtered, result)
+		}
+	}
+	return filtered
+}
+
 func (p *regexpPattern) findAllSubmatchIndex(s String, start int, limit int, sticky bool) []regexpResult {
 	if p.regexpWrapper == nil {
 		return p.regexp2Wrapper.findAllSubmatchIndex(s, start, limit, sticky, p.unicode)
@@ -163,7 +230,12 @@ func (p *regexpPattern) findAllSubmatchIndex(s String, start int, limit int, sti
 	if start == 0 {
 		a, u := devirtualizeString(s)
 		if u == nil {
-			return p.regexpWrapper.findAllSubmatchIndex(string(a), limit, sticky)
+			wrappedLimit := limit
+			if sticky || p.canMatchEmpty() {
+				wrappedLimit = -1
+			}
+			res := p.regexpWrapper.findAllSubmatchIndex(string(a), wrappedLimit, false)
+			return p.restoreEmptyMatches(s, res, limit, sticky)
 		}
 		if limit == 1 {
 			result := p.regexpWrapper.findSubmatchIndexUnicode(u, p.unicode)
@@ -178,13 +250,17 @@ func (p *regexpPattern) findAllSubmatchIndex(s String, start int, limit int, sti
 			// Try to convert s to UTF-8. If it does not contain any invalid UTF-16 we can do the matching in UTF-8.
 			pm, str := buildUTF8PosMap(u)
 			if pm != nil {
-				res := p.regexpWrapper.findAllSubmatchIndex(str, limit, sticky)
+				wrappedLimit := limit
+				if sticky || p.canMatchEmpty() {
+					wrappedLimit = -1
+				}
+				res := p.regexpWrapper.findAllSubmatchIndex(str, wrappedLimit, false)
 				for _, result := range res {
 					for i, idx := range result.indexes {
 						result.indexes[i] = pm.get(idx)
 					}
 				}
-				return res
+				return p.restoreEmptyMatches(s, res, limit, sticky)
 			}
 		}
 	}
@@ -376,7 +452,11 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUTF16(s String, start, limit int, s
 			if result.indexes[0] != start {
 				break
 			}
-			start = result.indexes[1]
+			if result.indexes[0] == result.indexes[1] {
+				start = advanceStringIndex(s, start, false)
+			} else {
+				start = result.indexes[1]
+			}
 		}
 
 		results = append(results, result)
@@ -462,7 +542,11 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUnicode(s unicodeString, start, lim
 			if result.indexes[0] != start {
 				break
 			}
-			start = result.indexes[1]
+			if result.indexes[0] == result.indexes[1] {
+				start = advanceStringIndex(s, start, true)
+			} else {
+				start = result.indexes[1]
+			}
 		}
 
 		results = append(results, result)

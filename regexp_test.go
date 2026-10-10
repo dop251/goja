@@ -1034,6 +1034,36 @@ func BenchmarkRegexpMatchAll(b *testing.B) {
 	}
 }
 
+func TestIssue772(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue("aaa".replace(/a*/g, "X"), "XX", "replace aaa");
+	assert.sameValue("ab".replace(/a*/g, "X"), "XXbX", "replace ab");
+	assert.sameValue("".replace(/a*/g, "X"), "X", "replace empty");
+	assert.sameValue("a".replace(/a*/g, "X"), "XX", "replace single a");
+
+	assert.sameValue(JSON.stringify("aaa".match(/a*/g)), JSON.stringify(["aaa",""]), "match aaa");
+	assert.sameValue(JSON.stringify("ab".match(/a*/g)), JSON.stringify(["a","",""]), "match ab");
+	assert.sameValue(JSON.stringify("".match(/a*/g)), JSON.stringify([""]), "match empty");
+	assert.sameValue(JSON.stringify("a".match(/a*/g)), JSON.stringify(["a",""]), "match single a");
+
+	assert.sameValue("ab".replaceAll(/a*/g, "X"), "XXbX", "replaceAll ab");
+	assert.sameValue("aaa".replaceAll(/a*/g, "X"), "XX", "replaceAll aaa");
+
+	assert.sameValue("aaa".replace(/(a*)/g, function(m, c) { return "<" + m + ":" + c + ">"; }), "<aaa:aaa><:>", "replace callback aaa");
+	assert.sameValue("ab".replace(/(a*)/g, function(m, c) { return "<" + m + ":" + c + ">"; }), "<a:a><:>b<:>", "replace callback ab");
+
+	assert.sameValue(JSON.stringify("aaa".match(/a*/gy)), JSON.stringify(["aaa",""]), "match sticky aaa");
+	assert.sameValue(JSON.stringify("ab".match(/a*/gy)), JSON.stringify(["a","",""]), "match sticky ab");
+
+	assert.sameValue(JSON.stringify("a\uD834\uDD1E".match(/a*/gu)), JSON.stringify(["a","",""]), "match unicode");
+	assert.sameValue("a\uD834\uDD1E".replace(/a*/gu, "X"), "XX\uD834\uDD1EX", "replace unicode");
+
+	assert.sameValue(JSON.stringify("aaa".match(/(a*)$/g)), JSON.stringify(["aaa",""]), "match end anchor");
+	assert.sameValue(JSON.stringify("aaa".match(/(a*)\b/g)), JSON.stringify(["aaa",""]), "match word boundary");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func BenchmarkRegexpSingleExec(b *testing.B) {
 	vm := New()
 	regexp := vm.Get("RegExp")
