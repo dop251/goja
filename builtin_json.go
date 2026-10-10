@@ -1,36 +1,21 @@
 package goja
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
 	"math"
 	"strconv"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/dop251/goja/ftoa"
 	"github.com/dop251/goja/unistring"
 )
 
 const hex = "0123456789abcdef"
 
 func (r *Runtime) builtinJSON_parse(call FunctionCall) Value {
-	d := json.NewDecoder(strings.NewReader(call.Argument(0).toString().String()))
-
-	value, err := r.builtinJSON_decodeValue(d)
-	if errors.Is(err, io.EOF) {
-		panic(r.newErrorf(r.getSyntaxError(), "Unexpected end of JSON input (%v)", err.Error()))
-	}
-	if err != nil {
-		panic(r.newError(r.getSyntaxError(), err.Error()))
-	}
-
-	if tok, err := d.Token(); err != io.EOF {
-		panic(r.newErrorf(r.getSyntaxError(), "Unexpected token at the end: %v", tok))
-	}
+	value := r.parseJSON(call.Argument(0).toString().String())
 
 	var reviver func(FunctionCall) Value
 
@@ -45,96 +30,6 @@ func (r *Runtime) builtinJSON_parse(call FunctionCall) Value {
 	}
 
 	return value
-}
-
-func (r *Runtime) builtinJSON_decodeToken(d *json.Decoder, tok json.Token) (Value, error) {
-	switch tok := tok.(type) {
-	case json.Delim:
-		switch tok {
-		case '{':
-			return r.builtinJSON_decodeObject(d)
-		case '[':
-			return r.builtinJSON_decodeArray(d)
-		}
-	case nil:
-		return _null, nil
-	case string:
-		return newStringValue(tok), nil
-	case float64:
-		return floatToValue(tok), nil
-	case bool:
-		if tok {
-			return valueTrue, nil
-		}
-		return valueFalse, nil
-	}
-	return nil, fmt.Errorf("Unexpected token (%T): %v", tok, tok)
-}
-
-func (r *Runtime) builtinJSON_decodeValue(d *json.Decoder) (Value, error) {
-	tok, err := d.Token()
-	if err != nil {
-		return nil, err
-	}
-	return r.builtinJSON_decodeToken(d, tok)
-}
-
-func (r *Runtime) builtinJSON_decodeObject(d *json.Decoder) (*Object, error) {
-	object := r.NewObject()
-	for {
-		key, end, err := r.builtinJSON_decodeObjectKey(d)
-		if err != nil {
-			return nil, err
-		}
-		if end {
-			break
-		}
-		value, err := r.builtinJSON_decodeValue(d)
-		if err != nil {
-			return nil, err
-		}
-
-		object.self._putProp(unistring.NewFromString(key), value, true, true, true)
-	}
-	return object, nil
-}
-
-func (r *Runtime) builtinJSON_decodeObjectKey(d *json.Decoder) (string, bool, error) {
-	tok, err := d.Token()
-	if err != nil {
-		return "", false, err
-	}
-	switch tok := tok.(type) {
-	case json.Delim:
-		if tok == '}' {
-			return "", true, nil
-		}
-	case string:
-		return tok, false, nil
-	}
-
-	return "", false, fmt.Errorf("Unexpected token (%T): %v", tok, tok)
-}
-
-func (r *Runtime) builtinJSON_decodeArray(d *json.Decoder) (*Object, error) {
-	var arrayValue []Value
-	for {
-		tok, err := d.Token()
-		if err != nil {
-			return nil, err
-		}
-		if delim, ok := tok.(json.Delim); ok {
-			if delim == ']' {
-				break
-			}
-		}
-		value, err := r.builtinJSON_decodeToken(d, tok)
-		if err != nil {
-			return nil, err
-		}
-		arrayValue = append(arrayValue, value)
-	}
-	return r.newArrayValues(arrayValue), nil
 }
 
 func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holder *Object, name Value) Value {
@@ -175,7 +70,7 @@ type _builtinJSON_stringifyContext struct {
 	propertyList     []Value
 	replacerFunction func(FunctionCall) Value
 	gap, indent      string
-	buf              bytes.Buffer
+	buf              jsonStringifyBuffer
 	allAscii         bool
 }
 
@@ -273,21 +168,77 @@ func (r *Runtime) builtinJSON_stringify(call FunctionCall) Value {
 }
 
 func (ctx *_builtinJSON_stringifyContext) do(v Value) bool {
+	if ctx.replacerFunction == nil {
+		return ctx.strValue(jsonStringifyRawKey(stringEmpty.string()), v, nil)
+	}
 	holder := ctx.r.NewObject()
 	createDataPropertyOrThrow(holder, stringEmpty, v)
-	return ctx.str(stringEmpty, holder)
+	return ctx.str(jsonStringifyRawKey(stringEmpty.string()), holder)
 }
 
-func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
-	value := nilSafe(holder.get(key, nil))
+type jsonStringifyKey struct {
+	raw   unistring.String
+	value Value
+	index int64
+	kind  uint8
+}
 
+const (
+	jsonStringifyKeyRaw uint8 = iota
+	jsonStringifyKeyValue
+	jsonStringifyKeyIndex
+)
+
+func jsonStringifyRawKey(key unistring.String) jsonStringifyKey {
+	return jsonStringifyKey{raw: key, kind: jsonStringifyKeyRaw}
+}
+
+func jsonStringifyValueKey(key Value) jsonStringifyKey {
+	return jsonStringifyKey{value: key, kind: jsonStringifyKeyValue}
+}
+
+func jsonStringifyIndexKey(index int64) jsonStringifyKey {
+	return jsonStringifyKey{index: index, kind: jsonStringifyKeyIndex}
+}
+
+func (key jsonStringifyKey) toString() String {
+	switch key.kind {
+	case jsonStringifyKeyValue:
+		return key.value.toString()
+	case jsonStringifyKeyIndex:
+		return asciiString(strconv.FormatInt(key.index, 10))
+	default:
+		return stringValueFromRaw(key.raw)
+	}
+}
+
+func (key jsonStringifyKey) get(holder *Object) Value {
+	switch key.kind {
+	case jsonStringifyKeyValue:
+		return holder.get(key.value, nil)
+	case jsonStringifyKeyIndex:
+		return holder.self.getIdx(valueInt(key.index), nil)
+	default:
+		return holder.self.getStr(key.raw, nil)
+	}
+}
+
+func (ctx *_builtinJSON_stringifyContext) str(key jsonStringifyKey, holder *Object) bool {
+	return ctx.strValue(key, nilSafe(key.get(holder)), holder)
+}
+
+func (ctx *_builtinJSON_stringifyContext) strValue(key jsonStringifyKey, value Value, holder *Object) bool {
+	// Reserve headroom for a value to cross the flush point without buffer growth.
+	if ctx.buf.Buffer.Len() >= jsonStringifyChunkSize-jsonStringifyChunkSize/8 {
+		ctx.buf.flush()
+	}
 	switch value.(type) {
 	case *Object, *valueBigInt:
 		if toJSON, ok := ctx.r.getVStr(value, "toJSON").(*Object); ok {
 			if c, ok := toJSON.self.assertCallable(); ok {
 				value = c(FunctionCall{
 					This:      value,
-					Arguments: []Value{key},
+					Arguments: []Value{key.toString()},
 				})
 			}
 		}
@@ -296,7 +247,7 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 	if ctx.replacerFunction != nil {
 		value = ctx.replacerFunction(FunctionCall{
 			This:      holder,
-			Arguments: []Value{key, value},
+			Arguments: []Value{key.toString(), value},
 		})
 	}
 
@@ -352,10 +303,12 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 	case String:
 		ctx.quote(value1)
 	case valueInt:
-		ctx.buf.WriteString(value.String())
+		var scratch [24]byte
+		ctx.buf.Write(strconv.AppendInt(scratch[:0], int64(value1), 10))
 	case valueFloat:
 		if !math.IsNaN(float64(value1)) && !math.IsInf(float64(value1), 0) {
-			ctx.buf.WriteString(value.String())
+			var scratch [32]byte
+			ctx.buf.Write(ftoa.FToStr(float64(value1), ftoa.ModeStandard, 0, scratch[:0]))
 		} else {
 			ctx.buf.WriteString("null")
 		}
@@ -373,17 +326,16 @@ func (ctx *_builtinJSON_stringifyContext) str(key Value, holder *Object) bool {
 				ctx.r.typeErrorResult(true, "Converting circular structure to JSON")
 			}
 		}
-		ctx.stack = append(ctx.stack, value1)
-		defer func() { ctx.stack = ctx.stack[:len(ctx.stack)-1] }()
-		if _, ok := value1.self.assertCallable(); !ok {
-			if isArray(value1) {
-				ctx.ja(value1)
-			} else {
-				ctx.jo(value1)
-			}
-		} else {
+		if _, ok := value1.self.assertCallable(); ok {
 			return false
 		}
+		ctx.stack = append(ctx.stack, value1)
+		if isArray(value1) {
+			ctx.ja(value1)
+		} else {
+			ctx.jo(value1)
+		}
+		ctx.stack = ctx.stack[:len(ctx.stack)-1]
 	default:
 		return false
 	}
@@ -399,6 +351,9 @@ func (ctx *_builtinJSON_stringifyContext) ja(array *Object) {
 	length := toLength(array.self.getStr("length", nil))
 	if length == 0 {
 		ctx.buf.WriteString("[]")
+		if ctx.gap != "" {
+			ctx.indent = stepback
+		}
 		return
 	}
 
@@ -413,7 +368,7 @@ func (ctx *_builtinJSON_stringifyContext) ja(array *Object) {
 	}
 
 	for i := int64(0); i < length; i++ {
-		if !ctx.str(asciiString(strconv.FormatInt(i, 10)), array) {
+		if !ctx.str(jsonStringifyIndexKey(i), array) {
 			ctx.buf.WriteString("null")
 		}
 		if i < length-1 {
@@ -446,26 +401,19 @@ func (ctx *_builtinJSON_stringifyContext) jo(object *Object) {
 		separator = ","
 	}
 
-	var props []Value
-	if ctx.propertyList == nil {
-		props = object.self.stringKeys(false, nil)
-	} else {
-		props = ctx.propertyList
-	}
-
 	empty := true
-	for _, name := range props {
+	writeProperty := func(name unistring.String, key jsonStringifyKey, value Value) {
 		off := ctx.buf.Len()
 		if !empty {
 			ctx.buf.WriteString(separator)
 		}
-		ctx.quote(name.toString())
+		ctx.quoteRaw(name)
 		if ctx.gap != "" {
 			ctx.buf.WriteString(": ")
 		} else {
 			ctx.buf.WriteByte(':')
 		}
-		if ctx.str(name, object) {
+		if ctx.strValue(key, value, object) {
 			if empty {
 				empty = false
 			}
@@ -474,8 +422,36 @@ func (ctx *_builtinJSON_stringifyContext) jo(object *Object) {
 		}
 	}
 
+	if ctx.propertyList == nil {
+		if compact, ok := object.self.(*jsonObject); ok {
+			shape := compact.shape
+			for i := range shape.keys {
+				slot := shape.orderedSlot(i)
+				name := shape.keys[slot]
+				var value Value
+				if current, ok := object.self.(*jsonObject); ok && current == compact && current.shape == shape {
+					value = current.values[slot]
+				} else {
+					value = object.self.getStr(name, nil)
+				}
+				writeProperty(name, jsonStringifyRawKey(name), nilSafe(value))
+			}
+		} else {
+			for _, name := range object.self.stringKeys(false, nil) {
+				writeProperty(name.string(), jsonStringifyValueKey(name), nilSafe(object.get(name, nil)))
+			}
+		}
+	} else {
+		for _, name := range ctx.propertyList {
+			writeProperty(name.string(), jsonStringifyValueKey(name), nilSafe(object.get(name, nil)))
+		}
+	}
+
 	if empty {
 		ctx.buf.Truncate(mark)
+		if ctx.gap != "" {
+			ctx.indent = stepback
+		}
 	} else {
 		if ctx.gap != "" {
 			ctx.buf.WriteByte('\n')
@@ -486,18 +462,35 @@ func (ctx *_builtinJSON_stringifyContext) jo(object *Object) {
 	ctx.buf.WriteByte('}')
 }
 
+func (ctx *_builtinJSON_stringifyContext) quoteRaw(raw unistring.String) {
+	if utf16Value := raw.AsUtf16(); utf16Value != nil {
+		ctx.quoteUnicode(unicodeString(utf16Value))
+	} else {
+		ctx.quoteAscii(string(raw))
+	}
+}
+
 func (ctx *_builtinJSON_stringifyContext) quote(str String) {
+	if s, us := devirtualizeString(str); us == nil {
+		ctx.quoteAscii(string(s))
+	} else {
+		ctx.quoteUnicode(us)
+	}
+}
+
+func (ctx *_builtinJSON_stringifyContext) quoteAscii(s string) {
 	ctx.buf.WriteByte('"')
-	reader := &lenientUtf16Decoder{utf16Reader: str.utf16Reader()}
-	for {
-		r, _, err := reader.ReadRune()
-		if err != nil {
-			break
+	start := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 0x20 && c != '"' && c != '\\' {
+			continue
 		}
-		switch r {
+		ctx.buf.WriteString(s[start:i])
+		switch c {
 		case '"', '\\':
 			ctx.buf.WriteByte('\\')
-			ctx.buf.WriteByte(byte(r))
+			ctx.buf.WriteByte(c)
 		case 0x08:
 			ctx.buf.WriteString(`\b`)
 		case 0x09:
@@ -509,23 +502,56 @@ func (ctx *_builtinJSON_stringifyContext) quote(str String) {
 		case 0x0D:
 			ctx.buf.WriteString(`\r`)
 		default:
-			if r < 0x20 {
+			ctx.buf.WriteString(`\u00`)
+			ctx.buf.WriteByte(hex[c>>4])
+			ctx.buf.WriteByte(hex[c&0xF])
+		}
+		start = i + 1
+	}
+	ctx.buf.WriteString(s[start:])
+	ctx.buf.WriteByte('"')
+}
+
+func (ctx *_builtinJSON_stringifyContext) quoteUnicode(s unicodeString) {
+	ctx.buf.WriteByte('"')
+	units := []uint16(s[1:]) // skip the BOM header
+	for i := 0; i < len(units); i++ {
+		c := units[i]
+		switch c {
+		case '"', '\\':
+			ctx.buf.WriteByte('\\')
+			ctx.buf.WriteByte(byte(c))
+		case 0x08:
+			ctx.buf.WriteString(`\b`)
+		case 0x09:
+			ctx.buf.WriteString(`\t`)
+		case 0x0A:
+			ctx.buf.WriteString(`\n`)
+		case 0x0C:
+			ctx.buf.WriteString(`\f`)
+		case 0x0D:
+			ctx.buf.WriteString(`\r`)
+		default:
+			switch {
+			case c < 0x20:
 				ctx.buf.WriteString(`\u00`)
-				ctx.buf.WriteByte(hex[r>>4])
-				ctx.buf.WriteByte(hex[r&0xF])
-			} else {
-				if utf16.IsSurrogate(r) {
-					ctx.buf.WriteString(`\u`)
-					ctx.buf.WriteByte(hex[r>>12])
-					ctx.buf.WriteByte(hex[(r>>8)&0xF])
-					ctx.buf.WriteByte(hex[(r>>4)&0xF])
-					ctx.buf.WriteByte(hex[r&0xF])
-				} else {
-					ctx.buf.WriteRune(r)
-					if ctx.allAscii && r >= utf8.RuneSelf {
-						ctx.allAscii = false
-					}
-				}
+				ctx.buf.WriteByte(hex[c>>4])
+				ctx.buf.WriteByte(hex[c&0xF])
+			case c < utf8.RuneSelf:
+				ctx.buf.WriteByte(byte(c))
+			case isUTF16FirstSurrogate(c) && i+1 < len(units) && isUTF16SecondSurrogate(units[i+1]):
+				ctx.buf.WriteRune(utf16.DecodeRune(rune(c), rune(units[i+1])))
+				i++
+				ctx.allAscii = false
+			case utf16.IsSurrogate(rune(c)):
+				ctx.buf.WriteString(`\u`)
+				ctx.buf.WriteByte(hex[c>>12])
+				ctx.buf.WriteByte(hex[(c>>8)&0xF])
+				ctx.buf.WriteByte(hex[(c>>4)&0xF])
+				ctx.buf.WriteByte(hex[c&0xF])
+			default:
+				ctx.buf.WriteRune(rune(c))
+				ctx.allAscii = false
 			}
 		}
 	}
