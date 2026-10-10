@@ -665,59 +665,77 @@ func (o *baseObject) hasOwnPropertyIdx(idx valueInt) bool {
 	return o.val.self.hasOwnPropertyStr(idx.string())
 }
 
-func (o *baseObject) _defineOwnProperty(name unistring.String, existingValue Value, descr PropertyDescriptor, throw bool) (val Value, ok bool) {
-
-	getterObj, _ := descr.Getter.(*Object)
-	setterObj, _ := descr.Setter.(*Object)
-
-	var existing *valueProperty
-
-	if existingValue == nil {
-		if !o.extensible {
-			o.val.runtime.typeErrorResult(throw, "Cannot define property %s, object is not extensible", name)
-			return nil, false
-		}
-		existing = &valueProperty{}
-	} else {
-		if existing, ok = existingValue.(*valueProperty); !ok {
-			existing = &valueProperty{
-				writable:     true,
-				enumerable:   true,
-				configurable: true,
-				value:        existingValue,
+func (r *Runtime) isCompatiblePropertyDescriptor(name unistring.String, getName func() unistring.String, extensible bool, desc *PropertyDescriptor, current *valueProperty, throw bool) bool {
+	if current == nil {
+		if !extensible && throw {
+			if getName != nil {
+				name = getName()
 			}
+			panic(r.NewTypeError("Cannot define property %s, object is not extensible", name))
+		}
+		return extensible
+	}
+
+	if !current.configurable {
+		if desc.Configurable == FLAG_TRUE {
+			goto reject
 		}
 
-		if !existing.configurable {
-			if descr.Configurable == FLAG_TRUE {
-				goto Reject
-			}
-			if descr.Enumerable != FLAG_NOT_SET && descr.Enumerable.Bool() != existing.enumerable {
-				goto Reject
-			}
+		if desc.Enumerable != FLAG_NOT_SET && desc.Enumerable.Bool() != current.enumerable {
+			goto reject
 		}
-		if existing.accessor && descr.Value != nil || !existing.accessor && (getterObj != nil || setterObj != nil) {
-			if !existing.configurable {
-				goto Reject
+
+		if !desc.IsGeneric() && desc.IsAccessor() != current.accessor {
+			goto reject
+		}
+
+		if current.accessor {
+			if desc.Getter != nil {
+				if !(desc.Getter == _undefined && current.getterFunc == nil) && !desc.Getter.SameAs(current.getterFunc) {
+					goto reject
+				}
 			}
-		} else if !existing.accessor {
-			if !existing.configurable {
-				if !existing.writable {
-					if descr.Writable == FLAG_TRUE {
-						goto Reject
-					}
-					if descr.Value != nil && !descr.Value.SameAs(existing.value) {
-						goto Reject
-					}
+
+			if desc.Setter != nil {
+				if !(desc.Setter == _undefined && current.setterFunc == nil) && !desc.Setter.SameAs(current.setterFunc) {
+					goto reject
 				}
 			}
 		} else {
-			if !existing.configurable {
-				if descr.Getter != nil && existing.getterFunc != getterObj || descr.Setter != nil && existing.setterFunc != setterObj {
-					goto Reject
+			if !current.writable {
+				if desc.Writable == FLAG_TRUE {
+					goto reject
+				}
+				if desc.Value != nil {
+					if !desc.Value.SameAs(current.value) {
+						goto reject
+					}
 				}
 			}
 		}
+	}
+	return true
+reject:
+	if throw {
+		if getName != nil {
+			name = getName()
+		}
+		panic(r.NewTypeError("Cannot redefine property: %s", name))
+	}
+	return false
+}
+
+func (o *baseObject) _defineOwnProperty(name unistring.String, getName func() unistring.String, existingValue Value, descr PropertyDescriptor, throw bool) (val Value, ok bool) {
+	var existing *valueProperty
+	if existingValue != nil {
+		existing = propToValueProp(existingValue)
+	}
+	if !o.val.runtime.isCompatiblePropertyDescriptor(name, getName, o.extensible, &descr, existing, throw) {
+		return nil, false
+	}
+
+	if existing == nil {
+		existing = &valueProperty{}
 	}
 
 	if descr.Writable == FLAG_TRUE && descr.Enumerable == FLAG_TRUE && descr.Configurable == FLAG_TRUE && descr.Value != nil {
@@ -761,16 +779,11 @@ func (o *baseObject) _defineOwnProperty(name unistring.String, existingValue Val
 	}
 
 	return existing, true
-
-Reject:
-	o.val.runtime.typeErrorResult(throw, "Cannot redefine property: %s", name)
-	return nil, false
-
 }
 
 func (o *baseObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	existingVal := o.values[name]
-	if v, ok := o._defineOwnProperty(name, existingVal, descr, throw); ok {
+	if v, ok := o._defineOwnProperty(name, nil, existingVal, descr, throw); ok {
 		o._prepareValues()
 		o.values[name] = v
 		if existingVal == nil {
@@ -791,7 +804,7 @@ func (o *baseObject) defineOwnPropertySym(s *Symbol, descr PropertyDescriptor, t
 	if o.symValues != nil {
 		existingVal = o.symValues.get(s)
 	}
-	if v, ok := o._defineOwnProperty(s.descriptiveString().string(), existingVal, descr, throw); ok {
+	if v, ok := o._defineOwnProperty("", func() unistring.String { return s.descriptiveString().string() }, existingVal, descr, throw); ok {
 		if o.symValues == nil {
 			o.symValues = newOrderedMap(nil)
 		}

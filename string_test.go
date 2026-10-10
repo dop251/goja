@@ -242,6 +242,112 @@ func TestImportedString_CompareTo(t *testing.T) {
 	}
 }
 
+func TestStringCaseConversionLoneSurrogates(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []uint16
+		expLower []uint16
+		expUpper []uint16
+	}{
+		{
+			name:     "lone high surrogate",
+			input:    []uint16{0xD800},
+			expLower: []uint16{0xD800},
+			expUpper: []uint16{0xD800},
+		},
+		{
+			name:     "lone low surrogate",
+			input:    []uint16{0xDC00},
+			expLower: []uint16{0xDC00},
+			expUpper: []uint16{0xDC00},
+		},
+		{
+			name:     "consecutive lone high surrogates",
+			input:    []uint16{0xD800, 0xD801},
+			expLower: []uint16{0xD800, 0xD801},
+			expUpper: []uint16{0xD800, 0xD801},
+		},
+		{
+			name:     "consecutive lone low surrogates",
+			input:    []uint16{0xDC00, 0xDC01},
+			expLower: []uint16{0xDC00, 0xDC01},
+			expUpper: []uint16{0xDC00, 0xDC01},
+		},
+		{
+			name:     "inverted surrogates",
+			input:    []uint16{0xDC00, 0xD800},
+			expLower: []uint16{0xDC00, 0xD800},
+			expUpper: []uint16{0xDC00, 0xD800},
+		},
+		{
+			name:     "mixed ASCII and lone surrogates",
+			input:    []uint16{'A', 0xD800, 'b', 0xDC00, 'C'},
+			expLower: []uint16{'a', 0xD800, 'b', 0xDC00, 'c'},
+			expUpper: []uint16{'A', 0xD800, 'B', 0xDC00, 'C'},
+		},
+		{
+			name:     "valid surrogate pair surrounded by lone surrogates",
+			input:    []uint16{0xD800, 0xD83D, 0xDE00, 0xDFFF},
+			expLower: []uint16{0xD800, 0xD83D, 0xDE00, 0xDFFF},
+			expUpper: []uint16{0xD800, 0xD83D, 0xDE00, 0xDFFF},
+		},
+		{
+			name: "supplementary casing with lone surrogates",
+			// U+10400 (Deseret capital long I) -> U+10428 (Deseret small long I)
+			input:    []uint16{0xD800, 0xD801, 0xDC00, 0xDC00},
+			expLower: []uint16{0xD800, 0xD801, 0xDC28, 0xDC00},
+			expUpper: []uint16{0xD800, 0xD801, 0xDC00, 0xDC00},
+		},
+	}
+
+	assertCodeUnits := func(t *testing.T, actual String, expected []uint16) {
+		t.Helper()
+		if actual.Length() != len(expected) {
+			t.Fatalf("length mismatch: got %d, want %d", actual.Length(), len(expected))
+		}
+		for i, exp := range expected {
+			if actual.CharAt(i) != exp {
+				t.Fatalf("at index %d: got 0x%04X, want 0x%04X", i, actual.CharAt(i), exp)
+			}
+		}
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := StringFromUTF16(tc.input)
+			assertCodeUnits(t, s.toLower(), tc.expLower)
+			assertCodeUnits(t, s.toUpper(), tc.expUpper)
+		})
+	}
+
+	t.Run("JS runtime evaluation", func(t *testing.T) {
+		vm := New()
+		scripts := []string{
+			`"\uD800".toLowerCase() === "\uD800"`,
+			`"\uD800".toUpperCase() === "\uD800"`,
+			`"\uDC00".toLowerCase() === "\uDC00"`,
+			`"\uDC00".toUpperCase() === "\uDC00"`,
+			`"\uD800\uD800".toLowerCase() === "\uD800\uD800"`,
+			`"\uDC00\uD800".toUpperCase() === "\uDC00\uD800"`,
+			`"Hello \uD800 World".toLowerCase().charCodeAt(6) === 0xD800`,
+			`"Hello \uD800 World".toUpperCase().charCodeAt(6) === 0xD800`,
+			`"Hello \uDC00 World".toLowerCase().charCodeAt(6) === 0xDC00`,
+			`"Hello \uDC00 World".toUpperCase().charCodeAt(6) === 0xDC00`,
+			`"ABC\uD800def".toLowerCase() === "abc\uD800def"`,
+			`"ABC\uD800def".toUpperCase() === "ABC\uD800DEF"`,
+		}
+		for _, script := range scripts {
+			v, err := vm.RunString(script)
+			if err != nil {
+				t.Fatalf("script %q failed: %v", script, err)
+			}
+			if !v.ToBoolean() {
+				t.Fatalf("script %q evaluated to false", script)
+			}
+		}
+	})
+}
+
 func BenchmarkASCIIConcat(b *testing.B) {
 	vm := New()
 
@@ -255,5 +361,52 @@ func BenchmarkASCIIConcat(b *testing.B) {
 		if err != nil {
 			b.Fatalf("Unexpected errors %s", err)
 		}
+	}
+}
+
+func BenchmarkCase(b *testing.B) {
+	benchmarks := []struct {
+		name string
+		s    String
+	}{
+		{
+			name: "ASCII_Short",
+			s:    newStringValue("The quick brown fox jumps over the lazy dog."),
+		},
+		{
+			name: "BMP_NoSurrogates_Short",
+			s:    newStringValue("Привет, Мир! Καλημέρα κόσμε!"),
+		},
+		{
+			name: "BMP_NoSurrogates_Long",
+			s:    newStringValue(strings.Repeat("Привет, Мир! Καλημέρα κόσμε! ", 20)),
+		},
+		{
+			name: "ValidSurrogates",
+			s:    newStringValue("Hello 🌍 World 🚀 Deseret: 𐐀𐐁𐐂"),
+		},
+		{
+			name: "LoneSurrogates_Short",
+			s:    StringFromUTF16([]uint16{'H', 'e', 'l', 'l', 'o', ' ', 0xD800, ' ', 'W', 'o', 'r', 'l', 'd', ' ', 0xDC00}),
+		},
+		{
+			name: "LoneSurrogates_Dense",
+			s:    StringFromUTF16([]uint16{0xD800, 'a', 0xDC00, 'b', 0xD801, 'c', 0xDC01}),
+		},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run("ToLower/"+bm.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = bm.s.toLower()
+			}
+		})
+		b.Run("ToUpper/"+bm.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = bm.s.toUpper()
+			}
+		})
 	}
 }

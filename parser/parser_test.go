@@ -122,15 +122,19 @@ func TestParserErr(t *testing.T) {
 
 		test("3e-", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
+		test("08n", "(anonymous): Line 1:1 Illegal numeric literal")
+
+		test("017.5", "(anonymous): Line 1:4 Unexpected number")
+
 		test("3x", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
 		test("3x0", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
 		test("0x", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
-		test("09", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
+		test("09", nil)
 
-		test("018", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
+		test("018", nil)
 
 		test("01.0", "(anonymous): Line 1:3 Unexpected number")
 
@@ -953,6 +957,15 @@ func TestParser(t *testing.T) {
 		test("function f() { let A; if (false) {} else A = class A {} }", nil)
 
 		{
+			program := test("({ async *m() { yield await 1 } })", nil)
+			fn := program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.ObjectLiteral).Value[0].(*ast.PropertyKeyed).Value.(*ast.FunctionLiteral)
+			is(fn.Async, true)
+			is(fn.Generator, true)
+		}
+		test("({ async *[k]() {} })", nil)
+		test("({ async\n*m() {} })", "(anonymous): Line 2:1 Unexpected token *")
+
+		{
 			program := test(`(-2)**53`, nil)
 			st := program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression)
 			is(st.Operator, token.EXPONENT)
@@ -1410,5 +1423,28 @@ func TestParseTemplateLiteralWithTail(t *testing.T) {
 		}
 	} else {
 		t.Fatal(prg.Body[0])
+	}
+}
+
+func TestParseNestingDepth(t *testing.T) {
+	const n = 1000000
+	for _, src := range []string{
+		strings.Repeat("(", n) + "a" + strings.Repeat(")", n),
+		strings.Repeat("[", n) + strings.Repeat("]", n),
+		strings.Repeat("{", n) + strings.Repeat("}", n),
+		strings.Repeat("!", n) + "a",
+		strings.Repeat("a => ", n) + "a",
+		strings.Repeat("a ** ", n) + "a",
+		strings.Repeat("new ", n) + "a",
+		"(" + strings.Repeat("class extends ", n) + "a" + strings.Repeat("{}", n) + ")",
+	} {
+		_, err := ParseFile(nil, "", src, 0)
+		if err == nil || !strings.Contains(err.Error(), "Maximum nesting depth exceeded") {
+			t.Fatalf("%.10q...: %v", src, err)
+		}
+	}
+	src := strings.Repeat("(", maxNestingDepth/4) + "a" + strings.Repeat(")", maxNestingDepth/4)
+	if _, err := ParseFile(nil, "", src, 0); err != nil {
+		t.Fatal(err)
 	}
 }

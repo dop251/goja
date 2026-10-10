@@ -339,7 +339,7 @@ func (f *baseFuncObject) defineOwnPropertyStr(name unistring.String, desc Proper
 			*ownDesc = desc.Value
 			return true
 		}
-		if v, ok := f.baseObject._defineOwnProperty(name, &valueProperty{
+		if v, ok := f.baseObject._defineOwnProperty(name, nil, &valueProperty{
 			value:        *ownDesc,
 			configurable: true,
 		}, desc, throw); ok {

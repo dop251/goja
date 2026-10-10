@@ -874,7 +874,7 @@ func (a *typedArrayObject) _defineIdxProperty(idx int, desc PropertyDescriptor, 
 		a.val.runtime.typeErrorResult(throw, "Cannot redefine property: %d", idx)
 		return false
 	}
-	_, ok := a._defineOwnProperty(unistring.String(strconv.Itoa(idx)), a.getOwnPropIdx(valueInt(idx)), desc, throw)
+	_, ok := a._defineOwnProperty("", func() unistring.String { return unistring.String(strconv.Itoa(idx)) }, a.getOwnPropIdx(valueInt(idx)), desc, throw)
 	if ok {
 		if !a.isValidIntegerIndex(idx) {
 			a.val.runtime.typeErrorResult(throw, "Invalid typed array index")

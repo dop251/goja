@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"regexp/syntax"
 	"strings"
+	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
 
@@ -368,6 +369,68 @@ func (r *Runtime) builtin_RegExp(call FunctionCall) Value {
 		}
 	}
 	return r.newRegExp(pattern, flags, r.getRegExpPrototype()).val
+}
+
+func (r *Runtime) regexp_escape(call FunctionCall) Value {
+	s, ok := call.Argument(0).(String)
+	if !ok {
+		panic(r.NewTypeError("RegExp.escape requires a string argument"))
+	}
+	var sb StringBuilder
+	sb.Grow(s.Length())
+	rd := &lenientUtf16Decoder{utf16Reader: s.utf16Reader()}
+	for first := true; ; first = false {
+		c, _, err := rd.ReadRune()
+		if err != nil {
+			break
+		}
+		// A leading digit or ASCII letter is escaped so that it cannot extend a preceding escape like \0 or \c.
+		if first && (c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
+			writeRegExpHexEscape(&sb, c)
+		} else {
+			encodeForRegExpEscape(&sb, c)
+		}
+	}
+	return sb.String()
+}
+
+func encodeForRegExpEscape(sb *StringBuilder, c rune) {
+	switch c {
+	case '^', '$', '\\', '.', '*', '+', '?', '(', ')', '[', ']', '{', '}', '|', '/':
+		sb.WriteRune('\\')
+		sb.WriteRune(c)
+	case '\t':
+		sb.writeASCII(`\t`)
+	case '\n':
+		sb.writeASCII(`\n`)
+	case '\v':
+		sb.writeASCII(`\v`)
+	case '\f':
+		sb.writeASCII(`\f`)
+	case '\r':
+		sb.writeASCII(`\r`)
+	case ',', '-', '=', '<', '>', '#', '&', '!', '%', ':', ';', '@', '~', '\'', '`', '"':
+		writeRegExpHexEscape(sb, c)
+	default:
+		if c == '\ufeff' || c == '\u2028' || c == '\u2029' || unicode.Is(unicode.Zs, c) || utf16.IsSurrogate(c) {
+			writeRegExpHexEscape(sb, c)
+		} else {
+			sb.WriteRune(c)
+		}
+	}
+}
+
+// writeRegExpHexEscape writes c as \xHH if c <= 0xFF, otherwise as \uHHHH. c must be in the BMP.
+func writeRegExpHexEscape(sb *StringBuilder, c rune) {
+	if c <= 0xFF {
+		sb.writeASCII(`\x`)
+	} else {
+		sb.writeASCII(`\u`)
+		sb.WriteRune(rune(hex[c>>12]))
+		sb.WriteRune(rune(hex[(c>>8)&0xF]))
+	}
+	sb.WriteRune(rune(hex[(c>>4)&0xF]))
+	sb.WriteRune(rune(hex[c&0xF]))
 }
 
 func (r *Runtime) regexpproto_compile(call FunctionCall) Value {
@@ -1330,6 +1393,7 @@ func (r *Runtime) getRegExp() *Object {
 		r.newNativeFuncAndConstruct(ret, r.builtin_RegExp,
 			r.wrapNativeConstruct(r.builtin_newRegExp, ret, proto), proto, "RegExp", intToValue(2))
 		rx := ret.self
+		rx._putProp("escape", r.newNativeFunc(r.regexp_escape, "escape", 1), true, false, true)
 		r.putSpeciesReturnThis(rx)
 	}
 	return ret

@@ -320,3 +320,24 @@ func TestStringSplit(t *testing.T) {
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func TestStringWellFormed(t *testing.T) {
+	const SCRIPT = `
+var lo = '\uD834';
+var hi = '\uDF06';
+var pair = lo + hi;
+
+assert(''.isWellFormed(), "empty");
+assert('abc'.isWellFormed(), "ascii");
+assert(('a' + pair + 'b').isWellFormed(), "pair");
+assert(!(lo + 'a').isWellFormed(), "lone leading");
+assert(!('a' + hi).isWellFormed(), "lone trailing");
+assert(!(hi + lo).isWellFormed(), "reversed pair");
+
+assert.sameValue('abc'.toWellFormed(), 'abc', "ascii");
+assert.sameValue(('a' + pair).toWellFormed(), 'a' + pair, "pair");
+assert.sameValue((lo + 'a' + pair + hi + lo).toWellFormed(), '\uFFFDa' + pair + '\uFFFD\uFFFD', "lone");
+assert.sameValue((hi + lo).toWellFormed(), '\uFFFD\uFFFD', "reversed pair");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
