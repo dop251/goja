@@ -233,7 +233,6 @@ var (
 		"regexp-unicode-property-escapes",
 		"regexp-match-indices",
 		"regexp-modifiers",
-		"RegExp.escape",
 		"legacy-regexp",
 		"tail-call-optimization",
 		"Temporal",
