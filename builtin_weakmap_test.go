@@ -90,6 +90,27 @@ func TestWeakMapUpdateKey(t *testing.T) {
 	testScript(SCRIPT, intToValue(2), t)
 }
 
+func TestWeakMapGetOrInsert(t *testing.T) {
+	const SCRIPT = `
+	const m = new WeakMap();
+	const key = {};
+	assert.sameValue(m.getOrInsert(key, 1), 1);
+	assert.sameValue(m.getOrInsert(key, 2), 1);
+	assert.sameValue(m.getOrInsertComputed(key, function() { throw new Error("should not be called"); }), 1);
+	const key1 = {};
+	assert.sameValue(m.getOrInsertComputed(key1, function(k) {
+		assert.sameValue(k, key1);
+		m.set(k, 1);
+		return 2;
+	}), 2);
+	assert.sameValue(m.get(key1), 2);
+	assert.throws(TypeError, function() { m.getOrInsert(1, 1); });
+	assert.throws(TypeError, function() { m.getOrInsertComputed(1, function() {}); });
+	assert.throws(TypeError, function() { m.getOrInsertComputed(key, null); });
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestWeakMapValueRefersKey(t *testing.T) {
 	vm := New()
 	key := vm.NewObject()

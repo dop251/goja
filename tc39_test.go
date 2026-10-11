@@ -357,10 +357,6 @@ func init() {
 		"test/language/export/",
 		"test/language/import/",
 		"test/language/module-code/",
-
-		// Map getOrInsert*
-		"test/built-ins/WeakMap/prototype/getOrInsert",
-		"test/built-ins/Map/prototype/getOrInsert",
 	)
 
 }
