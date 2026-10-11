@@ -169,10 +169,17 @@ func (r *Runtime) arrayBufferCopyAndDetach(this, newLength Value) Value {
 		newByteLength = r.toIndex(newLength)
 	}
 	b.ensureNotDetached(true)
-	newBuffer := r._newArrayBuffer(r.getArrayBufferPrototype(), nil)
-	newBuffer.data = allocByteSlice(newByteLength)
-	copy(newBuffer.data, b.data)
+	var data []byte
+	if newByteLength <= len(b.data) {
+		// Hand the existing bytes over to the new buffer instead of copying them.
+		data = b.data[:newByteLength]
+	} else {
+		data = allocByteSlice(newByteLength)
+		copy(data, b.data)
+	}
 	b.detach()
+	newBuffer := r._newArrayBuffer(r.getArrayBufferPrototype(), nil)
+	newBuffer.data = data
 	return newBuffer.val
 }
 

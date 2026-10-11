@@ -534,7 +534,8 @@ assert.throws(TypeError, function() { shrunk.transfer(); }, "detached source");
 
 func TestArrayBufferTransferFromGo(t *testing.T) {
 	vm := New()
-	ab := vm.NewArrayBuffer([]byte{1, 2, 3})
+	data := []byte{1, 2, 3}
+	ab := vm.NewArrayBuffer(data)
 	vm.Set("ab", ab)
 	v, err := vm.RunString(`ab.transfer()`)
 	if err != nil {
@@ -543,7 +544,11 @@ func TestArrayBufferTransferFromGo(t *testing.T) {
 	if !ab.Detached() || ab.Bytes() != nil {
 		t.Fatal("source ArrayBuffer is not detached")
 	}
-	if b := v.Export().(ArrayBuffer).Bytes(); !bytes.Equal(b, []byte{1, 2, 3}) {
+	b := v.Export().(ArrayBuffer).Bytes()
+	if !bytes.Equal(b, []byte{1, 2, 3}) {
 		t.Fatalf("unexpected contents: %v", b)
+	}
+	if &b[0] != &data[0] {
+		t.Fatal("the data was copied instead of being transferred")
 	}
 }
