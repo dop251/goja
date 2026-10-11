@@ -452,6 +452,55 @@ func (r *Runtime) iterator_from(call FunctionCall) Value {
 	return o
 }
 
+func (r *Runtime) iterator_concat(call FunctionCall) Value {
+	type iterable struct {
+		obj        *Object
+		openMethod func(FunctionCall) Value
+	}
+	iterables := make([]iterable, len(call.Arguments))
+	for i, item := range call.Arguments {
+		obj, ok := item.(*Object)
+		if !ok {
+			panic(r.NewTypeError("%s is not an object", item.String()))
+		}
+		method := toMethod(obj.self.getSym(SymIterator, nil))
+		if method == nil {
+			panic(r.NewTypeError("object is not iterable"))
+		}
+		iterables[i] = iterable{obj: obj, openMethod: method}
+	}
+	var inner *iteratorRecord
+	// Iterator.concat() has no underlying iterator of its own, so the helper is given an empty record, closing
+	// which is a no-op.
+	h := r.newIteratorHelper(&iteratorRecord{}, func() (Value, bool) {
+		for {
+			if inner == nil {
+				if len(iterables) == 0 {
+					return nil, false
+				}
+				item := iterables[0]
+				iterables[0] = iterable{}
+				iterables = iterables[1:]
+				iter, ok := item.openMethod(FunctionCall{This: item.obj}).(*Object)
+				if !ok {
+					panic(r.NewTypeError("Result of the Symbol.iterator method is not an object"))
+				}
+				inner = r.getIteratorDirect(iter)
+			}
+			if value, ok := inner.stepValue(); ok {
+				return value, true
+			}
+			inner = nil
+		}
+	})
+	h.abort = func() {
+		if inner != nil {
+			inner.returnIter()
+		}
+	}
+	return h.val
+}
+
 func (r *Runtime) builtin_newIterator(_ []Value, newTarget *Object) *Object {
 	if newTarget == nil || newTarget == r.global.Iterator {
 		panic(r.NewTypeError("Abstract class Iterator not directly constructable"))
@@ -563,6 +612,7 @@ func (r *Runtime) getWrapForValidIteratorPrototype() *Object {
 
 func (r *Runtime) createIteratorCtor(val *Object) objectImpl {
 	o := r.newNativeConstructOnly(val, r.builtin_newIterator, r.getIteratorPrototype(), "Iterator", 0)
+	o._putProp("concat", r.newNativeFunc(r.iterator_concat, "concat", 0), true, false, true)
 	o._putProp("from", r.newNativeFunc(r.iterator_from, "from", 1), true, false, true)
 
 	return o
