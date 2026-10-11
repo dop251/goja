@@ -75,11 +75,6 @@ func (ctx *typedArraySortCtx) Swap(i, j int) {
 }
 
 func allocByteSlice(size int) (b []byte) {
-	defer func() {
-		if x := recover(); x != nil {
-			panic(rangeError(fmt.Sprintf("Buffer size is too large: %d", size)))
-		}
-	}()
 	if size < 0 {
 		panic(rangeError(fmt.Sprintf("Invalid buffer size: %d", size)))
 	}
@@ -1497,7 +1492,7 @@ func (r *Runtime) _newTypedArrayFromTypedArray(src *typedArrayObject, newTarget 
 	src.viewedArrayBuf.ensureNotDetached(true)
 	l := src.length
 
-	dst.viewedArrayBuf.data = allocByteSlice(toIntStrict(int64(l) * int64(dst.elemSize)))
+	dst.viewedArrayBuf.data = allocByteSlice(safeMul(l, dst.elemSize))
 	src.viewedArrayBuf.ensureNotDetached(true)
 	if src.defaultCtor == dst.defaultCtor {
 		copy(dst.viewedArrayBuf.data, src.viewedArrayBuf.data[src.offset*src.elemSize:])

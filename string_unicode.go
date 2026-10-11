@@ -162,11 +162,15 @@ func (rr *unicodeRuneReader) ReadRune() (r rune, size int, err error) {
 }
 
 func (b *unicodeStringBuilder) Grow(n int) {
+	if n < 0 {
+		panic(rangeError("Invalid string length"))
+	}
 	if len(b.buf) == 0 {
 		n++
 	}
 	if cap(b.buf)-len(b.buf) < n {
-		buf := make([]uint16, len(b.buf), 2*cap(b.buf)+n)
+		newCap := safeMul(2, cap(b.buf)) + n
+		buf := make([]uint16, len(b.buf), newCap)
 		copy(buf, b.buf)
 		b.buf = buf
 	}
@@ -306,7 +310,7 @@ func (b *StringBuilder) String() String {
 
 func (b *StringBuilder) Grow(n int) {
 	if b.ascii() {
-		b.asciiBuilder.Grow(n)
+		b.asciiBuilder.Grow(toStringLen(n))
 	} else {
 		b.unicodeBuilder.Grow(n)
 	}

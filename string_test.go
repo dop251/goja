@@ -348,6 +348,31 @@ func TestStringCaseConversionLoneSurrogates(t *testing.T) {
 	})
 }
 
+func TestStringMaxLen(t *testing.T) {
+	const SCRIPT = `
+	assert.throws(RangeError, () => {
+		'x'.repeat(1e300); // makeslice panic
+	});
+
+	assert.throws(RangeError, () => {
+		'xx'.repeat(1e300); // integer overflow
+	});
+
+	assert.throws(RangeError, () => {
+		'a'.repeat(2**53-1);
+	});
+
+	assert.throws(RangeError, () => {
+		'a'.padStart(2**53-1);
+	});
+
+	assert.throws(RangeError, () => {
+		'\u2605'.padEnd(2**53-1);
+	});
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func BenchmarkASCIIConcat(b *testing.B) {
 	vm := New()
 
