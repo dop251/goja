@@ -71,13 +71,11 @@ func (c *tinyClass) getForProp(name unistring.String) *tinyClass {
 
 	// The decision of whether to copy or re-use the keys slice needs to be made carefully.
 	// For root class we always copy because the original empty keys slice is strongly referenced from the Runtime.
-	// Otherwise, we can only do it if it's currently a leaf class.
 	// If single transition is currently free (which means it's either never been used or it was, but the child got
-	// freed) and the propTransitions hasn't been created we can re-use the slice as the tail is not currently used
-	// by any class. The only other possible transition is to a non-extensible class which by definition cannot add
-	// properties.
-	if c.keysLen > 0 && singleIsFree && c.propTransitions == nil {
-		*c.keys = append(*c.keys, name)
+	// freed) we can re-use the slice as the tail (past keysLen) is not currently used by any other class. The only
+	// other transition where keys are shared is to a non-extensible class which by definition cannot add properties.
+	if c.keysLen > 0 && singleIsFree {
+		*c.keys = append((*c.keys)[:c.keysLen], name)
 		child.keys = c.keys
 	} else {
 		newKeys := make([]unistring.String, c.keysLen+1)
