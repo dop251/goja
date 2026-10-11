@@ -251,7 +251,6 @@ var (
 		"decorators",
 		"immutable-arraybuffer",
 		"joint-iteration",
-		"iterator-sequencing",
 
 		"regexp-duplicate-named-groups",
 		"regexp-v-flag",

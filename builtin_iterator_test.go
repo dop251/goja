@@ -83,6 +83,55 @@ func TestIteratorFrom(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestIteratorConcat(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue(Iterator.concat.length, 0);
+	assert.sameValue(Iterator.concat().next().done, true);
+	assert.sameValue(Iterator.concat([1, 2], new Set([3]), new String("ab")).toArray().join(), "1,2,3,a,b");
+
+	var it = Iterator.concat([1]);
+	assert.sameValue(Object.getPrototypeOf(it), Object.getPrototypeOf([].values().map(x => x)));
+	assert.sameValue(it.map(x => x * 2).toArray().join(), "2");
+
+	var log = [];
+	function iterable(name, values) {
+		return {
+			[Symbol.iterator]() {
+				log.push("open " + name);
+				var i = 0;
+				return {
+					next() {
+						return i < values.length ? {value: values[i++], done: false} : {done: true};
+					},
+					return() {
+						log.push("return " + name);
+						return {};
+					}
+				};
+			}
+		};
+	}
+
+	var c = Iterator.concat(iterable("a", [1]), iterable("b", [2, 3]));
+	assert.sameValue(log.length, 0);
+	assert.sameValue(c.next().value, 1);
+	assert.sameValue(c.next().value, 2);
+	c.return();
+	assert.sameValue(log.join(), "open a,open b,return b");
+	assert.sameValue(c.next().done, true);
+
+	log = [];
+	Iterator.concat(iterable("a", [1])).return();
+	assert.sameValue(log.length, 0);
+
+	assert.throws(TypeError, () => Iterator.concat(1));
+	assert.throws(TypeError, () => Iterator.concat("ab"));
+	assert.throws(TypeError, () => Iterator.concat({}));
+	assert.throws(TypeError, () => Iterator.concat({[Symbol.iterator]() { return 1; }}).next());
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestIteratorMapFilter(t *testing.T) {
 	const SCRIPT = `
 	assert.sameValue([1, 2, 3].values().map((x, i) => x * 10 + i).toArray().join(), "10,21,32");
