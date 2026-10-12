@@ -137,13 +137,7 @@ func (r *Runtime) mapProto_getOrInsert(call FunctionCall) Value {
 	if !ok {
 		panic(r.NewTypeError("Method Map.prototype.getOrInsert called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 	}
-	key := call.Argument(0)
-	if v := mo.m.get(key); v != nil {
-		return v
-	}
-	value := call.Argument(1)
-	mo.m.set(key, value)
-	return value
+	return mo.m.getOrInsert(call.Argument(0), call.Argument(1))
 }
 
 func (r *Runtime) mapProto_getOrInsertComputed(call FunctionCall) Value {
