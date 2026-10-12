@@ -144,6 +144,37 @@ func (r *Runtime) weakMapProto_get(call FunctionCall) Value {
 	return res
 }
 
+func (r *Runtime) weakMapProto_getOrInsert(call FunctionCall) Value {
+	thisObj := r.toObject(call.This)
+	wmo, ok := thisObj.self.(*weakMapObject)
+	if !ok {
+		panic(r.NewTypeError("Method WeakMap.prototype.getOrInsert called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
+	}
+	key := r.toObject(call.Argument(0))
+	if v := wmo.m.get(key); v != nil {
+		return v
+	}
+	value := call.Argument(1)
+	wmo.m.set(key, value)
+	return value
+}
+
+func (r *Runtime) weakMapProto_getOrInsertComputed(call FunctionCall) Value {
+	thisObj := r.toObject(call.This)
+	wmo, ok := thisObj.self.(*weakMapObject)
+	if !ok {
+		panic(r.NewTypeError("Method WeakMap.prototype.getOrInsertComputed called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
+	}
+	key := r.toObject(call.Argument(0))
+	callbackFn := r.toCallable(call.Argument(1))
+	if v := wmo.m.get(key); v != nil {
+		return v
+	}
+	value := callbackFn(FunctionCall{This: _undefined, Arguments: []Value{key}})
+	wmo.m.set(key, value)
+	return value
+}
+
 func (r *Runtime) weakMapProto_has(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	wmo, ok := thisObj.self.(*weakMapObject)
@@ -225,6 +256,8 @@ func (r *Runtime) createWeakMapProto(val *Object) objectImpl {
 	o._putProp("delete", r.newNativeFunc(r.weakMapProto_delete, "delete", 1), true, false, true)
 	o._putProp("has", r.newNativeFunc(r.weakMapProto_has, "has", 1), true, false, true)
 	o._putProp("get", r.newNativeFunc(r.weakMapProto_get, "get", 1), true, false, true)
+	o._putProp("getOrInsert", r.newNativeFunc(r.weakMapProto_getOrInsert, "getOrInsert", 2), true, false, true)
+	o._putProp("getOrInsertComputed", r.newNativeFunc(r.weakMapProto_getOrInsertComputed, "getOrInsertComputed", 2), true, false, true)
 
 	o._putSym(SymToStringTag, valueProp(asciiString(classWeakMap), false, false, true))
 
