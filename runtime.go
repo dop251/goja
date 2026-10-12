@@ -1304,6 +1304,22 @@ func toIntStrict(i int64) int {
 	return int(i)
 }
 
+func safeMul(left, right int) int {
+	res := left * right
+	// check for overflow
+	if left == 0 || right == 0 || res/left == right {
+		return res
+	}
+	panic(rangeError("Integer overflow"))
+}
+
+func toStringLen(n int) int {
+	if n < 0 {
+		panic(rangeError("Invalid string length"))
+	}
+	return n
+}
+
 func toIntClamp(i int64) int {
 	if bits.UintSize == 32 {
 		if i > math.MaxInt32 {

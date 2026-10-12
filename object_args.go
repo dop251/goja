@@ -96,7 +96,7 @@ func (a *argumentsObject) defineOwnPropertyStr(name unistring.String, descr Prop
 			value:        *mapped.v,
 		}
 
-		val, ok := a.baseObject._defineOwnProperty(name, existing, descr, throw)
+		val, ok := a.baseObject._defineOwnProperty(name, nil, existing, descr, throw)
 		if !ok {
 			return false
 		}

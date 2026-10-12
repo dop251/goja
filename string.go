@@ -239,7 +239,7 @@ func (s *stringObject) setForeignIdx(idx valueInt, val, receiver Value, throw bo
 
 func (s *stringObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	if i := strToGoIdx(name); i >= 0 && i < s.length {
-		_, ok := s._defineOwnProperty(name, &valueProperty{enumerable: true}, descr, throw)
+		_, ok := s._defineOwnProperty(name, nil, &valueProperty{enumerable: true}, descr, throw)
 		return ok
 	}
 

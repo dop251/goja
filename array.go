@@ -429,7 +429,7 @@ func (a *arrayObject) _defineIdxProperty(idx uint32, desc PropertyDescriptor, th
 	if idx < uint32(len(a.values)) {
 		existing = a.values[idx]
 	}
-	prop, ok := a.baseObject._defineOwnProperty(unistring.String(strconv.FormatUint(uint64(idx), 10)), existing, desc, throw)
+	prop, ok := a.baseObject._defineOwnProperty("", func() unistring.String { return unistring.String(strconv.FormatUint(uint64(idx), 10)) }, existing, desc, throw)
 	if ok {
 		if idx >= a.length {
 			if !a.setLengthInt(idx+1, throw) {

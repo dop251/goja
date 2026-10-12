@@ -956,6 +956,10 @@ func TestParser(t *testing.T) {
 		test("function f() { if (false) {} else return class A {} }", nil)
 		test("function f() { let A; if (false) {} else A = class A {} }", nil)
 
+		test("class A { x; async }", nil)
+		test("class A { async = 1 }", nil)
+		test("class A { async *m() {} }", nil)
+
 		{
 			program := test("({ async *m() { yield await 1 } })", nil)
 			fn := program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.ObjectLiteral).Value[0].(*ast.PropertyKeyed).Value.(*ast.FunctionLiteral)
@@ -1423,5 +1427,28 @@ func TestParseTemplateLiteralWithTail(t *testing.T) {
 		}
 	} else {
 		t.Fatal(prg.Body[0])
+	}
+}
+
+func TestParseNestingDepth(t *testing.T) {
+	const n = 1000000
+	for _, src := range []string{
+		strings.Repeat("(", n) + "a" + strings.Repeat(")", n),
+		strings.Repeat("[", n) + strings.Repeat("]", n),
+		strings.Repeat("{", n) + strings.Repeat("}", n),
+		strings.Repeat("!", n) + "a",
+		strings.Repeat("a => ", n) + "a",
+		strings.Repeat("a ** ", n) + "a",
+		strings.Repeat("new ", n) + "a",
+		"(" + strings.Repeat("class extends ", n) + "a" + strings.Repeat("{}", n) + ")",
+	} {
+		_, err := ParseFile(nil, "", src, 0)
+		if err == nil || !strings.Contains(err.Error(), "Maximum nesting depth exceeded") {
+			t.Fatalf("%.10q...: %v", src, err)
+		}
+	}
+	src := strings.Repeat("(", maxNestingDepth/4) + "a" + strings.Repeat(")", maxNestingDepth/4)
+	if _, err := ParseFile(nil, "", src, 0); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -5457,7 +5457,7 @@ func (n concatStrings) exec(vm *vm) {
 	vm.sp -= int(n) - 1
 	if allAscii {
 		var buf strings.Builder
-		buf.Grow(length)
+		buf.Grow(toStringLen(length))
 		for _, s := range strs {
 			buf.WriteString(string(s.(asciiString)))
 		}
@@ -6021,6 +6021,15 @@ func (vm *vm) exceptionFromValue(x interface{}) *Exception {
 	case syntaxError:
 		ex = &Exception{
 			val: vm.r.newError(vm.r.getSyntaxError(), string(x1)),
+		}
+	case runtime.Error:
+		msg := x1.Error()
+		if strings.Contains(msg, "makeslice: ") {
+			ex = &Exception{
+				val: vm.r.newError(vm.r.getRangeError(), "Invalid array or string length"),
+			}
+		} else {
+			return nil
 		}
 	default:
 		/*

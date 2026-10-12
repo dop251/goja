@@ -10,7 +10,7 @@ performance.
 
 This project was largely inspired by [otto](https://github.com/robertkrimen/otto).
 
-The minimum required Go version is 1.25.
+The minimum required Go version is 1.26.
 
 Features
 --------

@@ -870,6 +870,30 @@ func TestRegExpRepeatCount(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestRegExpEscape(t *testing.T) {
+	const SCRIPT = `
+	const strings = [
+		"a.b*c",
+		"1+1=2",
+		"(foo|bar)[0]{1,2}",
+		"/path/to/file?x=1&y=2#hash",
+		"a b\tc\nd\u00a0e\u2028f\ufeff",
+		"<'\"\x60>,-:;!%@~",
+		"\u00e9\u4e2d\ud83d\ude00",
+		"\ud800x\udc00",
+	];
+	for (const s of strings) {
+		const escaped = RegExp.escape(s);
+		assert(new RegExp("^" + escaped + "$").test(s), JSON.stringify(s));
+		assert(new RegExp("^" + escaped + "$", "u").test(s), JSON.stringify(s) + " (u)");
+		assert(new RegExp("^[" + escaped + "]+$", "u").test(s), JSON.stringify(s) + " (class)");
+	}
+	assert(new RegExp("^\\0" + RegExp.escape("1") + "$").test("\x001"), "after \\0");
+	assert(new RegExp("^(a)\\1" + RegExp.escape("0") + "$").test("aa0"), "after a back reference");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)

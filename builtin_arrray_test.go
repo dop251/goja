@@ -266,6 +266,15 @@ func TestArraySortNonStdArray(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestArrayLikeSortMaxLength(t *testing.T) {
+	const SCRIPT = `
+		assert.throws(RangeError, () => {
+			Array.prototype.sort.call({length: 2**53-1});
+		});
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestArrayConcat(t *testing.T) {
 	const SCRIPT = `
 	var concat = Array.prototype.concat;

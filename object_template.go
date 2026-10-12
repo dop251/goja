@@ -2,10 +2,11 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dop251/goja/unistring"
 	"math"
 	"reflect"
 	"sort"
+
+	"github.com/dop251/goja/unistring"
 )
 
 type templatePropFactory func(*Runtime) Value
@@ -227,7 +228,7 @@ func (o *templatedObject) hasOwnPropertySym(s *Symbol) bool {
 
 func (o *templatedObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	existingVal := o.getOwnPropStr(name)
-	if v, ok := o._defineOwnProperty(name, existingVal, descr, throw); ok {
+	if v, ok := o._defineOwnProperty(name, nil, existingVal, descr, throw); ok {
 		o.values[name] = v
 		if existingVal == nil {
 			o.materialisePropNames()
