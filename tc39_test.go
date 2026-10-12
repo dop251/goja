@@ -251,7 +251,6 @@ var (
 
 		"regexp-duplicate-named-groups",
 		"regexp-v-flag",
-		"symbols-as-weakmap-keys",
 		"explicit-resource-management",
 		"Float16Array",
 		"Array.fromAsync",
