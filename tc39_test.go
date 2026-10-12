@@ -168,9 +168,6 @@ var (
 
 		// FIXME bugs
 
-		// 'arguments' as a destructuring assignment target in strict mode
-		"test/language/statements/for-await-of/async-func-decl-dstr-array-elem-target-simple-strict.js": true,
-
 		// Left-hand side as a CoverParenthesizedExpression
 		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
 
