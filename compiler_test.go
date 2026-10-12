@@ -2785,6 +2785,29 @@ func TestDeleteArguments(t *testing.T) {
 	testScript(SCRIPT, _undefined, t)
 }
 
+func TestStrictDestructuringAssignArguments(t *testing.T) {
+	for _, target := range []string{
+		"[arguments] = []",
+		"[arguments = 1] = []",
+		"[...arguments] = []",
+		"({arguments} = {})",
+		"({a: arguments} = {})",
+		"for ([arguments] of [[]]) {}",
+	} {
+		_, err := Compile("", "function f() { 'use strict'; "+target+"; }", false)
+		if _, ok := err.(*CompilerSyntaxError); !ok {
+			t.Errorf("%s: expected syntax error, got %v", target, err)
+		}
+		if _, err := Compile("", "function f() { "+target+"; }", false); err != nil {
+			t.Errorf("%s: unexpected error in non-strict mode: %v", target, err)
+		}
+	}
+	_, err := Compile("", "function f() { var eval; return function() { 'use strict'; [eval] = []; }; }", false)
+	if _, ok := err.(*CompilerSyntaxError); !ok {
+		t.Errorf("eval: expected syntax error, got %v", err)
+	}
+}
+
 func TestReturnUndefined(t *testing.T) {
 	const SCRIPT = `
 	function f() {
