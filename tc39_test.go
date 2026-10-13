@@ -247,7 +247,6 @@ var (
 		"SharedArrayBuffer",
 		"decorators",
 		"immutable-arraybuffer",
-		"joint-iteration",
 
 		"regexp-duplicate-named-groups",
 		"regexp-v-flag",
