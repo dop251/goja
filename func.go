@@ -327,6 +327,9 @@ func (f *classFuncObject) createInstance(args []Value, newTarget *Object) (insta
 
 func (f *classFuncObject) _initFields(instance *Object) {
 	if f.privateEnvType != nil {
+		if len(f.privateMethods) > 0 && !instance.self.isExtensible() {
+			panic(f.val.runtime.NewTypeError("Cannot add private methods to non-extensible object"))
+		}
 		penv := instance.self.getPrivateEnv(f.privateEnvType, true)
 		penv.methods = f.privateMethods
 	}

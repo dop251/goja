@@ -5783,6 +5783,10 @@ type definePrivateProp struct {
 func (d *definePrivateProp) exec(vm *vm) {
 	f := vm.r.toObject(vm.stack[vm.sb-1]).self.(*classFuncObject)
 	obj := vm.r.toObject(vm.stack[vm.sp-2])
+	if !obj.self.isExtensible() {
+		vm.throw(vm.r.NewTypeError("Cannot add private field to non-extensible object"))
+		return
+	}
 	penv := obj.self.getPrivateEnv(f.privateEnvType, false)
 	penv.fields[d.idx] = vm.stack[vm.sp-1]
 	vm.sp--

@@ -5744,6 +5744,56 @@ func TestPrivateIn(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestClassPrivateElementsNonExtensible(t *testing.T) {
+	const SCRIPT = `
+	class Base {
+		constructor(o) {
+			return o;
+		}
+	}
+	class F extends Base {
+		#a = 1;
+		static inc(o) {
+			return ++o.#a;
+		}
+	}
+	class M extends Base {
+		#m() {}
+	}
+	class A extends Base {
+		get #a() {}
+	}
+	assert.throws(TypeError, () => new F(Object.preventExtensions({})), "field");
+	assert.throws(TypeError, () => new M(Object.preventExtensions({})), "method");
+	assert.throws(TypeError, () => new A(Object.preventExtensions({})), "accessor");
+
+	class Late {
+		#a = (Object.preventExtensions(this), 1);
+	}
+	assert.throws(TypeError, () => new Late(), "preventExtensions in initializer");
+	assert.throws(TypeError, () => {
+		class S {
+			static #a = (Object.preventExtensions(S), 1);
+		}
+	}, "static field");
+
+	const o = new F({});
+	Object.freeze(o);
+	assert.sameValue(F.inc(o), 2, "existing private fields remain writable");
+
+	let trapCalls = 0;
+	const p = new Proxy({}, {
+		isExtensible(target) {
+			trapCalls++;
+			return Reflect.isExtensible(target);
+		}
+	});
+	new F(p);
+	assert.sameValue(trapCalls, 1, "isExtensible trap calls");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestRelationalLeftAssociative(t *testing.T) {
 	const SCRIPT = `
 	class C {
