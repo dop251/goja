@@ -257,7 +257,7 @@ func (r *regexp2Wrapper) findUTF16Cached(s String, start int, doCache bool) (mat
 func (r *regexp2Wrapper) findSubmatchIndexUTF16(s String, start int, doCache bool) regexpResult {
 	match, _, err := r.findUTF16Cached(s, start, doCache)
 	if err != nil {
-		return regexpResult{}
+		panic(rangeError(err.Error()))
 	}
 
 	if match == nil {
@@ -324,7 +324,10 @@ func (r *regexp2Wrapper) findUnicodeCached(s String, start int, doCache bool) (m
 
 func (r *regexp2Wrapper) findSubmatchIndexUnicode(s String, start int, doCache bool) regexpResult {
 	match, posMap, err := r.findUnicodeCached(s, start, doCache)
-	if match == nil || err != nil {
+	if err != nil {
+		panic(rangeError(err.Error()))
+	}
+	if match == nil {
 		return regexpResult{}
 	}
 
@@ -347,7 +350,10 @@ func (r *regexp2Wrapper) findSubmatchIndexUnicode(s String, start int, doCache b
 func (r *regexp2Wrapper) findAllSubmatchIndexUTF16(s String, start, limit int, sticky bool) []regexpResult {
 	wrapped := r.rx
 	match, runes, err := r.findUTF16Cached(s, start, false)
-	if match == nil || err != nil {
+	if err != nil {
+		panic(rangeError(err.Error()))
+	}
+	if match == nil {
 		return nil
 	}
 	if limit < 0 {
@@ -386,7 +392,7 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUTF16(s String, start, limit int, s
 		}
 		match, err = wrapped.FindNextMatch(match)
 		if err != nil {
-			return nil
+			panic(rangeError(err.Error()))
 		}
 	}
 	return results
@@ -438,7 +444,7 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUnicode(s unicodeString, start, lim
 	results := make([]regexpResult, 0, limit)
 	match, posMap, err := r.findUnicodeCached(s, start, false)
 	if err != nil {
-		return nil
+		panic(rangeError(err.Error()))
 	}
 	for match != nil {
 		groups := match.Groups()
@@ -468,7 +474,7 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUnicode(s unicodeString, start, lim
 		results = append(results, result)
 		match, err = wrapped.FindNextMatch(match)
 		if err != nil {
-			return nil
+			panic(rangeError(err.Error()))
 		}
 	}
 	return results
