@@ -268,15 +268,10 @@ func (f *baseJsFuncObject) construct(args []Value, newTarget *Object) *Object {
 	if newTarget == nil {
 		newTarget = f.val
 	}
-	proto := newTarget.self.getStr("prototype", nil)
-	var protoObj *Object
-	if p, ok := proto.(*Object); ok {
-		protoObj = p
-	} else {
-		protoObj = f.val.runtime.global.ObjectPrototype
-	}
+	r := f.val.runtime
+	proto := r.getPrototypeFromCtor(newTarget, nil, r.global.ObjectPrototype)
 
-	obj := f.val.runtime.newBaseObject(protoObj, classObject).val
+	obj := r.newBaseObject(proto, classObject).val
 	ret := f.call(FunctionCall{
 		This:      obj,
 		Arguments: args,

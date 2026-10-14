@@ -1385,3 +1385,38 @@ func TestProxyUnicodeProps(t *testing.T) {
 	`
 	testScriptWithTestLib(SCRIPT, valueTrue, t)
 }
+
+func TestProxyRevokedNewTarget(t *testing.T) {
+	const SCRIPT = `
+	function revokedOnPrototypeGet(target) {
+		var handle = Proxy.revocable(target, {
+			get: function(t, key) {
+				if (key === "prototype") {
+					handle.revoke();
+					return undefined;
+				}
+				return Reflect.get(t, key);
+			}
+		});
+		return handle.proxy;
+	}
+
+	assert.throws(TypeError, function() {
+		new (revokedOnPrototypeGet(function() {}))();
+	}, "function target");
+
+	assert.throws(TypeError, function() {
+		Reflect.construct(Map, [], revokedOnPrototypeGet(function() {}));
+	}, "built-in constructor");
+
+	var handle = Proxy.revocable(function() {}, {});
+	var bound = handle.proxy.bind();
+	assert.sameValue(Object.getPrototypeOf(Reflect.construct(function() {}, [], bound)), Object.prototype, "before revoke");
+	handle.revoke();
+	assert.throws(TypeError, function() {
+		Reflect.construct(function() {}, [], bound);
+	}, "bound function wrapping a revoked proxy");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

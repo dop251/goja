@@ -91,9 +91,6 @@ var (
 		// quantifier integer limit in regexp
 		"test/built-ins/RegExp/quantifier-integer-limit.js": true,
 
-		// GetFunctionRealm
-		"test/built-ins/Function/internals/Construct/base-ctor-revoked-proxy.js": true,
-
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
 		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":            true,
