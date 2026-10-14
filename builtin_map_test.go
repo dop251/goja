@@ -261,3 +261,28 @@ assert(compareArray(m.get(key), [key]));
 `
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func TestMapGetOrInsert(t *testing.T) {
+	const SCRIPT = `
+const m = new Map([["a", 1]]);
+assert.sameValue(m.getOrInsert("a", 2), 1);
+assert.sameValue(m.getOrInsert("b", 2), 2);
+assert.sameValue(m.get("b"), 2);
+assert.sameValue(m.getOrInsert(-0, "zero"), "zero");
+assert(Object.is([...m.keys()][2], 0), "-0 key is normalised");
+
+let calls = 0;
+assert.sameValue(m.getOrInsertComputed("a", function() { calls++; }), 1);
+assert.sameValue(calls, 0, "callback is not called if the key exists");
+assert.sameValue(m.getOrInsertComputed(-0, function(k) { return k; }), "zero");
+assert(Object.is(new Map().getOrInsertComputed(-0, function(k) { return k; }), 0), "callback gets normalised key");
+assert.sameValue(m.getOrInsertComputed("c", function(k) {
+	m.set(k, "from callback");
+	return "computed";
+}), "computed");
+assert.sameValue(m.get("c"), "computed", "value set by the callback is overwritten");
+assert.sameValue(m.size, 4);
+assert.throws(TypeError, function() { m.getOrInsertComputed("a", null); }, "callback is checked even if the key exists");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

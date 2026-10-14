@@ -254,29 +254,29 @@ func (r *Runtime) stringproto_concat(call FunctionCall) Value {
 
 	if allAscii {
 		var buf strings.Builder
-		buf.Grow(totalLen)
+		buf.Grow(toStringLen(totalLen))
 		for _, s := range strs {
 			buf.WriteString(s.String())
 		}
 		return asciiString(buf.String())
-	} else {
-		buf := make([]uint16, totalLen+1)
-		buf[0] = unistring.BOM
-		pos := 1
-		for _, s := range strs {
-			switch s := s.(type) {
-			case asciiString:
-				for i := 0; i < len(s); i++ {
-					buf[pos] = uint16(s[i])
-					pos++
-				}
-			case unicodeString:
-				copy(buf[pos:], s[1:])
-				pos += s.Length()
-			}
-		}
-		return unicodeString(buf)
 	}
+
+	buf := make([]uint16, totalLen+1)
+	buf[0] = unistring.BOM
+	pos := 1
+	for _, s := range strs {
+		switch s := s.(type) {
+		case asciiString:
+			for i := 0; i < len(s); i++ {
+				buf[pos] = uint16(s[i])
+				pos++
+			}
+		case unicodeString:
+			copy(buf[pos:], s[1:])
+			pos += s.Length()
+		}
+	}
+	return unicodeString(buf)
 }
 
 func (r *Runtime) stringproto_endsWith(call FunctionCall) Value {
@@ -567,7 +567,7 @@ func (r *Runtime) stringproto_repeat(call FunctionCall) Value {
 	a, u := devirtualizeString(s)
 	if u == nil {
 		var sb strings.Builder
-		sb.Grow(len(a) * num)
+		sb.Grow(safeMul(len(a), num))
 		for i := 0; i < num; i++ {
 			sb.WriteString(string(a))
 		}
@@ -575,7 +575,7 @@ func (r *Runtime) stringproto_repeat(call FunctionCall) Value {
 	}
 
 	var sb unicodeStringBuilder
-	sb.Grow(u.Length() * num)
+	sb.Grow(safeMul(u.Length(), num))
 	for i := 0; i < num; i++ {
 		sb.writeUnicodeString(u)
 	}

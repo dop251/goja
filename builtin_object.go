@@ -516,6 +516,62 @@ func (r *Runtime) objectproto_setProto(call FunctionCall) Value {
 	return _undefined
 }
 
+func (r *Runtime) defineLegacyAccessor(call FunctionCall, setter bool) Value {
+	o := call.This.ToObject(r)
+	f := call.Argument(1)
+	if _, ok := assertCallable(f); !ok {
+		panic(r.NewTypeError("%s is not a function", f))
+	}
+	desc := PropertyDescriptor{
+		Enumerable:   FLAG_TRUE,
+		Configurable: FLAG_TRUE,
+	}
+	if setter {
+		desc.Setter = f
+	} else {
+		desc.Getter = f
+	}
+	o.defineOwnProperty(toPropertyKey(call.Argument(0)), desc, true)
+	return _undefined
+}
+
+func (r *Runtime) lookupLegacyAccessor(call FunctionCall, setter bool) Value {
+	o := call.This.ToObject(r)
+	key := toPropertyKey(call.Argument(0))
+	for o != nil {
+		if prop := o.getOwnProp(key); prop != nil {
+			if prop, ok := prop.(*valueProperty); ok && prop.accessor {
+				f := prop.getterFunc
+				if setter {
+					f = prop.setterFunc
+				}
+				if f != nil {
+					return f
+				}
+			}
+			return _undefined
+		}
+		o = o.self.proto()
+	}
+	return _undefined
+}
+
+func (r *Runtime) objectproto_defineGetter(call FunctionCall) Value {
+	return r.defineLegacyAccessor(call, false)
+}
+
+func (r *Runtime) objectproto_defineSetter(call FunctionCall) Value {
+	return r.defineLegacyAccessor(call, true)
+}
+
+func (r *Runtime) objectproto_lookupGetter(call FunctionCall) Value {
+	return r.lookupLegacyAccessor(call, false)
+}
+
+func (r *Runtime) objectproto_lookupSetter(call FunctionCall) Value {
+	return r.lookupLegacyAccessor(call, true)
+}
+
 func (r *Runtime) objectproto_valueOf(call FunctionCall) Value {
 	return call.This.ToObject(r)
 }
@@ -741,6 +797,10 @@ func createObjectProtoTemplate() *objectTemplate {
 	t.putStr("propertyIsEnumerable", func(r *Runtime) Value {
 		return r.methodProp(r.objectproto_propertyIsEnumerable, "propertyIsEnumerable", 1)
 	})
+	t.putStr("__defineGetter__", func(r *Runtime) Value { return r.methodProp(r.objectproto_defineGetter, "__defineGetter__", 2) })
+	t.putStr("__defineSetter__", func(r *Runtime) Value { return r.methodProp(r.objectproto_defineSetter, "__defineSetter__", 2) })
+	t.putStr("__lookupGetter__", func(r *Runtime) Value { return r.methodProp(r.objectproto_lookupGetter, "__lookupGetter__", 1) })
+	t.putStr("__lookupSetter__", func(r *Runtime) Value { return r.methodProp(r.objectproto_lookupSetter, "__lookupSetter__", 1) })
 	t.putStr(__proto__, func(r *Runtime) Value {
 		return &valueProperty{
 			accessor:     true,

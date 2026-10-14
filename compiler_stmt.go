@@ -857,6 +857,9 @@ func (c *compiler) emitPatternAssign(target, init compiledExpr) {
 	if id, ok := target.(*compiledIdentifierExpr); ok {
 		b, noDyn := c.scope.lookupName(id.name)
 		if noDyn {
+			if c.scope.strict {
+				c.checkIdentifierLName(id.name, id.offset)
+			}
 			c.emitNamedOrConst(init, id.name)
 			b.emitSetP()
 		} else {

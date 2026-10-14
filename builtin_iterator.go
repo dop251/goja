@@ -63,7 +63,11 @@ func (h *iteratorHelperObject) _return() Value {
 		return r.createIterResultObject(_undefined, true)
 	case iteratorHelperSuspendedStart:
 		h.state = iteratorHelperCompleted
-		h.underlying.returnIter()
+		if h.abort != nil {
+			h.abort()
+		} else {
+			h.underlying.returnIter()
+		}
 		return r.createIterResultObject(_undefined, true)
 	}
 	h.state = iteratorHelperExecuting
@@ -145,6 +149,37 @@ func (ir *iteratorRecord) stepValue() (Value, bool) {
 		return nil, false
 	}
 	return iteratorValue(res), true
+}
+
+// stepDone implements IteratorStep. Unlike stepValue it does not read the value of the result.
+func (ir *iteratorRecord) stepDone() bool {
+	r := ir.iterator.runtime
+	if ir.next == nil {
+		panic(r.NewTypeError("iterator.next is missing or not a function"))
+	}
+	if ir.nextRes != nil {
+		_, ok := ir.nextRes(_undefined)
+		return !ok
+	}
+	return iteratorComplete(r.toObject(ir.next(FunctionCall{This: ir.iterator})))
+}
+
+// closeIterators implements IteratorCloseAll. The iterators are closed in reverse order, nil entries are skipped.
+// If ex is not nil, any errors thrown while closing are ignored and ex is re-thrown, otherwise the first error
+// (if any) is thrown after all the iterators have been closed.
+func closeIterators(iters []*iteratorRecord, ex interface{}) {
+	for i := len(iters) - 1; i >= 0; i-- {
+		if iter := iters[i]; iter != nil {
+			if ex != nil {
+				_ = tryFunc(iter.returnIter)
+			} else {
+				ex = tryFunc(iter.returnIter)
+			}
+		}
+	}
+	if ex != nil {
+		panic(ex)
+	}
 }
 
 // closeOnThrow runs f and, if it throws, closes the iterator (ignoring any error from return()) before rethrowing.
@@ -452,6 +487,265 @@ func (r *Runtime) iterator_from(call FunctionCall) Value {
 	return o
 }
 
+func (r *Runtime) iterator_concat(call FunctionCall) Value {
+	type iterable struct {
+		obj        *Object
+		openMethod func(FunctionCall) Value
+	}
+	iterables := make([]iterable, len(call.Arguments))
+	for i, item := range call.Arguments {
+		obj, ok := item.(*Object)
+		if !ok {
+			panic(r.NewTypeError("%s is not an object", item.String()))
+		}
+		method := toMethod(obj.self.getSym(SymIterator, nil))
+		if method == nil {
+			panic(r.NewTypeError("object is not iterable"))
+		}
+		iterables[i] = iterable{obj: obj, openMethod: method}
+	}
+	var inner *iteratorRecord
+	// Iterator.concat() has no underlying iterator of its own, so the helper is given an empty record, closing
+	// which is a no-op.
+	h := r.newIteratorHelper(&iteratorRecord{}, func() (Value, bool) {
+		for {
+			if inner == nil {
+				if len(iterables) == 0 {
+					return nil, false
+				}
+				item := iterables[0]
+				iterables[0] = iterable{}
+				iterables = iterables[1:]
+				iter, ok := item.openMethod(FunctionCall{This: item.obj}).(*Object)
+				if !ok {
+					panic(r.NewTypeError("Result of the Symbol.iterator method is not an object"))
+				}
+				inner = r.getIteratorDirect(iter)
+			}
+			if value, ok := inner.stepValue(); ok {
+				return value, true
+			}
+			inner = nil
+		}
+	})
+	h.abort = func() {
+		if inner != nil {
+			inner.returnIter()
+		}
+	}
+	return h.val
+}
+
+type iteratorZipMode uint8
+
+const (
+	iteratorZipShortest iteratorZipMode = iota
+	iteratorZipLongest
+	iteratorZipStrict
+)
+
+// getIteratorZipOptions reads the options argument of Iterator.zip() and Iterator.zipKeyed(). The padding option
+// is only read in the "longest" mode.
+func (r *Runtime) getIteratorZipOptions(arg Value) (mode iteratorZipMode, padding *Object) {
+	if arg == _undefined {
+		return
+	}
+	options, ok := arg.(*Object)
+	if !ok {
+		panic(r.NewTypeError("Options must be an object"))
+	}
+	m := options.self.getStr("mode", nil)
+	if m != nil && m != _undefined {
+		s, ok := m.(String)
+		if !ok {
+			panic(r.NewTypeError("Invalid zip mode"))
+		}
+		switch s.String() {
+		case "shortest":
+		case "longest":
+			mode = iteratorZipLongest
+		case "strict":
+			mode = iteratorZipStrict
+		default:
+			panic(r.NewTypeError("Invalid zip mode: %s", s.String()))
+		}
+	}
+	if mode == iteratorZipLongest {
+		if p := options.self.getStr("padding", nil); p != nil && p != _undefined {
+			if padding, ok = p.(*Object); !ok {
+				panic(r.NewTypeError("Padding must be an object"))
+			}
+		}
+	}
+	return
+}
+
+// iteratorZip implements IteratorZip.
+func (r *Runtime) iteratorZip(iters []*iteratorRecord, mode iteratorZipMode, padding []Value, finishResults func([]Value) Value) Value {
+	// iters doubles as the list of open iterators: an iterator is set to nil once it is exhausted or has thrown.
+	h := r.newIteratorHelper(&iteratorRecord{}, func() (Value, bool) {
+		if len(iters) == 0 {
+			return nil, false
+		}
+		results := make([]Value, len(iters))
+		for i, iter := range iters {
+			if iter == nil {
+				results[i] = padding[i]
+				continue
+			}
+			var value Value
+			var ok bool
+			if ex := tryFunc(func() {
+				value, ok = iter.stepValue()
+			}); ex != nil {
+				iters[i] = nil
+				closeIterators(iters, ex)
+			}
+			if !ok {
+				iters[i] = nil
+				switch mode {
+				case iteratorZipShortest:
+					closeIterators(iters, nil)
+					return nil, false
+				case iteratorZipStrict:
+					if i != 0 {
+						closeIterators(iters, r.NewTypeError("Iterators passed to zip() in strict mode have different lengths"))
+					}
+					for k := 1; k < len(iters); k++ {
+						var done bool
+						if ex := tryFunc(func() {
+							done = iters[k].stepDone()
+						}); ex != nil {
+							iters[k] = nil
+							closeIterators(iters, ex)
+						}
+						if !done {
+							closeIterators(iters, r.NewTypeError("Iterators passed to zip() in strict mode have different lengths"))
+						}
+						iters[k] = nil
+					}
+					return nil, false
+				}
+				open := false
+				for _, iter := range iters {
+					if iter != nil {
+						open = true
+						break
+					}
+				}
+				if !open {
+					return nil, false
+				}
+				value = padding[i]
+			}
+			results[i] = value
+		}
+		return finishResults(results), true
+	})
+	h.abort = func() {
+		closeIterators(iters, nil)
+	}
+	return h.val
+}
+
+func (r *Runtime) iterator_zip(call FunctionCall) Value {
+	iterables, ok := call.Argument(0).(*Object)
+	if !ok {
+		panic(r.NewTypeError("%s is not an object", call.Argument(0).String()))
+	}
+	mode, paddingOption := r.getIteratorZipOptions(call.Argument(1))
+	var iters []*iteratorRecord
+	inputIter := r.getIterator(iterables, nil)
+	for {
+		var next Value
+		if ex := tryFunc(func() {
+			next, ok = inputIter.stepValue()
+		}); ex != nil {
+			closeIterators(iters, ex)
+		}
+		if !ok {
+			break
+		}
+		var iter *iteratorRecord
+		if ex := tryFunc(func() {
+			iter = r.getIteratorFlattenable(next, false)
+		}); ex != nil {
+			closeIterators(append([]*iteratorRecord{inputIter}, iters...), ex)
+		}
+		iters = append(iters, iter)
+	}
+	var padding []Value
+	if mode == iteratorZipLongest {
+		padding = make([]Value, len(iters))
+		for i := range padding {
+			padding[i] = _undefined
+		}
+		if paddingOption != nil {
+			if ex := tryFunc(func() {
+				paddingIter := r.getIterator(paddingOption, nil)
+				for i := range padding {
+					value, ok := paddingIter.stepValue()
+					if !ok {
+						return
+					}
+					padding[i] = value
+				}
+				paddingIter.returnIter()
+			}); ex != nil {
+				closeIterators(iters, ex)
+			}
+		}
+	}
+	return r.iteratorZip(iters, mode, padding, func(results []Value) Value {
+		return r.newArrayValues(results)
+	})
+}
+
+func (r *Runtime) iterator_zipKeyed(call FunctionCall) Value {
+	iterables, ok := call.Argument(0).(*Object)
+	if !ok {
+		panic(r.NewTypeError("%s is not an object", call.Argument(0).String()))
+	}
+	mode, paddingOption := r.getIteratorZipOptions(call.Argument(1))
+	var iters []*iteratorRecord
+	var keys []Value
+	if ex := tryFunc(func() {
+		for item, next := iterateEnumerableProperties(iterables)(); next != nil; item, next = next() {
+			if item.value == _undefined {
+				continue
+			}
+			iters = append(iters, r.getIteratorFlattenable(item.value, false))
+			keys = append(keys, item.name)
+		}
+	}); ex != nil {
+		closeIterators(iters, ex)
+	}
+	var padding []Value
+	if mode == iteratorZipLongest {
+		padding = make([]Value, len(iters))
+		if paddingOption != nil {
+			if ex := tryFunc(func() {
+				for i, key := range keys {
+					padding[i] = nilSafe(paddingOption.get(key, nil))
+				}
+			}); ex != nil {
+				closeIterators(iters, ex)
+			}
+		} else {
+			for i := range padding {
+				padding[i] = _undefined
+			}
+		}
+	}
+	return r.iteratorZip(iters, mode, padding, func(results []Value) Value {
+		obj := r.newBaseObject(nil, classObject).val
+		for i, key := range keys {
+			createDataPropertyOrThrow(obj, key, results[i])
+		}
+		return obj
+	})
+}
+
 func (r *Runtime) builtin_newIterator(_ []Value, newTarget *Object) *Object {
 	if newTarget == nil || newTarget == r.global.Iterator {
 		panic(r.NewTypeError("Abstract class Iterator not directly constructable"))
@@ -563,7 +857,10 @@ func (r *Runtime) getWrapForValidIteratorPrototype() *Object {
 
 func (r *Runtime) createIteratorCtor(val *Object) objectImpl {
 	o := r.newNativeConstructOnly(val, r.builtin_newIterator, r.getIteratorPrototype(), "Iterator", 0)
+	o._putProp("concat", r.newNativeFunc(r.iterator_concat, "concat", 0), true, false, true)
 	o._putProp("from", r.newNativeFunc(r.iterator_from, "from", 1), true, false, true)
+	o._putProp("zip", r.newNativeFunc(r.iterator_zip, "zip", 1), true, false, true)
+	o._putProp("zipKeyed", r.newNativeFunc(r.iterator_zipKeyed, "zipKeyed", 1), true, false, true)
 
 	return o
 }

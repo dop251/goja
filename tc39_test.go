@@ -92,15 +92,6 @@ var (
 		// quantifier integer limit in regexp
 		"test/built-ins/RegExp/quantifier-integer-limit.js": true,
 
-		// GetFunctionRealm
-		"test/built-ins/Function/internals/Construct/base-ctor-revoked-proxy.js": true,
-
-		// Uses deprecated __lookupGetter__/__lookupSetter__
-		"test/language/expressions/class/elements/private-getter-is-not-a-own-property.js": true,
-		"test/language/expressions/class/elements/private-setter-is-not-a-own-property.js": true,
-		"test/language/statements/class/elements/private-setter-is-not-a-own-property.js":  true,
-		"test/language/statements/class/elements/private-getter-is-not-a-own-property.js":  true,
-
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
 		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":            true,
@@ -169,9 +160,6 @@ var (
 
 		// FIXME bugs
 
-		// 'arguments' as a destructuring assignment target in strict mode
-		"test/language/statements/for-await-of/async-func-decl-dstr-array-elem-target-simple-strict.js": true,
-
 		// Left-hand side as a CoverParenthesizedExpression
 		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
 
@@ -205,8 +193,6 @@ var (
 		"test/built-ins/JSON/parse/reviver-call-args-after-forward-modification.js": true,
 
 		// Language tests (class, with, module, expressions, identifiers)
-		"test/language/statements/class/subclass/private-class-field-on-nonextensible-return-override.js":                                   true,
-		"test/language/statements/class/elements/private-class-field-on-nonextensible-objects.js":                                           true,
 		"test/language/statements/with/set-mutable-binding-idref-compound-assign-with-proxy-env.js":                                         true,
 		"test/language/statements/with/set-mutable-binding-binding-deleted-with-typed-array-in-proto-chain.js":                              true,
 		"test/language/statements/with/set-mutable-binding-idref-with-proxy-env.js":                                                         true,
@@ -245,21 +231,15 @@ var (
 		"Atomics.pause",
 		"FinalizationRegistry",
 		"WeakRef",
-		"__getter__",
-		"__setter__",
 		"ShadowRealm",
 		"SharedArrayBuffer",
 		"decorators",
 		"immutable-arraybuffer",
-		"joint-iteration",
-		"iterator-sequencing",
 
 		"regexp-duplicate-named-groups",
 		"regexp-v-flag",
-		"symbols-as-weakmap-keys",
 		"explicit-resource-management",
 		"Float16Array",
-		"arraybuffer-transfer",
 		"Array.fromAsync",
 
 		"source-phase-imports",
@@ -360,10 +340,6 @@ func init() {
 		"test/language/export/",
 		"test/language/import/",
 		"test/language/module-code/",
-
-		// Map getOrInsert*
-		"test/built-ins/WeakMap/prototype/getOrInsert",
-		"test/built-ins/Map/prototype/getOrInsert",
 	)
 
 }

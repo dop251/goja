@@ -1328,6 +1328,22 @@ func toIntStrict(i int64) int {
 	return int(i)
 }
 
+func safeMul(left, right int) int {
+	res := left * right
+	// check for overflow
+	if left == 0 || right == 0 || res/left == right {
+		return res
+	}
+	panic(rangeError("Integer overflow"))
+}
+
+func toStringLen(n int) int {
+	if n < 0 {
+		panic(rangeError("Invalid string length"))
+	}
+	return n
+}
+
 func toIntClamp(i int64) int {
 	if bits.UintSize == 32 {
 		if i > math.MaxInt32 {
@@ -3458,5 +3474,24 @@ func (r *Runtime) getPrototypeFromCtor(newTarget, defCtor, defProto *Object) *Ob
 	if obj, ok := proto.(*Object); ok {
 		return obj
 	}
+	r.checkFunctionRealm(newTarget)
 	return defProto
+}
+
+// checkFunctionRealm performs the checks of GetFunctionRealm(). There is only one realm, so the only
+// thing left to do is to throw a TypeError if a revoked Proxy is found.
+func (r *Runtime) checkFunctionRealm(obj *Object) {
+	for {
+		switch o := obj.self.(type) {
+		case *boundFuncObject:
+			obj = o.wrapped
+		case *proxyObject:
+			if o.handler == nil {
+				panic(r.NewTypeError("Cannot perform 'GetFunctionRealm' on a proxy that has been revoked"))
+			}
+			obj = o.target
+		default:
+			return
+		}
+	}
 }

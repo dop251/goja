@@ -449,16 +449,10 @@ func (f *baseJsFuncObject) construct(args []Value, newTarget *Object) *Object {
 	if newTarget == nil {
 		newTarget = f.val
 	}
-	proto := newTarget.self.getStr("prototype", nil)
-	var protoObj *Object
-	if p, ok := proto.(*Object); ok {
-		protoObj = p
-	} else {
-		protoObj = f.val.runtime.global.ObjectPrototype
-	}
+	r := f.val.runtime
+	proto := r.getPrototypeFromCtor(newTarget, nil, r.global.ObjectPrototype)
 
-	//obj := f.val.runtime.newBaseObject(protoObj, classObject).val
-	obj := f.val.runtime.CreateObject(protoObj)
+	obj := f.val.runtime.CreateObject(proto)
 	ret := f.call(FunctionCall{
 		This:      obj,
 		Arguments: args,
@@ -510,6 +504,9 @@ func (f *classFuncObject) createInstance(args []Value, newTarget *Object) (insta
 
 func (f *classFuncObject) _initFields(instance *Object) {
 	if f.privateEnvType != nil {
+		if len(f.privateMethods) > 0 && !instance.self.isExtensible() {
+			panic(f.val.runtime.NewTypeError("Cannot add private methods to non-extensible object"))
+		}
 		penv := instance.self.getPrivateEnv(f.privateEnvType, true)
 		penv.methods = f.privateMethods
 	}
