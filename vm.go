@@ -386,6 +386,13 @@ type vm struct {
 	curAsyncRunner *asyncRunner
 
 	profTracker *profTracker
+
+	dbg *Debugger // nil when not debugging — zero overhead
+
+	// Debug scope tracking: active block/function scopes with stack-register variables.
+	// Only populated when dbg != nil. Each enterBlock/enterFunc with stack vars
+	// pushes an entry; corresponding leaveBlock/return pops it.
+	dbgScopes []dbgScopeInfo
 }
 
 type instruction interface {
@@ -614,6 +621,10 @@ func (vm *vm) halted() bool {
 }
 
 func (vm *vm) run() {
+	if vm.dbg != nil {
+		vm.runWithDebugger()
+		return
+	}
 	if vm.profTracker != nil && !vm.runWithProfiler() {
 		return
 	}
@@ -802,6 +813,11 @@ func (vm *vm) restoreStacks(iterLen, refLen uint32) (ex *Exception) {
 
 func (vm *vm) handleThrow(arg interface{}) *Exception {
 	ex := vm.exceptionFromValue(arg)
+
+	if vm.dbg != nil && ex != nil && vm.dbg.HasExceptionBreakpoints() {
+		vm.dbgCheckException(ex)
+	}
+
 	for len(vm.tryStack) > 0 {
 		tf := &vm.tryStack[len(vm.tryStack)-1]
 		if tf.catchPos == -1 && tf.finallyPos == -1 || ex == nil && tf.catchPos != tryPanicMarker {
@@ -813,6 +829,9 @@ func (vm *vm) handleThrow(arg interface{}) *Exception {
 			ctx := &vm.callStack[tf.callStackLen]
 			vm.prg, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args =
 				ctx.prg, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args
+			if vm.dbg != nil {
+				vm.dbgUnwind(int(tf.callStackLen))
+			}
 			vm.callStack = vm.callStack[:tf.callStackLen]
 		}
 		vm.sp = int(tf.sp)
@@ -909,6 +928,9 @@ func (vm *vm) peek() Value {
 func (vm *vm) saveCtx(ctx *context) {
 	ctx.prg, ctx.stash, ctx.privEnv, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args =
 		vm.prg, vm.stash, vm.privEnv, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args
+	if vm.dbg != nil {
+		vm.dbgSaveCtx()
+	}
 }
 
 func (vm *vm) pushCtx() {
@@ -925,6 +947,9 @@ func (vm *vm) pushCtx() {
 func (vm *vm) restoreCtx(ctx *context) {
 	vm.prg, vm.stash, vm.privEnv, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args =
 		ctx.prg, ctx.stash, ctx.privEnv, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args
+	if vm.dbg != nil {
+		vm.dbgRestoreCtx()
+	}
 }
 
 func (vm *vm) popCtx() {
@@ -3658,6 +3683,8 @@ type enterBlock struct {
 	names     map[unistring.String]uint32
 	stashSize uint32
 	stackSize uint32
+
+	dbgNames map[unistring.String]int // debug: stack var name → offset (only when debugger may attach)
 }
 
 func (e *enterBlock) exec(vm *vm) {
@@ -3667,6 +3694,9 @@ func (e *enterBlock) exec(vm *vm) {
 		if len(e.names) > 0 {
 			vm.stash.names = e.names
 		}
+	}
+	if vm.dbg != nil && len(e.dbgNames) > 0 {
+		vm.dbgPushBlockScope(e.dbgNames, vm.sp)
 	}
 	ss := int(e.stackSize)
 	vm.stack.expand(vm.sp + ss - 1)
@@ -3705,6 +3735,7 @@ func (e *enterCatchBlock) exec(vm *vm) {
 type leaveBlock struct {
 	stackSize uint32
 	popStash  bool
+	dbgPop    bool // pop debug scope entry
 }
 
 func (l *leaveBlock) exec(vm *vm) {
@@ -3713,6 +3744,9 @@ func (l *leaveBlock) exec(vm *vm) {
 	}
 	if ss := l.stackSize; ss > 0 {
 		vm.sp -= int(ss)
+	}
+	if vm.dbg != nil && l.dbgPop {
+		vm.dbgPopScope()
 	}
 	vm.pc++
 }
@@ -3725,6 +3759,8 @@ type enterFunc struct {
 	funcType    funcType
 	argsToStash bool
 	extensible  bool
+
+	dbgNames map[unistring.String]int // debug: stack var name → offset
 }
 
 func (e *enterFunc) exec(vm *vm) {
@@ -3795,6 +3831,9 @@ func (e *enterFunc) exec(vm *vm) {
 		vv[i] = nil
 	}
 	vm.sp = sp + ss
+	if vm.dbg != nil && len(e.dbgNames) > 0 {
+		vm.dbgPushFuncScope(e.dbgNames, vm.sb, vm.args)
+	}
 	vm.pc++
 }
 
@@ -3889,6 +3928,9 @@ func (e *enterFuncBody) exec(vm *vm) {
 		}
 	}
 	vm.sp = nsp
+	if vm.dbg != nil && len(e.dbgNames) > 0 {
+		vm.dbgPushBlockScope(e.dbgNames, sp)
+	}
 	vm.pc++
 }
 
@@ -3917,6 +3959,8 @@ func (c cret) exec(vm *vm) {
 type enterFuncStashless struct {
 	stackSize uint32
 	args      uint32
+
+	dbgNames map[unistring.String]int // debug: stack var name → offset for loadStack index
 }
 
 func (e *enterFuncStashless) exec(vm *vm) {
@@ -3946,6 +3990,9 @@ func (e *enterFuncStashless) exec(vm *vm) {
 			}
 			vm.sp = ss
 		}
+	}
+	if vm.dbg != nil && len(e.dbgNames) > 0 {
+		vm.dbgPushFuncScope(e.dbgNames, vm.sb, vm.args)
 	}
 	vm.pc++
 }

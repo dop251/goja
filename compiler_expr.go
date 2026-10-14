@@ -1640,6 +1640,11 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 			}
 			if s.isDynamic() {
 				enter1.names = s.makeNamesMap()
+			} else if e.c.debugMode && stashSize > 0 {
+				enter1.names = s.makeDebugStashNamesMap()
+			}
+			if e.c.debugMode && stackSize > 0 {
+				enter1.dbgNames = s.makeDebugRegisterNamesMap(true)
 			}
 			enter = &enter1
 			if enterFunc2Mark != -1 {
@@ -1660,6 +1665,8 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 			}
 			if s.isDynamic() {
 				enter1.names = s.makeNamesMap()
+			} else if e.c.debugMode && stashSize > 0 {
+				enter1.names = s.makeDebugStashNamesMap()
 			}
 			enter = &enter1
 			if enterFunc2Mark != -1 {
@@ -1676,10 +1683,15 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 			e.c.p.code[emitArgsRestMark] = createArgsRestStash
 		}
 	} else {
-		enter = &enterFuncStashless{
+		efl := &enterFuncStashless{
 			stackSize: uint32(stackSize),
 			args:      uint32(paramsCount),
 		}
+		// Populate dbgNames so the debugger can see stack-register variables.
+		if e.c.debugMode && (stackSize > 0 || paramsCount > 0) {
+			efl.dbgNames = s.makeDebugRegisterNamesMap(false)
+		}
+		enter = efl
 		if enterFunc2Mark != -1 {
 			ef2 := &enterFuncBody{
 				extensible: e.c.scope.dynamic,
