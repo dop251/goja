@@ -894,6 +894,22 @@ func TestRegExpEscape(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestRegexp2MatchError(t *testing.T) {
+	// A regexp2 match error (here the backtracking stack limit) must be thrown, not reported as no match.
+	const SCRIPT = `
+	const s = "a".repeat(100000);
+	assert.throws(RangeError, () => /^(?=a)(a)*$/.test(s), "test");
+	assert.throws(RangeError, () => /^(?=a)(a)*$/u.exec(s), "exec (u)");
+	assert.throws(RangeError, () => s.match(/(?=a)(a)*/g), "match (g)");
+	assert.throws(RangeError, () => (s + "\u00e9").match(/(?=a)(a)*/gu), "match (gu)");
+	assert.throws(RangeError, () => ("b" + s).match(/b|(?=a)(a)*/g), "match (g), next match");
+	assert.throws(RangeError, () => ("b" + s + "\u00e9").match(/b|(?=a)(a)*/gu), "match (gu), next match");
+	assert.throws(RangeError, () => s.replace(/(?=a)(a)*/, ""), "replace");
+	assert.throws(RangeError, () => s.split(/(?=a)(a)*/), "split");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)
