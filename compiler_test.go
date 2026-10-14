@@ -3167,6 +3167,73 @@ func TestWithScope(t *testing.T) {
 	testScript(SCRIPT, valueInt(42), t)
 }
 
+func TestWithBindingHasPropertyChecks(t *testing.T) {
+	const SCRIPT = `
+	var log = [];
+	var proxy = new Proxy({p: 0}, {
+		has(t, k) {
+			log.push("has:" + String(k));
+			return Reflect.has(t, k);
+		},
+		get(t, k, r) {
+			log.push("get:" + String(k));
+			return Reflect.get(t, k, r);
+		},
+		set(t, k, v, r) {
+			log.push("set:" + String(k));
+			return Reflect.set(t, k, v, r);
+		}
+	});
+	with (proxy) {
+		p;
+		p = 1;
+		p += 1;
+	}
+	assert.sameValue(log.join(), [
+		"has:p", "get:Symbol(Symbol.unscopables)", "has:p", "get:p",
+		"has:p", "get:Symbol(Symbol.unscopables)", "has:p", "set:p",
+		"has:p", "get:Symbol(Symbol.unscopables)", "has:p", "get:p", "has:p", "set:p",
+	].join());
+	assert.sameValue(proxy.p, 2);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestWithBindingDeletedInUnscopables(t *testing.T) {
+	const SCRIPT = `
+	var env = {
+		binding: 1,
+		get [Symbol.unscopables]() {
+			delete env.binding;
+			return null;
+		}
+	};
+	with (env) {
+		binding += 1;
+	}
+	assert(Object.hasOwn(env, "binding"), "binding should be re-created on env");
+	assert.sameValue(env.binding, NaN);
+	assert.sameValue(Object.hasOwn(this, "binding"), false, "binding should not leak to global");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestWithStrictSetInheritedBinding(t *testing.T) {
+	const SCRIPT = `
+	var env = Object.create({p: 1});
+	with (env) {
+		(function() {
+			"use strict";
+			p = 2;
+		})();
+	}
+	assert(Object.hasOwn(env, "p"));
+	assert.sameValue(env.p, 2);
+	assert.sameValue(Object.getPrototypeOf(env).p, 1);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestEvalCallee(t *testing.T) {
 	const SCRIPT = `
 	(function () {
