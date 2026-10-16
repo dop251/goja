@@ -5,7 +5,6 @@ import (
 	"errors"
 	"hash/maphash"
 	"io"
-	"math"
 	"reflect"
 	"slices"
 	"strings"
@@ -397,7 +396,7 @@ func (s unicodeString) utf16Runes() []rune {
 }
 
 func (s unicodeString) ToInteger() int64 {
-	return 0
+	return asciiString(s.toTrimmedUTF8()).ToInteger()
 }
 
 func (s unicodeString) toString() String {
@@ -409,7 +408,7 @@ func (s unicodeString) ToString() Value {
 }
 
 func (s unicodeString) ToFloat() float64 {
-	return math.NaN()
+	return asciiString(s.toTrimmedUTF8()).ToFloat()
 }
 
 func (s unicodeString) ToBoolean() bool {
