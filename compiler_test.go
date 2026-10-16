@@ -714,6 +714,26 @@ func TestTryExceptionInCatch(t *testing.T) {
 	testScript(SCRIPT, intToValue(5), t)
 }
 
+func TestTryExceptionInFinallyAfterNormalCompletion(t *testing.T) {
+	const SCRIPT = `
+	var finallyRuns = 0, innerCaught = false, outerCaught;
+	try {
+		try {
+			1;
+		} catch (e) {
+			innerCaught = true;
+		} finally {
+			finallyRuns++;
+			throw new Error("fin");
+		}
+	} catch (e) {
+		outerCaught = e.message;
+	}
+	[finallyRuns, innerCaught, outerCaught].join();
+	`
+	testScript(SCRIPT, asciiString("1,false,fin"), t)
+}
+
 func TestTryContinueInCatch(t *testing.T) {
 	const SCRIPT = `
 	var c3 = 0, fin3 = 0;
