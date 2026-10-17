@@ -295,6 +295,59 @@ func (r *objStrRef) refname() unistring.String {
 	return r.name
 }
 
+// objEnvRef is a reference to a binding of an object Environment Record (i.e. the object of a 'with' statement).
+// The binding may disappear after it has been resolved (for example, it can be deleted by a Symbol.unscopables
+// getter), so GetBindingValue and SetMutableBinding check that it still exists.
+type objEnvRef struct {
+	base   *Object
+	name   unistring.String
+	strict bool
+}
+
+func (r *objEnvRef) get() Value {
+	if hasPropertyObservable(r.base) && !r.base.self.hasPropertyStr(r.name) {
+		if r.strict {
+			panic(r.base.runtime.newReferenceError(r.name))
+		}
+		return _undefined
+	}
+	if v := r.base.self.getStr(r.name, nil); v != nil {
+		return v
+	}
+	if r.strict {
+		panic(r.base.runtime.newReferenceError(r.name))
+	}
+	return _undefined
+}
+
+func (r *objEnvRef) set(v Value) {
+	if r.strict || hasPropertyObservable(r.base) {
+		if !r.base.self.hasPropertyStr(r.name) && r.strict {
+			panic(r.base.runtime.newReferenceError(r.name))
+		}
+	}
+	r.base.self.setOwnStr(r.name, v, r.strict)
+}
+
+func (r *objEnvRef) init(v Value) {
+	r.base.self.setOwnStr(r.name, v, r.strict)
+}
+
+func (r *objEnvRef) refname() unistring.String {
+	return r.name
+}
+
+// hasPropertyObservable reports whether calling HasProperty on o can have side effects, i.e. o is a Proxy
+// or a DynamicObject. For other objects the extra HasProperty calls required by the object Environment Record
+// are not observable, and a missing binding can be detected by the result of the get.
+func hasPropertyObservable(o *Object) bool {
+	switch o.self.(type) {
+	case *proxyObject, *dynamicObject, *dynamicArray:
+		return true
+	}
+	return false
+}
+
 type privateRefRes struct {
 	base *Object
 	name *resolvedPrivateName
@@ -500,6 +553,10 @@ func (s *stash) getByIdx(idx uint32) Value {
 func (s *stash) getByName(name unistring.String) (v Value, exists bool) {
 	if s.obj != nil {
 		if stashObjHas(s.obj, name) {
+			// GetBindingValue: the binding could have been deleted by a Symbol.unscopables getter
+			if hasPropertyObservable(s.obj) && !s.obj.self.hasPropertyStr(name) {
+				return _undefined, true
+			}
 			return nilSafe(s.obj.self.getStr(name, nil)), true
 		}
 		return nil, false
@@ -521,11 +578,10 @@ func (s *stash) getByName(name unistring.String) (v Value, exists bool) {
 func (s *stash) getRefByName(name unistring.String, strict bool) ref {
 	if obj := s.obj; obj != nil {
 		if stashObjHas(obj, name) {
-			return &objStrRef{
-				base:    obj,
-				name:    name,
-				strict:  strict,
-				binding: true,
+			return &objEnvRef{
+				base:   obj,
+				name:   name,
+				strict: strict,
 			}
 		}
 	} else {
