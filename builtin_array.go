@@ -1515,6 +1515,9 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		if ctor != nil {
 			arr = ctor([]Value{intToValue(l)}, nil)
 		} else {
+			if l > math.MaxUint32 {
+				panic(r.newError(r.getRangeError(), "Invalid array length"))
+			}
 			arr = r.newArrayValues(nil)
 		}
 		if mapFn == nil {
