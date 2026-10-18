@@ -2491,7 +2491,7 @@ func (r *Runtime) Set(name string, value interface{}) error {
 // This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.
 func (r *Runtime) Get(name string) Value {
 	n := unistring.NewFromString(name)
-	if v, exists := r.global.stash.getByName(n); exists {
+	if v, exists := r.global.stash.getByName(n, false); exists {
 		return v
 	} else {
 		return r.globalObject.self.getStr(n, nil)

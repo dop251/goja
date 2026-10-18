@@ -122,6 +122,12 @@ func (a *sparseArrayObject) getLengthProp() *valueProperty {
 	return &a.lengthProp
 }
 
+// 'length' is recomputed by getOwnPropStr (getLengthProp), so it must be consulted rather than
+// reading the shared (possibly stale) lengthProp directly from the values map.
+func (a *sparseArrayObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	return a.hasAndGetOwnStr(name, a.getOwnPropStr(name), receiver)
+}
+
 func (a *sparseArrayObject) getOwnPropStr(name unistring.String) Value {
 	if idx := strToArrayIdx(name); idx != math.MaxUint32 {
 		return a._getIdx(idx)

@@ -34,7 +34,7 @@ func TestVM1(t *testing.T) {
 			add,
 			setElem,
 			pop,
-			loadDynamic("v"),
+			loadDynamic{name: "v"},
 		},
 	}
 

@@ -59,6 +59,13 @@ func (o *objectGoMapReflect) _getStr(name string) Value {
 	return o._getKey(o.strToKey(name, false))
 }
 
+func (o *objectGoMapReflect) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	if v := o._getStr(name.String()); v != nil {
+		return v, true
+	}
+	return o.objectGoReflect.hasAndGetStr(name, receiver)
+}
+
 func (o *objectGoMapReflect) getStr(name unistring.String, receiver Value) Value {
 	if v := o._getStr(name.String()); v != nil {
 		return v

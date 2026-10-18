@@ -17,7 +17,8 @@ a dynamic object is by using the Runtime.NewDynamicObject() method. This is done
 silent code breaks when this interface changes.
 */
 type DynamicObject interface {
-	// Get a property value for the key. May return nil if the property does not exist.
+	// Get a property value for the key. Must return nil if the property does not exist.
+	// Note that this handler is also used for the GetBinding flow instead of 2 separate calls to Has and Get.
 	Get(key string) Value
 	// Set a property value for the key. Return true if success, false otherwise.
 	Set(key string, val Value) bool
@@ -50,6 +51,9 @@ type DynamicArray interface {
 	// Len returns the current array length.
 	Len() int
 	// Get an item at index idx. Note that idx may be any integer, negative or beyond the current length.
+	// The handler should return nil in such cases as the property is considering as not existing.
+	// The GetBinding flow which fuses HasProperty and Get treats such properties as missing and walks the
+	// prototype chain instead of calling Get.
 	Get(idx int) Value
 	// Set an item at index idx. Note that idx may be any integer, negative or beyond the current length.
 	// The expected behaviour when it's beyond length is that the array's length is increased to accommodate
@@ -331,6 +335,17 @@ func (o *baseDynamicObject) setForeignSym(p *Symbol, v, receiver Value, throw bo
 		return proto.self.setOwnSym(p, v, throw), true
 	}
 	return false, false
+}
+
+// Use Get as the fused hasAndGet. Treat nil result as an indication that the property does not exist
+func (o *dynamicObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	if v := o.d.Get(name.String()); v != nil {
+		return v, true
+	}
+	if o.prototype != nil {
+		return o.prototype.self.hasAndGetStr(name, receiver)
+	}
+	return nil, false
 }
 
 func (o *dynamicObject) hasPropertyStr(u unistring.String) bool {
@@ -649,6 +664,24 @@ func (a *dynamicArray) setForeignStr(p unistring.String, v, receiver Value, thro
 
 func (a *dynamicArray) setForeignIdx(p valueInt, v, receiver Value, throw bool) (res bool, handled bool) {
 	return a.setParentForeignIdx(p, v, receiver, throw)
+}
+
+func (a *dynamicArray) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	if name == "length" {
+		return intToValue(int64(a.a.Len())), true
+	}
+
+	if idx, ok := strToInt(name); ok {
+		if a._has(idx) {
+			return a.a.Get(idx), true
+		}
+	}
+
+	if a.prototype != nil {
+		return a.prototype.self.hasAndGetStr(name, receiver)
+	}
+
+	return nil, false
 }
 
 func (a *dynamicArray) hasPropertyStr(u unistring.String) bool {

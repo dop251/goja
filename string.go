@@ -163,6 +163,10 @@ func (s *stringObject) setLength() {
 	s._put("length", &s.lengthProp)
 }
 
+func (s *stringObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	return s.hasAndGetOwnStr(name, s.getOwnPropStr(name), receiver)
+}
+
 func (s *stringObject) getStr(name unistring.String, receiver Value) Value {
 	if i := strToGoIdx(name); i >= 0 && i < s.length {
 		return s._getIdx(i)

@@ -199,6 +199,12 @@ func (a *arrayObject) swap(i int, j int) {
 	a.values[i], a.values[j] = a.values[j], a.values[i]
 }
 
+// 'length' is recomputed by getOwnPropStr (getLengthProp), so it must be consulted rather than
+// reading the shared (possibly stale) lengthProp directly from the values map.
+func (a *arrayObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	return a.hasAndGetOwnStr(name, a.getOwnPropStr(name), receiver)
+}
+
 func (a *arrayObject) getStr(name unistring.String, receiver Value) Value {
 	return a.getStrWithOwnProp(a.getOwnPropStr(name), name, receiver)
 }
