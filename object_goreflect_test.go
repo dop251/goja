@@ -1560,6 +1560,14 @@ func TestGoReflectFuncWithRuntime(t *testing.T) {
 	}
 }
 
+func TestGoReflectFuncNil(t *testing.T) {
+	vm := New()
+	var f func()
+	if v := vm.ToValue(f); v != _null {
+		t.Fatal(v)
+	}
+}
+
 func TestGoReflectDefaultToString(t *testing.T) {
 	var s testStringS
 	vm := New()

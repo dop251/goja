@@ -2,8 +2,9 @@ package goja
 
 import (
 	"fmt"
-	"github.com/dop251/goja/token"
 	"sort"
+
+	"github.com/dop251/goja/token"
 
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
@@ -235,12 +236,12 @@ func (b *binding) emitInitPAtScope(scope *scope, pos int) {
 	}
 }
 
-func (b *binding) emitGetVar(callee bool) {
+func (b *binding) emitGetVar(callee bool, strict bool) {
 	b.markAccessPoint()
 	if b.isVar && !b.isArg {
-		b.scope.c.emit(&loadMixed{name: b.name, callee: callee})
+		b.scope.c.emit(&loadMixed{name: b.name, callee: callee, strict: strict})
 	} else {
-		b.scope.c.emit(&loadMixedLex{name: b.name, callee: callee})
+		b.scope.c.emit(&loadMixedLex{name: b.name, callee: callee, strict: strict})
 	}
 }
 
@@ -320,6 +321,7 @@ type block struct {
 	outer      *block
 	breaking   *block // set when the 'finally' block is an empty break statement sequence
 	needResult bool
+	async      bool // for-await loop
 }
 
 func (c *compiler) leaveScopeBlock(enter *enterBlock) {
@@ -548,7 +550,7 @@ func (s *scope) addBinding(offset int) *binding {
 func (s *scope) bindNameLexical(name unistring.String, unique bool, offset int) (*binding, bool) {
 	if b := s.boundNames[name]; b != nil {
 		if unique {
-			s.c.throwSyntaxError(offset, "Identifier '%s' has already been declared", name)
+			s.c.throwSyntaxErrorf(offset, "Identifier '%s' has already been declared", name)
 		}
 		return b, false
 	}
@@ -700,6 +702,8 @@ func (s *scope) finaliseVarAlloc(stackOffset int) (stashSize, stackSize int) {
 							i.idx = idx
 						case *resolveMixed:
 							i.idx = idx
+						case *deleteVar:
+							i.level = uint8(level)
 						default:
 							s.c.assert(false, s.c.p.sourceOffset(pc), "Unsupported instruction for binding: %T", i)
 						}
@@ -772,11 +776,13 @@ func (s *scope) finaliseVarAlloc(stackOffset int) (stashSize, stackSize int) {
 						case initStack:
 							*ap = initStack1(idx)
 						case *loadMixed:
-							*ap = &loadMixedStack1{name: i.name, idx: idx, level: uint8(level), callee: i.callee}
+							*ap = &loadMixedStack1{name: i.name, idx: idx, level: uint8(level), callee: i.callee, strict: i.strict}
 						case *loadMixedLex:
-							*ap = &loadMixedStack1Lex{name: i.name, idx: idx, level: uint8(level), callee: i.callee}
+							*ap = &loadMixedStack1Lex{name: i.name, idx: idx, level: uint8(level), callee: i.callee, strict: i.strict}
 						case *resolveMixed:
 							*ap = &resolveMixedStack1{typ: i.typ, name: i.name, idx: idx, level: uint8(level), strict: i.strict}
+						case *deleteVar:
+							i.level = uint8(level)
 						default:
 							s.c.assert(false, s.c.p.sourceOffset(pc), "Unsupported instruction for binding: %T", i)
 						}
@@ -802,11 +808,13 @@ func (s *scope) finaliseVarAlloc(stackOffset int) (stashSize, stackSize int) {
 						case initStackP:
 							*ap = initStackP(idx)
 						case *loadMixed:
-							*ap = &loadMixedStack{name: i.name, idx: idx, level: uint8(level), callee: i.callee}
+							*ap = &loadMixedStack{name: i.name, idx: idx, level: uint8(level), callee: i.callee, strict: i.strict}
 						case *loadMixedLex:
-							*ap = &loadMixedStackLex{name: i.name, idx: idx, level: uint8(level), callee: i.callee}
+							*ap = &loadMixedStackLex{name: i.name, idx: idx, level: uint8(level), callee: i.callee, strict: i.strict}
 						case *resolveMixed:
 							*ap = &resolveMixedStack{typ: i.typ, name: i.name, idx: idx, level: uint8(level), strict: i.strict}
+						case *deleteVar:
+							i.level = uint8(level)
 						default:
 							s.c.assert(false, s.c.p.sourceOffset(pc), "Unsupported instruction for binding: %T", i)
 						}
@@ -1125,7 +1133,7 @@ func (c *compiler) createBindings(target ast.Expression, createIdBinding func(na
 			case *ast.PropertyKeyed:
 				c.createBindings(prop.Value, createIdBinding)
 			default:
-				c.throwSyntaxError(int(target.Idx0()-1), "unsupported property type in ObjectPattern: %T", prop)
+				c.throwSyntaxErrorf(int(target.Idx0()-1), "unsupported property type in ObjectPattern: %T", prop)
 			}
 		}
 		if target.Rest != nil {
@@ -1143,7 +1151,7 @@ func (c *compiler) createBindings(target ast.Expression, createIdBinding func(na
 	case *ast.AssignExpression:
 		c.createBindings(target.Left, createIdBinding)
 	default:
-		c.throwSyntaxError(int(target.Idx0()-1), "unsupported binding target: %T", target)
+		c.throwSyntaxErrorf(int(target.Idx0()-1), "unsupported binding target: %T", target)
 	}
 }
 
@@ -1186,7 +1194,7 @@ func (c *compiler) createLexicalIdBindingFuncBody(name unistring.String, isConst
 	parentBinding := paramScope.boundNames[name]
 	if parentBinding != nil {
 		if parentBinding != calleeBinding && (name != "arguments" || !paramScope.argsNeeded) {
-			c.throwSyntaxError(offset, "Identifier '%s' has already been declared", name)
+			c.throwSyntaxErrorf(offset, "Identifier '%s' has already been declared", name)
 		}
 	}
 	b, _ := c.scope.bindNameLexical(name, true, offset)
@@ -1274,7 +1282,17 @@ func (c *compiler) emit(instructions ...instruction) {
 	c.p.code = append(c.p.code, instructions...)
 }
 
-func (c *compiler) throwSyntaxError(offset int, format string, args ...interface{}) {
+func (c *compiler) throwSyntaxError(offset int, msg string) {
+	panic(&CompilerSyntaxError{
+		CompilerError: CompilerError{
+			File:    c.p.src,
+			Offset:  offset,
+			Message: msg,
+		},
+	})
+}
+
+func (c *compiler) throwSyntaxErrorf(offset int, format string, args ...interface{}) {
 	panic(&CompilerSyntaxError{
 		CompilerError: CompilerError{
 			File:    c.p.src,
@@ -1356,7 +1374,7 @@ func (c *compiler) compileStatementDummy(statement ast.Statement) {
 
 func (c *compiler) assert(cond bool, offset int, msg string, args ...interface{}) {
 	if !cond {
-		c.throwSyntaxError(offset, "Compiler bug: "+msg, args...)
+		c.throwSyntaxErrorf(offset, "Compiler bug: "+msg, args...)
 	}
 }
 
@@ -1423,7 +1441,7 @@ func (s *classScope) declarePrivateId(name unistring.String, kind ast.PropertyKi
 				}
 			}
 		}
-		s.c.throwSyntaxError(offset, "Identifier '#%s' has already been declared", name)
+		s.c.throwSyntaxErrorf(offset, "Identifier '#%s' has already been declared", name)
 		panic("unreachable")
 	}
 	var env *privateEnvRegistry
@@ -1482,6 +1500,6 @@ func (c *compiler) resolvePrivateName(name unistring.String, offset int) (*resol
 			}
 		}
 	}
-	c.throwSyntaxError(offset, "Private field '#%s' must be declared in an enclosing class", name)
+	c.throwSyntaxErrorf(offset, "Private field '#%s' must be declared in an enclosing class", name)
 	panic("unreachable")
 }

@@ -1,10 +1,11 @@
 package goja
 
 import (
+	"testing"
+
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
-	"testing"
 )
 
 func TestTaggedTemplateArgExport(t *testing.T) {
@@ -33,7 +34,7 @@ func TestVM1(t *testing.T) {
 			add,
 			setElem,
 			pop,
-			loadDynamic("v"),
+			loadDynamic{name: "v"},
 		},
 	}
 

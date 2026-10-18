@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"reflect"
 	"strconv"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/dop251/goja/ftoa"
@@ -112,13 +113,13 @@ type valueUndefined struct {
 	valueNull
 }
 
-// *Symbol is a Value containing ECMAScript Symbol primitive. Symbols must only be created
+// Symbol is a Value containing ECMAScript Symbol primitive. Symbols must only be created
 // using NewSymbol(). Zero values and copying of values (i.e. *s1 = *s2) are not permitted.
 // Well-known Symbols can be accessed using Sym* package variables (SymIterator, etc...)
 // Symbols can be shared by multiple Runtimes.
 type Symbol struct {
-	h    uintptr
-	desc String
+	desc        String
+	weakMapRefs atomic.Pointer[weakMapRefs]
 }
 
 type valueUnresolved struct {
@@ -799,7 +800,7 @@ func (o *Object) ExportType() reflect.Type {
 }
 
 func (o *Object) hash(*maphash.Hash) uint64 {
-	return o.getId()
+	return uint64(uintptr(unsafe.Pointer(o)))
 }
 
 // Get an object's property by name.
@@ -1127,7 +1128,23 @@ func (s *Symbol) baseObject(r *Runtime) *Object {
 }
 
 func (s *Symbol) hash(*maphash.Hash) uint64 {
-	return uint64(s.h)
+	// This may need to be reconsidered in the future.
+	// Depending on changes in Go's allocation policy and/or introduction of a compacting GC
+	// this may no longer provide sufficient dispersion. The alternative, however, is a globally
+	// synchronised random generator/hasher/sequencer and I don't want to go down that route just yet.
+	return uint64(uintptr(unsafe.Pointer(s)))
+}
+
+func (s *Symbol) getWeakMapRefs(create bool) *weakMapRefs {
+	refs := s.weakMapRefs.Load()
+	if refs == nil && create {
+		// Symbols may be shared between Runtimes running concurrently
+		refs = newWeakMapRefs()
+		if !s.weakMapRefs.CompareAndSwap(nil, refs) {
+			refs = s.weakMapRefs.Load()
+		}
+	}
+	return refs
 }
 
 func exportValue(v Value, ctx *objectExportCtx) interface{} {
@@ -1138,15 +1155,9 @@ func exportValue(v Value, ctx *objectExportCtx) interface{} {
 }
 
 func newSymbol(s String) *Symbol {
-	r := &Symbol{
+	return &Symbol{
 		desc: s,
 	}
-	// This may need to be reconsidered in the future.
-	// Depending on changes in Go's allocation policy and/or introduction of a compacting GC
-	// this may no longer provide sufficient dispersion. The alternative, however, is a globally
-	// synchronised random generator/hasher/sequencer and I don't want to go down that route just yet.
-	r.h = uintptr(unsafe.Pointer(r))
-	return r
 }
 
 func NewSymbol(s string) *Symbol {

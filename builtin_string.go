@@ -136,11 +136,11 @@ func (r *Runtime) string_fromcodepoint(call FunctionCall) Value {
 		var c rune
 		if numInt, ok := num.(valueInt); ok {
 			if numInt < 0 || numInt > utf8.MaxRune {
-				panic(r.newError(r.getRangeError(), "Invalid code point %d", numInt))
+				panic(r.newErrorf(r.getRangeError(), "Invalid code point %d", numInt))
 			}
 			c = rune(numInt)
 		} else {
-			panic(r.newError(r.getRangeError(), "Invalid code point %s", num))
+			panic(r.newErrorf(r.getRangeError(), "Invalid code point %s", num))
 		}
 		sb.WriteRune(c)
 	}
@@ -254,29 +254,29 @@ func (r *Runtime) stringproto_concat(call FunctionCall) Value {
 
 	if allAscii {
 		var buf strings.Builder
-		buf.Grow(totalLen)
+		buf.Grow(toStringLen(totalLen))
 		for _, s := range strs {
 			buf.WriteString(s.String())
 		}
 		return asciiString(buf.String())
-	} else {
-		buf := make([]uint16, totalLen+1)
-		buf[0] = unistring.BOM
-		pos := 1
-		for _, s := range strs {
-			switch s := s.(type) {
-			case asciiString:
-				for i := 0; i < len(s); i++ {
-					buf[pos] = uint16(s[i])
-					pos++
-				}
-			case unicodeString:
-				copy(buf[pos:], s[1:])
-				pos += s.Length()
-			}
-		}
-		return unicodeString(buf)
 	}
+
+	buf := make([]uint16, totalLen+1)
+	buf[0] = unistring.BOM
+	pos := 1
+	for _, s := range strs {
+		switch s := s.(type) {
+		case asciiString:
+			for i := 0; i < len(s); i++ {
+				buf[pos] = uint16(s[i])
+				pos++
+			}
+		case unicodeString:
+			copy(buf[pos:], s[1:])
+			pos += s.Length()
+		}
+	}
+	return unicodeString(buf)
 }
 
 func (r *Runtime) stringproto_endsWith(call FunctionCall) Value {
@@ -569,7 +569,7 @@ func (r *Runtime) stringproto_repeat(call FunctionCall) Value {
 	a, u := devirtualizeString(s)
 	if u == nil {
 		var sb strings.Builder
-		sb.Grow(len(a) * num)
+		sb.Grow(safeMul(len(a), num))
 		for i := 0; i < num; i++ {
 			sb.WriteString(string(a))
 		}
@@ -577,7 +577,7 @@ func (r *Runtime) stringproto_repeat(call FunctionCall) Value {
 	}
 
 	var sb unicodeStringBuilder
-	sb.Grow(u.Length() * num)
+	sb.Grow(safeMul(u.Length(), num))
 	for i := 0; i < num; i++ {
 		sb.writeUnicodeString(u)
 	}
@@ -595,7 +595,7 @@ func getReplaceValue(replaceValue Value) (str String, rcall func(FunctionCall) V
 	return
 }
 
-func stringReplace(s String, found [][]int, newstring String, rcall func(FunctionCall) Value) Value {
+func (r *Runtime) stringReplace(s String, found []regexpResult, newstring String, rcall func(FunctionCall) Value) Value {
 	if len(found) == 0 {
 		return s
 	}
@@ -608,48 +608,69 @@ func stringReplace(s String, found [][]int, newstring String, rcall func(Functio
 	lengthS := s.Length()
 	if rcall != nil {
 		for _, item := range found {
-			if item[0] != lastIndex {
-				buf.WriteSubstring(s, lastIndex, item[0])
+			if item.indexes[0] != lastIndex {
+				buf.WriteSubstring(s, lastIndex, item.indexes[0])
 			}
-			matchCount := len(item) / 2
-			argumentList := make([]Value, matchCount+2)
+			matchCount := len(item.indexes) / 2
+			argumentList := make([]Value, matchCount+2, matchCount+3)
 			for index := 0; index < matchCount; index++ {
 				offset := 2 * index
-				if item[offset] != -1 {
+				if item.indexes[offset] != -1 {
 					if u == nil {
-						argumentList[index] = a[item[offset]:item[offset+1]]
+						argumentList[index] = a[item.indexes[offset]:item.indexes[offset+1]]
 					} else {
-						argumentList[index] = u.Substring(item[offset], item[offset+1])
+						argumentList[index] = u.Substring(item.indexes[offset], item.indexes[offset+1])
 					}
 				} else {
 					argumentList[index] = _undefined
 				}
 			}
-			argumentList[matchCount] = valueInt(item[0])
+			argumentList[matchCount] = intToValue(int64(item.indexes[0]))
 			argumentList[matchCount+1] = s
+			groups := r.createRegexpGroupsObj(argumentList[:matchCount], item.groups)
+			if groups != nil {
+				argumentList = append(argumentList, groups)
+			}
 			replacement := rcall(FunctionCall{
 				This:      _undefined,
 				Arguments: argumentList,
 			}).toString()
 			buf.WriteString(replacement)
-			lastIndex = item[1]
+			lastIndex = item.indexes[1]
 		}
 	} else {
 		for _, item := range found {
-			if item[0] != lastIndex {
-				buf.WriteString(s.Substring(lastIndex, item[0]))
+			if item.indexes[0] != lastIndex {
+				buf.WriteString(s.Substring(lastIndex, item.indexes[0]))
 			}
-			matchCount := len(item) / 2
-			writeSubstitution(s, item[0], matchCount, func(idx int) String {
-				if item[idx*2] != -1 {
+			matchCount := len(item.indexes) / 2
+			var namedGroups map[unistring.String]int
+			writeSubstitution(s, item.indexes[0], matchCount, func(idx int) String {
+				if item.indexes[idx*2] != -1 {
 					if u == nil {
-						return a[item[idx*2]:item[idx*2+1]]
+						return a[item.indexes[idx*2]:item.indexes[idx*2+1]]
 					}
-					return u.Substring(item[idx*2], item[idx*2+1])
+					return u.Substring(item.indexes[idx*2], item.indexes[idx*2+1])
+				}
+				return stringEmpty
+			}, func(ref String) String {
+				if namedGroups == nil {
+					namedGroups = createRegexpGroupsMap(item)
+				}
+				if len(namedGroups) == 0 {
+					return nil
+				}
+				if idx, exists := namedGroups[ref.string()]; exists {
+					if item.indexes[idx] != -1 {
+						if u == nil {
+							return a[item.indexes[idx]:item.indexes[idx+1]]
+						}
+						return u.Substring(item.indexes[idx], item.indexes[idx+1])
+					}
 				}
 				return stringEmpty
 			}, newstring, &buf)
-			lastIndex = item[1]
+			lastIndex = item.indexes[1]
 		}
 	}
 
@@ -674,15 +695,15 @@ func (r *Runtime) stringproto_replace(call FunctionCall) Value {
 	}
 
 	s := call.This.toString()
-	var found [][]int
+	var found []regexpResult
 	searchStr := searchValue.toString()
 	pos := s.index(searchStr, 0)
 	if pos != -1 {
-		found = append(found, []int{pos, pos + searchStr.Length()})
+		found = append(found, regexpResult{indexes: []int{pos, pos + searchStr.Length()}})
 	}
 
 	str, rcall := getReplaceValue(replaceValue)
-	return stringReplace(s, found, str, rcall)
+	return r.stringReplace(s, found, str, rcall)
 }
 
 func (r *Runtime) stringproto_replaceAll(call FunctionCall) Value {
@@ -706,19 +727,19 @@ func (r *Runtime) stringproto_replaceAll(call FunctionCall) Value {
 	}
 
 	s := call.This.toString()
-	var found [][]int
+	var found []regexpResult
 	searchStr := searchValue.toString()
 	searchLength := searchStr.Length()
 	advanceBy := toIntStrict(max(1, int64(searchLength)))
 
 	pos := s.index(searchStr, 0)
 	for pos != -1 {
-		found = append(found, []int{pos, pos + searchLength})
+		found = append(found, regexpResult{indexes: []int{pos, pos + searchLength}})
 		pos = s.index(searchStr, pos+advanceBy)
 	}
 
 	str, rcall := getReplaceValue(replaceValue)
-	return stringReplace(s, found, str, rcall)
+	return r.stringReplace(s, found, str, rcall)
 }
 
 func (r *Runtime) stringproto_search(call FunctionCall) Value {
@@ -822,24 +843,88 @@ func (r *Runtime) stringproto_split(call FunctionCall) Value {
 		return r.newArrayValues([]Value{s})
 	}
 
-	separator := separatorValue.String()
+	var valueArray []Value
+	sa, su := devirtualizeString(s)
+	sepa, sepu := devirtualizeString(separatorValue.toString())
+	if su == nil { // ASCII string
+		if sepu == nil {
+			// Both are ASCII
+			splitLimit := limit
+			if limit > 0 {
+				splitLimit = limit + 1
+			}
 
-	str := s.String()
-	splitLimit := limit
-	if limit > 0 {
-		splitLimit = limit + 1
-	}
+			split := strings.SplitN(string(sa), string(sepa), splitLimit)
 
-	// TODO handle invalid UTF-16
-	split := strings.SplitN(str, separator, splitLimit)
-
-	if limit > 0 && len(split) > limit {
-		split = split[:limit]
-	}
-
-	valueArray := make([]Value, len(split))
-	for index, value := range split {
-		valueArray[index] = newStringValue(value)
+			if limit > 0 && len(split) > limit {
+				split = split[:limit]
+			}
+			valueArray = make([]Value, len(split))
+			for index, value := range split {
+				valueArray[index] = asciiString(value)
+			}
+		} else {
+			// Unicode separator will never match an ASCII string
+			return r.newArrayValues([]Value{s})
+		}
+	} else {
+		var ss []uint16
+		if sepu != nil {
+			ss = sepu[1:]
+		} else {
+			ss = sepa.utf16()
+		}
+		su = su[1:]
+		if len(ss) > 0 {
+			idx := utf16Index(su, ss)
+			if idx == -1 {
+				// Shortcut to avoid creating a copy of s
+				return r.newArrayValues([]Value{s})
+			}
+			if limit < 0 {
+				limit = min(math.MaxInt, math.MaxUint32)
+			}
+			for ; limit > 0; limit-- {
+				var sb strings.Builder
+				for i := range idx {
+					if su[i] >= utf8.RuneSelf {
+						chunk := make(unicodeString, idx+1)
+						chunk[0] = unistring.BOM
+						copy(chunk[1:], su[:idx])
+						valueArray = append(valueArray, chunk)
+						goto next
+					}
+				}
+				sb.Grow(idx)
+				for i := range idx {
+					sb.WriteByte((byte)(su[i]))
+				}
+				valueArray = append(valueArray, asciiString(sb.String()))
+			next:
+				if idx == len(su) {
+					break
+				}
+				su = su[idx+len(ss):]
+				idx = utf16Index(su, ss)
+				if idx == -1 {
+					idx = len(su)
+				}
+			}
+		} else {
+			if limit > 0 && len(su) > limit {
+				su = su[:limit]
+			}
+			for len(su) > 0 {
+				c := su[0]
+				if c >= utf8.RuneSelf {
+					chunk := unicodeString{unistring.BOM, c}
+					valueArray = append(valueArray, chunk)
+				} else {
+					valueArray = append(valueArray, asciiString(rune(c)))
+				}
+				su = su[1:]
+			}
+		}
 	}
 
 	return r.newArrayValues(valueArray)
@@ -916,6 +1001,43 @@ func (r *Runtime) stringproto_toUpperCase(call FunctionCall) Value {
 	return s.toUpper()
 }
 
+func (r *Runtime) stringproto_isWellFormed(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
+	_, u := devirtualizeString(call.This.toString())
+	if u == nil || u.loneSurrogateIndex() == -1 {
+		return valueTrue
+	}
+	return valueFalse
+}
+
+func (r *Runtime) stringproto_toWellFormed(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
+	s := call.This.toString()
+	_, u := devirtualizeString(s)
+	if u == nil {
+		return s
+	}
+	idx := u.loneSurrogateIndex()
+	if idx == -1 {
+		return s
+	}
+	b := make(unicodeString, len(u))
+	copy(b, u)
+	for i := idx + 1; i < len(b); i++ {
+		c := b[i]
+		if isUTF16FirstSurrogate(c) {
+			if i+1 < len(b) && isUTF16SecondSurrogate(b[i+1]) {
+				i++
+				continue
+			}
+			b[i] = utf8.RuneError
+		} else if isUTF16SecondSurrogate(c) {
+			b[i] = utf8.RuneError
+		}
+	}
+	return b
+}
+
 func (r *Runtime) stringproto_trim(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
@@ -975,7 +1097,12 @@ func (r *Runtime) stringIterProto_next(call FunctionCall) Value {
 func (r *Runtime) createStringIterProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.getIteratorPrototype(), classObject)
 
-	o._putProp("next", r.newNativeFunc(r.stringIterProto_next, "next", 0), true, false, true)
+	o._putProp("next", r.newIteratorNextFunc(r.stringIterProto_next, 0, func(iterator *Object) func(Value) (Value, bool) {
+		if i, ok := iterator.self.(*stringIterObject); ok {
+			return i.nextResult
+		}
+		return nil
+	}), true, false, true)
 	o._putSym(SymToStringTag, valueProp(asciiString(classStringIterator), false, false, true))
 
 	return o
@@ -1009,6 +1136,7 @@ func createStringProtoTemplate() *objectTemplate {
 	t.putStr("endsWith", func(r *Runtime) Value { return r.methodProp(r.stringproto_endsWith, "endsWith", 1) })
 	t.putStr("includes", func(r *Runtime) Value { return r.methodProp(r.stringproto_includes, "includes", 1) })
 	t.putStr("indexOf", func(r *Runtime) Value { return r.methodProp(r.stringproto_indexOf, "indexOf", 1) })
+	t.putStr("isWellFormed", func(r *Runtime) Value { return r.methodProp(r.stringproto_isWellFormed, "isWellFormed", 0) })
 	t.putStr("lastIndexOf", func(r *Runtime) Value { return r.methodProp(r.stringproto_lastIndexOf, "lastIndexOf", 1) })
 	t.putStr("localeCompare", func(r *Runtime) Value { return r.methodProp(r.stringproto_localeCompare, "localeCompare", 1) })
 	t.putStr("match", func(r *Runtime) Value { return r.methodProp(r.stringproto_match, "match", 1) })
@@ -1029,6 +1157,7 @@ func createStringProtoTemplate() *objectTemplate {
 	t.putStr("toLowerCase", func(r *Runtime) Value { return r.methodProp(r.stringproto_toLowerCase, "toLowerCase", 0) })
 	t.putStr("toString", func(r *Runtime) Value { return r.methodProp(r.stringproto_toString, "toString", 0) })
 	t.putStr("toUpperCase", func(r *Runtime) Value { return r.methodProp(r.stringproto_toUpperCase, "toUpperCase", 0) })
+	t.putStr("toWellFormed", func(r *Runtime) Value { return r.methodProp(r.stringproto_toWellFormed, "toWellFormed", 0) })
 	t.putStr("trim", func(r *Runtime) Value { return r.methodProp(r.stringproto_trim, "trim", 0) })
 	t.putStr("trimEnd", func(r *Runtime) Value { return valueProp(r.getStringproto_trimEnd(), true, false, true) })
 	t.putStr("trimStart", func(r *Runtime) Value { return valueProp(r.getStringproto_trimStart(), true, false, true) })

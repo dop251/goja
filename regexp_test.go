@@ -14,6 +14,44 @@ func TestRegexp1(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestRegexpInvalidUnicodeControlEscapes(t *testing.T) {
+	const SCRIPT = `
+	["u", "iu"].forEach(function (flags) {
+		["", "0", "9", "_", "%", "й"].forEach(function (c) {
+			["\\c" + c, "[\\c" + c + "]"].forEach(function (pattern) {
+				try {
+					new RegExp(pattern, flags);
+				} catch (e) {
+					if (e instanceof SyntaxError) return;
+					throw e;
+				}
+				throw new Error("Expected SyntaxError: " + pattern);
+			});
+		});
+	});
+	/\cA/u.test("\x01") && /[\cz]/iu.test("\x1a");
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestRegexpUnicodePropertyEscapes(t *testing.T) {
+	const SCRIPT = `
+	["\\p{NotAProperty}", "\\p{", "\\p{L", "\\p{}", "[\\P{NotAProperty}]"].forEach(function (pattern) {
+		try {
+			new RegExp(pattern, "u");
+		} catch (e) {
+			if (e instanceof SyntaxError) return;
+			throw e;
+		}
+		throw new Error("Expected SyntaxError: " + pattern);
+	});
+	/^\p{L}$/u.test("a") && /^\p{L}$/u.test("\u{1d49c}") && !/^\p{L}$/u.test("1") && /^\P{L}$/u.test("1") &&
+	/^[\p{L}\p{N}]+$/u.test("café9") && /^\p{Lowercase_Letter}$/u.test("a") &&
+	/^\p{L}$/.test("p{L}") && /^\P$/.test("P");
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestRegexp2(t *testing.T) {
 	const SCRIPT = `
 	var r = new RegExp("(['\"])(.*?)['\"]");
@@ -156,6 +194,32 @@ func TestRegexpSInClass(t *testing.T) {
 	/[\S]/.test("\u2028");
 	`
 	testScript(SCRIPT, valueFalse, t)
+}
+
+func TestRegexpDashAfterClassEscape(t *testing.T) {
+	const SCRIPT = `
+	var toCamelCase = function(s) {
+		return s.replace(/^([A-Z])|[\s-_]+(\w)/g, function(m, p1, p2) {
+			return p2 ? p2.toUpperCase() : p1.toLowerCase();
+		});
+	};
+	toCamelCase("Foo bar-baz_qux");
+	`
+
+	testScript(SCRIPT, asciiString("fooBarBazQux"), t)
+}
+
+func TestRegexpDashNextToClassEscape(t *testing.T) {
+	const SCRIPT = `
+	/^[\s-_]$/.test("-") && /^[\s-_]$/.test("_") && /^[\s-_]$/.test(" ") && !/^[\s-_]$/.test("a") &&
+	/^[_-\s]$/.test("-") && /^[\s-\d]$/.test("-") && /^[\d-_]$/.test("-") &&
+	/^[a-z]$/.test("m") && !/^[a-z]$/.test("-") &&
+	/^[\s\-_]$/.test("-") && /^[\s\-_]$/.test(" ") &&
+	/^[\b-_]$/.test("Z") && !/^[\b-_]$/.test("a") &&
+	/^[\s-_-a]$/.test("a") && !/^[\s-_-a]$/.test("\u0060");
+	`
+
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestRegexpDotMatchCR(t *testing.T) {
@@ -416,8 +480,10 @@ func TestRegexpConsecutiveMatchCache(t *testing.T) {
 		];
 		expectedMatches[0].index = 0;
 		expectedMatches[0].input = 'test1test2';
+		expectedMatches[0].groups = undefined;
 		expectedMatches[1].index = 5;
 		expectedMatches[1].input = 'test1test2';
+		expectedMatches[1].groups = undefined;
 
 		assert(deepEqual(matches, expectedMatches), "#1");
 
@@ -432,6 +498,7 @@ func TestRegexpConsecutiveMatchCache(t *testing.T) {
 		];
 		expectedMatch.index = 1;
 		expectedMatch.input = ' test5';
+		expectedMatch.groups = undefined;
 		assert(deepEqual(match, expectedMatch), "#2");
 		assert.sameValue(regex.lastIndex, 6, "#3");
 
@@ -445,6 +512,7 @@ func TestRegexpConsecutiveMatchCache(t *testing.T) {
 		];
 		expectedMatch.index = 6;
 		expectedMatch.input = ' test5test6';
+		expectedMatch.groups = undefined;
 		assert(deepEqual(match, expectedMatch), "#4");
 		assert.sameValue(regex.lastIndex, 11, "#5");
 
@@ -508,8 +576,10 @@ func TestRegexpMatchAll(t *testing.T) {
 		];
 		expectedMatches[0].index = 0;
 		expectedMatches[0].input = 'test1test2';
+		expectedMatches[0].groups = undefined;
 		expectedMatches[1].index = 5;
 		expectedMatches[1].input = 'test1test2';
+		expectedMatches[1].groups = undefined;
 
 		assert(deepEqual(matches, expectedMatches), "#1");
 		assert.sameValue(regex.lastIndex, 0, "#1 lastIndex");
@@ -530,6 +600,7 @@ func TestRegexpMatchAll(t *testing.T) {
 		];
 		expectedMatches[0].index = 1;
 		expectedMatches[0].input = ' test5';
+		expectedMatches[0].groups = undefined;
 		assert(deepEqual(matches, expectedMatches), "#2");
 		assert.sameValue(regex.lastIndex, 0, "#2 lastIndex");
 
@@ -555,8 +626,10 @@ func TestRegexpMatchAll(t *testing.T) {
 		];
 		expectedMatches[0].index = 1;
 		expectedMatches[0].input = ' test5test6';
+		expectedMatches[0].groups = undefined;
 		expectedMatches[1].index = 6;
 		expectedMatches[1].input = ' test5test6';
+		expectedMatches[1].groups = undefined;
 		assert(deepEqual(matches, expectedMatches), "#3");
 		assert.sameValue(regex.lastIndex, 0, "#3 lastindex");
 	});
@@ -754,6 +827,16 @@ func TestRegexpUnicodeEscape(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestRegexpUnicodeGroupNames(t *testing.T) {
+	const SCRIPT = `
+	var string = "The quick brown fox jumped over the lazy dog's back";
+	let match = string.match(/(?<狸>fox).*(?<狗>dog)/);
+	assert.sameValue(match.groups.狸, "fox");
+	assert.sameValue(match.groups.狗, "dog");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestRegExpLastIndex(t *testing.T) {
 	const SCRIPT = `
 	function t(R, type) {
@@ -785,6 +868,46 @@ func TestRegExpRepeatCount(t *testing.T) {
 	re.test("0xABCD");
 	`
 	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestRegExpEscape(t *testing.T) {
+	const SCRIPT = `
+	const strings = [
+		"a.b*c",
+		"1+1=2",
+		"(foo|bar)[0]{1,2}",
+		"/path/to/file?x=1&y=2#hash",
+		"a b\tc\nd\u00a0e\u2028f\ufeff",
+		"<'\"\x60>,-:;!%@~",
+		"\u00e9\u4e2d\ud83d\ude00",
+		"\ud800x\udc00",
+	];
+	for (const s of strings) {
+		const escaped = RegExp.escape(s);
+		assert(new RegExp("^" + escaped + "$").test(s), JSON.stringify(s));
+		assert(new RegExp("^" + escaped + "$", "u").test(s), JSON.stringify(s) + " (u)");
+		assert(new RegExp("^[" + escaped + "]+$", "u").test(s), JSON.stringify(s) + " (class)");
+	}
+	assert(new RegExp("^\\0" + RegExp.escape("1") + "$").test("\x001"), "after \\0");
+	assert(new RegExp("^(a)\\1" + RegExp.escape("0") + "$").test("aa0"), "after a back reference");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestRegexp2MatchError(t *testing.T) {
+	// A regexp2 match error (here the backtracking stack limit) must be thrown, not reported as no match.
+	const SCRIPT = `
+	const s = "a".repeat(100000);
+	assert.throws(RangeError, () => /^(?=a)(a)*$/.test(s), "test");
+	assert.throws(RangeError, () => /^(?=a)(a)*$/u.exec(s), "exec (u)");
+	assert.throws(RangeError, () => s.match(/(?=a)(a)*/g), "match (g)");
+	assert.throws(RangeError, () => (s + "\u00e9").match(/(?=a)(a)*/gu), "match (gu)");
+	assert.throws(RangeError, () => ("b" + s).match(/b|(?=a)(a)*/g), "match (g), next match");
+	assert.throws(RangeError, () => ("b" + s + "\u00e9").match(/b|(?=a)(a)*/gu), "match (gu), next match");
+	assert.throws(RangeError, () => s.replace(/(?=a)(a)*/, ""), "replace");
+	assert.throws(RangeError, () => s.split(/(?=a)(a)*/), "split");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {

@@ -58,20 +58,6 @@ func arraySpeciesCreate(obj *Object, size int64) *Object {
 	return obj.runtime.newArrayLength(size)
 }
 
-func max(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int64) int64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func relToIdx(rel, l int64) int64 {
 	if rel >= 0 {
 		return min(rel, l)
@@ -979,7 +965,7 @@ func arrayproto_reverse_generic_step(o *Object, lower, upper int64) {
 	} else if !lowerExists && upperExists {
 		o.self.setOwnIdx(lowerP, upperValue, true)
 		o.self.deleteIdx(upperP, true)
-	} else if lowerExists && !upperExists {
+	} else if lowerExists {
 		o.self.deleteIdx(lowerP, true)
 		o.self.setOwnIdx(upperP, lowerValue, true)
 	}
@@ -1208,8 +1194,8 @@ func (r *Runtime) arrayproto_flat(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	l := toLength(o.self.getStr("length", nil))
 	depthNum := int64(1)
-	if len(call.Arguments) > 0 {
-		depthNum = call.Argument(0).ToInteger()
+	if arg := call.Argument(0); arg != _undefined {
+		depthNum = arg.ToInteger()
 	}
 	a := arraySpeciesCreate(o, 0)
 	r.flattenIntoArray(a, o, l, 0, depthNum, nil, nil)
@@ -1276,7 +1262,7 @@ func (r *Runtime) arrayproto_with(call FunctionCall) Value {
 		actualIndex = length + relativeIndex
 	}
 	if actualIndex >= length || actualIndex < 0 {
-		panic(r.newError(r.getRangeError(), "Invalid index %s", call.Argument(0).String()))
+		panic(r.newErrorf(r.getRangeError(), "Invalid index %s", call.Argument(0).String()))
 	}
 
 	if src := r.checkStdArrayObj(o); src != nil {
@@ -1468,16 +1454,6 @@ func (r *Runtime) checkStdArray(v Value) *arrayObject {
 	return nil
 }
 
-func (r *Runtime) checkStdArrayIter(v Value) *arrayObject {
-	if arr := r.checkStdArray(v); arr != nil &&
-		arr.getSym(SymIterator, nil) == r.getArrayValues() {
-
-		return arr
-	}
-
-	return nil
-}
-
 func (r *Runtime) array_from(call FunctionCall) Value {
 	var mapFn func(FunctionCall) Value
 	if mapFnArg := call.Argument(1); mapFnArg != _undefined {
@@ -1492,13 +1468,6 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 	}
 	t := call.Argument(2)
 	items := call.Argument(0)
-	if mapFn == nil && call.This == r.global.Array { // mapFn may mutate the array
-		if arr := r.checkStdArrayIter(items); arr != nil {
-			items := make([]Value, len(arr.values))
-			copy(items, arr.values)
-			return r.newArrayValues(items)
-		}
-	}
 
 	var ctor func(args []Value, newTarget *Object) *Object
 	if call.This != r.global.Array {
@@ -1519,9 +1488,14 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		if mapFn == nil {
 			if a := r.checkStdArrayObjWithProto(arr); a != nil {
 				var values []Value
-				iter.iterate(func(val Value) {
-					values = append(values, val)
-				})
+				if src := r.checkStdArray(items); src != nil && iter.nextRes != nil {
+					values = make([]Value, len(src.values))
+					copy(values, src.values)
+				} else {
+					iter.iterate(func(val Value) {
+						values = append(values, val)
+					})
+				}
 				setArrayValues(a, values)
 				return arr
 			}
@@ -1728,7 +1702,12 @@ func (r *Runtime) createArray(val *Object) objectImpl {
 func (r *Runtime) createArrayIterProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.getIteratorPrototype(), classObject)
 
-	o._putProp("next", r.newNativeFunc(r.arrayIterProto_next, "next", 0), true, false, true)
+	o._putProp("next", r.newIteratorNextFunc(r.arrayIterProto_next, 0, func(iterator *Object) func(Value) (Value, bool) {
+		if i, ok := iterator.self.(*arrayIterObject); ok {
+			return i.nextResult
+		}
+		return nil
+	}), true, false, true)
 	o._putSym(SymToStringTag, valueProp(asciiString(classArrayIterator), false, false, true))
 
 	return o

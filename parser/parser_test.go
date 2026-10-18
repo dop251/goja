@@ -122,15 +122,19 @@ func TestParserErr(t *testing.T) {
 
 		test("3e-", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
+		test("08n", "(anonymous): Line 1:1 Illegal numeric literal")
+
+		test("017.5", "(anonymous): Line 1:4 Unexpected number")
+
 		test("3x", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
 		test("3x0", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
 		test("0x", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
 
-		test("09", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
+		test("09", nil)
 
-		test("018", "(anonymous): Line 1:1 Unexpected token ILLEGAL")
+		test("018", nil)
 
 		test("01.0", "(anonymous): Line 1:3 Unexpected number")
 
@@ -305,6 +309,19 @@ func TestParserErr(t *testing.T) {
 
 		test("/*abc  *", "(anonymous): Line 1:9 Unexpected end of input")
 
+		test("x <!-- y", nil)
+
+		test("x\n--> y", nil)
+
+		test("--> y", nil)
+
+		test("/*\n*/ --> y", nil)
+
+		test("x; /* */ --> y", "(anonymous): Line 1:12 Unexpected token >")
+
+		program, _ = test("x-->y", nil)
+		is(program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression).Operator, token.GREATER)
+
 		test("\n]", "(anonymous): Line 2:1 Unexpected token ]")
 
 		test("\r\n]", "(anonymous): Line 2:1 Unexpected token ]")
@@ -396,6 +413,7 @@ func TestParserErr(t *testing.T) {
 		test(`for (var abc, def in {}) {}`, "(anonymous): Line 1:19 Unexpected token in")
 
 		test(`for (abc, def in {}) {}`, "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
+		test(`for (a < b in c;;);`, "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
 
 		test(`for (var abc=def, ghi=("abc" in {}); true;) {}`, nil)
 
@@ -504,6 +522,8 @@ func TestParserErr(t *testing.T) {
 		test(`var{..(`, "(anonymous): Line 1:7 Unexpected token ILLEGAL")
 		test(`var{get..(`, "(anonymous): Line 1:10 Unexpected token ILLEGAL")
 		test(`var{set..(`, "(anonymous): Line 1:10 Unexpected token ILLEGAL")
+		test(`const [...[`, "(anonymous): Line 1:12 Unexpected end of input")
+		test(`const {a: [...[}`, "(anonymous): Line 1:16 Unexpected token }")
 		test(`(0 ?? 0 || true)`, "(anonymous): Line 1:9 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 		test(`(a || b ?? c)`, "(anonymous): Line 1:9 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 		test(`2 ?? 2 && 3 + 3`, "(anonymous): Line 1:3 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
@@ -936,6 +956,19 @@ func TestParser(t *testing.T) {
 		test("function f() { if (false) {} else return class A {} }", nil)
 		test("function f() { let A; if (false) {} else A = class A {} }", nil)
 
+		test("class A { x; async }", nil)
+		test("class A { async = 1 }", nil)
+		test("class A { async *m() {} }", nil)
+
+		{
+			program := test("({ async *m() { yield await 1 } })", nil)
+			fn := program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.ObjectLiteral).Value[0].(*ast.PropertyKeyed).Value.(*ast.FunctionLiteral)
+			is(fn.Async, true)
+			is(fn.Generator, true)
+		}
+		test("({ async *[k]() {} })", nil)
+		test("({ async\n*m() {} })", "(anonymous): Line 2:1 Unexpected token *")
+
 		{
 			program := test(`(-2)**53`, nil)
 			st := program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression)
@@ -1133,6 +1166,19 @@ func TestPosition(t *testing.T) {
 		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.UnaryExpression)
 		is(parser.slice(node.Idx0(), node.Idx1()), "++a")
 
+		parser = newParser("", "f(() => (({ a: 1 })), 1)")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.CallExpression).ArgumentList[0].(*ast.ArrowFunctionLiteral)
+		is(parser.slice(node.Idx0(), node.Idx1()), "() => (({ a: 1 }))")
+		is(node.(*ast.ArrowFunctionLiteral).Source, "() => (({ a: 1 }))")
+
+		parser = newParser("", "(x => { return x; })")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.ArrowFunctionLiteral)
+		is(parser.slice(node.Idx0(), node.Idx1()), "x => { return x; }")
+
 		parser = newParser("", "xyz: for (i = 0; i < 10; i++) { if (i == 5) continue xyz; }")
 		program, err = parser.parse()
 		is(err, nil)
@@ -1183,6 +1229,36 @@ func TestPosition(t *testing.T) {
 	case 2:
 	default: x++;
 }`)
+
+		parser = newParser("", "x;\nif (a) b(); else c()")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[1].(*ast.IfStatement)
+		is(parser.slice(node.Idx0(), node.Idx1()), "if (a) b(); else c()")
+
+		parser = newParser("", "function f() { return new.target }")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.FunctionDeclaration).Function.Body.List[0].(*ast.ReturnStatement).Argument.(*ast.MetaProperty)
+		is(parser.slice(node.Idx0(), node.Idx1()), "new.target")
+
+		parser = newParser("", "café + ñ + 𝒜")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression)
+		is(parser.slice(node.Idx0(), node.Idx1()), "café + ñ + 𝒜")
+		node = node.(*ast.BinaryExpression).Left.(*ast.BinaryExpression).Left
+		is(parser.slice(node.Idx0(), node.Idx1()), "café")
+
+		parser = newParser("", "class C { #x; m(o) { return this.#x + (#x in o) } }")
+		program, err = parser.parse()
+		is(err, nil)
+		node = program.Body[0].(*ast.ClassDeclaration).Class.Body[0].(*ast.FieldDefinition).Key
+		is(parser.slice(node.Idx0(), node.Idx1()), "#x")
+		sum := program.Body[0].(*ast.ClassDeclaration).Class.Body[1].(*ast.MethodDefinition).Body.Body.List[0].(*ast.ReturnStatement).Argument.(*ast.BinaryExpression)
+		is(parser.slice(sum.Left.Idx0(), sum.Left.Idx1()), "this.#x")
+		node = sum.Right.(*ast.BinaryExpression).Left
+		is(parser.slice(node.Idx0(), node.Idx1()), "#x")
 	})
 }
 
@@ -1241,6 +1317,21 @@ var x = {};
 		is(err, nil)
 		is(count, 1)
 		is(requestedPath, "https://site.com/delme.js.map")
+
+		// Checks related to empty source maps.
+		emptySourceMapLoader := func(p string) ([]byte, error) {
+			count++
+			requestedPath = p
+			emptySourceMap := `{"version":3,"file":"delme.js","sourceRoot":"","sources":["../src/delme.ts"],"names":[],"mappings":""}`
+			return []byte(emptySourceMap), nil
+		}
+
+		// Ensure empty source map errors are skipped
+		count = 0
+		_, err = ParseFile(nil, "delme.js", src, 0, WithSourceMapLoader(emptySourceMapLoader))
+		is(err, nil)
+		is(count, 1)
+		is(requestedPath, "delme.js.map")
 	})
 }
 
@@ -1336,5 +1427,28 @@ func TestParseTemplateLiteralWithTail(t *testing.T) {
 		}
 	} else {
 		t.Fatal(prg.Body[0])
+	}
+}
+
+func TestParseNestingDepth(t *testing.T) {
+	const n = 1000000
+	for _, src := range []string{
+		strings.Repeat("(", n) + "a" + strings.Repeat(")", n),
+		strings.Repeat("[", n) + strings.Repeat("]", n),
+		strings.Repeat("{", n) + strings.Repeat("}", n),
+		strings.Repeat("!", n) + "a",
+		strings.Repeat("a => ", n) + "a",
+		strings.Repeat("a ** ", n) + "a",
+		strings.Repeat("new ", n) + "a",
+		"(" + strings.Repeat("class extends ", n) + "a" + strings.Repeat("{}", n) + ")",
+	} {
+		_, err := ParseFile(nil, "", src, 0)
+		if err == nil || !strings.Contains(err.Error(), "Maximum nesting depth exceeded") {
+			t.Fatalf("%.10q...: %v", src, err)
+		}
+	}
+	src := strings.Repeat("(", maxNestingDepth/4) + "a" + strings.Repeat(")", maxNestingDepth/4)
+	if _, err := ParseFile(nil, "", src, 0); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -438,6 +438,49 @@ func TestProxy_native_proxy_getOwnPropertyDescriptor_non_existing(t *testing.T) 
 	}
 }
 
+func TestProxy_proxy_getOwnPropertyDescriptor_nonConfigurable(t *testing.T) {
+	const SCRIPT = `
+	function g() {}
+	function other() {}
+
+	var accessorTarget = {};
+	Object.defineProperty(accessorTarget, "x", {get: g});
+	var dataTarget = {};
+	Object.defineProperty(dataTarget, "x", {value: 1});
+
+	function reporting(target, desc) {
+		return new Proxy(target, {
+			getOwnPropertyDescriptor: function() {
+				return desc;
+			}
+		});
+	}
+
+	var forward = new Proxy(accessorTarget, {
+		getOwnPropertyDescriptor: function(target, prop) {
+			return Reflect.getOwnPropertyDescriptor(target, prop);
+		}
+	});
+	assert.sameValue(Object.getOwnPropertyDescriptor(forward, "x").get, g);
+	assert.sameValue(Object.getOwnPropertyDescriptor(reporting(accessorTarget, {get: g, set: undefined}), "x").get, g);
+
+	assert.throws(TypeError, function() {
+		Object.getOwnPropertyDescriptor(reporting(accessorTarget, {get: other}), "x");
+	}, "different getter");
+	assert.throws(TypeError, function() {
+		Object.getOwnPropertyDescriptor(reporting(accessorTarget, {get: g, set: other}), "x");
+	}, "different setter");
+	assert.throws(TypeError, function() {
+		Object.getOwnPropertyDescriptor(reporting(accessorTarget, {value: undefined}), "x");
+	}, "accessor reported as data");
+	assert.throws(TypeError, function() {
+		Object.getOwnPropertyDescriptor(reporting(dataTarget, {get: g}), "x");
+	}, "data reported as accessor");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestProxy_Object_target_defineProperty(t *testing.T) {
 	const SCRIPT = `
 	var obj = {};
@@ -506,6 +549,65 @@ func TestProxy_native_proxy_defineProperty(t *testing.T) {
 	runtime.Set("proxy", proxy)
 
 	runtime.testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestProxy_proxy_defineProperty_nonConfigurable(t *testing.T) {
+	const SCRIPT = `
+	function g() {}
+	function s(v) {}
+	function other() {}
+
+	var accessorTarget = {};
+	Object.defineProperty(accessorTarget, "x", {get: g, set: s});
+	var dataTarget = {};
+	Object.defineProperty(dataTarget, "x", {value: 1});
+
+	var forward = new Proxy(accessorTarget, {
+		defineProperty: function(target, prop, desc) {
+			return Reflect.defineProperty(target, prop, desc);
+		}
+	});
+	Object.defineProperty(forward, "x", {get: g});
+	Object.defineProperty(forward, "x", {get: g, set: s, enumerable: false, configurable: false});
+
+	var acc = new Proxy(accessorTarget, {
+		defineProperty: function() {
+			return true;
+		}
+	});
+	Object.defineProperty(acc, "x", {set: s});
+	Object.defineProperty(acc, "x", {enumerable: false});
+	assert.throws(TypeError, function() {
+		Object.defineProperty(acc, "x", {get: other});
+	}, "different getter");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(acc, "x", {set: other});
+	}, "different setter");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(acc, "x", {set: undefined});
+	}, "setter removed");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(acc, "x", {value: 1});
+	}, "accessor to data");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(acc, "x", {writable: false});
+	}, "accessor to data (writable only)");
+
+	var data = new Proxy(dataTarget, {
+		defineProperty: function() {
+			return true;
+		}
+	});
+	Object.defineProperty(data, "x", {value: 1, writable: false});
+	assert.throws(TypeError, function() {
+		Object.defineProperty(data, "x", {get: g});
+	}, "data to accessor");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(data, "x", {get: undefined});
+	}, "data to accessor (undefined getter)");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestProxy_target_has_in(t *testing.T) {
@@ -1282,4 +1384,199 @@ func TestProxyUnicodeProps(t *testing.T) {
 	compareArray(Reflect.ownKeys(proxy), ["â"]);
 	`
 	testScriptWithTestLib(SCRIPT, valueTrue, t)
+}
+
+func TestProxyRevokedNewTarget(t *testing.T) {
+	const SCRIPT = `
+	function revokedOnPrototypeGet(target) {
+		var handle = Proxy.revocable(target, {
+			get: function(t, key) {
+				if (key === "prototype") {
+					handle.revoke();
+					return undefined;
+				}
+				return Reflect.get(t, key);
+			}
+		});
+		return handle.proxy;
+	}
+
+	assert.throws(TypeError, function() {
+		new (revokedOnPrototypeGet(function() {}))();
+	}, "function target");
+
+	assert.throws(TypeError, function() {
+		Reflect.construct(Map, [], revokedOnPrototypeGet(function() {}));
+	}, "built-in constructor");
+
+	var handle = Proxy.revocable(function() {}, {});
+	var bound = handle.proxy.bind();
+	assert.sameValue(Object.getPrototypeOf(Reflect.construct(function() {}, [], bound)), Object.prototype, "before revoke");
+	handle.revoke();
+	assert.throws(TypeError, function() {
+		Reflect.construct(function() {}, [], bound);
+	}, "bound function wrapping a revoked proxy");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestProxy_HasAndGetTrap(t *testing.T) {
+	vm := New()
+
+	var calls int
+	var lastTarget *Object
+	var lastProp string
+	var lastReceiver Value
+
+	target := vm.NewObject()
+	if err := target.Set("data", 42); err != nil {
+		t.Fatal(err)
+	}
+	// non-configurable, non-writable data property for invariant checks
+	if err := target.DefineDataProperty("nonconfW", vm.ToValue(5), FLAG_FALSE, FLAG_FALSE, FLAG_TRUE); err != nil {
+		t.Fatal(err)
+	}
+	// non-configurable data property (writable) for the has invariant check
+	if err := target.DefineDataProperty("nonconf", vm.ToValue(6), FLAG_TRUE, FLAG_FALSE, FLAG_TRUE); err != nil {
+		t.Fatal(err)
+	}
+
+	proxy := vm.NewProxy(target, &ProxyTrapConfig{
+		// HasBinding on a with-env goes through the has trap (or the target); the combined trap
+		// only serves GetBindingValue.
+		Has: func(trapTarget *Object, property string) bool {
+			return property == "exists" || property == "undef" || property == "nonconfW" || property == "missing"
+		},
+		HasAndGet: func(trapTarget *Object, property string, receiver Value) (value Value) {
+			calls++
+			lastTarget = trapTarget
+			lastProp = property
+			lastReceiver = receiver
+			switch property {
+			case "exists":
+				return vm.ToValue(1)
+			case "undef":
+				// the property exists, its value is undefined
+				return Undefined()
+			case "nonconfW":
+				// must trigger the get invariant check (target's value is 5)
+				return vm.ToValue(999)
+			default:
+				// the property does not exist
+				return nil
+			}
+		},
+	})
+	pObj := vm.ToValue(proxy).(*Object)
+	vm.Set("pObj", pObj)
+
+	// used as a with-env: the binding resolution must go through the combined trap
+	if _, err := vm.RunString(`
+	var out;
+	with (pObj) { out = exists; }
+	if (out !== 1) throw new Error("got " + out);
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("expected exactly 1 combined trap call, got %d", calls)
+	}
+	if lastTarget != target {
+		t.Fatalf("unexpected trap target: %v", lastTarget)
+	}
+	if lastProp != "exists" {
+		t.Fatalf("unexpected trap property: %q", lastProp)
+	}
+	// receiver must be the proxy itself (the hasAndGetStr call site passes nil)
+	if lastReceiver == nil || lastReceiver != pObj {
+		t.Fatalf("unexpected trap receiver: %v", lastReceiver)
+	}
+
+	// undefined value must be distinguished from "not found"
+	if _, err := vm.RunString(`
+	var out;
+	with (pObj) { out = String(undef); }
+	if (out !== "undefined") throw new Error("got " + out);
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	// not found through the combined trap -> strict read must throw a ReferenceError
+	calls = 0
+	if _, err := vm.RunString(`
+	var out;
+	with (pObj) {
+	  try { (function() { "use strict"; out = String(missing); })(); } catch (e) { out = e.constructor.name; }
+	}
+	if (out !== "ReferenceError") throw new Error("expected ReferenceError, got " + out);
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("expected exactly 1 combined trap call for the miss, got %d", calls)
+	}
+
+	// invariant: a non-configurable, non-writable target property must be reported with its own value
+	if _, err := vm.RunString(`
+	var out;
+	with (pObj) { out = String(nonconfW); }
+	if (out !== "999") throw new Error("expected invariant TypeError");
+	`); err == nil {
+		t.Fatal("expected invariant TypeError for non-configurable non-writable property")
+	}
+
+	// invariant: reporting a non-configurable target property as missing
+	calls = 0
+	p2 := vm.NewProxy(target, &ProxyTrapConfig{
+		HasAndGet: func(trapTarget *Object, property string, receiver Value) (value Value) {
+			calls++
+			return nil
+		},
+	})
+	p2Obj := vm.ToValue(p2).(*Object)
+	vm.Set("p2Obj", p2Obj)
+	if _, err := vm.RunString(`
+	var out;
+	with (p2Obj) { out = String(nonconf); }
+	if (out !== "999") throw new Error("expected invariant TypeError");
+	`); err == nil {
+		t.Fatal("expected invariant TypeError for reporting a non-configurable property as missing")
+	}
+	if calls != 1 {
+		t.Fatalf("expected exactly 1 combined trap call, got %d", calls)
+	}
+
+	// without HasAndGet the separate Has and Get traps are used
+	var hasCalls, getCalls int
+	p3 := vm.NewProxy(target, &ProxyTrapConfig{
+		Has: func(trapTarget *Object, property string) bool {
+			if property == "data" {
+				hasCalls++
+			}
+			return property == "data"
+		},
+		Get: func(trapTarget *Object, property string, receiver Value) Value {
+			if property == "data" {
+				getCalls++
+				return vm.ToValue(7)
+			}
+			return nil
+		},
+	})
+	p3Obj := vm.ToValue(p3).(*Object)
+	vm.Set("p3Obj", p3Obj)
+	// without HasAndGet the separate Has and Get traps are used. Note, per GetBindingValue(N, S)
+	// the has step is performed before the get step (on top of the HasBinding check done when
+	// resolving the binding), so a read through a with-env results in 2 has + 1 get trap calls.
+	if _, err := vm.RunString(`
+	var out;
+	with (p3Obj) { out = data; }
+	if (out !== 7) throw new Error("got " + out);
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if hasCalls != 2 || getCalls != 1 {
+		t.Fatalf("expected 2 has and 1 get trap calls for 'data', got %d and %d", hasCalls, getCalls)
+	}
 }

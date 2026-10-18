@@ -279,10 +279,65 @@ func TestValueStringBuilder(t *testing.T) {
 
 func TestStringSplit(t *testing.T) {
 	const SCRIPT = `
-	assert(compareArray("".split("#",2), [""]));
-	assert(compareArray("".split("#"), [""]));
-	assert(compareArray("".split("",2), []));
-	assert(compareArray("".split(""), []));
+	function test(s, sep, limit, expected) {
+		const actual = s.split(sep, limit);
+		if (!actual || !compareArray(actual, expected)) {
+			throw new Error("s: '" + s + "', sep: '"+ sep +"', limit: "+limit+". actual: " + JSON.stringify(actual) + ", expected: " + JSON.stringify(expected));
+		}
+	}
+
+	const longUnicode = "ú".repeat(33);
+	const longASCII = "a".repeat(33);
+
+	const cases = [
+		["", "#", 2, [""]],
+		["", "#", undefined, [""]],
+		["", "", 2, []],
+		["", "ú", undefined, [""]],
+		["ú", "ú", undefined, ["", ""]],
+		["ú", "ú", -2, ["", ""]],
+		["ú", "ú", 1, [""]],
+		["ú", "ú", 0, []],
+		["a", "ú", undefined, ["a"]],
+		["a\u{1F600}b", "", undefined, ["a", "\ud83d", "\ude00", "b"]],
+		["a\u{1F600}b", "\ud83d\ude00", undefined, ["a", "b"]],
+
+		[longUnicode, ",", undefined, [longUnicode]],
+		[longUnicode, "ú", undefined, Array(34).fill("")],
+		[longUnicode, "ú", -2, Array(34).fill("")],
+		[longUnicode, "ú", 1, [""]],
+		[longUnicode, "ú", 0, []],
+
+		[longASCII, "ú", undefined, [longASCII]],
+		[longASCII, "", undefined, Array(longASCII.length).fill("a")],
+
+		["a,aú,úa", ",", undefined, ["a", "aú", "úa"]],
+	];
+
+	for (const c of cases) {
+		test.apply(null, c);
+	}
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestStringWellFormed(t *testing.T) {
+	const SCRIPT = `
+var lo = '\uD834';
+var hi = '\uDF06';
+var pair = lo + hi;
+
+assert(''.isWellFormed(), "empty");
+assert('abc'.isWellFormed(), "ascii");
+assert(('a' + pair + 'b').isWellFormed(), "pair");
+assert(!(lo + 'a').isWellFormed(), "lone leading");
+assert(!('a' + hi).isWellFormed(), "lone trailing");
+assert(!(hi + lo).isWellFormed(), "reversed pair");
+
+assert.sameValue('abc'.toWellFormed(), 'abc', "ascii");
+assert.sameValue(('a' + pair).toWellFormed(), 'a' + pair, "pair");
+assert.sameValue((lo + 'a' + pair + hi + lo).toWellFormed(), '\uFFFDa' + pair + '\uFFFD\uFFFD', "lone");
+assert.sameValue((hi + lo).toWellFormed(), '\uFFFD\uFFFD', "reversed pair");
 `
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }

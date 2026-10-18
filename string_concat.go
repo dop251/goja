@@ -174,7 +174,7 @@ func (s *concatString) Substring(start, end int) String {
 }
 
 func (s *concatString) CompareTo(other String) int {
-	return strings.Compare(s.String(), other.String())
+	return s.flatten().CompareTo(other)
 }
 
 func (s *concatString) Reader() io.RuneReader {

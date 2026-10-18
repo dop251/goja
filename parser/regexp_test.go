@@ -125,8 +125,6 @@ func TestRegExp(t *testing.T) {
 
 			test(`[G-b\0]`, `[G-b\0]`)
 
-			test(`\k`, `k`)
-
 			test(`\x20`, `\x20`)
 
 			test(`😊`, `😊`)
@@ -144,6 +142,33 @@ func TestRegExp(t *testing.T) {
 			test(`\s+`, "["+WhitespaceChars+"]+")
 
 			test(`\S+`, "[^"+WhitespaceChars+"]+")
+
+			// A '-' next to a class escape is a literal, not a range operator.
+			test(`[\s-_]`, "["+WhitespaceChars+`\-_]`)
+
+			test(`[\d-_]`, `[\d\-_]`)
+
+			test(`[\w-_]`, `[\w\-_]`)
+
+			test(`[\D-_]`, `[\D\-_]`)
+
+			test(`[\W-_]`, `[\W\-_]`)
+
+			test(`[_-\s]`, "[_"+`\-`+WhitespaceChars+"]")
+
+			test(`[_-\d]`, `[_\-\d]`)
+
+			test(`[\s-\d]`, "["+WhitespaceChars+`\-\d]`)
+
+			// A class escape standing for a single character keeps the range.
+			test(`[\b-_]`, `[\x08-_]`)
+
+			// The atom after a completed range cannot start a new one, so its '-' stays literal.
+			test(`[\s-_-a]`, "["+WhitespaceChars+`\-_\-a]`)
+
+			test(`[-]`, `[\-]`)
+
+			test(`[a-z-]`, `[a-z\-]`)
 
 		}
 	})

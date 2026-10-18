@@ -446,6 +446,10 @@ func (self *_parser) parseObjectProperty() ast.Property {
 				self.errorUnexpectedToken(self.token)
 			}
 		case (literal == "get" || literal == "set" || tkn == token.ASYNC) && self.token != token.COLON:
+			if tkn == token.ASYNC && self.token == token.MULTIPLY {
+				generator = true
+				self.next()
+			}
 			_, _, keyValue, tkn1 := self.parseObjectPropertyKey()
 			if keyValue == nil {
 				return nil
@@ -465,7 +469,7 @@ func (self *_parser) parseObjectProperty() ast.Property {
 			return &ast.PropertyKeyed{
 				Key:      keyValue,
 				Kind:     kind,
-				Value:    self.parseMethodDefinition(keyStartIdx, kind, false, async),
+				Value:    self.parseMethodDefinition(keyStartIdx, kind, generator, async),
 				Computed: tkn1 == token.ILLEGAL,
 			}
 		}
@@ -668,6 +672,8 @@ func (self *_parser) parseDotMember(left ast.Expression) ast.Expression {
 		return &ast.BadExpression{From: period, To: self.idx}
 	}
 
+	// A member IdentifierName can end an expression even when lexed as a keyword.
+	self.insertSemicolon = true
 	self.next()
 
 	return &ast.DotExpression{
@@ -692,6 +698,8 @@ func (self *_parser) parseBracketMember(left ast.Expression) ast.Expression {
 }
 
 func (self *_parser) parseNewExpression() ast.Expression {
+	self.enterNesting()
+	defer self.leaveNesting()
 	idx := self.expect(token.NEW)
 	if self.token == token.PERIOD {
 		self.next()
@@ -702,6 +710,7 @@ func (self *_parser) parseNewExpression() ast.Expression {
 					Idx:  idx,
 				},
 				Property: self.parseIdentifier(),
+				Idx:      idx,
 			}
 		}
 		self.errorUnexpectedToken(token.IDENTIFIER)
@@ -851,6 +860,8 @@ func (self *_parser) parseUpdateExpression() ast.Expression {
 }
 
 func (self *_parser) parseUnaryExpression() ast.Expression {
+	self.enterNesting()
+	defer self.leaveNesting()
 
 	switch self.token {
 	case token.PLUS, token.MINUS, token.NOT, token.BITWISE_NOT:
@@ -894,6 +905,8 @@ func (self *_parser) parseExponentiationExpression() ast.Expression {
 	left := self.parseUnaryExpression()
 
 	if self.token == token.EXPONENT {
+		self.enterNesting()
+		defer self.leaveNesting()
 		if !parenthesis {
 			if u, isUnary := left.(*ast.UnaryExpression); isUnary && u.Operator != token.INCREMENT && u.Operator != token.DECREMENT {
 				self.error(self.idx, "Unary operator used immediately before exponentiation expression. Parenthesis must be used to disambiguate operator precedence")
@@ -966,25 +979,21 @@ func (self *_parser) parseShiftExpression() ast.Expression {
 }
 
 func (self *_parser) parseRelationalExpression() ast.Expression {
+	var left ast.Expression
 	if self.scope.allowIn && self.token == token.PRIVATE_IDENTIFIER {
-		left := &ast.PrivateIdentifier{
+		left = &ast.PrivateIdentifier{
 			Identifier: ast.Identifier{
 				Idx:  self.idx,
 				Name: self.parsedLiteral,
 			},
 		}
 		self.next()
-		if self.token == token.IN {
-			self.next()
-			return &ast.BinaryExpression{
-				Operator: self.token,
-				Left:     left,
-				Right:    self.parseShiftExpression(),
-			}
+		if self.token != token.IN {
+			return left
 		}
-		return left
+	} else {
+		left = self.parseShiftExpression()
 	}
-	left := self.parseShiftExpression()
 
 	allowIn := self.scope.allowIn
 	self.scope.allowIn = true
@@ -992,38 +1001,40 @@ func (self *_parser) parseRelationalExpression() ast.Expression {
 		self.scope.allowIn = allowIn
 	}()
 
-	switch self.token {
-	case token.LESS, token.LESS_OR_EQUAL, token.GREATER, token.GREATER_OR_EQUAL:
-		tkn := self.token
-		self.next()
-		return &ast.BinaryExpression{
-			Operator:   tkn,
-			Left:       left,
-			Right:      self.parseRelationalExpression(),
-			Comparison: true,
-		}
-	case token.INSTANCEOF:
-		tkn := self.token
-		self.next()
-		return &ast.BinaryExpression{
-			Operator: tkn,
-			Left:     left,
-			Right:    self.parseRelationalExpression(),
-		}
-	case token.IN:
-		if !allowIn {
+	for {
+		switch self.token {
+		case token.LESS, token.LESS_OR_EQUAL, token.GREATER, token.GREATER_OR_EQUAL:
+			tkn := self.token
+			self.next()
+			left = &ast.BinaryExpression{
+				Operator:   tkn,
+				Left:       left,
+				Right:      self.parseShiftExpression(),
+				Comparison: true,
+			}
+		case token.INSTANCEOF:
+			tkn := self.token
+			self.next()
+			left = &ast.BinaryExpression{
+				Operator: tkn,
+				Left:     left,
+				Right:    self.parseShiftExpression(),
+			}
+		case token.IN:
+			if !allowIn {
+				return left
+			}
+			tkn := self.token
+			self.next()
+			left = &ast.BinaryExpression{
+				Operator: tkn,
+				Left:     left,
+				Right:    self.parseShiftExpression(),
+			}
+		default:
 			return left
 		}
-		tkn := self.token
-		self.next()
-		return &ast.BinaryExpression{
-			Operator: tkn,
-			Left:     left,
-			Right:    self.parseRelationalExpression(),
-		}
 	}
-
-	return left
 }
 
 func (self *_parser) parseEqualityExpression() ast.Expression {
@@ -1197,7 +1208,10 @@ func (self *_parser) parseArrowFunction(start file.Idx, paramList *ast.Parameter
 		Async:         async,
 	}
 	node.Body, node.DeclarationList = self.parseArrowFunctionBody(async)
-	node.Source = self.slice(start, node.Body.Idx1())
+	// Use the end of the last consumed token rather than node.Body.Idx1(): a parenthesised
+	// concise body (e.g. `() => ({})`) does not include the closing parenthesis.
+	node.End = self.prevTokenEnd
+	node.Source = self.slice(start, node.End)
 	return node
 }
 
@@ -1232,6 +1246,8 @@ func (self *_parser) parseSingleArgArrowFunction(start file.Idx, async bool) ast
 }
 
 func (self *_parser) parseAssignmentExpression() ast.Expression {
+	self.enterNesting()
+	defer self.leaveNesting()
 	start := self.idx
 	parenthesis := false
 	async := false
@@ -1415,6 +1431,9 @@ func (self *_parser) parseExpression() ast.Expression {
 }
 
 func (self *_parser) checkComma(from, to file.Idx) {
+	if from >= to {
+		return
+	}
 	if pos := strings.IndexByte(self.str[int(from)-self.base:int(to)-self.base], ','); pos >= 0 {
 		self.error(from+file.Idx(pos), "Comma is not allowed here")
 	}

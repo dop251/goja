@@ -6,15 +6,15 @@ import (
 	"io"
 	"os"
 	"path"
-	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/Masterminds/semver/v3"
-	"gopkg.in/yaml.v2"
+	"github.com/goccy/go-yaml"
 )
 
 const (
@@ -91,23 +91,12 @@ var (
 		// quantifier integer limit in regexp
 		"test/built-ins/RegExp/quantifier-integer-limit.js": true,
 
-		// GetFunctionRealm
-		"test/built-ins/Function/internals/Construct/base-ctor-revoked-proxy.js": true,
-
-		// Uses deprecated __lookupGetter__/__lookupSetter__
-		"test/language/expressions/class/elements/private-getter-is-not-a-own-property.js": true,
-		"test/language/expressions/class/elements/private-setter-is-not-a-own-property.js": true,
-		"test/language/statements/class/elements/private-setter-is-not-a-own-property.js":  true,
-		"test/language/statements/class/elements/private-getter-is-not-a-own-property.js":  true,
-
 		// restricted unicode regexp syntax
-		"test/built-ins/RegExp/unicode_restricted_quantifiable_assertion.js":         true,
 		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
 		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":            true,
 		"test/built-ins/RegExp/unicode_restricted_incomplete_quantifier.js":          true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_x.js":              true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_u.js":              true,
-		"test/built-ins/RegExp/unicode_restricted_identity_escape_c.js":              true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_alpha.js":          true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape.js":                true,
 		"test/built-ins/RegExp/unicode_restricted_brackets.js":                       true,
@@ -161,19 +150,9 @@ var (
 		"test/language/expressions/class/elements/after-same-line-gen-rs-static-async-generator-method-privatename-identifier-alt.js":                 true,
 		"test/built-ins/GeneratorFunction/is-a-constructor.js":                                                                                        true,
 
-		// async iterator
-		"test/language/expressions/optional-chaining/iteration-statement-for-await-of.js": true,
-
 		// legacy number literals
-		"test/language/literals/numeric/non-octal-decimal-integer.js": true,
-		"test/language/literals/string/S7.8.4_A4.3_T2.js":             true,
-		"test/language/literals/string/S7.8.4_A4.3_T1.js":             true,
-
-		// Regexp
-		"test/language/literals/regexp/invalid-range-negative-lookbehind.js":    true,
-		"test/language/literals/regexp/invalid-range-lookbehind.js":             true,
-		"test/language/literals/regexp/invalid-optional-negative-lookbehind.js": true,
-		"test/language/literals/regexp/invalid-optional-lookbehind.js":          true,
+		"test/language/literals/string/S7.8.4_A4.3_T2.js": true,
+		"test/language/literals/string/S7.8.4_A4.3_T1.js": true,
 
 		// unicode full case folding
 		"test/built-ins/RegExp/unicode_full_case_folding.js": true,
@@ -187,26 +166,8 @@ var (
 		"test/annexB/built-ins/RegExp/RegExp-invalid-control-escape-character-class.js": true,
 		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js":          true,
 
-		// Skip due to regexp named groups
-		"test/built-ins/String/prototype/replaceAll/searchValue-replacer-RegExp-call.js": true,
-
 		"test/built-ins/RegExp/nullable-quantifier.js":               true,
 		"test/built-ins/RegExp/lookahead-quantifier-match-groups.js": true,
-
-		// TypedArray internals
-		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-reflect-set.js":                            true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-proto.js":                    true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-not-object.js":               true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-prototype-chain-set.js":        true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-reflect-set.js":                true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-valid-index-reflect-set.js":                     true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-canonical-invalid-index-prototype-chain-set.js": true,
-		"test/built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-canonical-invalid-index-reflect-set.js":         true,
-		"test/built-ins/TypedArray/prototype/with/value-throw-completion.js":                                               true,
-		"test/built-ins/TypedArray/prototype/slice/speciesctor-return-same-buffer-with-offset.js":                          true,
-
-		// String prototype regexp-capture-by-index (regexp named groups)
-		"test/built-ins/String/prototype/replace/regexp-capture-by-index.js": true,
 
 		// RegExp CharacterClassEscapes
 		"test/built-ins/RegExp/CharacterClassEscapes/character-class-word-class-escape-positive-cases.js":           true,
@@ -222,94 +183,36 @@ var (
 		"test/built-ins/RegExp/CharacterClassEscapes/character-class-digit-class-escape-negative-cases.js":          true,
 		"test/built-ins/RegExp/CharacterClassEscapes/character-class-non-whitespace-class-escape-positive-cases.js": true,
 
-		// JSON (rawJSON, reviver)
-		"test/built-ins/JSON/isRawJSON/not-a-constructor.js":                        true,
-		"test/built-ins/JSON/isRawJSON/length.js":                                   true,
-		"test/built-ins/JSON/isRawJSON/prop-desc.js":                                true,
-		"test/built-ins/JSON/isRawJSON/basic.js":                                    true,
-		"test/built-ins/JSON/isRawJSON/name.js":                                     true,
-		"test/built-ins/JSON/isRawJSON/builtin.js":                                  true,
+		// JSON (reviver)
+		"test/built-ins/JSON/rawJSON/bigint-raw-json-can-be-stringified.js":         true,
 		"test/built-ins/JSON/parse/reviver-forward-modifies-object.js":              true,
 		"test/built-ins/JSON/parse/reviver-context-source-primitive-literal.js":     true,
 		"test/built-ins/JSON/parse/reviver-context-source-object-literal.js":        true,
 		"test/built-ins/JSON/parse/reviver-context-source-array-literal.js":         true,
 		"test/built-ins/JSON/parse/reviver-call-args-after-forward-modification.js": true,
 
-		// Error.isError
-		"test/built-ins/Error/isError/symbols.js":                                   true,
-		"test/built-ins/Error/isError/primitives.js":                                true,
-		"test/built-ins/Error/isError/prop-desc.js":                                 true,
-		"test/built-ins/Error/isError/name.js":                                      true,
-		"test/built-ins/Error/isError/is-a-constructor.js":                          true,
-		"test/built-ins/Error/isError/fake-errors.js":                               true,
-		"test/built-ins/Error/isError/errors.js":                                    true,
-		"test/built-ins/Error/isError/non-error-objects.js":                         true,
-		"test/built-ins/Error/isError/error-subclass.js":                            true,
-		"test/built-ins/Error/isError/bigints.js":                                   true,
-		"test/built-ins/Error/error-message-tostring-symbol.js":                     true,
-		"test/built-ins/NativeErrors/nativeerror-tostring-message-throws-symbol.js": true,
-
-		// Object, Array, AggregateError
-		"test/built-ins/Object/prototype/setPrototypeOf-with-non-circular-values.js":           true,
-		"test/built-ins/Object/prototype/setPrototypeOf-with-non-circular-values-__proto__.js": true,
-		"test/built-ins/Array/prototype/flat/non-numeric-depth-should-not-throw.js":            true,
-		"test/built-ins/AggregateError/errors-iterabletolist.js":                               true,
-
-		// Language tests (class, with, module, expressions, identifiers)
-		"test/language/statements/class/subclass/private-class-field-on-nonextensible-return-override.js":                                   true,
-		"test/language/statements/class/elements/syntax/valid/grammar-field-named-set-followed-by-generator-asi.js":                         true,
-		"test/language/statements/class/elements/syntax/valid/grammar-field-named-get-followed-by-generator-asi.js":                         true,
-		"test/language/statements/class/elements/private-class-field-on-nonextensible-objects.js":                                           true,
-		"test/language/statements/with/set-mutable-binding-idref-compound-assign-with-proxy-env.js":                                         true,
-		"test/language/statements/with/set-mutable-binding-binding-deleted-with-typed-array-in-proto-chain.js":                              true,
-		"test/language/statements/with/set-mutable-binding-idref-with-proxy-env.js":                                                         true,
-		"test/language/statements/with/get-binding-value-idref-with-proxy-env.js":                                                           true,
-		"test/language/statements/with/get-binding-value-call-with-proxy-env.js":                                                            true,
-		"test/language/statements/with/get-mutable-binding-binding-deleted-in-get-unscopables-strict-mode.js":                               true,
+		// Language tests (module)
 		"test/language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-export-star-as-from-and-import-star-as-and-export.js": true,
 		"test/language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-import-star-as-and-export.js":                         true,
 		"test/language/module-code/top-level-await/pending-async-dep-from-cycle.js":                                                         true,
 		"test/language/module-code/top-level-await/module-graphs-does-not-hang.js":                                                          true,
-		"test/language/expressions/less-than-or-equal/S11.8.3_A4.12_T1.js":                                                                  true,
-		"test/language/expressions/less-than/S11.8.1_A4.12_T1.js":                                                                           true,
-		"test/language/expressions/greater-than-or-equal/S11.8.4_A4.12_T1.js":                                                               true,
-		"test/language/expressions/greater-than/S11.8.2_A4.12_T1.js":                                                                        true,
-		"test/language/identifiers/part-unicode-17.0.0.js":                                                                                  true,
-		"test/language/identifiers/part-unicode-17.0.0-escaped.js":                                                                          true,
-		"test/language/identifiers/part-unicode-17.0.0-class.js":                                                                            true,
-		"test/language/identifiers/part-unicode-17.0.0-class-escaped.js":                                                                    true,
-		"test/language/identifiers/part-unicode-16.0.0.js":                                                                                  true,
-		"test/language/identifiers/part-unicode-16.0.0-escaped.js":                                                                          true,
-		"test/language/identifiers/part-unicode-16.0.0-class.js":                                                                            true,
-		"test/language/identifiers/part-unicode-16.0.0-class-escaped.js":                                                                    true,
-		"test/language/identifiers/part-unicode-15.1.0.js":                                                                                  true,
-		"test/language/identifiers/part-unicode-15.1.0-escaped.js":                                                                          true,
-		"test/language/identifiers/part-unicode-15.1.0-class.js":                                                                            true,
-		"test/language/identifiers/part-unicode-15.1.0-class-escaped.js":                                                                    true,
-		"test/language/identifiers/start-unicode-17.0.0.js":                                                                                 true,
-		"test/language/identifiers/start-unicode-17.0.0-escaped.js":                                                                         true,
-		"test/language/identifiers/start-unicode-17.0.0-class.js":                                                                           true,
-		"test/language/identifiers/start-unicode-17.0.0-class-escaped.js":                                                                   true,
-		"test/language/identifiers/start-unicode-16.0.0.js":                                                                                 true,
-		"test/language/identifiers/start-unicode-16.0.0-class.js":                                                                           true,
-		"test/language/identifiers/start-unicode-15.1.0.js":                                                                                 true,
-		"test/language/identifiers/start-unicode-15.1.0-escaped.js":                                                                         true,
-		"test/language/identifiers/start-unicode-15.1.0-class.js":                                                                           true,
-		"test/language/identifiers/start-unicode-15.1.0-class-escaped.js":                                                                   true,
-		"test/language/identifiers/start-unicode-16.0.0-class-escaped.js":                                                                   true,
-		"test/language/identifiers/start-unicode-16.0.0-escaped.js":                                                                         true,
+
+		// Duplicate group name and Go regex engine
+		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier.js":     true,
+		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier-2.js":   true,
+		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier-u.js":   true,
+		"test/language/literals/regexp/named-groups/invalid-duplicate-groupspecifier-2-u.js": true,
+
+		"test/language/literals/regexp/named-groups/invalid-identity-escape-in-capture-u.js": true,
 	}
 
 	featuresBlackList = []string{
 		"async-iteration",
-		"Symbol.asyncIterator",
 		"resizable-arraybuffer",
-		"regexp-named-groups",
 		"regexp-duplicate-named-groups",
 		"regexp-unicode-property-escapes",
 		"regexp-match-indices",
 		"regexp-modifiers",
-		"RegExp.escape",
 		"legacy-regexp",
 		"tail-call-optimization",
 		"Temporal",
@@ -321,61 +224,64 @@ var (
 		"Atomics.pause",
 		"FinalizationRegistry",
 		"WeakRef",
-		"__getter__",
-		"__setter__",
 		"ShadowRealm",
 		"SharedArrayBuffer",
 		"decorators",
 		"immutable-arraybuffer",
-		"joint-iteration",
-		"iterator-sequencing",
 
 		"regexp-duplicate-named-groups",
 		"regexp-v-flag",
-		"iterator-helpers",
-		"symbols-as-weakmap-keys",
-		"uint8array-base64",
-		"String.prototype.toWellFormed",
 		"explicit-resource-management",
-		"set-methods",
-		"promise-try",
-		"promise-with-resolvers",
-		"array-grouping",
-		"Math.sumPrecise",
 		"Float16Array",
-		"arraybuffer-transfer",
 		"Array.fromAsync",
-		"String.prototype.isWellFormed",
 
 		"source-phase-imports",
 		"import-attributes",
 		"import-defer",
 	}
+
+	// Path prefixes of tests that are run despite having a blacklisted feature.
+	featuresBlackListExceptions = map[string][]string{
+		// async generators are not supported yet, but for-await-of is
+		"async-iteration": {"test/language/statements/for-await-of/"},
+	}
 )
 
-var goVersion *semver.Version
+func isFeatureBlackListException(feature, name string) bool {
+	for _, prefix := range featuresBlackListExceptions[feature] {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
 
 func init() {
-	if info, ok := debug.ReadBuildInfo(); ok {
-		goVersion = semver.MustParse(strings.TrimPrefix(info.GoVersion, "go"))
-	} else {
-		panic("Could not read build info")
-	}
-
 	skip := func(prefixes ...string) {
 		for _, prefix := range prefixes {
 			skipPrefixes.Add(prefix)
 		}
 	}
 
-	if goVersion.LessThan(semver.MustParse("1.21")) {
+	unicodeVersion := semver.MustParse(unicode.Version)
+
+	if unicodeVersion.LessThan(semver.New(17, 0, 0, "", "")) {
 		skip(
-			// Go <1.21 only supports Unicode 13
-			"test/language/identifiers/start-unicode-14.",
-			"test/language/identifiers/part-unicode-14.",
-			"test/language/identifiers/start-unicode-15.",
-			"test/language/identifiers/part-unicode-15.",
+			"test/language/identifiers/start-unicode-17.",
+			"test/language/identifiers/part-unicode-17.",
 		)
+		if unicodeVersion.LessThan(semver.New(16, 0, 0, "", "")) {
+			skip(
+				"test/language/identifiers/start-unicode-16.",
+				"test/language/identifiers/part-unicode-16.",
+			)
+			if unicodeVersion.LessThan(semver.New(15, 1, 0, "", "")) {
+				skip(
+					"test/language/identifiers/start-unicode-15.1.",
+					"test/language/identifiers/part-unicode-15.1.",
+				)
+			}
+		}
 	}
 
 	skip(
@@ -409,6 +315,13 @@ func init() {
 
 		"test/language/eval-code/direct/async-gen-",
 
+		"test/language/statements/for-await-of/async-gen-",
+		"test/language/statements/for-await-of/async-func-dstr-const-async-",
+		"test/language/statements/for-await-of/async-func-dstr-let-async-",
+		"test/language/statements/for-await-of/async-func-dstr-var-async-",
+		"test/language/statements/for-await-of/let-block-with-newline.js",
+		"test/language/statements/for-await-of/let-identifier-with-newline.js",
+
 		// restricted unicode regexp syntax
 		"test/language/literals/regexp/u-",
 
@@ -420,13 +333,6 @@ func init() {
 		"test/language/export/",
 		"test/language/import/",
 		"test/language/module-code/",
-
-		// Map getOrInsert*
-		"test/built-ins/WeakMap/prototype/getOrInsert",
-		"test/built-ins/Map/prototype/getOrInsert",
-
-		// rawJSON isn not supported
-		"test/built-ins/JSON/rawJSON",
 	)
 
 }
@@ -687,6 +593,9 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 	}
 	if meta.Es5id == "" {
 		for _, feature := range meta.Features {
+			if isFeatureBlackListException(feature, name) {
+				continue
+			}
 			for _, bl := range featuresBlackList {
 				if feature == bl {
 					t.Skip("Blacklisted feature")
@@ -857,6 +766,7 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/annexB/built-ins/escape")
 		ctx.runTC39Tests("test/annexB/built-ins/unescape")
 		ctx.runTC39Tests("test/annexB/built-ins/RegExp")
+		ctx.runTC39Tests("test/annexB/language/comments")
 
 		ctx.flush()
 	})

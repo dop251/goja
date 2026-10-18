@@ -714,6 +714,26 @@ func TestTryExceptionInCatch(t *testing.T) {
 	testScript(SCRIPT, intToValue(5), t)
 }
 
+func TestTryExceptionInFinallyAfterNormalCompletion(t *testing.T) {
+	const SCRIPT = `
+	var finallyRuns = 0, innerCaught = false, outerCaught;
+	try {
+		try {
+			1;
+		} catch (e) {
+			innerCaught = true;
+		} finally {
+			finallyRuns++;
+			throw new Error("fin");
+		}
+	} catch (e) {
+		outerCaught = e.message;
+	}
+	[finallyRuns, innerCaught, outerCaught].join();
+	`
+	testScript(SCRIPT, asciiString("1,false,fin"), t)
+}
+
 func TestTryContinueInCatch(t *testing.T) {
 	const SCRIPT = `
 	var c3 = 0, fin3 = 0;
@@ -2175,6 +2195,30 @@ func TestFunctionToString(t *testing.T) {
 	testScript(SCRIPT, asciiString("function anonymous(arg1,arg2\n) {\nreturn 42\n}"), t)
 }
 
+func TestArrowFunctionToString(t *testing.T) {
+	for _, src := range []string{
+		"() => ({ a: 1 })",
+		"() => (1 + 2)",
+		"() => ([1, 2])",
+		"() => (({a:1}))",
+		"() => (1, 2)",
+		"async () => (1)",
+		"async x => (x)",
+		"(x) => x",
+		"() => { return 1 }",
+	} {
+		t.Run(src, func(t *testing.T) {
+			testScript("String("+src+")", newStringValue(src), t)
+			testScript("var f = "+src+" /* comment */\n;String(f)", newStringValue(src), t)
+		})
+	}
+
+	testScript("[1].map(x => (x)).concat([x => (x)].map(String)).join('|')", asciiString("1|x => (x)"), t)
+	testScript("function f(g, n) { return String(g) + n }; f(x => (x), 1)", asciiString("x => (x)1"), t)
+	testScript("var fns = [() => (1), () => (2)]; fns.map(String).join('|')", asciiString("() => (1)|() => (2)"), t)
+	testScript("String(function () { return ({ a: 1 }) })", asciiString("function () { return ({ a: 1 }) }"), t)
+}
+
 func TestObjectLiteral(t *testing.T) {
 	const SCRIPT = `
 	var getterCalled = false;
@@ -2761,6 +2805,29 @@ func TestDeleteArguments(t *testing.T) {
 	testScript(SCRIPT, _undefined, t)
 }
 
+func TestStrictDestructuringAssignArguments(t *testing.T) {
+	for _, target := range []string{
+		"[arguments] = []",
+		"[arguments = 1] = []",
+		"[...arguments] = []",
+		"({arguments} = {})",
+		"({a: arguments} = {})",
+		"for ([arguments] of [[]]) {}",
+	} {
+		_, err := Compile("", "function f() { 'use strict'; "+target+"; }", false)
+		if _, ok := err.(*CompilerSyntaxError); !ok {
+			t.Errorf("%s: expected syntax error, got %v", target, err)
+		}
+		if _, err := Compile("", "function f() { "+target+"; }", false); err != nil {
+			t.Errorf("%s: unexpected error in non-strict mode: %v", target, err)
+		}
+	}
+	_, err := Compile("", "function f() { var eval; return function() { 'use strict'; [eval] = []; }; }", false)
+	if _, ok := err.(*CompilerSyntaxError); !ok {
+		t.Errorf("eval: expected syntax error, got %v", err)
+	}
+}
+
 func TestReturnUndefined(t *testing.T) {
 	const SCRIPT = `
 	function f() {
@@ -3079,6 +3146,12 @@ func TestIfStackLeaks(t *testing.T) {
 	}
 	`
 	testScript(SCRIPT, _positiveZero, t)
+}
+
+func TestDiscardedFalsyLogicalAndDoesNotLeak(t *testing.T) {
+	testScript(`1 == (0 && 1, 0)`, valueFalse, t)
+	testScript(`(0 && 1) === 0 && (1 && 2) === 2`, valueTrue, t)
+	testScript(`var n = 0; (n++, 0) && (n++, 1); n === 1`, valueTrue, t)
 }
 
 func TestWithCallee(t *testing.T) {
@@ -4974,6 +5047,53 @@ func TestClassDynCaptureThisInStaticFieldInit(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestClassCaptureThisInFieldInitInsideFunc(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		a = () => this
+	}
+
+	function f(x, y) {
+		let c = new C();
+		return c.a() === c;
+	}
+	f({}, {});
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassCapturePrivateThisInFieldInitInsideFunc(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		#a = () => this;
+		get a() {
+			return this.#a();
+		}
+	}
+
+	function f(x, y) {
+		let c = new C();
+		return c.a === c;
+	}
+	f({}, {});
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassCaptureThisInStaticFieldInitInsideFunc(t *testing.T) {
+	const SCRIPT = `
+	function f(x, y) {
+		let capture;
+		class C {
+			static #a = (capture = () => this, 0)
+		}
+		return capture() === C;
+	}
+	f({}, {});
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestCompileClass(t *testing.T) {
 	const SCRIPT = `
 	class C extends Error {
@@ -5644,6 +5764,73 @@ func TestPrivateIn(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestClassPrivateElementsNonExtensible(t *testing.T) {
+	const SCRIPT = `
+	class Base {
+		constructor(o) {
+			return o;
+		}
+	}
+	class F extends Base {
+		#a = 1;
+		static inc(o) {
+			return ++o.#a;
+		}
+	}
+	class M extends Base {
+		#m() {}
+	}
+	class A extends Base {
+		get #a() {}
+	}
+	assert.throws(TypeError, () => new F(Object.preventExtensions({})), "field");
+	assert.throws(TypeError, () => new M(Object.preventExtensions({})), "method");
+	assert.throws(TypeError, () => new A(Object.preventExtensions({})), "accessor");
+
+	class Late {
+		#a = (Object.preventExtensions(this), 1);
+	}
+	assert.throws(TypeError, () => new Late(), "preventExtensions in initializer");
+	assert.throws(TypeError, () => {
+		class S {
+			static #a = (Object.preventExtensions(S), 1);
+		}
+	}, "static field");
+
+	const o = new F({});
+	Object.freeze(o);
+	assert.sameValue(F.inc(o), 2, "existing private fields remain writable");
+
+	let trapCalls = 0;
+	const p = new Proxy({}, {
+		isExtensible(target) {
+			trapCalls++;
+			return Reflect.isExtensible(target);
+		}
+	});
+	new F(p);
+	assert.sameValue(trapCalls, 1, "isExtensible trap calls");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestRelationalLeftAssociative(t *testing.T) {
+	const SCRIPT = `
+	class C {
+		#a;
+		static check(inst) {
+			return #a in inst in {true: 1};
+		}
+	}
+	assert.sameValue(3 > 2 > 1, false, "3 > 2 > 1");
+	assert.sameValue(1 <= 0 <= 0, true, "1 <= 0 <= 0");
+	assert.sameValue({} instanceof Object instanceof Object, false, "instanceof");
+	assert.sameValue("a" in {a: 1} in {true: 1}, true, "in");
+	assert.sameValue(C.check(new C()), true, "#a in");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestDeletePropOfNonObject(t *testing.T) {
 	const SCRIPT = `
 	delete 'Test262'[100] && delete 'Test262'.a && delete 'Test262'['@'];
@@ -5795,8 +5982,13 @@ func TestClassFieldSpecial(t *testing.T) {
 		async;
 		static;
 	}
+	class D {
+		async = 1
+		static async
+	}
+	new D().async === 1 && "async" in D;
 	`
-	testScript(SCRIPT, _undefined, t)
+	testScript(SCRIPT, valueTrue, t)
 }
 
 func TestClassMethodSpecial(t *testing.T) {

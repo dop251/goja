@@ -188,7 +188,7 @@ func isLineTerminator(chr rune) bool {
 }
 
 type parserState struct {
-	idx                                file.Idx
+	idx, prevTokenEnd                  file.Idx
 	tok                                token.Token
 	literal                            string
 	parsedLiteral                      unistring.String
@@ -202,16 +202,16 @@ func (self *_parser) mark(state *parserState) *parserState {
 	if state == nil {
 		state = &parserState{}
 	}
-	state.idx, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset =
-		self.idx, self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
+	state.idx, state.prevTokenEnd, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset =
+		self.idx, self.prevTokenEnd, self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
 
 	state.errorCount = len(self.errors)
 	return state
 }
 
 func (self *_parser) restore(state *parserState) {
-	self.idx, self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset =
-		state.idx, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset
+	self.idx, self.prevTokenEnd, self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset =
+		state.idx, state.prevTokenEnd, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset
 	self.errors = self.errors[:state.errorCount]
 }
 
@@ -225,6 +225,7 @@ func (self *_parser) peek() token.Token {
 func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unistring.String, idx file.Idx) {
 
 	self.implicitSemicolon = false
+	start := self.chrOffset
 
 	for {
 		self.skipWhiteSpace()
@@ -353,6 +354,10 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 					insertSemicolon = true
 				}
 			case '-':
+				if self.chr == '-' && self._peek() == '>' && (start == 0 || strings.ContainsAny(self.str[start:self.chrOffset], "\r\n\u2028\u2029")) {
+					self.skipSingleLineComment()
+					continue
+				}
 				tkn = self.switch3(token.MINUS, token.SUBTRACT_ASSIGN, '-', token.DECREMENT)
 				if tkn == token.DECREMENT {
 					insertSemicolon = true
@@ -384,6 +389,10 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 			case '^':
 				tkn = self.switch2(token.EXCLUSIVE_OR, token.EXCLUSIVE_OR_ASSIGN)
 			case '<':
+				if strings.HasPrefix(self.str[self.chrOffset:], "!--") {
+					self.skipSingleLineComment()
+					continue
+				}
 				tkn = self.switch4(token.LESS, token.LESS_OR_EQUAL, '<', token.SHIFT_LEFT, token.SHIFT_LEFT_ASSIGN)
 			case '>':
 				tkn = self.switch6(token.GREATER, token.GREATER_OR_EQUAL, '>', token.SHIFT_RIGHT, token.SHIFT_RIGHT_ASSIGN, '>', token.UNSIGNED_SHIFT_RIGHT, token.UNSIGNED_SHIFT_RIGHT_ASSIGN)
@@ -1166,7 +1175,10 @@ func (self *_parser) scanNumericLiteral(decimalPoint bool) (token.Token, string)
 			default:
 				// legacy octal
 				self.scanMantissa(8, false)
-				goto end
+				if !isDecimalDigit(self.chr) {
+					goto end
+				}
+				self.scanMantissa(10, false)
 			}
 			if base > 0 {
 				self.read()

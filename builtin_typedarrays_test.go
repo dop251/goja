@@ -383,3 +383,172 @@ func TestTypedArraySubarraySet(t *testing.T) {
 
 	testScript(SCRIPT, _undefined, t)
 }
+
+func TestTypedArrayWithOffset(t *testing.T) {
+	const SCRIPT = `
+	var buf = new ArrayBuffer(16);
+	var src = new Uint8Array(buf, 4, 4);
+	src[0] = 10; src[1] = 20; src[2] = 30; src[3] = 40;
+	var result = src.with(1, 99);
+	result[0] === 10 && result[1] === 99 && result[2] === 30 && result[3] === 40
+		&& result.length === 4 && src[1] === 20;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestTypedArrayToReversedOffset(t *testing.T) {
+	const SCRIPT = `
+	var buf = new ArrayBuffer(16);
+	var src = new Uint8Array(buf, 4, 4);
+	src[0] = 10; src[1] = 20; src[2] = 30; src[3] = 40;
+	var result = src.toReversed();
+	result[0] === 40 && result[1] === 30 && result[2] === 20 && result[3] === 10
+		&& result.length === 4 && src[0] === 10;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestTypedArraySliceEvilSpecies(t *testing.T) {
+	// If typedArraySpeciesCreate() returns an array with non-zero offset, the offset must be taken into account
+	// by the slice() method.
+	const SCRIPT = `
+	let count = 0;
+	class EvilArray extends Uint8Array {
+		constructor(length) {
+			super(length);
+			if (++count === 1) {
+				return;
+			}
+			const buf = new ArrayBuffer(length+1);
+			const ret = new Uint8Array(buf, 1, length);
+			Object.setPrototypeOf(ret, EvilArray.prototype);
+			return ret;
+		}
+	}
+
+	const a = new EvilArray(2);
+	a[0] = 1;
+	a[1] = 2;
+
+	a.slice(1, 2)[0];
+	`
+	testScript(SCRIPT, intToValue(2), t)
+}
+
+func TestTypedArraySliceEvilSpecies1(t *testing.T) {
+	// If typedArraySpeciesCreate() returns an array with non-zero offset and different type, the offset must be taken into account
+	// by the slice() method.
+	const SCRIPT = `
+	let count = 0;
+	class EvilArray extends Uint8Array {
+		constructor(length) {
+			super(length);
+			if (++count === 1) {
+				return;
+			}
+			const buf = new ArrayBuffer((length+1)*2);
+			const ret = new Uint16Array(buf, 2, length);
+			Object.setPrototypeOf(ret, EvilArray.prototype);
+			return ret;
+		}
+	}
+
+	const a = new EvilArray(2);
+	a[0] = 1;
+	a[1] = 2;
+
+	a.slice(1, 2)[0];
+	`
+	testScript(SCRIPT, intToValue(2), t)
+}
+
+func TestTypedArrayMapEvilSpecies(t *testing.T) {
+	// If typedArraySpeciesCreate() returns an array with non-zero offset, the offset must be taken into account
+	// by the map() method.
+	const SCRIPT = `
+	let count = 0;
+	class EvilArray extends Uint8Array {
+		constructor(length) {
+			super(length);
+			if (++count === 1) {
+				return;
+			}
+			const buf = new ArrayBuffer(length+1);
+			const ret = new Uint8Array(buf, 1, length);
+			Object.setPrototypeOf(ret, EvilArray.prototype);
+			return ret;
+		}
+	}
+
+	const a = new EvilArray(2);
+	a[0] = 1;
+	a[1] = 2;
+
+	a.map(x => x)[0];
+	`
+	testScript(SCRIPT, intToValue(1), t)
+}
+
+func TestTypedArrayFilterEvilSpecies(t *testing.T) {
+	// If typedArraySpeciesCreate() returns an array with non-zero offset, the offset must be taken into account
+	// by the filter() method.
+	const SCRIPT = `
+	class Evil extends Uint8Array {
+	  static get [Symbol.species]() {
+		return function (len) { return new Uint8Array(new ArrayBuffer(len + 2), 2, len); };
+	  }
+	}
+
+	assert(compareArray(new Evil([10,11,12,13,14,15]).filter(x => x % 2 === 0), [10,12,14]));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestToSortedSubarray(t *testing.T) {
+	const SCRIPT = `
+	var base = new Uint8Array([9,8,7,6,5,4,3,2,1,0]);
+	var view = base.subarray(3);          // = [6,5,4,3,2,1,0]
+	assert(compareArray(view.toSorted(), [0,1,2,3,4,5,6]));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestArrayBufferTransfer(t *testing.T) {
+	const SCRIPT = `
+var buf = new Uint8Array([1, 2, 3, 4]).buffer;
+var ta = new Uint8Array(buf);
+var grown = buf.transfer(6);
+assert(buf.detached, "source is detached");
+assert.sameValue(buf.byteLength, 0, "source byteLength");
+assert.sameValue(ta.length, 0, "view on the source");
+assert(!grown.detached, "result is not detached");
+assert(compareArray(new Uint8Array(grown), [1, 2, 3, 4, 0, 0]), "grown contents");
+
+var shrunk = grown.transferToFixedLength(2);
+assert(compareArray(new Uint8Array(shrunk), [1, 2]), "shrunk contents");
+assert.sameValue(shrunk.transfer().byteLength, 2, "default length");
+assert.throws(TypeError, function() { shrunk.transfer(); }, "detached source");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestArrayBufferTransferFromGo(t *testing.T) {
+	vm := New()
+	data := []byte{1, 2, 3}
+	ab := vm.NewArrayBuffer(data)
+	vm.Set("ab", ab)
+	v, err := vm.RunString(`ab.transfer()`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ab.Detached() || ab.Bytes() != nil {
+		t.Fatal("source ArrayBuffer is not detached")
+	}
+	b := v.Export().(ArrayBuffer).Bytes()
+	if !bytes.Equal(b, []byte{1, 2, 3}) {
+		t.Fatalf("unexpected contents: %v", b)
+	}
+	if &b[0] != &data[0] {
+		t.Fatal("the data was copied instead of being transferred")
+	}
+}

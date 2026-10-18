@@ -48,13 +48,7 @@ func (r *Runtime) makeDate(args []Value, utc bool) (t time.Time, valid bool) {
 		}
 	}
 	if valid {
-		msec := t.Unix()*1000 + int64(t.Nanosecond()/1e6)
-		if msec < 0 {
-			msec = -msec
-		}
-		if msec > maxTime {
-			valid = false
-		}
+		_, valid = timeToMsecClip(t)
 	}
 	return
 }
@@ -743,7 +737,7 @@ func (r *Runtime) dateproto_setSeconds(call FunctionCall) Value {
 		if tv == timeUnset {
 			return _NaN
 		}
-		return d.setTimeMs(timeToMsec(t))
+		return d.setTime(t)
 	}
 	panic(r.NewTypeError("Method Date.prototype.setSeconds is called on incompatible receiver"))
 }
@@ -760,7 +754,7 @@ func (r *Runtime) dateproto_setUTCSeconds(call FunctionCall) Value {
 		if tv == timeUnset {
 			return _NaN
 		}
-		return d.setTimeMs(timeToMsec(t))
+		return d.setTime(t)
 	}
 	panic(r.NewTypeError("Method Date.prototype.setUTCSeconds is called on incompatible receiver"))
 }
@@ -777,7 +771,7 @@ func (r *Runtime) dateproto_setMinutes(call FunctionCall) Value {
 		if tv == timeUnset {
 			return _NaN
 		}
-		return d.setTimeMs(timeToMsec(t))
+		return d.setTime(t)
 	}
 	panic(r.NewTypeError("Method Date.prototype.setMinutes is called on incompatible receiver"))
 }
@@ -794,7 +788,7 @@ func (r *Runtime) dateproto_setUTCMinutes(call FunctionCall) Value {
 		if tv == timeUnset {
 			return _NaN
 		}
-		return d.setTimeMs(timeToMsec(t))
+		return d.setTime(t)
 	}
 	panic(r.NewTypeError("Method Date.prototype.setUTCMinutes is called on incompatible receiver"))
 }
@@ -811,7 +805,7 @@ func (r *Runtime) dateproto_setHours(call FunctionCall) Value {
 		if tv == timeUnset {
 			return _NaN
 		}
-		return d.setTimeMs(timeToMsec(t))
+		return d.setTime(t)
 	}
 	panic(r.NewTypeError("Method Date.prototype.setHours is called on incompatible receiver"))
 }
@@ -828,7 +822,7 @@ func (r *Runtime) dateproto_setUTCHours(call FunctionCall) Value {
 		if tv == timeUnset {
 			return _NaN
 		}
-		return d.setTimeMs(timeToMsec(t))
+		return d.setTime(t)
 	}
 	panic(r.NewTypeError("Method Date.prototype.setUTCHours is called on incompatible receiver"))
 }
@@ -845,7 +839,7 @@ func (r *Runtime) dateproto_setDate(call FunctionCall) Value {
 		if tv == timeUnset {
 			return _NaN
 		}
-		return d.setTimeMs(timeToMsec(t))
+		return d.setTime(t)
 	}
 	panic(r.NewTypeError("Method Date.prototype.setDate is called on incompatible receiver"))
 }
@@ -862,7 +856,7 @@ func (r *Runtime) dateproto_setUTCDate(call FunctionCall) Value {
 		if tv == timeUnset {
 			return _NaN
 		}
-		return d.setTimeMs(timeToMsec(t))
+		return d.setTime(t)
 	}
 	panic(r.NewTypeError("Method Date.prototype.setUTCDate is called on incompatible receiver"))
 }
@@ -879,7 +873,7 @@ func (r *Runtime) dateproto_setMonth(call FunctionCall) Value {
 		if tv == timeUnset {
 			return _NaN
 		}
-		return d.setTimeMs(timeToMsec(t))
+		return d.setTime(t)
 	}
 	panic(r.NewTypeError("Method Date.prototype.setMonth is called on incompatible receiver"))
 }
@@ -896,7 +890,7 @@ func (r *Runtime) dateproto_setUTCMonth(call FunctionCall) Value {
 		if tv == timeUnset {
 			return _NaN
 		}
-		return d.setTimeMs(timeToMsec(t))
+		return d.setTime(t)
 	}
 	panic(r.NewTypeError("Method Date.prototype.setUTCMonth is called on incompatible receiver"))
 }
@@ -915,7 +909,7 @@ func (r *Runtime) dateproto_setFullYear(call FunctionCall) Value {
 			d.unset()
 			return _NaN
 		}
-		return d.setTimeMs(timeToMsec(t))
+		return d.setTime(t)
 	}
 	panic(r.NewTypeError("Method Date.prototype.setFullYear is called on incompatible receiver"))
 }
@@ -934,7 +928,7 @@ func (r *Runtime) dateproto_setUTCFullYear(call FunctionCall) Value {
 			d.unset()
 			return _NaN
 		}
-		return d.setTimeMs(timeToMsec(t))
+		return d.setTime(t)
 	}
 	panic(r.NewTypeError("Method Date.prototype.setUTCFullYear is called on incompatible receiver"))
 }

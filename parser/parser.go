@@ -87,6 +87,7 @@ type _parser struct {
 	offset    int  // The offset after current character (may be greater than 1)
 
 	idx           file.Idx    // The index of token
+	prevTokenEnd  file.Idx    // The index right after the previous token
 	token         token.Token // The token
 	literal       string      // The literal of the token, if any
 	parsedLiteral unistring.String
@@ -96,6 +97,8 @@ type _parser struct {
 	implicitSemicolon bool // An implicit semicolon exists
 
 	errors ErrorList
+
+	depth int
 
 	recover struct {
 		// Scratch when trying to seek to the next statement, etc.
@@ -219,7 +222,27 @@ func (self *_parser) parse() (*ast.Program, error) {
 	return program, self.errors.Err()
 }
 
+const maxNestingDepth = 10000
+
+func (self *_parser) enterNesting() {
+	self.depth++
+	if self.depth == maxNestingDepth+1 {
+		self.nestingExceeded()
+	}
+}
+
+func (self *_parser) nestingExceeded() {
+	self.error(self.idx, "Maximum nesting depth exceeded")
+	self.chr, self.chrOffset, self.offset = -1, self.length, self.length
+	self.token, self.literal, self.parsedLiteral, self.idx = token.EOF, "", "", self.idxOf(self.length)
+}
+
+func (self *_parser) leaveNesting() {
+	self.depth--
+}
+
 func (self *_parser) next() {
+	self.prevTokenEnd = self.idxOf(self.chrOffset)
 	self.token, self.literal, self.parsedLiteral, self.idx = self.scan()
 }
 
