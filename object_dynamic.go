@@ -689,7 +689,25 @@ func (a *dynamicArray) hasOwnPropertyIdx(v valueInt) bool {
 	return a._has(toIntStrict(int64(v)))
 }
 
+func (a *dynamicArray) _defineLength(desc PropertyDescriptor, throw bool) bool {
+	if desc.Configurable == FLAG_TRUE || desc.Enumerable == FLAG_TRUE || desc.Getter != nil || desc.Setter != nil {
+		typeErrorResult(throw, "Cannot redefine property: length")
+		return false
+	}
+	if desc.Writable == FLAG_FALSE {
+		typeErrorResult(throw, "Dynamic array 'length' cannot be made read-only")
+		return false
+	}
+	if desc.Value != nil {
+		return a._setLen(desc.Value, throw)
+	}
+	return true
+}
+
 func (a *dynamicArray) defineOwnPropertyStr(name unistring.String, desc PropertyDescriptor, throw bool) bool {
+	if name == "length" {
+		return a._defineLength(desc, throw)
+	}
 	if a.checkDynamicObjectPropertyDescr(name, desc, throw) {
 		if idx, ok := strToInt(name); ok {
 			return a._setIdx(idx, desc.Value, throw)
