@@ -79,6 +79,20 @@ func TestJSONParseReviver(t *testing.T) {
 	testScript(SCRIPT, intToValue(10), t)
 }
 
+func TestJSONStringifyIndentAfterEmpty(t *testing.T) {
+	const SCRIPT = `
+	JSON.stringify({a: [], b: 1}, null, 2) === '{\n  "a": [],\n  "b": 1\n}' &&
+	JSON.stringify({a: {}, b: 1}, null, 2) === '{\n  "a": {},\n  "b": 1\n}' &&
+	JSON.stringify({a: {b: {}}, c: 1}, null, 2) === '{\n  "a": {\n    "b": {}\n  },\n  "c": 1\n}' &&
+	JSON.stringify({a: [], b: {c: 1}}, null, 2) === '{\n  "a": [],\n  "b": {\n    "c": 1\n  }\n}' &&
+	JSON.stringify({a: {}, b: [1]}, null, 2) === '{\n  "a": {},\n  "b": [\n    1\n  ]\n}' &&
+	JSON.stringify({a: {b: {}}, c: {d: 1}}, null, 2) === '{\n  "a": {\n    "b": {}\n  },\n  "c": {\n    "d": 1\n  }\n}' &&
+	JSON.stringify([[], 1, {}, 2], null, 2) === '[\n  [],\n  1,\n  {},\n  2\n]'
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestQuoteMalformedSurrogatePair(t *testing.T) {
 	testScript(`JSON.stringify("\uD800")`, asciiString(`"\ud800"`), t)
 }

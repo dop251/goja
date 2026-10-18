@@ -262,19 +262,25 @@ type objStrRef struct {
 }
 
 func (r *objStrRef) get() Value {
-	if v := r.base.self.getStr(r.name, r.this); v != nil {
+	if r.binding {
+		// Global Environment Record GetBindingValue: HasProperty first, then Get, fused into a
+		// single lookup where unobservable. The property may be absent (e.g. a Proxy 'has' trap
+		// reporting false), in which case this is an unresolvable reference.
+		v, exists := r.base.self.hasAndGetStr(r.name, r.this)
+		if !exists {
+			panic(r.base.runtime.newReferenceError(r.name))
+		}
 		return v
 	}
-	if r.binding {
-		rt := r.base.runtime
-		panic(rt.newReferenceError(r.name))
+	if v := r.base.self.getStr(r.name, r.this); v != nil {
+		return v
 	}
 	return _undefined
 }
 
 func (r *objStrRef) set(v Value) {
 	if r.strict && r.binding && !r.base.self.hasOwnPropertyStr(r.name) {
-		panic(referenceError(fmt.Sprintf("%s is not defined", r.name)))
+		panic(r.base.runtime.newReferenceError(r.name))
 	}
 	if r.this != nil {
 		r.base.setStr(r.name, v, r.this, r.strict)
@@ -292,6 +298,43 @@ func (r *objStrRef) init(v Value) {
 }
 
 func (r *objStrRef) refname() unistring.String {
+	return r.name
+}
+
+// objEnvRef is a reference to a binding of an object Environment Record (i.e. the object of a 'with' statement).
+// The binding may disappear after it has been resolved (for example, it can be deleted by a Symbol.unscopables
+// getter), so GetBindingValue and SetMutableBinding check that it still exists.
+type objEnvRef struct {
+	base   *Object
+	name   unistring.String
+	strict bool
+}
+
+func (r *objEnvRef) get() Value {
+	// GetBindingValue(N, S): HasProperty first, then Get, fused into a single lookup where
+	// unobservable. The binding could have been deleted by a Symbol.unscopables getter.
+	v, exists := r.base.self.hasAndGetStr(r.name, nil)
+	if !exists {
+		if r.strict {
+			panic(r.base.runtime.newReferenceError(r.name))
+		}
+		return _undefined
+	}
+	return v
+}
+
+func (r *objEnvRef) set(v Value) {
+	if !r.base.self.hasPropertyStr(r.name) && r.strict {
+		panic(r.base.runtime.newReferenceError(r.name))
+	}
+	r.base.self.setOwnStr(r.name, v, r.strict)
+}
+
+func (r *objEnvRef) init(v Value) {
+	r.base.self.setOwnStr(r.name, v, r.strict)
+}
+
+func (r *objEnvRef) refname() unistring.String {
 	return r.name
 }
 
@@ -495,10 +538,21 @@ func (s *stash) getByIdx(idx uint32) Value {
 	return s.values[idx]
 }
 
-func (s *stash) getByName(name unistring.String) (v Value, exists bool) {
+// getByName resolves a binding by name. For object stashes (i.e. the object of a 'with' statement)
+// it implements the Object Environment Record's GetBindingValue(N, S) semantics: the binding could
+// have been deleted by a Symbol.unscopables getter, in which case if strict is true a
+// ReferenceError is thrown, otherwise undefined is returned.
+func (s *stash) getByName(name unistring.String, strict bool) (v Value, exists bool) {
 	if s.obj != nil {
 		if stashObjHas(s.obj, name) {
-			return nilSafe(s.obj.self.getStr(name, nil)), true
+			// GetBindingValue(N, S): the binding could have been deleted by a Symbol.unscopables getter
+			if v, exists := s.obj.self.hasAndGetStr(name, nil); exists {
+				return v, true
+			}
+			if strict {
+				panic(s.obj.runtime.newReferenceError(name))
+			}
+			return _undefined, true
 		}
 		return nil, false
 	}
@@ -519,11 +573,10 @@ func (s *stash) getByName(name unistring.String) (v Value, exists bool) {
 func (s *stash) getRefByName(name unistring.String, strict bool) ref {
 	if obj := s.obj; obj != nil {
 		if stashObjHas(obj, name) {
-			return &objStrRef{
-				base:    obj,
-				name:    name,
-				strict:  strict,
-				binding: true,
+			return &objEnvRef{
+				base:   obj,
+				name:   name,
+				strict: strict,
 			}
 		}
 	} else {
@@ -2928,12 +2981,28 @@ end:
 	vm.pc++
 }
 
-type deleteVar unistring.String
+// deleteVar deletes an unqualified name (the 'delete' operator in non-strict code).
+// It walks the environment (stash) chain innermost out. If level != 0, a statically
+// known binding exists in an enclosing non-dynamic scope this number of levels up (a var/let/const or a function
+// declaration): such a binding is not deletable, so if the walk finds nothing (the binding is
+// stack-resident or a non-configurable global property) the result is false. If level is 0 the
+// name is not statically bound, so the walk falls through to the global object: deleting a
+// non-existent global yields true, a non-configurable one false.
+type deleteVar struct {
+	name  unistring.String
+	level uint8
+}
 
-func (d deleteVar) exec(vm *vm) {
-	name := unistring.String(d)
-	ret := true
-	for stash := vm.stash; stash != nil; stash = stash.outer {
+func (d *deleteVar) exec(vm *vm) {
+	name := d.name
+	// Nothing found in the environment chain: a statically known binding is not deletable
+	// (false), an unresolvable reference is deletable (true).
+	ret := false
+	k := int(d.level)
+	if k == 0 {
+		k = math.MaxInt
+	}
+	for stash := vm.stash; stash != nil && k > 0; stash = stash.outer {
 		if stash.obj != nil {
 			if stashObjHas(stash.obj, name) {
 				ret = stash.obj.self.deleteStr(name, false)
@@ -2943,37 +3012,23 @@ func (d deleteVar) exec(vm *vm) {
 			if idx, exists := stash.names[name]; exists {
 				if idx&(maskVar|maskDeletable) == maskVar|maskDeletable {
 					stash.deleteBinding(name)
-				} else {
-					ret = false
+					ret = true
 				}
 				goto end
 			}
 		}
+		k--
 	}
 
-	if vm.r.globalObject.self.hasPropertyStr(name) {
-		ret = vm.r.globalObject.self.deleteStr(name, false)
+	if k > 0 {
+		if vm.r.globalObject.self.hasPropertyStr(name) {
+			ret = vm.r.globalObject.self.deleteStr(name, false)
+		} else {
+			ret = true
+		}
 	}
 
 end:
-	if ret {
-		vm.push(valueTrue)
-	} else {
-		vm.push(valueFalse)
-	}
-	vm.pc++
-}
-
-type deleteGlobal unistring.String
-
-func (d deleteGlobal) exec(vm *vm) {
-	name := unistring.String(d)
-	var ret bool
-	if vm.r.globalObject.self.hasPropertyStr(name) {
-		ret = vm.r.globalObject.self.deleteStr(name, false)
-	} else {
-		ret = true
-	}
 	if ret {
 		vm.push(valueTrue)
 	} else {
@@ -3069,6 +3124,7 @@ type loadMixed struct {
 	name   unistring.String
 	idx    uint32
 	callee bool
+	strict bool
 }
 
 func (g *loadMixed) exec(vm *vm) {
@@ -3077,7 +3133,7 @@ func (g *loadMixed) exec(vm *vm) {
 	stash := vm.stash
 	name := g.name
 	for i := 0; i < level; i++ {
-		if v, found := stash.getByName(name); found {
+		if v, found := stash.getByName(name, g.strict); found {
 			if g.callee {
 				if stash.obj != nil {
 					vm.push(stash.obj)
@@ -3110,7 +3166,7 @@ func (g *loadMixedLex) exec(vm *vm) {
 	stash := vm.stash
 	name := g.name
 	for i := 0; i < level; i++ {
-		if v, found := stash.getByName(name); found {
+		if v, found := stash.getByName(name, g.strict); found {
 			if g.callee {
 				if stash.obj != nil {
 					vm.push(stash.obj)
@@ -3145,6 +3201,7 @@ type loadMixedStack struct {
 	idx    int
 	level  uint8
 	callee bool
+	strict bool
 }
 
 // same as loadMixedStack, but the args have been moved to stash (therefore stack layout is different)
@@ -3155,7 +3212,7 @@ func (g *loadMixedStack) exec(vm *vm) {
 	name := g.name
 	level := int(g.level)
 	for i := 0; i < level; i++ {
-		if v, found := stash.getByName(name); found {
+		if v, found := stash.getByName(name, g.strict); found {
 			if g.callee {
 				if stash.obj != nil {
 					vm.push(stash.obj)
@@ -3182,7 +3239,7 @@ func (g *loadMixedStack1) exec(vm *vm) {
 	name := g.name
 	level := int(g.level)
 	for i := 0; i < level; i++ {
-		if v, found := stash.getByName(name); found {
+		if v, found := stash.getByName(name, g.strict); found {
 			if g.callee {
 				if stash.obj != nil {
 					vm.push(stash.obj)
@@ -3214,7 +3271,7 @@ func (g *loadMixedStackLex) exec(vm *vm) {
 	name := g.name
 	level := int(g.level)
 	for i := 0; i < level; i++ {
-		if v, found := stash.getByName(name); found {
+		if v, found := stash.getByName(name, g.strict); found {
 			if g.callee {
 				if stash.obj != nil {
 					vm.push(stash.obj)
@@ -3241,7 +3298,7 @@ func (g *loadMixedStack1Lex) exec(vm *vm) {
 	name := g.name
 	level := int(g.level)
 	for i := 0; i < level; i++ {
-		if v, found := stash.getByName(name); found {
+		if v, found := stash.getByName(name, g.strict); found {
 			if g.callee {
 				if stash.obj != nil {
 					vm.push(stash.obj)
@@ -3446,19 +3503,38 @@ func (_initValueP) exec(vm *vm) {
 	vm.pc++
 }
 
-type loadDynamic unistring.String
+// getGlobalBinding resolves a binding in the global object environment record per the Global
+// Environment Record's GetBindingValue(N, S) semantics: HasProperty(bindingObject, N) first (so the
+// Proxy 'has' trap is correctly consulted when the global object is a Proxy), then Get.
+// Returns nil if the binding does not exist.
+func (vm *vm) getGlobalBinding(name unistring.String) Value {
+	if v, exists := vm.r.globalObject.self.hasAndGetStr(name, nil); exists {
+		return v
+	}
+	return nil
+}
+
+// loadDynamic loads a dynamically resolved variable. Its stash scan implements the strict
+// GetBindingValue(N, S) semantics of object stashes (i.e. the objects of 'with' statements): if the
+// binding has been deleted — which can happen via a Symbol.unscopables getter — a ReferenceError is
+// thrown in strict mode. The global fallback follows the Global Environment Record's
+// GetBindingValue(N, S) semantics (see getGlobalBinding).
+type loadDynamic struct {
+	name   unistring.String
+	strict bool
+}
 
 func (n loadDynamic) exec(vm *vm) {
-	name := unistring.String(n)
+	name := n.name
 	var val Value
 	for stash := vm.stash; stash != nil; stash = stash.outer {
-		if v, exists := stash.getByName(name); exists {
+		if v, exists := stash.getByName(name, n.strict); exists {
 			val = v
 			break
 		}
 	}
 	if val == nil {
-		val = vm.r.globalObject.self.getStr(name, nil)
+		val = vm.getGlobalBinding(name)
 		if val == nil {
 			vm.throw(vm.r.newReferenceError(name))
 			return
@@ -3468,19 +3544,19 @@ func (n loadDynamic) exec(vm *vm) {
 	vm.pc++
 }
 
-type loadDynamicRef unistring.String
+type loadDynamicRef loadDynamic
 
 func (n loadDynamicRef) exec(vm *vm) {
-	name := unistring.String(n)
+	name := n.name
 	var val Value
 	for stash := vm.stash; stash != nil; stash = stash.outer {
-		if v, exists := stash.getByName(name); exists {
+		if v, exists := stash.getByName(name, n.strict); exists {
 			val = v
 			break
 		}
 	}
 	if val == nil {
-		val = vm.r.globalObject.self.getStr(name, nil)
+		val = vm.getGlobalBinding(name)
 		if val == nil {
 			val = valueUnresolved{r: vm.r, ref: name}
 		}
@@ -3489,21 +3565,21 @@ func (n loadDynamicRef) exec(vm *vm) {
 	vm.pc++
 }
 
-type loadDynamicCallee unistring.String
+type loadDynamicCallee loadDynamic
 
 func (n loadDynamicCallee) exec(vm *vm) {
-	name := unistring.String(n)
+	name := n.name
 	var val Value
 	var callee *Object
 	for stash := vm.stash; stash != nil; stash = stash.outer {
-		if v, exists := stash.getByName(name); exists {
+		if v, exists := stash.getByName(name, n.strict); exists {
 			callee = stash.obj
 			val = v
 			break
 		}
 	}
 	if val == nil {
-		val = vm.r.globalObject.self.getStr(name, nil)
+		val = vm.getGlobalBinding(name)
 		if val == nil {
 			val = valueUnresolved{r: vm.r, ref: name}
 		}
@@ -4795,6 +4871,7 @@ type enterFinally struct{}
 func (enterFinally) exec(vm *vm) {
 	tf := &vm.tryStack[len(vm.tryStack)-1]
 	tf.finallyPos = -1
+	tf.catchPos = -1
 	vm.pc++
 }
 
@@ -5601,7 +5678,7 @@ type getThisDynamic struct{}
 func (getThisDynamic) exec(vm *vm) {
 	for stash := vm.stash; stash != nil; stash = stash.outer {
 		if stash.obj == nil {
-			if v, exists := stash.getByName(thisBindingName); exists {
+			if v, exists := stash.getByName(thisBindingName, false); exists {
 				vm.push(v)
 				vm.pc++
 				return

@@ -89,6 +89,14 @@ func (o *templatedObject) materialiseProto() {
 	}
 }
 
+func (o *templatedObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	ownProp := o.getOwnPropStr(name)
+	if ownProp == nil {
+		o.materialiseProto()
+	}
+	return o.hasAndGetOwnStr(name, ownProp, receiver)
+}
+
 func (o *templatedObject) getStr(name unistring.String, receiver Value) Value {
 	ownProp := o.getOwnPropStr(name)
 	if ownProp == nil {

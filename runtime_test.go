@@ -1138,6 +1138,17 @@ func TestRuntime_SetGlobalObject_Proxy(t *testing.T) {
 	globalObject := vm.GlobalObject()
 
 	globalObjectProxy := vm.NewProxy(globalObject, &ProxyTrapConfig{
+		Has: func(target *Object, property string) (available bool) {
+			if target != globalObject {
+				t.Fatal("Expected target to be global object")
+			}
+
+			if property == "testing" {
+				return true
+			}
+
+			return target.hasProperty(vm.ToValue(property))
+		},
 		Get: func(target *Object, property string, receiver Value) (value Value) {
 			if target != globalObject {
 				t.Fatal("Expected target to be global object")
@@ -1160,6 +1171,14 @@ func TestRuntime_SetGlobalObject_Proxy(t *testing.T) {
 
 	if ret != valueTrue {
 		t.Fatal("Expected return value to equal true")
+	}
+
+	// Per the GetBindingValue(N, S) semantics of the global object environment record,
+	// resolution is gated by HasProperty(bindingObject, N), so a name the proxy does not
+	// report as existing must throw a ReferenceError even though a 'get' trap could serve it.
+	_, err = vm.RunString("nonexistent")
+	if err == nil {
+		t.Fatal("Expected ReferenceError for a non-existent global")
 	}
 }
 
@@ -3478,6 +3497,276 @@ func TestObjectRedefinePropertyNonConfigurable(t *testing.T) {
 	assert(deepEqual(Object.getOwnPropertyDescriptor(p, "x"), { get: getter, set: undefined, enumerable: false, configurable: false }));
 	`
 	testScriptWithTestLibX(SCRIPT, _undefined, t)
+}
+
+func TestWithUnscopables(t *testing.T) {
+	const SCRIPT = `
+	var unscopablesCalled = 0;
+	
+	var env = {
+	  binding: 0,
+	  get [Symbol.unscopables]() {
+		unscopablesCalled++;
+		delete env.binding;
+		return null;
+	  }
+	};
+	
+	var result = null;
+	with (env) {
+	  assert.throws(ReferenceError, function() {
+		"use strict";
+		result = binding;
+	  });
+	}
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+// Like TestWithUnscopables, but the deleted binding is shadowed dynamically while a statically
+// known binding of the same name exists in an outer function scope. This forces the loadMixed
+// instruction family (instead of loadDynamic) to scan the 'with' object stash.
+func TestWithUnscopablesMixedScopes(t *testing.T) {
+	const SCRIPT = `
+	var unscopablesCalled = 0;
+
+	function newEnv() {
+	  return {
+		binding: 0,
+		get [Symbol.unscopables]() {
+		  unscopablesCalled++;
+		  delete this.binding;
+		  return null;
+		}
+	  };
+	}
+
+	var result = null;
+
+	function testVar() {
+	  var binding = 1;
+	  with (newEnv()) {
+		assert.throws(ReferenceError, function() {
+		  "use strict";
+		  result = binding;
+		});
+	  }
+	}
+	testVar();
+
+	function testLex() {
+	  let binding = 1;
+	  with (newEnv()) {
+		assert.throws(ReferenceError, function() {
+		  "use strict";
+		  result = binding;
+		});
+	  }
+	}
+	testLex();
+
+	function testCallee() {
+	  function binding() {}
+	  with (newEnv()) {
+		assert.throws(ReferenceError, function() {
+		  "use strict";
+		  binding();
+		});
+	  }
+	}
+	testCallee();
+
+	// non-strict GetBindingValue returns undefined rather than the outer binding
+	function testNonStrict() {
+	  var binding = 1;
+	  var result2;
+	  with (newEnv()) {
+		result2 = binding;
+	  }
+	  assert.sameValue(result2, undefined);
+	}
+	testNonStrict();
+
+	// control: while the binding still exists the with object shadows the outer one
+	function testPresent() {
+	  var binding = 1;
+	  var result2;
+	  with ({ binding: 99 }) {
+		result2 = (function() { "use strict"; return binding; })();
+	  }
+	  assert.sameValue(result2, 99);
+	}
+	testPresent();
+
+	assert.sameValue(unscopablesCalled, 4, "get [Symbol.unscopables] called once per access");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestWithDeleteShadowedBindingScanDepth(t *testing.T) {
+	// develeVar should stop after scanning one level (the inner 'with'), return false, and outer.binding
+	// should not be deleted.
+	const SCRIPT = `
+	const outer = {binding: 1};
+	function t() {
+		with (outer) {
+			let binding = 2;
+			with ({}) {
+				return delete binding;
+			}
+		}
+	}
+	!t() && outer.binding === 1;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+// 'delete x' inside a 'with' statement must resolve the name dynamically: if the 'with' object has
+// the property it is deleted from the object (even if a statically known binding of the same name
+// exists in an enclosing scope); if it does not, the statically known binding is not deletable and
+// the result is false.
+func TestWithDeleteShadowedBinding(t *testing.T) {
+	const SCRIPT = `
+	var result = null;
+
+	function testShadowed() {
+	  var binding = 1;
+	  var out;
+	  with ({ binding: 2 }) {
+		out = [delete binding, binding];
+	  }
+	  assert(Array.isArray(out) && out[0] === true && out[1] === 1, "shadowed: " + out);
+	  assert.sameValue(binding, 1, "outer binding not modified");
+	}
+	testShadowed();
+
+	function testNotShadowed() {
+	  var binding = 1;
+	  var out;
+	  with ({}) {
+		out = delete binding;
+	  }
+	  assert.sameValue(out, false, "not shadowed: var is not deletable");
+	  assert.sameValue(binding, 1, "outer binding not modified");
+	}
+	testNotShadowed();
+
+	function testLet() {
+	  let binding = 1;
+	  var out;
+	  with ({ binding: 2 }) {
+		out = delete binding;
+	  }
+	  assert.sameValue(out, true, "let: property on the with object is deletable");
+	}
+	testLet();
+
+	function testNonConfigurable() {
+	  var env = {};
+	  Object.defineProperty(env, "binding", { value: 2, configurable: false });
+	  var out;
+	  with (env) {
+		out = delete binding;
+	  }
+	  assert.sameValue(out, false, "non-configurable property is not deletable");
+	}
+	testNonConfigurable();
+
+	function testUnscopablesHidden() {
+	  var binding = 1;
+	  var env = { binding: 2, get [Symbol.unscopables]() { return { binding: true }; } };
+	  var out;
+	  with (env) {
+		out = delete binding;
+	  }
+	  assert.sameValue(out, false, "binding hidden by unscopables resolves to the outer var");
+	  assert.sameValue(env.binding, 2, "the property is not deleted");
+	}
+	testUnscopablesHidden();
+
+	function testProxyEnv() {
+	  var deleted = null;
+	  var env = new Proxy({ p: 1 }, {
+		deleteProperty: function(t, pk) {
+		  deleted = pk;
+		  return Reflect.deleteProperty(t, pk);
+		},
+	  });
+	  var out;
+	  with (env) {
+		out = delete p;
+	  }
+	  assert.sameValue(out, true, "proxy with-env: property deleted");
+	  assert.sameValue(deleted, "p", "deleteProperty trap called");
+	}
+	testProxyEnv();
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+// 'delete' of names created or redeclared by eval code.
+// Global var bindings created or redeclared by eval are object properties consulted at runtime
+// (deletable if the eval created them as configurable, not if they pre-existed as
+// non-configurable); function-level bindings created by non-strict eval are deletable.
+func TestDeleteEvalBindings(t *testing.T) {
+	const SCRIPT = `
+	var out = [];
+
+	// eval redeclares a global var (non-configurable property): not deletable, property survives
+	var g1; eval("var g1 = 2");
+	var r1, r2;
+	with ({}) { r1 = delete g1; }
+	r2 = delete g1;
+	out.push(r1 + "," + r2 + "," + ("g1" in this) + "," + g1);
+
+	// eval creates a fresh global var: configurable, deletable (also from within the eval)
+	out.push(eval("var g2 = 2; delete g2") + "|" + (typeof g2));
+	out.push(eval("var g3 = 2") + "|" + delete g3 + "|" + ("g3" in this));
+
+	// eval redeclares and deletes inside the eval: existing non-configurable property survives
+	var g4; out.push(eval("var g4 = 2; delete g4") + "|" + g4);
+
+	// non-strict eval inside a function: function-level binding, deletable, no global leak
+	var r5, r6, r7;
+	function f5() {
+	  eval("var g5 = 2");
+	  with ({}) { r5 = delete g5; }
+	  r6 = (typeof globalThis.g5 === "undefined");
+	}
+	f5();
+	function f6() { return eval("var g6 = 2; delete g6"); }
+	r7 = f6() + "|" + (typeof globalThis.g6 === "undefined");
+	out.push(r5 + "|" + r6 + "|" + r7);
+
+	// static function-level binding + eval redeclaration: existing binding is kept, not deletable
+	function f7() {
+	  var g7 = 1;
+	  eval("var g7 = 2");
+	  with ({}) { return [delete g7, g7].join(","); }
+	}
+	out.push(f7());
+
+	// strict eval inside a with: own scope, nothing visible, no leak, unresolvable delete is true
+	var r8;
+	function f8() {
+	  with ({}) {
+		eval("'use strict'; var g8 = 2");
+		r8 = [typeof g8, delete g8, (typeof globalThis.g8 === "undefined")].join(",");
+	  }
+	}
+	f8();
+	out.push(r8);
+
+	out.join(";")
+	`
+	testScript(SCRIPT, asciiString(
+		"false,false,true,2;"+
+			"true|undefined;"+
+			"undefined|true|false;"+
+			"false|2;"+
+			"true|true|true|true;"+
+			"false,2;"+
+			"undefined,true,true"), t)
 }
 
 /*

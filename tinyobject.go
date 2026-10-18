@@ -218,6 +218,20 @@ func (o *tinyObject) getStr(name unistring.String, receiver Value) Value {
 	return prop
 }
 
+func (o *tinyObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	prop := o.getOwnPropStr(name)
+	if prop != nil {
+		return prop, true
+	}
+	if o.prototype != nil {
+		if receiver == nil {
+			receiver = o.val
+		}
+		return o.prototype.self.hasAndGetStr(name, receiver)
+	}
+	return nil, false
+}
+
 func (o *tinyObject) getIdx(idx valueInt, receiver Value) Value {
 	if n := toIdx(idx); n == math.MaxUint32 {
 		return o.getStr(idx.string(), receiver)

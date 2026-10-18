@@ -165,6 +165,14 @@ type objectImpl interface {
 	getOwnPropIdx(valueInt) Value
 	getOwnPropSym(*Symbol) Value
 
+	// hasAndGetStr combines HasProperty and Get for a string property. It returns (value, true)
+	// if the property exists and (nil, false) otherwise, the same as
+	//   hasPropertyStr(name) && getStr(name, receiver)
+	// but may fuse the two into a single lookup when doing so cannot cause observable effects.
+	// The receiver has the same meaning as in getStr: if nil, the property accessor (if any) is
+	// called with the object where the property is found.
+	hasAndGetStr(name unistring.String, receiver Value) (Value, bool)
+
 	setOwnStr(p unistring.String, v Value, throw bool) bool
 	setOwnIdx(p valueInt, v Value, throw bool) bool
 	setOwnSym(p *Symbol, v Value, throw bool) bool
@@ -371,6 +379,61 @@ func (o *baseObject) getStr(name unistring.String, receiver Value) Value {
 		return prop.get(receiver)
 	}
 	return prop
+}
+
+func (o *baseObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	prop := o.values[name]
+	if prop != nil {
+		if vp, ok := prop.(*valueProperty); ok {
+			if vp.getterFunc == nil {
+				// own data property: reading it is not observable and implies HasProperty.
+				return nilSafe(vp.value), true
+			}
+			// accessor: Get may run user code, with the same receiver semantics as getStr
+			if receiver == nil {
+				receiver = o.val
+			}
+			return vp.get(receiver), true
+		}
+		return prop, true
+	}
+	// own property is absent: walk the prototype chain, fusing has+get per level.
+	// The recursion must go through o.prototype.self so that overrides in embedding types
+	// (e.g. lazily materialising objects) are correctly dispatched. Note, the receiver is
+	// substituted at the first hop, mirroring getStr's prototype walk.
+	if o.prototype != nil {
+		if receiver == nil {
+			receiver = o.val
+		}
+		return o.prototype.self.hasAndGetStr(name, receiver)
+	}
+	return nil, false
+}
+
+// hasAndGetOwnStr implements the hasAndGetStr fast path for objects whose own property lookup must
+// go through their getOwnPropStr override (e.g. properties served from Go structures, recomputed
+// properties such as array 'length', or lazily materialised properties).
+// own must be the result of o.getOwnPropStr(name).
+func (o *baseObject) hasAndGetOwnStr(name unistring.String, own Value, receiver Value) (Value, bool) {
+	if own != nil {
+		if vp, ok := own.(*valueProperty); ok {
+			if vp.getterFunc == nil {
+				return nilSafe(vp.value), true
+			}
+			if receiver == nil {
+				receiver = o.val
+			}
+			return vp.get(receiver), true
+		}
+		return own, true
+	}
+	if o.prototype != nil {
+		if receiver == nil {
+			receiver = o.val
+		}
+		return o.prototype.self.hasAndGetStr(name, receiver)
+	}
+	return nil, false
 }
 
 func (o *baseObject) getOwnPropIdx(idx valueInt) Value {

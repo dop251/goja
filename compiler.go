@@ -236,12 +236,12 @@ func (b *binding) emitInitPAtScope(scope *scope, pos int) {
 	}
 }
 
-func (b *binding) emitGetVar(callee bool) {
+func (b *binding) emitGetVar(callee bool, strict bool) {
 	b.markAccessPoint()
 	if b.isVar && !b.isArg {
-		b.scope.c.emit(&loadMixed{name: b.name, callee: callee})
+		b.scope.c.emit(&loadMixed{name: b.name, callee: callee, strict: strict})
 	} else {
-		b.scope.c.emit(&loadMixedLex{name: b.name, callee: callee})
+		b.scope.c.emit(&loadMixedLex{name: b.name, callee: callee, strict: strict})
 	}
 }
 
@@ -702,6 +702,8 @@ func (s *scope) finaliseVarAlloc(stackOffset int) (stashSize, stackSize int) {
 							i.idx = idx
 						case *resolveMixed:
 							i.idx = idx
+						case *deleteVar:
+							i.level = uint8(level)
 						default:
 							s.c.assert(false, s.c.p.sourceOffset(pc), "Unsupported instruction for binding: %T", i)
 						}
@@ -774,11 +776,13 @@ func (s *scope) finaliseVarAlloc(stackOffset int) (stashSize, stackSize int) {
 						case initStack:
 							*ap = initStack1(idx)
 						case *loadMixed:
-							*ap = &loadMixedStack1{name: i.name, idx: idx, level: uint8(level), callee: i.callee}
+							*ap = &loadMixedStack1{name: i.name, idx: idx, level: uint8(level), callee: i.callee, strict: i.strict}
 						case *loadMixedLex:
-							*ap = &loadMixedStack1Lex{name: i.name, idx: idx, level: uint8(level), callee: i.callee}
+							*ap = &loadMixedStack1Lex{name: i.name, idx: idx, level: uint8(level), callee: i.callee, strict: i.strict}
 						case *resolveMixed:
 							*ap = &resolveMixedStack1{typ: i.typ, name: i.name, idx: idx, level: uint8(level), strict: i.strict}
+						case *deleteVar:
+							i.level = uint8(level)
 						default:
 							s.c.assert(false, s.c.p.sourceOffset(pc), "Unsupported instruction for binding: %T", i)
 						}
@@ -804,11 +808,13 @@ func (s *scope) finaliseVarAlloc(stackOffset int) (stashSize, stackSize int) {
 						case initStackP:
 							*ap = initStackP(idx)
 						case *loadMixed:
-							*ap = &loadMixedStack{name: i.name, idx: idx, level: uint8(level), callee: i.callee}
+							*ap = &loadMixedStack{name: i.name, idx: idx, level: uint8(level), callee: i.callee, strict: i.strict}
 						case *loadMixedLex:
-							*ap = &loadMixedStackLex{name: i.name, idx: idx, level: uint8(level), callee: i.callee}
+							*ap = &loadMixedStackLex{name: i.name, idx: idx, level: uint8(level), callee: i.callee, strict: i.strict}
 						case *resolveMixed:
 							*ap = &resolveMixedStack{typ: i.typ, name: i.name, idx: idx, level: uint8(level), strict: i.strict}
+						case *deleteVar:
+							i.level = uint8(level)
 						default:
 							s.c.assert(false, s.c.p.sourceOffset(pc), "Unsupported instruction for binding: %T", i)
 						}

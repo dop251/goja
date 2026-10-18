@@ -761,6 +761,20 @@ func (a *typedArrayObject) getOwnPropIdx(idx valueInt) Value {
 	return nil
 }
 
+func (a *typedArrayObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	idx, ok := strToIntNum(name)
+	if ok {
+		if v := a._getIdx(idx); v != nil {
+			return v, true
+		}
+		return nil, false
+	}
+	if idx == 0 {
+		return nil, false
+	}
+	return a.hasAndGetOwnStr(name, a.baseObject.getOwnPropStr(name), receiver)
+}
+
 func (a *typedArrayObject) getStr(name unistring.String, receiver Value) Value {
 	idx, ok := strToIntNum(name)
 	if ok {

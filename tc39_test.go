@@ -192,13 +192,7 @@ var (
 		"test/built-ins/JSON/parse/reviver-context-source-array-literal.js":         true,
 		"test/built-ins/JSON/parse/reviver-call-args-after-forward-modification.js": true,
 
-		// Language tests (class, with, module, expressions, identifiers)
-		"test/language/statements/with/set-mutable-binding-idref-compound-assign-with-proxy-env.js":                                         true,
-		"test/language/statements/with/set-mutable-binding-binding-deleted-with-typed-array-in-proto-chain.js":                              true,
-		"test/language/statements/with/set-mutable-binding-idref-with-proxy-env.js":                                                         true,
-		"test/language/statements/with/get-binding-value-idref-with-proxy-env.js":                                                           true,
-		"test/language/statements/with/get-binding-value-call-with-proxy-env.js":                                                            true,
-		"test/language/statements/with/get-mutable-binding-binding-deleted-in-get-unscopables-strict-mode.js":                               true,
+		// Language tests (module)
 		"test/language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-export-star-as-from-and-import-star-as-and-export.js": true,
 		"test/language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-import-star-as-and-export.js":                         true,
 		"test/language/module-code/top-level-await/pending-async-dep-from-cycle.js":                                                         true,

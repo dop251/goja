@@ -189,6 +189,10 @@ func (f *funcObject) _addProto(n unistring.String) Value {
 	return nil
 }
 
+func (f *funcObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	return f.hasAndGetOwnStr(name, f.getOwnPropStr(name), receiver)
+}
+
 func (f *funcObject) getStr(p unistring.String, receiver Value) Value {
 	return f.getStrWithOwnProp(f.getOwnPropStr(p), p, receiver)
 }
