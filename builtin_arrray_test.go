@@ -172,10 +172,13 @@ func TestArrayFrom(t *testing.T) {
 
 func TestArrayFromArrayLikeMaxLength(t *testing.T) {
 	const SCRIPT = `
+		class TestError extends Error {
+		}
+
 		var src = {
 			length: 2**32,
 			get 0() {
-				throw new Error("element read");
+				throw new TestError("element read");
 			},
 		};
 		assert.throws(RangeError, () => {
@@ -188,7 +191,7 @@ func TestArrayFromArrayLikeMaxLength(t *testing.T) {
 			Array.from.call({}, src);
 		});
 		src.length = 2**32 - 1;
-		assert.throws(Error, () => {
+		assert.throws(TestError, () => {
 			Array.from(src);
 		});
 	`
