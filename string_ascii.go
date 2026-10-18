@@ -283,13 +283,15 @@ func (s asciiString) Equals(other Value) bool {
 }
 
 func (s asciiString) StrictEquals(other Value) bool {
-	if otherStr, ok := other.(asciiString); ok {
-		return s == otherStr
-	}
-	if otherStr, ok := other.(*importedString); ok {
-		if otherStr.u == nil {
-			return string(s) == otherStr.s
+	switch o := other.(type) {
+	case asciiString:
+		return s == o
+	case *importedString:
+		if o.u == nil {
+			return string(s) == o.s
 		}
+	case *concatString:
+		return o.StrictEquals(s)
 	}
 	return false
 }
@@ -357,22 +359,7 @@ func (s asciiString) Concat(other String) String {
 		}
 		return s + asciiString(o.s)
 	case *concatString:
-		totalLen := len(s) + o.length
-		if totalLen > concatThreshold {
-			return &concatString{left: s, right: o, length: totalLen}
-		}
-		flat := o.flatten()
-		a, u := devirtualizeString(flat)
-		if u != nil {
-			b := make([]uint16, len(s)+len(u))
-			b[0] = unistring.BOM
-			for i := 0; i < len(s); i++ {
-				b[i+1] = uint16(s[i])
-			}
-			copy(b[len(s)+1:], u[1:])
-			return unicodeString(b)
-		}
-		return s + a
+		return &concatString{left: s, right: o, length: len(s) + o.length}
 	default:
 		panic(unknownStringTypeErr(other))
 	}

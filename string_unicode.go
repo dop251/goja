@@ -429,14 +429,16 @@ func (s unicodeString) Equals(other Value) bool {
 }
 
 func (s unicodeString) StrictEquals(other Value) bool {
-	if otherStr, ok := other.(unicodeString); ok {
-		return s.equals(otherStr)
-	}
-	if otherStr, ok := other.(*importedString); ok {
-		otherStr.ensureScanned()
-		if otherStr.u != nil {
-			return s.equals(otherStr.u)
+	switch o := other.(type) {
+	case unicodeString:
+		return s.equals(o)
+	case *importedString:
+		o.ensureScanned()
+		if o.u != nil {
+			return s.equals(o.u)
 		}
+	case *concatString:
+		return o.StrictEquals(s)
 	}
 
 	return false
@@ -504,25 +506,7 @@ func (s unicodeString) Concat(other String) String {
 		}
 		return unicodeString(b)
 	case *concatString:
-		totalLen := s.Length() + o.length
-		if totalLen > concatThreshold {
-			return &concatString{left: s, right: o, length: totalLen}
-		}
-		flat := o.flatten()
-		a, u := devirtualizeString(flat)
-		if u != nil {
-			b := make(unicodeString, len(s)+len(u)-1)
-			copy(b, s)
-			copy(b[len(s):], u[1:])
-			return b
-		}
-		b := make([]uint16, len(s)+len(a))
-		copy(b, s)
-		b1 := b[len(s):]
-		for i := 0; i < len(a); i++ {
-			b1[i] = uint16(a[i])
-		}
-		return unicodeString(b)
+		return &concatString{left: s, right: o, length: s.Length() + o.length}
 	default:
 		panic(unknownStringTypeErr(other))
 	}

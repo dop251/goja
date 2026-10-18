@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
@@ -19,7 +20,14 @@ type concatString struct {
 	length int
 
 	flatOnce sync.Once
-	flat     String
+	flat     atomic.Pointer[String]
+}
+
+func (s *concatString) getFlat() String {
+	if ptr := s.flat.Load(); ptr != nil {
+		return *ptr
+	}
+	return nil
 }
 
 func (s *concatString) flatten() String {
@@ -27,9 +35,10 @@ func (s *concatString) flatten() String {
 		sb := &StringBuilder{}
 		sb.Grow(s.length)
 		s.writeTo(sb)
-		s.flat = sb.String()
+		flattened := sb.String()
+		s.flat.Store(&flattened)
 	})
-	return s.flat
+	return s.getFlat()
 }
 
 func (s *concatString) writeTo(sb *StringBuilder) {
@@ -41,8 +50,8 @@ func (s *concatString) writeTo(sb *StringBuilder) {
 		stack = stack[:n]
 
 		if cs, ok := str.(*concatString); ok {
-			if cs.flat != nil {
-				sb.WriteString(cs.flat)
+			if flattened := cs.getFlat(); flattened != nil {
+				sb.WriteString(flattened)
 			} else {
 				stack = append(stack, cs.right, cs.left)
 			}

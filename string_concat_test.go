@@ -127,7 +127,7 @@ func TestConcatStringEquality(t *testing.T) {
 			s1 += "x";
 		}
 		var s2 = new Array(101).join("x");
-		s1 === s2;
+		s1 === s2 && s2 === s1;
 	`)
 	if err != nil {
 		t.Fatal(err)

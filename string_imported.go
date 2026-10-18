@@ -121,7 +121,7 @@ func (i *importedString) StrictEquals(other Value) bool {
 	case *importedString:
 		return i.s == otherStr.s
 	case *concatString:
-		return i.StrictEquals(otherStr.flatten())
+		return otherStr.StrictEquals(i)
 	}
 	return false
 }
