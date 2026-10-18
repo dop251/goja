@@ -79,8 +79,6 @@ type arrayObject struct {
 func (a *arrayObject) init() {
 	a.baseObject.init()
 	a.lengthProp.writable = true
-
-	a._put("length", &a.lengthProp)
 }
 
 func (a *arrayObject) _setLengthInt(l uint32, throw bool) bool {
@@ -303,7 +301,7 @@ func (i *arrayPropIter) next() (propIterItem, iterNextFunc) {
 		}
 	}
 
-	return i.a.baseObject.iterateStringKeys()()
+	return propIterItem{name: asciiString("length"), value: &i.a.lengthProp}, i.a.baseObject.iterateStringKeys()
 }
 
 func (a *arrayObject) iterateStringKeys() iterNextFunc {
@@ -325,15 +323,20 @@ func (a *arrayObject) stringKeys(all bool, accum []Value) []Value {
 			accum = append(accum, asciiString(name))
 		}
 	}
+	if all {
+		accum = append(accum, asciiString("length"))
+	}
 	return a.baseObject.stringKeys(all, accum)
 }
 
 func (a *arrayObject) hasOwnPropertyStr(name unistring.String) bool {
 	if idx := strToArrayIdx(name); idx != math.MaxUint32 {
 		return idx < uint32(len(a.values)) && a.values[idx] != nil
-	} else {
-		return a.baseObject.hasOwnPropertyStr(name)
 	}
+	if name == "length" {
+		return true
+	}
+	return a.baseObject.hasOwnPropertyStr(name)
 }
 
 func (a *arrayObject) hasOwnPropertyIdx(idx valueInt) bool {
@@ -371,7 +374,6 @@ func (a *arrayObject) expand(idx uint32) bool {
 				sa.setValues(a.values, a.objCount+1)
 				sa.val.self = sa
 				sa.lengthProp.writable = a.lengthProp.writable
-				sa._put("length", &sa.lengthProp)
 				return false
 			} else {
 				if bits.UintSize == 32 {
@@ -492,6 +494,9 @@ func (a *arrayObject) _deleteIdxProp(idx uint32, throw bool) bool {
 func (a *arrayObject) deleteStr(name unistring.String, throw bool) bool {
 	if idx := strToArrayIdx(name); idx != math.MaxUint32 {
 		return a._deleteIdxProp(idx, throw)
+	}
+	if name == "length" {
+		return false
 	}
 	return a.baseObject.deleteStr(name, throw)
 }
