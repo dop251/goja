@@ -862,6 +862,50 @@ func TestRegExpLastIndex(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestRegExpTestCallsExec(t *testing.T) {
+	const SCRIPT = `
+	const test = RegExp.prototype.test;
+
+	let seen;
+	const obj = {
+		exec() {
+			seen = [this, arguments.length, arguments[0]];
+			return {};
+		}
+	};
+	assert.sameValue(test.call(obj, 12), true, "object result");
+	assert.sameValue(seen[0], obj, "this");
+	assert.sameValue(seen[1], 1, "arguments.length");
+	assert.sameValue(seen[2], "12", "argument");
+	assert.sameValue(test.call({exec() { return null; }}, "a"), false, "null result");
+	assert.throws(TypeError, () => test.call({exec() { return 1; }}, "a"), "result is not an object");
+	assert.throws(TypeError, () => test.call({exec: 1}, "a"), "exec is not callable");
+	assert.throws(TypeError, () => test.call({}, "a"), "no exec");
+	assert.throws(TypeError, () => test.call("a", {toString() { throw new Error("ToString called first"); }}), "primitive this");
+
+	let re = /a/;
+	re.exec = () => null;
+	assert.sameValue(re.test("a"), false, "own exec, null result");
+	re = /a/;
+	re.exec = () => ({});
+	assert.sameValue(re.test("z"), true, "own exec, object result");
+	re = /a/;
+	re.exec = 1;
+	assert.sameValue(re.test("a"), true, "own exec is not callable");
+
+	class CustomRegExp extends RegExp {
+		exec() {
+			return null;
+		}
+	}
+	assert.sameValue(new CustomRegExp("a").test("a"), false, "subclass");
+
+	RegExp.prototype.exec = () => null;
+	assert.sameValue(/a/.test("a"), false, "RegExp.prototype.exec replaced");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestRegExpRepeatCount(t *testing.T) {
 	const SCRIPT = `
 	const re = /^0x[0-9a-fA-F]{0,4096}$/;
