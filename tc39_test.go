@@ -727,6 +727,7 @@ func TestTC39(t *testing.T) {
 		//ctx.runTC39File("test/language/types/number/8.5.1.js", t)
 		ctx.runTC39Tests("test/language")
 		ctx.runTC39Tests("test/built-ins")
+		ctx.runTC39Tests("test/annexB/built-ins/Date")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimLeft")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimRight")

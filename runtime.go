@@ -154,6 +154,8 @@ type global struct {
 	stringproto_trimEnd   *Object
 	stringproto_trimStart *Object
 
+	dateproto_toUTCString *Object
+
 	parseFloat, parseInt *Object
 
 	typedArrayValues *Object
