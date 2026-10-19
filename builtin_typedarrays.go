@@ -1364,10 +1364,10 @@ func (r *Runtime) typedArray_from(call FunctionCall) Value {
 	if mapFn := call.Argument(1); mapFn != _undefined {
 		mapFc = r.toCallable(mapFn)
 	}
-	source := r.toObject(call.Argument(0))
-	usingIter := toMethod(source.self.getSym(SymIterator, nil))
+	items := call.Argument(0)
+	usingIter := toMethod(r.getV(items, SymIterator))
 	if usingIter != nil {
-		values := r.iterableToList(source, usingIter)
+		values := r.iterableToList(items, usingIter)
 		ta := r.typedArrayCreate(c, intToValue(int64(len(values))))
 		if mapFc == nil {
 			for idx, val := range values {
@@ -1386,6 +1386,7 @@ func (r *Runtime) typedArray_from(call FunctionCall) Value {
 		}
 		return ta.val
 	}
+	source := items.ToObject(r)
 	length := toIntStrict(toLength(source.self.getStr("length", nil)))
 	ta := r.typedArrayCreate(c, intToValue(int64(length)))
 	if mapFc == nil {
