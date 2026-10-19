@@ -993,10 +993,9 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s String, lim
 	}
 	size := s.Length()
 	p := 0
-	execFn := toMethod(splitter.ToObject(r).self.getStr("exec", nil)) // must be non-nil
 
 	if size == 0 {
-		if r.regExpExec(execFn, splitter, s) == _null {
+		if regExpExec(splitter, s) == _null {
 			a = append(a, s)
 		}
 		return r.newArrayValues(a)
@@ -1005,7 +1004,7 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s String, lim
 	q := p
 	for q < size {
 		splitter.self.setOwnStr("lastIndex", intToValue(int64(q)), true)
-		z := r.regExpExec(execFn, splitter, s)
+		z := regExpExec(splitter, s)
 		if z == _null {
 			q = advanceStringIndex(s, q, unicodeMatching)
 		} else {
@@ -1179,8 +1178,7 @@ func (r *Runtime) regexpproto_stdReplacerGeneric(rxObj *Object, s, replaceStr St
 	if isGlobal {
 		results = r.getGlobalRegexpMatches(rxObj, s, isUnicode)
 	} else {
-		execFn := toMethod(rxObj.self.getStr("exec", nil)) // must be non-nil
-		result := r.regExpExec(execFn, rxObj, s)
+		result := regExpExec(rxObj, s)
 		if result != _null {
 			results = append(results, result)
 		}
