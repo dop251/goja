@@ -485,15 +485,19 @@ func (r *Runtime) regexpproto_exec(call FunctionCall) Value {
 }
 
 func (r *Runtime) regexpproto_test(call FunctionCall) Value {
-	if this, ok := r.toObject(call.This).self.(*regexpObject); ok {
-		if this.test(call.Argument(0).toString()) {
+	thisObj := r.toObject(call.This)
+	s := call.Argument(0).toString()
+	if this := r.checkStdRegexp(thisObj); this != nil {
+		if this.test(s) {
 			return valueTrue
 		} else {
 			return valueFalse
 		}
-	} else {
-		panic(r.NewTypeError("Method RegExp.prototype.test called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 	}
+	if regExpExec(thisObj, s) == _null {
+		return valueFalse
+	}
+	return valueTrue
 }
 
 func (r *Runtime) regexpproto_toString(call FunctionCall) Value {
