@@ -767,13 +767,9 @@ func (r *Runtime) regExpExec(execFn func(FunctionCall) Value, rxObj *Object, arg
 
 func (r *Runtime) getGlobalRegexpMatches(rxObj *Object, s String, fullUnicode bool) []Value {
 	rxObj.self.setOwnStr("lastIndex", intToValue(0), true)
-	execFn, ok := r.toObject(rxObj.self.getStr("exec", nil)).self.assertCallable()
-	if !ok {
-		panic(r.NewTypeError("exec is not a function"))
-	}
 	var a []Value
 	for {
-		res := r.regExpExec(execFn, rxObj, s)
+		res := regExpExec(rxObj, s)
 		if res == _null {
 			break
 		}
@@ -806,12 +802,7 @@ func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, s String) Value {
 		return r.newArrayValues(ar)
 	}
 
-	execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
-	if !ok {
-		panic(r.NewTypeError("exec is not a function"))
-	}
-
-	return r.regExpExec(execFn, rxObj, s)
+	return regExpExec(rxObj, s)
 }
 
 func (r *Runtime) checkStdRegexp(rxObj *Object) *regexpObject {
@@ -861,12 +852,7 @@ func (r *Runtime) regexpproto_stdSearchGeneric(rxObj *Object, arg String) Value 
 	if !previousLastIndex.SameAs(zero) {
 		rx.setOwnStr("lastIndex", zero, true)
 	}
-	execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
-	if !ok {
-		panic(r.NewTypeError("exec is not a function"))
-	}
-
-	result := r.regExpExec(execFn, rxObj, arg)
+	result := regExpExec(rxObj, arg)
 	currentLastIndex := nilSafe(rx.getStr("lastIndex", nil))
 	if !currentLastIndex.SameAs(previousLastIndex) {
 		rx.setOwnStr("lastIndex", previousLastIndex, true)
