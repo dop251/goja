@@ -906,6 +906,47 @@ func TestRegExpTestCallsExec(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestRegExpReplaceSplitExec(t *testing.T) {
+	const SCRIPT = `
+	const replace = RegExp.prototype[Symbol.replace];
+
+	assert.sameValue(replace.call({exec() { return {0: "a", index: 0, length: 1}; }}, "a", "b"), "b", "exec result");
+	assert.throws(TypeError, () => replace.call({}, "a", "b"), "replace, no exec");
+	assert.throws(TypeError, () => replace.call({exec: 1}, "a", "b"), "replace, exec is not callable");
+
+	let re = /a/;
+	re.exec = undefined;
+	assert.sameValue("bab".replace(re, "X"), "bXb", "replace, own exec is undefined");
+	re = /a/;
+	re.exec = 1;
+	assert.sameValue("bab".replace(re, "X"), "bXb", "replace, own exec is not callable");
+
+	re = /a/;
+	re.constructor = {[Symbol.species]: function() { return {}; }};
+	assert.throws(TypeError, () => "ab".split(re), "split, splitter has no exec");
+	assert.throws(TypeError, () => "".split(re), "split empty string, splitter has no exec");
+
+	class NoExec extends RegExp {
+		constructor(...args) {
+			super(...args);
+			this.exec = undefined;
+		}
+	}
+	assert(compareArray("bab".split(new NoExec("a")), ["b", "b"]), "split, splitter exec is undefined");
+
+	let reads = 0;
+	class CountExec extends RegExp {
+		get exec() {
+			reads++;
+			return RegExp.prototype.exec;
+		}
+	}
+	"bab".split(new CountExec("a"));
+	assert.sameValue(reads, 3, "split, exec is read for each attempt");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestRegExpRepeatCount(t *testing.T) {
 	const SCRIPT = `
 	const re = /^0x[0-9a-fA-F]{0,4096}$/;
