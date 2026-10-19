@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"math/bits"
 	"runtime"
 	"strconv"
 	"strings"
@@ -1796,6 +1797,21 @@ func (_bnot) exec(vm *vm) {
 	vm.pc++
 }
 
+// bigIntShift returns x << n, or x >> -n if n is negative.
+func bigIntShift(x, n *big.Int) *big.Int {
+	k := new(big.Int).Abs(n)
+	if k.BitLen() > bits.UintSize {
+		if n.Sign() > 0 && x.Sign() != 0 {
+			panic(rangeError("Invalid array or string length"))
+		}
+		return new(big.Int).Rsh(x, math.MaxUint)
+	}
+	if n.Sign() < 0 {
+		return new(big.Int).Rsh(x, uint(k.Uint64()))
+	}
+	return new(big.Int).Lsh(x, uint(k.Uint64()))
+}
+
 type _sal struct{}
 
 var sal _sal
@@ -1807,12 +1823,7 @@ func (_sal) exec(vm *vm) {
 
 	if left, ok := left.(*valueBigInt); ok {
 		if right, ok := right.(*valueBigInt); ok {
-			n := uint((*big.Int)(right).Uint64())
-			if (*big.Int)(right).Sign() < 0 {
-				result = (*valueBigInt)(new(big.Int).Rsh((*big.Int)(left), n))
-			} else {
-				result = (*valueBigInt)(new(big.Int).Lsh((*big.Int)(left), n))
-			}
+			result = (*valueBigInt)(bigIntShift((*big.Int)(left), (*big.Int)(right)))
 			goto end
 		}
 		panic(errMixBigIntType)
@@ -1838,12 +1849,7 @@ func (_sar) exec(vm *vm) {
 
 	if left, ok := left.(*valueBigInt); ok {
 		if right, ok := right.(*valueBigInt); ok {
-			n := uint((*big.Int)(right).Uint64())
-			if (*big.Int)(right).Sign() < 0 {
-				result = (*valueBigInt)(new(big.Int).Lsh((*big.Int)(left), n))
-			} else {
-				result = (*valueBigInt)(new(big.Int).Rsh((*big.Int)(left), n))
-			}
+			result = (*valueBigInt)(bigIntShift((*big.Int)(left), new(big.Int).Neg((*big.Int)(right))))
 			goto end
 		}
 		panic(errMixBigIntType)
