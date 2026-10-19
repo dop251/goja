@@ -513,6 +513,26 @@ func TestToSortedSubarray(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestTypedArrayFromPrimitive(t *testing.T) {
+	const SCRIPT = `
+	assert(compareArray(Uint8Array.from("123"), [1, 2, 3]), "string");
+	assert(compareArray(Uint16Array.from("abc", c => c.charCodeAt(0)), [97, 98, 99]), "string, mapFn");
+	assert.sameValue(Uint8Array.from(5).length, 0, "number");
+
+	var receiver;
+	Object.defineProperty(Number.prototype, Symbol.iterator, {
+		value: function() {
+			"use strict";
+			receiver = this;
+			return [7][Symbol.iterator]();
+		}
+	});
+	assert(compareArray(Uint8Array.from(5), [7]), "number, iterator");
+	assert.sameValue(receiver, 5, "iterator receiver");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestArrayBufferTransfer(t *testing.T) {
 	const SCRIPT = `
 var buf = new Uint8Array([1, 2, 3, 4]).buffer;
