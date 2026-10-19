@@ -1047,6 +1047,10 @@ func Test_parseStringLiteral(t *testing.T) {
 		test("'\\001'", "\001")
 		test("'\\0011'", "\0011")
 		test("'\\1abc'", "\001abc")
+		test("'\\47'", "'")
+		test("'\\400'", " 0")
+		test("'\\777'", "?7")
+		test("'\\1777'", "\1777")
 
 		test("'\\\u4e16'", "\u4e16")
 

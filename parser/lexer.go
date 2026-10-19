@@ -662,9 +662,12 @@ func (self *_parser) scanEscape(quote rune) (int, bool) {
 	var length, base uint32
 	chr := self.chr
 	switch chr {
-	case '0', '1', '2', '3', '4', '5', '6', '7':
+	case '0', '1', '2', '3':
 		//    Octal:
 		length, base = 3, 8
+	case '4', '5', '6', '7':
+		//    Octal, at most two digits:
+		length, base = 2, 8
 	case 'a', 'b', 'f', 'n', 'r', 't', 'v', '\\', '"', '\'':
 		self.read()
 		return 1, false
@@ -1094,8 +1097,13 @@ func parseStringLiteral(literal string, length int, unicode, strict bool) (unist
 					return "", "Octal escape sequences are not allowed in this context"
 				}
 				value = rune(chr) - '0'
+				maxDigits := 2
+				if chr >= '4' {
+					// \4 to \7 can only be followed by one more octal digit
+					maxDigits = 1
+				}
 				j := 0
-				for ; j < 2; j++ {
+				for ; j < maxDigits; j++ {
 					if len(str) < j+1 {
 						break
 					}
