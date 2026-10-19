@@ -921,6 +921,22 @@ func TestRegExpReplaceSplitExec(t *testing.T) {
 	re.exec = 1;
 	assert.sameValue("bab".replace(re, "X"), "bXb", "replace, own exec is not callable");
 
+	re = /a/g;
+	re.exec = undefined;
+	assert.sameValue("bab".replace(re, "X"), "bXb", "global replace, own exec is undefined");
+	assert.sameValue("bab".replaceAll(re, "X"), "bXb", "replaceAll, own exec is undefined");
+	assert(compareArray("bab".match(re), ["a"]), "global match, own exec is undefined");
+	re = /a/;
+	re.exec = 1;
+	assert(compareArray("bab".match(re), ["a"]), "match, own exec is not callable");
+	assert.sameValue("bab".search(re), 1, "search, own exec is not callable");
+
+	const match = RegExp.prototype[Symbol.match];
+	const search = RegExp.prototype[Symbol.search];
+	assert.throws(TypeError, () => match.call({flags: ""}, "a"), "match, no exec");
+	assert.throws(TypeError, () => match.call({flags: "g"}, "a"), "global match, no exec");
+	assert.throws(TypeError, () => search.call({}, "a"), "search, no exec");
+
 	re = /a/;
 	re.constructor = {[Symbol.species]: function() { return {}; }};
 	assert.throws(TypeError, () => "ab".split(re), "split, splitter has no exec");
@@ -943,6 +959,12 @@ func TestRegExpReplaceSplitExec(t *testing.T) {
 	}
 	"bab".split(new CountExec("a"));
 	assert.sameValue(reads, 3, "split, exec is read for each attempt");
+	reads = 0;
+	"bab".match(new CountExec("a", "g"));
+	assert.sameValue(reads, 2, "global match, exec is read for each attempt");
+	reads = 0;
+	"bab".replace(new CountExec("a", "g"), "X");
+	assert.sameValue(reads, 2, "global replace, exec is read for each attempt");
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
