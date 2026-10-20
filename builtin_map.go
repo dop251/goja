@@ -56,6 +56,9 @@ func (mo *mapObject) exportType() reflect.Type {
 }
 
 func (mo *mapObject) export(ctx *objectExportCtx) interface{} {
+	if v, exists := ctx.get(mo.val); exists {
+		return v
+	}
 	m := make([][2]interface{}, mo.m.size)
 	ctx.put(mo.val, m)
 
