@@ -88,6 +88,23 @@ assert.sameValue(1n << 1n, 2n, "lsh");
 assert.sameValue(4n << -1n, 2n, "neg lsh");
 assert.sameValue(4n >> 1n, 2n, "rsh");
 assert.sameValue(2n >> -2n, 8n, "neg rsh");
+assert.sameValue(1n >> 2n ** 64n, 0n, "rsh 2^64");
+assert.sameValue(-5n >> 2n ** 64n, -1n, "neg rsh 2^64");
+assert.sameValue(-5n << -(2n ** 64n), -1n, "neg lsh -2^64");
+assert.sameValue(0n << 2n ** 64n, 0n, "zero lsh 2^64");
+assert.throws(RangeError, () => { 1n << 2n ** 64n; }, "lsh 2^64");
+assert.throws(RangeError, () => { 1n << 2n ** 30n; }, "lsh 2^30");
+assert.throws(RangeError, () => { 2n << (2n ** 30n - 1n); }, "lsh past 2^30 bits");
+assert.sameValue(1n >> (2n ** 30n + 1n), 0n, "rsh 2^30+1");
+try {
+	1n << 2n ** 30n;
+} catch (e) {
+	assert.sameValue(e.message, "Maximum BigInt size exceeded", "lsh 2^30 message");
+}
+assert.sameValue(2n ** 64n == false, false, "2^64 == false");
+assert.sameValue(2n ** 64n + 1n == true, false, "2^64+1 == true");
+assert.sameValue(-1n == true, false, "-1 == true");
+assert.sameValue(1n == true, true, "1 == true");
 
 let a = 1n;
 assert.sameValue(++a, 2n, "inc");
