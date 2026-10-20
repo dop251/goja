@@ -193,6 +193,19 @@ func TestDateLegacyMethods(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestDateToGMTString(t *testing.T) {
+	const SCRIPT = `
+	var f = Date.prototype.toUTCString;
+	assert.sameValue(Object.getPrototypeOf(f), Function.prototype, "toUTCString realm");
+	Date.prototype.toUTCString = null;
+	assert.sameValue(Date.prototype.toGMTString, f, "toGMTString");
+	`
+	// Each runtime must get its own function.
+	r1, r2 := New(), New()
+	r1.testScriptWithTestLib(SCRIPT, _undefined, t)
+	r2.testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestDateParse(t *testing.T) {
 	const SCRIPT = `
 	var zero = new Date(0);
