@@ -402,3 +402,17 @@ func TestArrayToSpliced(t *testing.T) {
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func TestArrayIncludesNegativeZero(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue([-0].includes(0), true, "-0 element, +0 searched");
+	assert.sameValue([-0].includes(-0), true, "-0 element, -0 searched");
+	assert.sameValue([-0].includes(1), false, "-0 element, 1 searched");
+	assert.sameValue([NaN].includes(NaN), true, "NaN");
+	assert.sameValue(Array.prototype.includes.call({length: 1, 0: -0}, 0), true, "array-like");
+	assert.sameValue(Array.prototype.includes.call({length: 1, 0: -0}, 1), false, "array-like, 1 searched");
+	var z = -0;
+	assert.sameValue([-z].includes(0), true, "+0 from negating -0");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

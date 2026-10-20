@@ -298,6 +298,34 @@ func TestTypedArraySortComparatorReturnValueNegZero(t *testing.T) {
 	testScript(SCRIPT, _undefined, t)
 }
 
+func TestTypedArraySearchNegativeZero(t *testing.T) {
+	const SCRIPT = `
+	[Float32Array, Float64Array].forEach(function(TA) {
+		const name = TA.name;
+		const a = new TA([-0, 1]);
+		assert.sameValue(a.includes(0), true, name + " includes 0");
+		assert.sameValue(a.includes(-0), true, name + " includes -0");
+		assert.sameValue(a.indexOf(0), 0, name + " indexOf 0");
+		assert.sameValue(a.indexOf(-0), 0, name + " indexOf -0");
+		assert.sameValue(a.lastIndexOf(0), 0, name + " lastIndexOf 0");
+		assert.sameValue(a.lastIndexOf(-0), 0, name + " lastIndexOf -0");
+		assert.sameValue(new TA([-0, 0]).indexOf(0), 0, name + " indexOf first of -0, +0");
+		assert.sameValue(new TA([-0, 0]).lastIndexOf(-0), 1, name + " lastIndexOf last of -0, +0");
+		assert.sameValue(a.includes(2), false, name + " includes 2");
+		assert.sameValue(a.includes(0, 1), false, name + " includes 0 after fromIndex");
+		assert.sameValue(new TA([1, -0]).lastIndexOf(0, 0), -1, name + " lastIndexOf 0 before fromIndex");
+		assert.sameValue(new TA([NaN]).includes(NaN), true, name + " includes NaN");
+		assert.sameValue(new TA([NaN]).indexOf(NaN), -1, name + " indexOf NaN");
+	});
+	const i = new Int8Array([0]);
+	assert.sameValue(i.includes(-0), true, "Int8Array includes -0");
+	assert.sameValue(i.indexOf(-0), 0, "Int8Array indexOf -0");
+	assert.sameValue(i.lastIndexOf(-0), 0, "Int8Array lastIndexOf -0");
+	assert.sameValue(new BigInt64Array([0n]).includes(0n), true, "BigInt64Array includes 0n");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestInt32ArrayNegativeIndex(t *testing.T) {
 	const SCRIPT = `
 	new Int32Array()[-1] === undefined;

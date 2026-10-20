@@ -774,8 +774,12 @@ func (r *Runtime) typedArrayProto_includes(call FunctionCall) Value {
 		}
 		if ta.typedArray.typeMatch(searchElement) {
 			se := ta.typedArray.toRaw(searchElement)
+			nz := se
+			if searchElement == _positiveZero {
+				nz = ta.typedArray.toRaw(_negativeZero)
+			}
 			for k := startIdx; k < ta.length; k++ {
-				if ta.typedArray.getRaw(ta.offset+k) == se {
+				if raw := ta.typedArray.getRaw(ta.offset + k); raw == se || raw == nz {
 					return valueTrue
 				}
 			}
@@ -828,8 +832,12 @@ func (r *Runtime) typedArrayProto_indexOf(call FunctionCall) Value {
 			}
 			if !IsNaN(searchElement) && ta.typedArray.typeMatch(searchElement) {
 				se := ta.typedArray.toRaw(searchElement)
+				nz := se
+				if searchElement == _positiveZero {
+					nz = ta.typedArray.toRaw(_negativeZero)
+				}
 				for k := toIntStrict(n); k < ta.length; k++ {
-					if ta.typedArray.getRaw(ta.offset+k) == se {
+					if raw := ta.typedArray.getRaw(ta.offset + k); raw == se || raw == nz {
 						return intToValue(int64(k))
 					}
 				}
@@ -919,8 +927,12 @@ func (r *Runtime) typedArrayProto_lastIndexOf(call FunctionCall) Value {
 			}
 			if !IsNaN(searchElement) && ta.typedArray.typeMatch(searchElement) {
 				se := ta.typedArray.toRaw(searchElement)
+				nz := se
+				if searchElement == _positiveZero {
+					nz = ta.typedArray.toRaw(_negativeZero)
+				}
 				for k := toIntStrict(fromIndex); k >= 0; k-- {
-					if ta.typedArray.getRaw(ta.offset+k) == se {
+					if raw := ta.typedArray.getRaw(ta.offset + k); raw == se || raw == nz {
 						return intToValue(int64(k))
 					}
 				}
