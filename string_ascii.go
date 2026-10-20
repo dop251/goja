@@ -259,8 +259,12 @@ func (s asciiString) Equals(other Value) bool {
 	}
 
 	if o, ok := other.(valueInt); ok {
-		if o1, e := s._toInt(strings.TrimSpace(string(s))); e == nil {
+		ss := strings.TrimSpace(string(s))
+		if o1, e := s._toInt(ss); e == nil {
 			return o1 == int64(o)
+		}
+		if f, e := s._toFloat(ss); e == nil {
+			return f == float64(o)
 		}
 		return false
 	}

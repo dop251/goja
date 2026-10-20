@@ -373,6 +373,18 @@ func TestStringMaxLen(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestStringEqualsNumericString(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue("1.0" == 1, true, "decimal point");
+	assert.sameValue("1e1" == 10, true, "exponent");
+	assert.sameValue("-0" == 0, true, "negative zero");
+	assert.sameValue(" 1.0 " == 1, true, "surrounding white space");
+	assert.sameValue("1.5" == 1, false, "fraction");
+	assert.sameValue("abc" == 0, false, "NaN");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func BenchmarkASCIIConcat(b *testing.B) {
 	vm := New()
 
