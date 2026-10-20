@@ -192,6 +192,7 @@ type parserState struct {
 	tok                                token.Token
 	literal                            string
 	parsedLiteral                      unistring.String
+	sloppyLiteral                      bool
 	implicitSemicolon, insertSemicolon bool
 	chr                                rune
 	chrOffset, offset                  int
@@ -202,27 +203,27 @@ func (self *_parser) mark(state *parserState) *parserState {
 	if state == nil {
 		state = &parserState{}
 	}
-	state.idx, state.prevTokenEnd, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset =
-		self.idx, self.prevTokenEnd, self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
+	state.idx, state.prevTokenEnd, state.tok, state.literal, state.parsedLiteral, state.sloppyLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset =
+		self.idx, self.prevTokenEnd, self.token, self.literal, self.parsedLiteral, self.sloppyLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
 
 	state.errorCount = len(self.errors)
 	return state
 }
 
 func (self *_parser) restore(state *parserState) {
-	self.idx, self.prevTokenEnd, self.token, self.literal, self.parsedLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset =
-		state.idx, state.prevTokenEnd, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset
+	self.idx, self.prevTokenEnd, self.token, self.literal, self.parsedLiteral, self.sloppyLiteral, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset =
+		state.idx, state.prevTokenEnd, state.tok, state.literal, state.parsedLiteral, state.sloppyLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset
 	self.errors = self.errors[:state.errorCount]
 }
 
 func (self *_parser) peek() token.Token {
 	implicitSemicolon, insertSemicolon, chr, chrOffset, offset := self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
-	tok, _, _, _ := self.scan()
+	tok, _, _, _, _ := self.scan()
 	self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset = implicitSemicolon, insertSemicolon, chr, chrOffset, offset
 	return tok
 }
 
-func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unistring.String, idx file.Idx) {
+func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unistring.String, sloppy bool, idx file.Idx) {
 
 	self.implicitSemicolon = false
 	start := self.chrOffset
@@ -442,7 +443,7 @@ func (self *_parser) scan() (tkn token.Token, literal string, parsedLiteral unis
 				insertSemicolon = true
 				tkn = token.STRING
 				var err string
-				literal, parsedLiteral, err = self.scanString(self.chrOffset-1, true)
+				literal, parsedLiteral, sloppy, err = self.scanString(self.chrOffset-1, true)
 				if err != "" {
 					tkn = token.ILLEGAL
 				}
@@ -662,9 +663,12 @@ func (self *_parser) scanEscape(quote rune) (int, bool) {
 	var length, base uint32
 	chr := self.chr
 	switch chr {
-	case '0', '1', '2', '3', '4', '5', '6', '7':
+	case '0', '1', '2', '3':
 		//    Octal:
 		length, base = 3, 8
+	case '4', '5', '6', '7':
+		//    Octal, at most two digits:
+		length, base = 2, 8
 	case 'a', 'b', 'f', 'n', 'r', 't', 'v', '\\', '"', '\'':
 		self.read()
 		return 1, false
@@ -732,7 +736,7 @@ func (self *_parser) scanEscape(quote rune) (int, bool) {
 	return 1, false
 }
 
-func (self *_parser) scanString(offset int, parse bool) (literal string, parsed unistring.String, err string) {
+func (self *_parser) scanString(offset int, parse bool) (literal string, parsed unistring.String, sloppy bool, err string) {
 	// " ' /
 	quote := rune(self.str[offset])
 	length := 0
@@ -753,6 +757,10 @@ func (self *_parser) scanString(offset int, parse bool) (literal string, parsed 
 				}
 				self.scanNewline()
 			} else {
+				// Legacy octal (\0 followed by a digit, \1 to \7) and \8, \9 escapes are not allowed in strict mode
+				if isDecimalDigit(self.chr) && (self.chr != '0' || isDecimalDigit(self._peek())) {
+					sloppy = true
+				}
 				l, u := self.scanEscape(quote)
 				length += l
 				if u {
@@ -792,7 +800,7 @@ newline:
 		errStr = "Invalid regular expression: missing /"
 		self.error(self.idxOf(offset), errStr)
 	}
-	return "", "", errStr
+	return "", "", false, errStr
 }
 
 func (self *_parser) scanNewline() {
@@ -1094,8 +1102,13 @@ func parseStringLiteral(literal string, length int, unicode, strict bool) (unist
 					return "", "Octal escape sequences are not allowed in this context"
 				}
 				value = rune(chr) - '0'
+				maxDigits := 2
+				if chr >= '4' {
+					// \4 to \7 can only be followed by one more octal digit
+					maxDigits = 1
+				}
 				j := 0
-				for ; j < 2; j++ {
+				for ; j < maxDigits; j++ {
 					if len(str) < j+1 {
 						break
 					}

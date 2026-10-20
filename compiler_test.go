@@ -2828,6 +2828,34 @@ func TestStrictDestructuringAssignArguments(t *testing.T) {
 	}
 }
 
+func TestStrictStringOctalEscapes(t *testing.T) {
+	for _, lit := range []string{`'\1'`, `'\7'`, `'\00'`, `'\08'`, `'\8'`, `'\9'`, `'a\\\1'`} {
+		_, err := Compile("", "'use strict'; "+lit, false)
+		if _, ok := err.(*CompilerSyntaxError); !ok {
+			t.Errorf("%s: expected syntax error, got %v", lit, err)
+		}
+		if _, err := Compile("", lit, false); err != nil {
+			t.Errorf("%s: unexpected error in non-strict mode: %v", lit, err)
+		}
+	}
+	for _, src := range []string{
+		`function f() { '\1'; 'use strict'; }`,
+		`'use strict'; ({'\1': 0})`,
+		`class C { '\1'() {} }`,
+	} {
+		_, err := Compile("", src, false)
+		if _, ok := err.(*CompilerSyntaxError); !ok {
+			t.Errorf("%s: expected syntax error, got %v", src, err)
+		}
+	}
+
+	const SCRIPT = `
+	'use strict';
+	'\0' + 'a\0b' + '\\1';
+	`
+	testScript(SCRIPT, asciiString("\x00a\x00b\\1"), t)
+}
+
 func TestReturnUndefined(t *testing.T) {
 	const SCRIPT = `
 	function f() {

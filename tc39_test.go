@@ -117,10 +117,6 @@ var (
 		"test/language/expressions/class/elements/after-same-line-gen-rs-static-async-generator-method-privatename-identifier.js":                     true,
 		"test/language/expressions/class/elements/after-same-line-gen-rs-static-async-generator-method-privatename-identifier-alt.js":                 true,
 
-		// legacy number literals
-		"test/language/literals/string/S7.8.4_A4.3_T2.js": true,
-		"test/language/literals/string/S7.8.4_A4.3_T1.js": true,
-
 		// unicode full case folding
 		"test/built-ins/RegExp/unicode_full_case_folding.js": true,
 
@@ -291,10 +287,6 @@ func init() {
 
 		// restricted unicode regexp syntax
 		"test/language/literals/regexp/u-",
-
-		// legacy octal escape in strings in strict mode
-		"test/language/literals/string/legacy-octal-",
-		"test/language/literals/string/legacy-non-octal-",
 
 		// modules
 		"test/language/export/",

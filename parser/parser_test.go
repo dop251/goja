@@ -1000,7 +1000,7 @@ func Test_parseStringLiteral(t *testing.T) {
 			parser := newParser("", have)
 			parser.read()
 			parser.read()
-			_, res, err := parser.scanString(0, true)
+			_, res, _, err := parser.scanString(0, true)
 			is(err, "")
 			is(res, want)
 		}
@@ -1047,6 +1047,10 @@ func Test_parseStringLiteral(t *testing.T) {
 		test("'\\001'", "\001")
 		test("'\\0011'", "\0011")
 		test("'\\1abc'", "\001abc")
+		test("'\\47'", "'")
+		test("'\\400'", " 0")
+		test("'\\777'", "?7")
+		test("'\\1777'", "\1777")
 
 		test("'\\\u4e16'", "\u4e16")
 
@@ -1055,7 +1059,7 @@ func Test_parseStringLiteral(t *testing.T) {
 			parser := newParser("", have)
 			parser.read()
 			parser.read()
-			_, res, err := parser.scanString(0, true)
+			_, res, _, err := parser.scanString(0, true)
 			is(err, want)
 			is(res, "")
 		}
@@ -1068,6 +1072,43 @@ func Test_parseStringLiteral(t *testing.T) {
 		test(`"\x"`, `invalid escape: \x: len("") != 2`)
 		test(`"\x0"`, `invalid escape: \x: len("0") != 2`)
 	})
+}
+
+func TestParseStringLiteralSloppy(t *testing.T) {
+	for _, tc := range []struct {
+		src    string
+		sloppy bool
+	}{
+		{`'abc'`, false},
+		{`'\0'`, false},
+		{`'\0a'`, false},
+		{`'\\1'`, false},
+		{`'\x31\u0031\n'`, false},
+		{"'\\\n1'", false},
+		{`'\1'`, true},
+		{`'\7'`, true},
+		{`'\00'`, true},
+		{`'\08'`, true},
+		{`'\8'`, true},
+		{`'\9'`, true},
+		{`'a\\\1'`, true},
+		{`({'\1': 0})`, true},
+	} {
+		prg, err := ParseFile(nil, "", tc.src, 0)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.src, err)
+		}
+		var lit *ast.StringLiteral
+		switch expr := prg.Body[0].(*ast.ExpressionStatement).Expression.(type) {
+		case *ast.StringLiteral:
+			lit = expr
+		case *ast.ObjectLiteral:
+			lit = expr.Value[0].(*ast.PropertyKeyed).Key.(*ast.StringLiteral)
+		}
+		if lit.Sloppy != tc.sloppy {
+			t.Errorf("%s: Sloppy = %v, want %v", tc.src, lit.Sloppy, tc.sloppy)
+		}
+	}
 }
 
 func Test_parseNumberLiteral(t *testing.T) {

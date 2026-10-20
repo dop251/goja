@@ -3200,6 +3200,9 @@ func (c *compiler) compileNumberLiteral(v *ast.NumberLiteral) compiledExpr {
 }
 
 func (c *compiler) compileStringLiteral(v *ast.StringLiteral) compiledExpr {
+	if v.Sloppy && c.scope.strict {
+		c.throwSyntaxError(int(v.Idx)-1, "Octal escape sequences are not allowed in strict mode")
+	}
 	r := &compiledLiteral{
 		val: stringValueFromRaw(v.Value),
 	}
