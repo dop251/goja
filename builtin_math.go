@@ -245,7 +245,7 @@ func (r *Runtime) math_sign(call FunctionCall) Value {
 	arg := call.Argument(0)
 	num := arg.ToFloat()
 	if math.IsNaN(num) || num == 0 { // this will match -0 too
-		return arg
+		return floatToValue(num)
 	}
 	if num > 0 {
 		return intToValue(1)
