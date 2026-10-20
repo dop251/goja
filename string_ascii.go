@@ -123,6 +123,10 @@ func isRangeErr(err error) bool {
 }
 
 func (s asciiString) _toFloat(trimmed string) (float64, error) {
+	return stringToFloat(trimmed)
+}
+
+func stringToFloat(trimmed string) (float64, error) {
 	if trimmed == "" {
 		return 0, nil
 	}
@@ -164,7 +168,10 @@ func (s asciiString) _toFloat(trimmed string) (float64, error) {
 }
 
 func (s asciiString) ToInteger() int64 {
-	ss := strings.TrimSpace(string(s))
+	return trimmedToInteger(strings.TrimSpace(string(s)))
+}
+
+func trimmedToInteger(ss string) int64 {
 	if ss == "" {
 		return 0
 	}
@@ -174,9 +181,9 @@ func (s asciiString) ToInteger() int64 {
 	if ss == "-Infinity" {
 		return math.MinInt64
 	}
-	i, err := s._toInt(ss)
+	i, err := stringToInt(ss)
 	if err != nil {
-		f, err := s._toFloat(ss)
+		f, err := stringToFloat(ss)
 		if err == nil {
 			return int64(f)
 		}
@@ -197,7 +204,10 @@ func (s asciiString) String() string {
 }
 
 func (s asciiString) ToFloat() float64 {
-	ss := strings.TrimSpace(string(s))
+	return trimmedToFloat(strings.TrimSpace(string(s)))
+}
+
+func trimmedToFloat(ss string) float64 {
 	if ss == "" {
 		return 0
 	}
@@ -207,9 +217,9 @@ func (s asciiString) ToFloat() float64 {
 	if ss == "-Infinity" {
 		return math.Inf(-1)
 	}
-	f, err := s._toFloat(ss)
+	f, err := stringToFloat(ss)
 	if err != nil {
-		i, err := s._toInt(ss)
+		i, err := stringToInt(ss)
 		if err == nil {
 			return float64(i)
 		}
