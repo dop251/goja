@@ -321,6 +321,24 @@ func TestStringSplit(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestStringFromCodePoint(t *testing.T) {
+	const SCRIPT = `
+var one = (function() { var x = -0; x++; return x; })();
+
+assert.sameValue(String.fromCodePoint(-0), "\0", "-0");
+assert.sameValue(String.fromCodePoint("-0"), "\0", "string -0");
+assert.sameValue(String.fromCodePoint(one), "\x01", "float 1");
+assert.sameValue(String.fromCodePoint(0x10FFFF), "\uDBFF\uDFFF", "0x10FFFF");
+
+assert.throws(RangeError, () => { String.fromCodePoint(-1); }, "-1");
+assert.throws(RangeError, () => { String.fromCodePoint(0.5); }, "0.5");
+assert.throws(RangeError, () => { String.fromCodePoint(-0.5); }, "-0.5");
+assert.throws(RangeError, () => { String.fromCodePoint(0x110000); }, "0x110000");
+assert.throws(RangeError, () => { String.fromCodePoint(NaN); }, "NaN");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestStringWellFormed(t *testing.T) {
 	const SCRIPT = `
 var lo = '\uD834';
