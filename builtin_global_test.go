@@ -19,3 +19,15 @@ func TestDecodeURI(t *testing.T) {
 
 	testScript(SCRIPT, newStringValue("http://ru.wikipedia.org/wiki/Юникод"), t)
 }
+
+func TestParseIntNegativeZero(t *testing.T) {
+	const SCRIPT = `
+assert.sameValue(parseInt("-0"), -0, "-0");
+assert.sameValue(parseInt(-0.5), -0, "-0.5");
+
+assert.sameValue(parseInt("+0"), 0, "+0");
+assert.sameValue(parseInt("-1"), -1, "-1");
+assert.sameValue(parseInt("-x"), NaN, "-x");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
