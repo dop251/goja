@@ -133,11 +133,20 @@ func (r *Runtime) string_fromcodepoint(call FunctionCall) Value {
 	var sb StringBuilder
 	for _, arg := range call.Arguments {
 		num := arg.ToNumber()
-		numInt := num.ToInteger()
-		if float64(numInt) != num.ToFloat() || numInt < 0 || numInt > utf8.MaxRune {
-			panic(r.newErrorf(r.getRangeError(), "Invalid code point %s", num))
+		var c rune
+		if numInt, ok := num.(valueInt); ok {
+			if numInt < 0 || numInt > utf8.MaxRune {
+				panic(r.newErrorf(r.getRangeError(), "Invalid code point %d", numInt))
+			}
+			c = rune(numInt)
+		} else {
+			f := num.ToFloat()
+			if f != math.Trunc(f) || f < 0 || f > utf8.MaxRune {
+				panic(r.newErrorf(r.getRangeError(), "Invalid code point %s", num))
+			}
+			c = rune(f)
 		}
-		sb.WriteRune(rune(numInt))
+		sb.WriteRune(c)
 	}
 	return sb.String()
 }

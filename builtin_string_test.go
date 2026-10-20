@@ -335,6 +335,8 @@ assert.throws(RangeError, () => { String.fromCodePoint(0.5); }, "0.5");
 assert.throws(RangeError, () => { String.fromCodePoint(-0.5); }, "-0.5");
 assert.throws(RangeError, () => { String.fromCodePoint(0x110000); }, "0x110000");
 assert.throws(RangeError, () => { String.fromCodePoint(NaN); }, "NaN");
+assert.throws(RangeError, () => { String.fromCodePoint(Infinity); }, "Infinity");
+assert.throws(RangeError, () => { String.fromCodePoint(-Infinity); }, "-Infinity");
 `
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
