@@ -140,7 +140,11 @@ func (r *Runtime) string_fromcodepoint(call FunctionCall) Value {
 			}
 			c = rune(numInt)
 		} else {
-			panic(r.newErrorf(r.getRangeError(), "Invalid code point %s", num))
+			f := num.ToFloat()
+			if f != math.Trunc(f) || f < 0 || f > utf8.MaxRune {
+				panic(r.newErrorf(r.getRangeError(), "Invalid code point %s", num))
+			}
+			c = rune(f)
 		}
 		sb.WriteRune(c)
 	}
