@@ -18,6 +18,9 @@ import (
 const (
 	maxInt = 1 << 53
 
+	// maxBigIntBits is the largest BigInt size in bits, as in node. Only bigIntShift checks it.
+	maxBigIntBits = 1 << 30
+
 	tryPanicMarker = -2
 )
 
@@ -1797,13 +1800,15 @@ func (_bnot) exec(vm *vm) {
 	vm.pc++
 }
 
-// bigIntShift returns x << n, or x >> -n if n is negative.
+// bigIntShift returns x << n, or x >> -n if n is negative. It panics with a
+// RangeError if the result of a left shift has more than maxBigIntBits bits.
 func bigIntShift(x, n *big.Int) *big.Int {
 	k := new(big.Int).Abs(n)
+	// x << n has x.BitLen()+n bits.
+	if n.Sign() > 0 && x.Sign() != 0 && (!k.IsInt64() || k.Int64() > maxBigIntBits-int64(x.BitLen())) {
+		panic(rangeError("Maximum BigInt size exceeded"))
+	}
 	if k.BitLen() > bits.UintSize {
-		if n.Sign() > 0 && x.Sign() != 0 {
-			panic(rangeError("Invalid array or string length"))
-		}
 		return new(big.Int).Rsh(x, math.MaxUint)
 	}
 	if n.Sign() < 0 {
