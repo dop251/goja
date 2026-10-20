@@ -3200,8 +3200,9 @@ func (c *compiler) compileNumberLiteral(v *ast.NumberLiteral) compiledExpr {
 }
 
 // Legacy octal (\1 to \7, \0 followed by a digit) and non-octal decimal (\8, \9) escape sequences
-// are not allowed in strict mode code.
-func (c *compiler) checkStrictStringEscapes(v *ast.StringLiteral) {
+// are not allowed in strict mode code. The parser flags string literals that contain them as Sloppy,
+// so this only runs to find the first one for the error message.
+func (c *compiler) throwStrictStringEscapeError(v *ast.StringLiteral) {
 	lit := v.Literal
 	for i := 0; i < len(lit)-1; i++ {
 		if lit[i] != '\\' {
@@ -3216,11 +3217,12 @@ func (c *compiler) checkStrictStringEscapes(v *ast.StringLiteral) {
 			c.throwSyntaxError(offset, "Octal escape sequences are not allowed in strict mode")
 		}
 	}
+	c.throwSyntaxError(int(v.Idx)-1, "Octal escape sequences are not allowed in strict mode")
 }
 
 func (c *compiler) compileStringLiteral(v *ast.StringLiteral) compiledExpr {
-	if c.scope.strict {
-		c.checkStrictStringEscapes(v)
+	if v.Sloppy && c.scope.strict {
+		c.throwStrictStringEscapeError(v)
 	}
 	r := &compiledLiteral{
 		val: stringValueFromRaw(v.Value),
