@@ -366,7 +366,8 @@ func TestParserAST(t *testing.T) {
             "Key": {
                "Idx": 7,
                "Literal": "abc",
-               "Value": "abc"
+               "Value": "abc",
+               "Sloppy": false
             },
 			"Value": {
               "Literal": true
@@ -603,7 +604,8 @@ func TestParserAST(t *testing.T) {
 		"Key": {
 		   "Idx": 77,
 		   "Literal": "abc",
-		   "Value": "abc"
+		   "Value": "abc",
+		   "Sloppy": false
 		},
 		"Value": {
           "Literal": "'def'"
@@ -649,7 +651,8 @@ func TestParserAST(t *testing.T) {
 		"Key": {
 		   "Idx": 8,
 		   "Literal": "abc",
-		   "Value": "abc"
+		   "Value": "abc",
+		   "Sloppy": false
 		},
         "Value": {
           "Function": {
@@ -863,7 +866,8 @@ func TestParserAST(t *testing.T) {
 			"Key": {
 			   "Idx": 21,
                "Literal": "'\"'",
-               "Value": "\""
+               "Value": "\"",
+               "Sloppy": false
             },
             "Value": {
               "Literal": "\"'\""
@@ -873,7 +877,8 @@ func TestParserAST(t *testing.T) {
 			"Key": {
 			   "Idx": 43,
 			   "Literal": "\"'\"",
-			   "Value": "'"
+			   "Value": "'",
+			   "Sloppy": false
 			},
             "Value": {
               "Literal": "'\"'"

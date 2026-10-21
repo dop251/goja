@@ -52,11 +52,13 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 			Value:   value,
 		}
 	case token.STRING:
+		sloppy := self.sloppyLiteral
 		self.next()
 		return &ast.StringLiteral{
 			Idx:     idx,
 			Literal: literal,
 			Value:   parsedLiteral,
+			Sloppy:  sloppy,
 		}
 	case token.NUMBER:
 		self.next()
@@ -226,7 +228,7 @@ func (self *_parser) parseRegExpLiteral() *ast.RegExpLiteral {
 	}
 	idx := self.idxOf(offset)
 
-	pattern, _, err := self.scanString(offset, false)
+	pattern, _, _, err := self.scanString(offset, false)
 	endOffset := self.chrOffset
 
 	if err == "" {
@@ -349,7 +351,7 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String, ast.Exp
 		self.expect(token.RIGHT_BRACKET)
 		return "", "", expr, token.ILLEGAL
 	}
-	idx, tkn, literal, parsedLiteral := self.idx, self.token, self.literal, self.parsedLiteral
+	idx, tkn, literal, parsedLiteral, sloppy := self.idx, self.token, self.literal, self.parsedLiteral, self.sloppyLiteral
 	var value ast.Expression
 	self.next()
 	switch tkn {
@@ -358,6 +360,7 @@ func (self *_parser) parseObjectPropertyKey() (string, unistring.String, ast.Exp
 			Idx:     idx,
 			Literal: literal,
 			Value:   parsedLiteral,
+			Sloppy:  sloppy,
 		}
 	case token.NUMBER:
 		num, err := parseNumberLiteral(literal)

@@ -650,7 +650,17 @@ func (r *Runtime) arrayproto_includes(call FunctionCall) Value {
 		searchElement = _positiveZero
 	}
 
+	zero := searchElement == _positiveZero
+
 	if arr := r.checkStdArrayObj(o); arr != nil {
+		if zero {
+			for _, val := range arr.values[n:] {
+				if searchElement.StrictEquals(val) {
+					return valueTrue
+				}
+			}
+			return valueFalse
+		}
 		for _, val := range arr.values[n:] {
 			if searchElement.SameAs(val) {
 				return valueTrue
@@ -662,7 +672,7 @@ func (r *Runtime) arrayproto_includes(call FunctionCall) Value {
 	for ; n < length; n++ {
 		idx := valueInt(n)
 		val := nilSafe(o.self.getIdx(idx, nil))
-		if searchElement.SameAs(val) {
+		if searchElement.SameAs(val) || zero && searchElement.StrictEquals(val) {
 			return valueTrue
 		}
 	}
@@ -1515,6 +1525,9 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		if ctor != nil {
 			arr = ctor([]Value{intToValue(l)}, nil)
 		} else {
+			if l > math.MaxUint32 {
+				panic(r.newError(r.getRangeError(), "Invalid array length"))
+			}
 			arr = r.newArrayValues(nil)
 		}
 		if mapFn == nil {

@@ -485,15 +485,19 @@ func (r *Runtime) regexpproto_exec(call FunctionCall) Value {
 }
 
 func (r *Runtime) regexpproto_test(call FunctionCall) Value {
-	if this, ok := r.toObject(call.This).self.(*regexpObject); ok {
-		if this.test(call.Argument(0).toString()) {
+	thisObj := r.toObject(call.This)
+	s := call.Argument(0).toString()
+	if this := r.checkStdRegexp(thisObj); this != nil {
+		if this.test(s) {
 			return valueTrue
 		} else {
 			return valueFalse
 		}
-	} else {
-		panic(r.NewTypeError("Method RegExp.prototype.test called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 	}
+	if regExpExec(thisObj, s) == _null {
+		return valueFalse
+	}
+	return valueTrue
 }
 
 func (r *Runtime) regexpproto_toString(call FunctionCall) Value {
@@ -763,13 +767,9 @@ func (r *Runtime) regExpExec(execFn func(FunctionCall) Value, rxObj *Object, arg
 
 func (r *Runtime) getGlobalRegexpMatches(rxObj *Object, s String, fullUnicode bool) []Value {
 	rxObj.self.setOwnStr("lastIndex", intToValue(0), true)
-	execFn, ok := r.toObject(rxObj.self.getStr("exec", nil)).self.assertCallable()
-	if !ok {
-		panic(r.NewTypeError("exec is not a function"))
-	}
 	var a []Value
 	for {
-		res := r.regExpExec(execFn, rxObj, s)
+		res := regExpExec(rxObj, s)
 		if res == _null {
 			break
 		}
@@ -802,12 +802,7 @@ func (r *Runtime) regexpproto_stdMatcherGeneric(rxObj *Object, s String) Value {
 		return r.newArrayValues(ar)
 	}
 
-	execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
-	if !ok {
-		panic(r.NewTypeError("exec is not a function"))
-	}
-
-	return r.regExpExec(execFn, rxObj, s)
+	return regExpExec(rxObj, s)
 }
 
 func (r *Runtime) checkStdRegexp(rxObj *Object) *regexpObject {
@@ -857,12 +852,7 @@ func (r *Runtime) regexpproto_stdSearchGeneric(rxObj *Object, arg String) Value 
 	if !previousLastIndex.SameAs(zero) {
 		rx.setOwnStr("lastIndex", zero, true)
 	}
-	execFn, ok := r.toObject(rx.getStr("exec", nil)).self.assertCallable()
-	if !ok {
-		panic(r.NewTypeError("exec is not a function"))
-	}
-
-	result := r.regExpExec(execFn, rxObj, arg)
+	result := regExpExec(rxObj, arg)
 	currentLastIndex := nilSafe(rx.getStr("lastIndex", nil))
 	if !currentLastIndex.SameAs(previousLastIndex) {
 		rx.setOwnStr("lastIndex", previousLastIndex, true)
@@ -989,10 +979,9 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s String, lim
 	}
 	size := s.Length()
 	p := 0
-	execFn := toMethod(splitter.ToObject(r).self.getStr("exec", nil)) // must be non-nil
 
 	if size == 0 {
-		if r.regExpExec(execFn, splitter, s) == _null {
+		if regExpExec(splitter, s) == _null {
 			a = append(a, s)
 		}
 		return r.newArrayValues(a)
@@ -1001,7 +990,7 @@ func (r *Runtime) regexpproto_stdSplitterGeneric(splitter *Object, s String, lim
 	q := p
 	for q < size {
 		splitter.self.setOwnStr("lastIndex", intToValue(int64(q)), true)
-		z := r.regExpExec(execFn, splitter, s)
+		z := regExpExec(splitter, s)
 		if z == _null {
 			q = advanceStringIndex(s, q, unicodeMatching)
 		} else {
@@ -1175,8 +1164,7 @@ func (r *Runtime) regexpproto_stdReplacerGeneric(rxObj *Object, s, replaceStr St
 	if isGlobal {
 		results = r.getGlobalRegexpMatches(rxObj, s, isUnicode)
 	} else {
-		execFn := toMethod(rxObj.self.getStr("exec", nil)) // must be non-nil
-		result := r.regExpExec(execFn, rxObj, s)
+		result := regExpExec(rxObj, s)
 		if result != _null {
 			results = append(results, result)
 		}

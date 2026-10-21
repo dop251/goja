@@ -524,6 +524,9 @@ func parseInt(s string, base int) (Value, error) {
 	}
 
 	if sign {
+		if n == 0 {
+			return _negativeZero, nil
+		}
 		n = -n
 	}
 	return intToValue(n), nil

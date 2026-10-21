@@ -44,6 +44,15 @@ func (v *valueBigInt) ToNumber() Value {
 	panic(typeError("Cannot convert a BigInt value to a number"))
 }
 
+// numberValue returns the Number value nearest to v, rounding ties to even.
+func (v *valueBigInt) numberValue() Value {
+	if i := (*big.Int)(v); i.IsInt64() {
+		return intToValue(i.Int64())
+	}
+	f, _ := (*big.Int)(v).Float64()
+	return floatToValue(f)
+}
+
 func (v *valueBigInt) ToBoolean() bool {
 	return (*big.Int)(v).Sign() != 0
 }
@@ -81,7 +90,7 @@ func (v *valueBigInt) Equals(other Value) bool {
 		}
 		return bigInt.Cmp((*big.Int)(v)) == 0
 	case valueBool:
-		return (*big.Int)(v).Int64() == o.ToInteger()
+		return (*big.Int)(v).Cmp(big.NewInt(o.ToInteger())) == 0
 	case *Object:
 		return v.Equals(o.toPrimitiveNumber())
 	}

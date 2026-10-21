@@ -276,6 +276,18 @@ func (r *Runtime) dateproto_getUTCFullYear(call FunctionCall) Value {
 	panic(r.NewTypeError("Method Date.prototype.getUTCFullYear is called on incompatible receiver"))
 }
 
+func (r *Runtime) dateproto_getYear(call FunctionCall) Value {
+	obj := r.toObject(call.This)
+	if d, ok := obj.self.(*dateObject); ok {
+		if d.isSet() {
+			return intToValue(int64(d.time().Year()) - 1900)
+		} else {
+			return _NaN
+		}
+	}
+	panic(r.NewTypeError("Method Date.prototype.getYear is called on incompatible receiver"))
+}
+
 func (r *Runtime) dateproto_getMonth(call FunctionCall) Value {
 	obj := r.toObject(call.This)
 	if d, ok := obj.self.(*dateObject); ok {
@@ -933,6 +945,25 @@ func (r *Runtime) dateproto_setUTCFullYear(call FunctionCall) Value {
 	panic(r.NewTypeError("Method Date.prototype.setUTCFullYear is called on incompatible receiver"))
 }
 
+func (r *Runtime) dateproto_setYear(call FunctionCall) Value {
+	obj := r.toObject(call.This)
+	if d, ok := obj.self.(*dateObject); ok {
+		var t time.Time
+		if d.isSet() {
+			t = d.time()
+		} else {
+			t = time.Date(1970, time.January, 1, 0, 0, 0, 0, time.Local)
+		}
+		t, ok := _dateSetYear(t, limitCallArgs(call, 1), 0, false)
+		if !ok {
+			d.unset()
+			return _NaN
+		}
+		return d.setTime(t)
+	}
+	panic(r.NewTypeError("Method Date.prototype.setYear is called on incompatible receiver"))
+}
+
 var dateTemplate *objectTemplate
 var dateTemplateOnce sync.Once
 
@@ -1020,15 +1051,29 @@ func createDateProtoTemplate() *objectTemplate {
 	t.putStr("setUTCMonth", func(r *Runtime) Value { return r.methodProp(r.dateproto_setUTCMonth, "setUTCMonth", 2) })
 	t.putStr("setFullYear", func(r *Runtime) Value { return r.methodProp(r.dateproto_setFullYear, "setFullYear", 3) })
 	t.putStr("setUTCFullYear", func(r *Runtime) Value { return r.methodProp(r.dateproto_setUTCFullYear, "setUTCFullYear", 3) })
-	t.putStr("toUTCString", func(r *Runtime) Value { return r.methodProp(r.dateproto_toUTCString, "toUTCString", 0) })
+	t.putStr("toUTCString", func(r *Runtime) Value { return valueProp(r.getDateproto_toUTCString(), true, false, true) })
 	t.putStr("toISOString", func(r *Runtime) Value { return r.methodProp(r.dateproto_toISOString, "toISOString", 0) })
 	t.putStr("toJSON", func(r *Runtime) Value { return r.methodProp(r.dateproto_toJSON, "toJSON", 1) })
+
+	// Annex B
+	t.putStr("getYear", func(r *Runtime) Value { return r.methodProp(r.dateproto_getYear, "getYear", 0) })
+	t.putStr("setYear", func(r *Runtime) Value { return r.methodProp(r.dateproto_setYear, "setYear", 1) })
+	t.putStr("toGMTString", func(r *Runtime) Value { return valueProp(r.getDateproto_toUTCString(), true, false, true) })
 
 	t.putSym(SymToPrimitive, func(r *Runtime) Value {
 		return valueProp(r.newNativeFunc(r.dateproto_toPrimitive, "[Symbol.toPrimitive]", 1), false, false, true)
 	})
 
 	return t
+}
+
+func (r *Runtime) getDateproto_toUTCString() *Object {
+	ret := r.global.dateproto_toUTCString
+	if ret == nil {
+		ret = r.newNativeFunc(r.dateproto_toUTCString, "toUTCString", 0)
+		r.global.dateproto_toUTCString = ret
+	}
+	return ret
 }
 
 var dateProtoTemplate *objectTemplate

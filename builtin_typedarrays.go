@@ -561,6 +561,18 @@ func (r *Runtime) typedArrayProto_fill(call FunctionCall) Value {
 	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
 		ta.viewedArrayBuf.ensureNotDetached(true)
 		l := int64(ta.length)
+		// Per the spec, the fill value is converted before the start and end index
+		// coercion. The converted value is always a primitive (Number or BigInt),
+		// so converting it further to the element type inside the fill()
+		// implementation cannot have side effects (and thus cannot detach the
+		// buffer in the middle of the fill).
+		var value Value
+		switch ta.typedArray.(type) {
+		case *bigInt64Array, *bigUint64Array:
+			value = toBigInt(call.Argument(0))
+		default:
+			value = call.Argument(0).ToNumber()
+		}
 		k := toIntStrict(relToIdx(call.Argument(1).ToInteger(), l))
 		var relEnd int64
 		if endArg := call.Argument(2); endArg != _undefined {
@@ -569,10 +581,9 @@ func (r *Runtime) typedArrayProto_fill(call FunctionCall) Value {
 			relEnd = l
 		}
 		final := toIntStrict(relToIdx(relEnd, l))
-		value := ta.typedArray.toRaw(call.Argument(0))
 		ta.viewedArrayBuf.ensureNotDetached(true)
-		for ; k < final; k++ {
-			ta.typedArray.setRaw(ta.offset+k, value)
+		if length := final - k; length > 0 {
+			ta.typedArray.fill(value, ta.offset+k, length)
 		}
 		return call.This
 	}
@@ -762,9 +773,6 @@ func (r *Runtime) typedArrayProto_includes(call FunctionCall) Value {
 		}
 
 		searchElement := call.Argument(0)
-		if searchElement == _negativeZero {
-			searchElement = _positiveZero
-		}
 		startIdx := toIntStrict(n)
 		if !ta.viewedArrayBuf.ensureNotDetached(false) {
 			if searchElement == _undefined && startIdx < ta.length {
@@ -772,15 +780,7 @@ func (r *Runtime) typedArrayProto_includes(call FunctionCall) Value {
 			}
 			return valueFalse
 		}
-		if ta.typedArray.typeMatch(searchElement) {
-			se := ta.typedArray.toRaw(searchElement)
-			for k := startIdx; k < ta.length; k++ {
-				if ta.typedArray.getRaw(ta.offset+k) == se {
-					return valueTrue
-				}
-			}
-		}
-		return valueFalse
+		return r.toBoolean(ta.typedArray.includes(searchElement, ta.offset+startIdx, ta.length-startIdx))
 	}
 	panic(r.NewTypeError("Method TypedArray.prototype.includes called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 }
@@ -822,17 +822,9 @@ func (r *Runtime) typedArrayProto_indexOf(call FunctionCall) Value {
 		}
 
 		if ta.viewedArrayBuf.ensureNotDetached(false) {
-			searchElement := call.Argument(0)
-			if searchElement == _negativeZero {
-				searchElement = _positiveZero
-			}
-			if !IsNaN(searchElement) && ta.typedArray.typeMatch(searchElement) {
-				se := ta.typedArray.toRaw(searchElement)
-				for k := toIntStrict(n); k < ta.length; k++ {
-					if ta.typedArray.getRaw(ta.offset+k) == se {
-						return intToValue(int64(k))
-					}
-				}
+			start := toIntStrict(n)
+			if idx := ta.typedArray.indexOf(call.Argument(0), ta.offset+start, ta.length-start); idx >= 0 {
+				return intToValue(int64(start + idx))
 			}
 		}
 		return intToValue(-1)
@@ -913,17 +905,9 @@ func (r *Runtime) typedArrayProto_lastIndexOf(call FunctionCall) Value {
 		}
 
 		if ta.viewedArrayBuf.ensureNotDetached(false) {
-			searchElement := call.Argument(0)
-			if searchElement == _negativeZero {
-				searchElement = _positiveZero
-			}
-			if !IsNaN(searchElement) && ta.typedArray.typeMatch(searchElement) {
-				se := ta.typedArray.toRaw(searchElement)
-				for k := toIntStrict(fromIndex); k >= 0; k-- {
-					if ta.typedArray.getRaw(ta.offset+k) == se {
-						return intToValue(int64(k))
-					}
-				}
+			// Search the [0, fromIndex] range backwards.
+			if idx := ta.typedArray.lastIndexOf(call.Argument(0), ta.offset, toIntStrict(fromIndex)+1); idx >= 0 {
+				return intToValue(int64(idx))
 			}
 		}
 
@@ -1364,10 +1348,10 @@ func (r *Runtime) typedArray_from(call FunctionCall) Value {
 	if mapFn := call.Argument(1); mapFn != _undefined {
 		mapFc = r.toCallable(mapFn)
 	}
-	source := r.toObject(call.Argument(0))
-	usingIter := toMethod(source.self.getSym(SymIterator, nil))
+	items := call.Argument(0)
+	usingIter := toMethod(r.getV(items, SymIterator))
 	if usingIter != nil {
-		values := r.iterableToList(source, usingIter)
+		values := r.iterableToList(items, usingIter)
 		ta := r.typedArrayCreate(c, intToValue(int64(len(values))))
 		if mapFc == nil {
 			for idx, val := range values {
@@ -1386,6 +1370,7 @@ func (r *Runtime) typedArray_from(call FunctionCall) Value {
 		}
 		return ta.val
 	}
+	source := items.ToObject(r)
 	length := toIntStrict(toLength(source.self.getStr("length", nil)))
 	ta := r.typedArrayCreate(c, intToValue(int64(length)))
 	if mapFc == nil {

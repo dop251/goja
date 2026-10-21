@@ -91,6 +91,7 @@ type _parser struct {
 	token         token.Token // The token
 	literal       string      // The literal of the token, if any
 	parsedLiteral unistring.String
+	sloppyLiteral bool // The string literal token has a legacy octal or \8, \9 escape sequence
 
 	scope             *_scope
 	insertSemicolon   bool // If we see a newline, then insert an implicit semicolon
@@ -234,7 +235,7 @@ func (self *_parser) enterNesting() {
 func (self *_parser) nestingExceeded() {
 	self.error(self.idx, "Maximum nesting depth exceeded")
 	self.chr, self.chrOffset, self.offset = -1, self.length, self.length
-	self.token, self.literal, self.parsedLiteral, self.idx = token.EOF, "", "", self.idxOf(self.length)
+	self.token, self.literal, self.parsedLiteral, self.sloppyLiteral, self.idx = token.EOF, "", "", false, self.idxOf(self.length)
 }
 
 func (self *_parser) leaveNesting() {
@@ -243,7 +244,7 @@ func (self *_parser) leaveNesting() {
 
 func (self *_parser) next() {
 	self.prevTokenEnd = self.idxOf(self.chrOffset)
-	self.token, self.literal, self.parsedLiteral, self.idx = self.scan()
+	self.token, self.literal, self.parsedLiteral, self.sloppyLiteral, self.idx = self.scan()
 }
 
 func (self *_parser) optionalSemicolon() {
