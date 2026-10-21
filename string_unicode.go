@@ -5,7 +5,7 @@ import (
 	"errors"
 	"hash/maphash"
 	"io"
-	"math"
+	"math/big"
 	"reflect"
 	"slices"
 	"strings"
@@ -397,7 +397,7 @@ func (s unicodeString) utf16Runes() []rune {
 }
 
 func (s unicodeString) ToInteger() int64 {
-	return 0
+	return trimmedToInteger(s.toTrimmedUTF8())
 }
 
 func (s unicodeString) toString() String {
@@ -409,7 +409,7 @@ func (s unicodeString) ToString() Value {
 }
 
 func (s unicodeString) ToFloat() float64 {
-	return math.NaN()
+	return trimmedToFloat(s.toTrimmedUTF8())
 }
 
 func (s unicodeString) ToBoolean() bool {
@@ -450,6 +450,36 @@ func (s unicodeString) SameAs(other Value) bool {
 func (s unicodeString) Equals(other Value) bool {
 	if s.StrictEquals(other) {
 		return true
+	}
+
+	if o, ok := other.(valueInt); ok {
+		ss := s.toTrimmedUTF8()
+		if o1, e := stringToInt(ss); e == nil {
+			return o1 == int64(o)
+		}
+		if f, e := stringToFloat(ss); e == nil {
+			return f == float64(o)
+		}
+		return false
+	}
+
+	if o, ok := other.(valueFloat); ok {
+		return s.ToFloat() == float64(o)
+	}
+
+	if o, ok := other.(valueBool); ok {
+		if o1, e := stringToFloat(s.toTrimmedUTF8()); e == nil {
+			return o1 == o.ToFloat()
+		}
+		return false
+	}
+
+	if o, ok := other.(*valueBigInt); ok {
+		bigInt, err := stringToBigInt(s.toTrimmedUTF8())
+		if err != nil {
+			return false
+		}
+		return bigInt.Cmp((*big.Int)(o)) == 0
 	}
 
 	if o, ok := other.(*Object); ok {
