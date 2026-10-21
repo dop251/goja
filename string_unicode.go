@@ -489,14 +489,16 @@ func (s unicodeString) Equals(other Value) bool {
 }
 
 func (s unicodeString) StrictEquals(other Value) bool {
-	if otherStr, ok := other.(unicodeString); ok {
-		return s.equals(otherStr)
-	}
-	if otherStr, ok := other.(*importedString); ok {
-		otherStr.ensureScanned()
-		if otherStr.u != nil {
-			return s.equals(otherStr.u)
+	switch o := other.(type) {
+	case unicodeString:
+		return s.equals(o)
+	case *importedString:
+		o.ensureScanned()
+		if o.u != nil {
+			return s.equals(o.u)
 		}
+	case *concatString:
+		return s.StrictEquals(o.flatten())
 	}
 
 	return false
@@ -537,20 +539,56 @@ func (s unicodeString) loneSurrogateIndex() int {
 }
 
 func (s unicodeString) Concat(other String) String {
-	a, u := devirtualizeString(other)
-	if u != nil {
-		b := make(unicodeString, len(s)+len(u)-1)
+	switch o := other.(type) {
+	case asciiString:
+		totalLen := s.Length() + len(o)
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: o, length: totalLen}
+		}
+		b := make([]uint16, len(s)+len(o))
 		copy(b, s)
-		copy(b[len(s):], u[1:])
+		b1 := b[len(s):]
+		for i := 0; i < len(o); i++ {
+			b1[i] = uint16(o[i])
+		}
+		return unicodeString(b)
+	case unicodeString:
+		totalLen := s.Length() + o.Length()
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: o, length: totalLen}
+		}
+		b := make(unicodeString, len(s)+len(o)-1)
+		copy(b, s)
+		copy(b[len(s):], o[1:])
 		return b
+	case *importedString:
+		o.ensureScanned()
+		if o.u != nil {
+			totalLen := s.Length() + o.u.Length()
+			if totalLen > concatThreshold {
+				return &concatString{left: s, right: o.u, length: totalLen}
+			}
+			b := make(unicodeString, len(s)+len(o.u)-1)
+			copy(b, s)
+			copy(b[len(s):], o.u[1:])
+			return b
+		}
+		totalLen := s.Length() + len(o.s)
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: asciiString(o.s), length: totalLen}
+		}
+		b := make([]uint16, len(s)+len(o.s))
+		copy(b, s)
+		b1 := b[len(s):]
+		for i := 0; i < len(o.s); i++ {
+			b1[i] = uint16(o.s[i])
+		}
+		return unicodeString(b)
+	case *concatString:
+		return &concatString{left: s, right: o, length: s.Length() + o.length}
+	default:
+		panic(unknownStringTypeErr(other))
 	}
-	b := make([]uint16, len(s)+len(a))
-	copy(b, s)
-	b1 := b[len(s):]
-	for i := 0; i < len(a); i++ {
-		b1[i] = uint16(a[i])
-	}
-	return unicodeString(b)
 }
 
 func (s unicodeString) Substring(start, end int) String {

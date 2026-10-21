@@ -253,6 +253,24 @@ func TestImportedStringToIntegerAndFloat(t *testing.T) {
 	}
 }
 
+func TestConcatStringEqualsIntegerAndFloat(t *testing.T) {
+	vm := New()
+	s, err := vm.RunString(`"\u00a0".repeat(64)+1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cs, ok := s.(*concatString); ok {
+		if !cs.Equals(intToValue(1)) {
+			t.Fatalf("Equals(1), expected true")
+		}
+		if !cs.Equals(floatToValue(1)) {
+			t.Fatalf("Equals(1.0f), expected true")
+		}
+	} else {
+		t.Fatalf("Not a concat String: %T", s)
+	}
+}
+
 func TestStringCaseConversionLoneSurrogates(t *testing.T) {
 	tests := []struct {
 		name     string

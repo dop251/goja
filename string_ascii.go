@@ -305,13 +305,15 @@ func (s asciiString) Equals(other Value) bool {
 }
 
 func (s asciiString) StrictEquals(other Value) bool {
-	if otherStr, ok := other.(asciiString); ok {
-		return s == otherStr
-	}
-	if otherStr, ok := other.(*importedString); ok {
-		if otherStr.u == nil {
-			return string(s) == otherStr.s
+	switch o := other.(type) {
+	case asciiString:
+		return s == o
+	case *importedString:
+		if o.u == nil {
+			return string(s) == o.s
 		}
+	case *concatString:
+		return s.StrictEquals(o.flatten())
 	}
 	return false
 }
@@ -339,17 +341,50 @@ func (s asciiString) Length() int {
 }
 
 func (s asciiString) Concat(other String) String {
-	a, u := devirtualizeString(other)
-	if u != nil {
-		b := make([]uint16, len(s)+len(u))
+	switch o := other.(type) {
+	case asciiString:
+		totalLen := len(s) + len(o)
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: o, length: totalLen}
+		}
+		return s + o
+	case unicodeString:
+		totalLen := len(s) + o.Length()
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: o, length: totalLen}
+		}
+		b := make([]uint16, len(s)+len(o))
 		b[0] = unistring.BOM
 		for i := 0; i < len(s); i++ {
 			b[i+1] = uint16(s[i])
 		}
-		copy(b[len(s)+1:], u[1:])
+		copy(b[len(s)+1:], o[1:])
 		return unicodeString(b)
+	case *importedString:
+		o.ensureScanned()
+		if o.u != nil {
+			totalLen := len(s) + o.u.Length()
+			if totalLen > concatThreshold {
+				return &concatString{left: s, right: o.u, length: totalLen}
+			}
+			b := make([]uint16, len(s)+len(o.u))
+			b[0] = unistring.BOM
+			for i := 0; i < len(s); i++ {
+				b[i+1] = uint16(s[i])
+			}
+			copy(b[len(s)+1:], o.u[1:])
+			return unicodeString(b)
+		}
+		totalLen := len(s) + len(o.s)
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: asciiString(o.s), length: totalLen}
+		}
+		return s + asciiString(o.s)
+	case *concatString:
+		return &concatString{left: s, right: o, length: len(s) + o.length}
+	default:
+		panic(unknownStringTypeErr(other))
 	}
-	return s + a
 }
 
 func (s asciiString) Substring(start, end int) String {
