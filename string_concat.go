@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
@@ -15,49 +14,78 @@ import (
 const concatThreshold = 32
 
 type concatString struct {
+	// When flattened left contains the flat string, right is nil
 	left   String
 	right  String
 	length int
-
-	flatOnce sync.Once
-	flat     atomic.Pointer[String]
+	// Strings should be treated as immutable therefore they can be shared by multiple Runtimes
+	mu sync.Mutex
 }
 
-func (s *concatString) getFlat() String {
-	if ptr := s.flat.Load(); ptr != nil {
-		return *ptr
+func (s *concatString) flatten() (flattened String) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.right != nil {
+		var sb StringBuilder
+		s.writeTo(&sb)
+		flattened = sb.String()
+		s.left, s.right = flattened, nil
+	} else {
+		flattened = s.left
 	}
-	return nil
+
+	return flattened
 }
 
-func (s *concatString) flatten() String {
-	s.flatOnce.Do(func() {
-		sb := &StringBuilder{}
-		sb.Grow(s.length)
-		s.writeTo(sb)
-		flattened := sb.String()
-		s.flat.Store(&flattened)
-	})
-	return s.getFlat()
+func (s *concatString) load() (left, right String) {
+	s.mu.Lock()
+	left, right = s.left, s.right
+	s.mu.Unlock()
+	return
 }
 
+// must be called with s.mu locked
 func (s *concatString) writeTo(sb *StringBuilder) {
+	var grew, unicodeDetected bool
 	stack := make([]String, 0, 64)
 	stack = append(stack, s.right, s.left)
+	if _, ok := s.right.(unicodeString); ok {
+		unicodeDetected = true
+	}
 	for len(stack) > 0 {
 		n := len(stack) - 1
 		str := stack[n]
 		stack = stack[:n]
 
 		if cs, ok := str.(*concatString); ok {
-			if flattened := cs.getFlat(); flattened != nil {
-				sb.WriteString(flattened)
+			left, right := cs.load()
+			if right == nil {
+				str = left
 			} else {
-				stack = append(stack, cs.right, cs.left)
+				if !grew && !unicodeDetected {
+					if _, ok := right.(unicodeString); ok {
+						unicodeDetected = true
+					}
+				}
+				stack = append(stack, right, left)
+				continue
 			}
-		} else {
-			sb.WriteString(str)
 		}
+		if !grew {
+			if !unicodeDetected {
+				if _, ok := str.(unicodeString); ok {
+					unicodeDetected = true
+				}
+			}
+			if unicodeDetected {
+				sb.LikelyUnicode(s.length)
+			} else {
+				sb.Grow(s.length)
+			}
+			grew = true
+		}
+		sb.WriteString(str)
 	}
 }
 
@@ -66,6 +94,9 @@ func (s *concatString) ToInteger() int64 {
 }
 
 func (s *concatString) toString() String {
+	if left, right := s.load(); right == nil {
+		return left
+	}
 	return s
 }
 
@@ -74,6 +105,9 @@ func (s *concatString) string() unistring.String {
 }
 
 func (s *concatString) ToString() Value {
+	if left, right := s.load(); right == nil {
+		return left
+	}
 	return s
 }
 
@@ -94,7 +128,7 @@ func (s *concatString) ToBoolean() bool {
 }
 
 func (s *concatString) ToObject(r *Runtime) *Object {
-	return r._newString(s, r.getStringPrototype())
+	return r._newString(s.toString(), r.getStringPrototype())
 }
 
 func (s *concatString) SameAs(other Value) bool {
@@ -102,13 +136,10 @@ func (s *concatString) SameAs(other Value) bool {
 }
 
 func (s *concatString) Equals(other Value) bool {
-	if s.StrictEquals(other) {
+	if s == other {
 		return true
 	}
-	if o, ok := other.(*Object); ok {
-		return s.Equals(o.toPrimitive())
-	}
-	return false
+	return s.flatten().Equals(other)
 }
 
 func (s *concatString) StrictEquals(other Value) bool {
@@ -119,7 +150,13 @@ func (s *concatString) StrictEquals(other Value) bool {
 }
 
 func (s *concatString) baseObject(r *Runtime) *Object {
-	return s.flatten().baseObject(r)
+	if left, right := s.load(); right == nil {
+		return left.baseObject(r)
+	}
+	ss := r.getStringSingleton()
+	ss.value = s
+	ss.setLength()
+	return ss.val
 }
 
 func (s *concatString) Export() interface{} {
@@ -135,22 +172,7 @@ func (s *concatString) hash(h *maphash.Hash) uint64 {
 }
 
 func (s *concatString) CharAt(idx int) uint16 {
-	for {
-		leftLen := s.left.Length()
-		if idx < leftLen {
-			if cs, ok := s.left.(*concatString); ok {
-				s = cs
-				continue
-			}
-			return s.left.CharAt(idx)
-		}
-		idx -= leftLen
-		if cs, ok := s.right.(*concatString); ok {
-			s = cs
-			continue
-		}
-		return s.right.CharAt(idx)
-	}
+	return s.flatten().CharAt(idx)
 }
 
 func (s *concatString) Length() int {

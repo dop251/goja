@@ -313,7 +313,7 @@ func (s asciiString) StrictEquals(other Value) bool {
 			return string(s) == o.s
 		}
 	case *concatString:
-		return o.StrictEquals(s)
+		return s.StrictEquals(o.flatten())
 	}
 	return false
 }

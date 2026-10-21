@@ -498,7 +498,7 @@ func (s unicodeString) StrictEquals(other Value) bool {
 			return s.equals(o.u)
 		}
 	case *concatString:
-		return o.StrictEquals(s)
+		return s.StrictEquals(o.flatten())
 	}
 
 	return false

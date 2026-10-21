@@ -6,8 +6,8 @@ import (
 
 func BenchmarkStringConcatLoop(b *testing.B) {
 	vm := New()
-	for i := 0; i < b.N; i++ {
-		_, err := vm.RunString(`
+	for b.Loop() {
+		v, err := vm.RunString(`
 			var s = "";
 			for (var i = 0; i < 10000; i++) {
 				s += "x";
@@ -17,13 +17,14 @@ func BenchmarkStringConcatLoop(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+		v.Export()
 	}
 }
 
 func BenchmarkStringConcatLoopLarge(b *testing.B) {
 	vm := New()
-	for i := 0; i < b.N; i++ {
-		_, err := vm.RunString(`
+	for b.Loop() {
+		v, err := vm.RunString(`
 			var s = "";
 			for (var i = 0; i < 100000; i++) {
 				s += "x";
@@ -33,13 +34,14 @@ func BenchmarkStringConcatLoopLarge(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+		v.Export()
 	}
 }
 
 func BenchmarkStringConcatLoopUnicode(b *testing.B) {
 	vm := New()
-	for i := 0; i < b.N; i++ {
-		_, err := vm.RunString(`
+	for b.Loop() {
+		v, err := vm.RunString(`
 			var s = "";
 			for (var i = 0; i < 10000; i++) {
 				s += "\u4e2d";
@@ -49,6 +51,7 @@ func BenchmarkStringConcatLoopUnicode(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+		v.Export()
 	}
 }
 
