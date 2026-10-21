@@ -177,6 +177,35 @@ func TestDateSetters(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestDateLegacyMethods(t *testing.T) {
+	const SCRIPT = `
+	var d = new Date(1999, 5, 15, 12, 30);
+	assert.sameValue(d.getYear(), 99, "getYear()");
+	assert.sameValue(d.setYear(5), new Date(1905, 5, 15, 12, 30).getTime(), "setYear(5)");
+	assert.sameValue(d.getFullYear(), 1905, "two-digit year");
+	assert.sameValue(d.setYear(2024, 0), new Date(2024, 5, 15, 12, 30).getTime(), "setYear(2024, 0)");
+	assert.sameValue(d.getYear(), 124, "getYear() after 2000");
+	assert.sameValue(d.setYear(NaN), NaN, "setYear(NaN)");
+	assert.sameValue(d.getYear(), NaN, "getYear() on invalid date");
+	assert.sameValue(d.setYear(70), new Date(1970, 0).getTime(), "setYear() on invalid date");
+	assert.sameValue(Date.prototype.toGMTString, Date.prototype.toUTCString, "toGMTString");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestDateToGMTString(t *testing.T) {
+	const SCRIPT = `
+	var f = Date.prototype.toUTCString;
+	assert.sameValue(Object.getPrototypeOf(f), Function.prototype, "toUTCString realm");
+	Date.prototype.toUTCString = null;
+	assert.sameValue(Date.prototype.toGMTString, f, "toGMTString");
+	`
+	// Each runtime must get its own function.
+	r1, r2 := New(), New()
+	r1.testScriptWithTestLib(SCRIPT, _undefined, t)
+	r2.testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestDateParse(t *testing.T) {
 	const SCRIPT = `
 	var zero = new Date(0);

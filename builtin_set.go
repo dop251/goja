@@ -55,6 +55,9 @@ func (so *setObject) exportType() reflect.Type {
 }
 
 func (so *setObject) export(ctx *objectExportCtx) interface{} {
+	if v, exists := ctx.get(so.val); exists {
+		return v
+	}
 	a := make([]interface{}, so.m.size)
 	ctx.put(so.val, a)
 	iter := so.m.newIter()

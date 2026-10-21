@@ -154,6 +154,8 @@ type global struct {
 	stringproto_trimEnd   *Object
 	stringproto_trimStart *Object
 
+	dateproto_toUTCString *Object
+
 	parseFloat, parseInt *Object
 
 	typedArrayValues *Object
@@ -895,11 +897,11 @@ func (r *Runtime) builtin_Number(call FunctionCall) Value {
 		case *Object:
 			primValue := t.toPrimitiveNumber()
 			if bigint, ok := primValue.(*valueBigInt); ok {
-				return intToValue((*big.Int)(bigint).Int64())
+				return bigint.numberValue()
 			}
 			return toNumberValue(primValue)
 		case *valueBigInt:
-			return intToValue((*big.Int)(t).Int64())
+			return t.numberValue()
 		default:
 			return toNumberValue(t)
 		}
@@ -915,12 +917,12 @@ func (r *Runtime) builtin_newNumber(args []Value, proto *Object) *Object {
 		case *Object:
 			primValue := t.toPrimitiveNumber()
 			if bigint, ok := primValue.(*valueBigInt); ok {
-				v = intToValue((*big.Int)(bigint).Int64())
+				v = bigint.numberValue()
 			} else {
 				v = toNumberValue(primValue)
 			}
 		case *valueBigInt:
-			v = intToValue((*big.Int)(t).Int64())
+			v = t.numberValue()
 		default:
 			v = toNumberValue(t)
 		}
@@ -2777,8 +2779,13 @@ func createDataPropertyOrThrow(o *Object, p Value, v Value) {
 }
 
 func toStringValue(v Value) Value {
-	switch v.(type) {
+	switch s := v.(type) {
 	case asciiString, unicodeString, valueInt, valueFloat, valueBool:
+		return v
+	case *concatString:
+		if left, right := s.load(); right == nil {
+			return toStringValue(left)
+		}
 		return v
 	}
 	return v.ToString()
