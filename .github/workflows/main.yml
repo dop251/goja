@@ -15,12 +15,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go-version }}
           check-latest: true
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Check formatting
         run: diff -u <(echo -n) <(gofmt -d .)
         if: ${{ matrix.go-version == '1.x' && matrix.os == 'ubuntu-latest' }}
