@@ -1336,6 +1336,58 @@ func TestCatchVarNotUsedInStashlessFunc(t *testing.T) {
 	testScript(SCRIPT, asciiString("ok"), t)
 }
 
+func TestCatchParamVarRedeclaration(t *testing.T) {
+	const SCRIPT = `
+	try {
+		throw "ex";
+	} catch (e) {
+		var e = 1;
+		assert.sameValue(e, 1, "catch param");
+	}
+	assert.sameValue(e, undefined, "global var");
+
+	function f() {
+		try {
+			throw "ex";
+		} catch (e) {
+			for (var e = 2; e < 3; e++) {}
+			var captured = function() { return e; };
+		}
+		return [e, captured()];
+	}
+	assert(compareArray(f(), [undefined, 3]), "function var");
+
+	function f1() {
+		try {
+			throw "ex";
+		} catch (e) {
+			eval("var e = 4");
+			assert.sameValue(e, 4, "catch param (eval)");
+		}
+		return e;
+	}
+	assert.sameValue(f1(), undefined, "function var (eval)");
+
+	assert.throws(SyntaxError, function() {
+		eval("try {} catch ([e]) { var e; }");
+	}, "destructuring catch param");
+	assert.throws(SyntaxError, function() {
+		eval("try {} catch (e) { let e; }");
+	}, "let");
+	assert.throws(SyntaxError, function() {
+		eval("try {} catch (e) { function e() {} }");
+	}, "function declaration");
+	assert.throws(SyntaxError, function() {
+		try {
+			throw [];
+		} catch ([e]) {
+			eval("var e");
+		}
+	}, "destructuring catch param (eval)");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestNew(t *testing.T) {
 	const SCRIPT = `
 	function O() {
