@@ -513,6 +513,26 @@ func TestToSortedSubarray(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestTypedArrayFromPrimitive(t *testing.T) {
+	const SCRIPT = `
+	assert(compareArray(Uint8Array.from("123"), [1, 2, 3]), "string");
+	assert(compareArray(Uint16Array.from("abc", c => c.charCodeAt(0)), [97, 98, 99]), "string, mapFn");
+	assert.sameValue(Uint8Array.from(5).length, 0, "number");
+
+	var receiver;
+	Object.defineProperty(Number.prototype, Symbol.iterator, {
+		value: function() {
+			"use strict";
+			receiver = this;
+			return [7][Symbol.iterator]();
+		}
+	});
+	assert(compareArray(Uint8Array.from(5), [7]), "number, iterator");
+	assert.sameValue(receiver, 5, "iterator receiver");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestArrayBufferTransfer(t *testing.T) {
 	const SCRIPT = `
 var buf = new Uint8Array([1, 2, 3, 4]).buffer;
@@ -551,4 +571,32 @@ func TestArrayBufferTransferFromGo(t *testing.T) {
 	if &b[0] != &data[0] {
 		t.Fatal("the data was copied instead of being transferred")
 	}
+}
+
+func TestTypedArraySearchNegativeZero(t *testing.T) {
+	const SCRIPT = `
+	[Float32Array, Float64Array].forEach(function(TA) {
+		const name = TA.name;
+		const a = new TA([-0, 1]);
+		assert.sameValue(a.includes(0), true, name + " includes 0");
+		assert.sameValue(a.includes(-0), true, name + " includes -0");
+		assert.sameValue(a.indexOf(0), 0, name + " indexOf 0");
+		assert.sameValue(a.indexOf(-0), 0, name + " indexOf -0");
+		assert.sameValue(a.lastIndexOf(0), 0, name + " lastIndexOf 0");
+		assert.sameValue(a.lastIndexOf(-0), 0, name + " lastIndexOf -0");
+		assert.sameValue(new TA([-0, 0]).indexOf(0), 0, name + " indexOf first of -0, +0");
+		assert.sameValue(new TA([-0, 0]).lastIndexOf(-0), 1, name + " lastIndexOf last of -0, +0");
+		assert.sameValue(a.includes(2), false, name + " includes 2");
+		assert.sameValue(a.includes(0, 1), false, name + " includes 0 after fromIndex");
+		assert.sameValue(new TA([1, -0]).lastIndexOf(0, 0), -1, name + " lastIndexOf 0 before fromIndex");
+		assert.sameValue(new TA([NaN]).includes(NaN), true, name + " includes NaN");
+		assert.sameValue(new TA([NaN]).indexOf(NaN), -1, name + " indexOf NaN");
+	});
+	const i = new Int8Array([0]);
+	assert.sameValue(i.includes(-0), true, "Int8Array includes -0");
+	assert.sameValue(i.indexOf(-0), 0, "Int8Array indexOf -0");
+	assert.sameValue(i.lastIndexOf(-0), 0, "Int8Array lastIndexOf -0");
+	assert.sameValue(new BigInt64Array([0n]).includes(0n), true, "BigInt64Array includes 0n");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }

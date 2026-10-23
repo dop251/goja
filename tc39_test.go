@@ -34,51 +34,20 @@ var (
 
 		// out-of-date (https://github.com/tc39/test262/issues/3407)
 		"test/language/expressions/prefix-increment/S11.4.4_A6_T3.js":        true,
-		"test/language/expressions/prefix-increment/S11.4.4_A6_T2.js":        true,
-		"test/language/expressions/prefix-increment/S11.4.4_A6_T1.js":        true,
 		"test/language/expressions/prefix-decrement/S11.4.5_A6_T3.js":        true,
-		"test/language/expressions/prefix-decrement/S11.4.5_A6_T2.js":        true,
-		"test/language/expressions/prefix-decrement/S11.4.5_A6_T1.js":        true,
 		"test/language/expressions/postfix-increment/S11.3.1_A6_T3.js":       true,
-		"test/language/expressions/postfix-increment/S11.3.1_A6_T2.js":       true,
-		"test/language/expressions/postfix-increment/S11.3.1_A6_T1.js":       true,
 		"test/language/expressions/postfix-decrement/S11.3.2_A6_T3.js":       true,
-		"test/language/expressions/postfix-decrement/S11.3.2_A6_T2.js":       true,
-		"test/language/expressions/postfix-decrement/S11.3.2_A6_T1.js":       true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.1_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.1_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.1_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.11_T4.js": true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.11_T2.js": true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.11_T1.js": true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.10_T4.js": true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.10_T2.js": true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.10_T1.js": true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.9_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.9_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.9_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.8_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.8_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.8_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.7_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.7_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.7_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.6_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.6_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.6_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.5_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.5_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.5_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.4_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.4_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.4_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.3_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.3_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.3_T1.js":  true,
 		"test/language/expressions/compound-assignment/S11.13.2_A7.2_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.2_T2.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.2_T1.js":  true,
-		"test/language/expressions/assignment/S11.13.1_A7_T3.js":             true,
 
 		// timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true,
@@ -91,18 +60,8 @@ var (
 		// quantifier integer limit in regexp
 		"test/built-ins/RegExp/quantifier-integer-limit.js": true,
 
-		// GetFunctionRealm
-		"test/built-ins/Function/internals/Construct/base-ctor-revoked-proxy.js": true,
-
-		// Uses deprecated __lookupGetter__/__lookupSetter__
-		"test/language/expressions/class/elements/private-getter-is-not-a-own-property.js": true,
-		"test/language/expressions/class/elements/private-setter-is-not-a-own-property.js": true,
-		"test/language/statements/class/elements/private-setter-is-not-a-own-property.js":  true,
-		"test/language/statements/class/elements/private-getter-is-not-a-own-property.js":  true,
-
 		// restricted unicode regexp syntax
 		"test/built-ins/RegExp/unicode_restricted_octal_escape.js":                   true,
-		"test/built-ins/RegExp/unicode_restricted_incomple_quantifier.js":            true,
 		"test/built-ins/RegExp/unicode_restricted_incomplete_quantifier.js":          true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_x.js":              true,
 		"test/built-ins/RegExp/unicode_restricted_identity_escape_u.js":              true,
@@ -157,19 +116,11 @@ var (
 		"test/language/expressions/class/elements/after-same-line-static-gen-rs-static-async-generator-method-privatename-identifier-alt.js":          true,
 		"test/language/expressions/class/elements/after-same-line-gen-rs-static-async-generator-method-privatename-identifier.js":                     true,
 		"test/language/expressions/class/elements/after-same-line-gen-rs-static-async-generator-method-privatename-identifier-alt.js":                 true,
-		"test/built-ins/GeneratorFunction/is-a-constructor.js":                                                                                        true,
-
-		// legacy number literals
-		"test/language/literals/string/S7.8.4_A4.3_T2.js": true,
-		"test/language/literals/string/S7.8.4_A4.3_T1.js": true,
 
 		// unicode full case folding
 		"test/built-ins/RegExp/unicode_full_case_folding.js": true,
 
 		// FIXME bugs
-
-		// 'arguments' as a destructuring assignment target in strict mode
-		"test/language/statements/for-await-of/async-func-decl-dstr-array-elem-target-simple-strict.js": true,
 
 		// Left-hand side as a CoverParenthesizedExpression
 		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
@@ -203,15 +154,7 @@ var (
 		"test/built-ins/JSON/parse/reviver-context-source-array-literal.js":         true,
 		"test/built-ins/JSON/parse/reviver-call-args-after-forward-modification.js": true,
 
-		// Language tests (class, with, module, expressions, identifiers)
-		"test/language/statements/class/subclass/private-class-field-on-nonextensible-return-override.js":                                   true,
-		"test/language/statements/class/elements/private-class-field-on-nonextensible-objects.js":                                           true,
-		"test/language/statements/with/set-mutable-binding-idref-compound-assign-with-proxy-env.js":                                         true,
-		"test/language/statements/with/set-mutable-binding-binding-deleted-with-typed-array-in-proto-chain.js":                              true,
-		"test/language/statements/with/set-mutable-binding-idref-with-proxy-env.js":                                                         true,
-		"test/language/statements/with/get-binding-value-idref-with-proxy-env.js":                                                           true,
-		"test/language/statements/with/get-binding-value-call-with-proxy-env.js":                                                            true,
-		"test/language/statements/with/get-mutable-binding-binding-deleted-in-get-unscopables-strict-mode.js":                               true,
+		// Language tests (module)
 		"test/language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-export-star-as-from-and-import-star-as-and-export.js": true,
 		"test/language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-import-star-as-and-export.js":                         true,
 		"test/language/module-code/top-level-await/pending-async-dep-from-cycle.js":                                                         true,
@@ -244,17 +187,13 @@ var (
 		"Atomics.pause",
 		"FinalizationRegistry",
 		"WeakRef",
-		"__getter__",
-		"__setter__",
 		"ShadowRealm",
 		"SharedArrayBuffer",
 		"decorators",
 		"immutable-arraybuffer",
-		"joint-iteration",
 
 		"regexp-duplicate-named-groups",
 		"regexp-v-flag",
-		"symbols-as-weakmap-keys",
 		"explicit-resource-management",
 		"Float16Array",
 		"Array.fromAsync",
@@ -349,18 +288,10 @@ func init() {
 		// restricted unicode regexp syntax
 		"test/language/literals/regexp/u-",
 
-		// legacy octal escape in strings in strict mode
-		"test/language/literals/string/legacy-octal-",
-		"test/language/literals/string/legacy-non-octal-",
-
 		// modules
 		"test/language/export/",
 		"test/language/import/",
 		"test/language/module-code/",
-
-		// Map getOrInsert*
-		"test/built-ins/WeakMap/prototype/getOrInsert",
-		"test/built-ins/Map/prototype/getOrInsert",
 	)
 
 }
@@ -788,7 +719,21 @@ func TestTC39(t *testing.T) {
 		//ctx.runTC39File("test/language/types/number/8.5.1.js", t)
 		ctx.runTC39Tests("test/language")
 		ctx.runTC39Tests("test/built-ins")
+		ctx.runTC39Tests("test/annexB/built-ins/Date")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/anchor")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/big")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/blink")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/bold")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/fixed")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/fontcolor")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/fontsize")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/italics")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/link")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/small")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/strike")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/sub")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/substr")
+		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/sup")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimLeft")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/trimRight")
 		ctx.runTC39Tests("test/annexB/built-ins/escape")

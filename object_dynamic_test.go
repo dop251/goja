@@ -244,6 +244,52 @@ func TestDynamicArray(t *testing.T) {
 	`, _undefined, t)
 }
 
+func TestDynamicArrayDefineLength(t *testing.T) {
+	vm := New()
+	dynObj := &testDynArray{
+		r: vm,
+	}
+	a := vm.NewDynamicArray(dynObj)
+	vm.Set("a", a)
+	vm.testScriptWithTestLibX(`
+	a[0] = 0; a[1] = 1; a[2] = 2;
+
+	Object.defineProperty(a, "length", {value: 2});
+	assert.sameValue(a.length, 2, "length after Object.defineProperty() shrink");
+	assert.sameValue(a[2], undefined, "a[2] after Object.defineProperty() shrink");
+
+	assert(Reflect.defineProperty(a, "length", {value: 4}), "Reflect.defineProperty() grow");
+	assert.sameValue(a.length, 4, "length after Reflect.defineProperty() grow");
+
+	assert(Reflect.defineProperty(a, "length", {value: 3, writable: true, enumerable: false, configurable: false}), "full compatible descriptor");
+	assert.sameValue(a.length, 3, "length after full compatible descriptor");
+
+	assert(Reflect.defineProperty(a, "length", {}), "empty descriptor");
+	assert.sameValue(a.length, 3, "length after empty descriptor");
+
+	Object.defineProperties(a, {length: {value: 1}});
+	assert.sameValue(a.length, 1, "length after Object.defineProperties()");
+
+	assert(deepEqual(Object.getOwnPropertyDescriptor(a, "length"), {value: 1, writable: true, enumerable: false, configurable: false}), "length prop desc");
+
+	assert.throws(TypeError, function() {
+		Object.defineProperty(a, "length", {value: 2, configurable: true});
+	}, "configurable length");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(a, "length", {value: 2, enumerable: true});
+	}, "enumerable length");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(a, "length", {value: 2, writable: false});
+	}, "read-only length");
+	assert.throws(TypeError, function() {
+		Object.defineProperty(a, "length", {get: function() { return 2; }});
+	}, "accessor length");
+	assert.sameValue(a.length, 1, "length after rejected definitions");
+	assert(!Reflect.defineProperty(a, "length", {value: 2, writable: false}), "Reflect.defineProperty() read-only length");
+	assert.sameValue(a.length, 1, "length after rejected Reflect.defineProperty()");
+	`, _undefined, t)
+}
+
 type testSharedDynObject struct {
 	sync.RWMutex
 	m map[string]Value

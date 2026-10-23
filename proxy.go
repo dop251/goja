@@ -131,6 +131,11 @@ type proxyHandler interface {
 	getIdx(target *Object, prop valueInt, receiver Value) (Value, bool)
 	getSym(target *Object, prop *Symbol, receiver Value) (Value, bool)
 
+	// hasAndGetStr combines the has and get traps into a single lookup. The third return value
+	// reports whether the handler performed the combined lookup; if false, the caller must
+	// perform the HasProperty and Get steps separately (see proxyObject.hasAndGetStr).
+	hasAndGetStr(target *Object, prop unistring.String, receiver Value) (value Value, exists bool, handled bool)
+
 	setStr(target *Object, prop unistring.String, value Value, receiver Value) (bool, bool)
 	setIdx(target *Object, prop valueInt, value Value, receiver Value) (bool, bool)
 	setSym(target *Object, prop *Symbol, value Value, receiver Value) (bool, bool)
@@ -242,6 +247,12 @@ func (h *jsProxyHandler) getIdx(target *Object, prop valueInt, receiver Value) (
 
 func (h *jsProxyHandler) getSym(target *Object, prop *Symbol, receiver Value) (Value, bool) {
 	return h.proxyCall(proxy_trap_get, target, prop, receiver)
+}
+
+func (h *jsProxyHandler) hasAndGetStr(*Object, unistring.String, Value) (Value, bool, bool) {
+	// There is no combined has+get trap for JS handlers: the HasProperty and Get steps must be
+	// performed as separate trap calls, so report the combined lookup as not handled.
+	return nil, false, false
 }
 
 func (h *jsProxyHandler) setStr(target *Object, prop unistring.String, value Value, receiver Value) (bool, bool) {
@@ -454,6 +465,29 @@ func (p *proxyObject) proxyHasChecks(targetProp Value, target *Object, name fmt.
 			panic(p.val.runtime.NewTypeError("'has' on proxy: trap returned falsish for property '%s' but the proxy target is not extensible", name.String()))
 		}
 	}
+}
+
+// Proxy property lookups delegate to traps. If the handler can perform a combined has+get lookup
+// (see proxyHandler.hasAndGetStr) it is used, subject to the same invariant checks as the separate
+// traps; otherwise HasProperty and Get are performed as separate steps in the prescribed order.
+func (p *proxyObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	target := p.target
+	if receiver == nil {
+		receiver = p.val
+	}
+	if v, exists, ok := p.checkHandler().hasAndGetStr(target, name, receiver); ok {
+		targetProp := target.self.getOwnPropStr(name)
+		if !exists {
+			p.proxyHasChecks(targetProp, target, name)
+			return nil, false
+		}
+		p.proxyGetChecks(targetProp, v, name)
+		return v, true
+	}
+	if p.hasPropertyStr(name) {
+		return nilSafe(p.getStr(name, receiver)), true
+	}
+	return nil, false
 }
 
 func (p *proxyObject) hasPropertyStr(name unistring.String) bool {

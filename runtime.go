@@ -154,6 +154,8 @@ type global struct {
 	stringproto_trimEnd   *Object
 	stringproto_trimStart *Object
 
+	dateproto_toUTCString *Object
+
 	parseFloat, parseInt *Object
 
 	typedArrayValues *Object
@@ -871,11 +873,11 @@ func (r *Runtime) builtin_Number(call FunctionCall) Value {
 		case *Object:
 			primValue := t.toPrimitiveNumber()
 			if bigint, ok := primValue.(*valueBigInt); ok {
-				return intToValue((*big.Int)(bigint).Int64())
+				return bigint.numberValue()
 			}
 			return primValue.ToNumber()
 		case *valueBigInt:
-			return intToValue((*big.Int)(t).Int64())
+			return t.numberValue()
 		default:
 			return t.ToNumber()
 		}
@@ -891,12 +893,12 @@ func (r *Runtime) builtin_newNumber(args []Value, proto *Object) *Object {
 		case *Object:
 			primValue := t.toPrimitiveNumber()
 			if bigint, ok := primValue.(*valueBigInt); ok {
-				v = intToValue((*big.Int)(bigint).Int64())
+				v = bigint.numberValue()
 			} else {
 				v = primValue.ToNumber()
 			}
 		case *valueBigInt:
-			v = intToValue((*big.Int)(t).Int64())
+			v = t.numberValue()
 		default:
 			v = t.ToNumber()
 		}
@@ -2520,7 +2522,7 @@ func (r *Runtime) Set(name string, value interface{}) error {
 // This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.
 func (r *Runtime) Get(name string) Value {
 	n := unistring.NewFromString(name)
-	if v, exists := r.global.stash.getByName(n); exists {
+	if v, exists := r.global.stash.getByName(n, false); exists {
 		return v
 	} else {
 		return r.globalObject.self.getStr(n, nil)
@@ -3463,5 +3465,24 @@ func (r *Runtime) getPrototypeFromCtor(newTarget, defCtor, defProto *Object) *Ob
 	if obj, ok := proto.(*Object); ok {
 		return obj
 	}
+	r.checkFunctionRealm(newTarget)
 	return defProto
+}
+
+// checkFunctionRealm performs the checks of GetFunctionRealm(). There is only one realm, so the only
+// thing left to do is to throw a TypeError if a revoked Proxy is found.
+func (r *Runtime) checkFunctionRealm(obj *Object) {
+	for {
+		switch o := obj.self.(type) {
+		case *boundFuncObject:
+			obj = o.wrapped
+		case *proxyObject:
+			if o.handler == nil {
+				panic(r.NewTypeError("Cannot perform 'GetFunctionRealm' on a proxy that has been revoked"))
+			}
+			obj = o.target
+		default:
+			return
+		}
+	}
 }
