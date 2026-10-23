@@ -1702,7 +1702,17 @@ invalid characters).
 
 # Nil
 
-Nil is converted to null.
+Nil is converted to null. This includes nil pointers, nil interfaces, nil slices, and nil functions. Note that they lose
+their type as a result and exported as plain nil interface (nil type and nil value).
+
+# Pointers
+
+Pointers are de-referenced and the referenced object dictates the shape of the Value. The Value keeps referring to the
+same object, so any changes made to it will be reflected. If the referenced value is a nil map without methods, setting
+a property creates a map. Same applies to slices.
+
+Note, the indirection only goes one level, i.e. a pointer to a pointer becomes a generic empty Object. As with any
+Object wrapper it can have Symbol properties, but no string or index properties. It exports to the original pointer value.
 
 # Functions
 
@@ -1971,7 +1981,7 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 	}
 
 	value := origValue
-	for value.Kind() == reflect.Ptr {
+	if value.Kind() == reflect.Pointer {
 		value = value.Elem()
 	}
 
@@ -1981,7 +1991,7 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 
 	switch value.Kind() {
 	case reflect.Map:
-		if value.IsNil() {
+		if value.IsNil() && !value.CanSet() {
 			return _null
 		}
 		if value.Type().NumMethod() == 0 {
@@ -2021,6 +2031,9 @@ func (r *Runtime) toValue(i interface{}, origValue reflect.Value) Value {
 		obj.self = a
 		return obj
 	case reflect.Slice:
+		if value.IsNil() && !value.CanSet() {
+			return _null
+		}
 		obj := &Object{runtime: r}
 		a := &objectGoSliceReflect{
 			objectGoArrayReflect: objectGoArrayReflect{
