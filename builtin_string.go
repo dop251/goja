@@ -471,15 +471,18 @@ func (r *Runtime) stringproto_normalize(call FunctionCall) Value {
 	case asciiString:
 		return s
 	case unicodeString:
-		ss := s.String()
-		return newStringValue(f.String(ss))
+		return s.normalize(f)
 	case *importedString:
 		if s.scanned && s.u == nil {
 			return asciiString(s.s)
 		}
 		return newStringValue(f.String(s.s))
 	case *concatString:
-		return newStringValue(f.String(s.String()))
+		a, u := devirtualizeString(s)
+		if u == nil {
+			return a
+		}
+		return u.normalize(f)
 	default:
 		panic(unknownStringTypeErr(s))
 	}
