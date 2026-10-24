@@ -440,8 +440,8 @@ type instruction interface {
 }
 
 func intToValue(i int64) Value {
-	if idx := 256 + i; idx >= 0 && idx < 256 {
-		return intCache[idx]
+	if i >= intCacheMin && i < intCacheMax {
+		return intCache[i-intCacheMin]
 	}
 	if i >= -maxInt && i <= maxInt {
 		return valueInt(i)

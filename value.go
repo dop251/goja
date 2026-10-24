@@ -58,7 +58,15 @@ var (
 	reflectTypeError    = reflect.TypeOf((*error)(nil)).Elem()
 )
 
-var intCache [256]Value
+const (
+	// intCache covers values from intCacheMin to intCacheMax-1. Note, values from 0 to 255
+	// are also allocation-free without the cache (the runtime boxes them into a static array),
+	// the point of the cache is the rest of the range which is common for loop counters.
+	intCacheMin = -256
+	intCacheMax = 16384
+)
+
+var intCache [intCacheMax - intCacheMin]Value
 
 // Value represents an ECMAScript value.
 //
@@ -1204,7 +1212,7 @@ func typeErrorResult(throw bool, args ...interface{}) {
 }
 
 func init() {
-	for i := 0; i < 256; i++ {
-		intCache[i] = valueInt(i - 256)
+	for i := range intCache {
+		intCache[i] = valueInt(int64(i) + int64(intCacheMin))
 	}
 }
