@@ -117,6 +117,16 @@ func TestRegExp(t *testing.T) {
 
 			test("\\04", "\\x04")
 
+			test("\\377", "\\xff")
+
+			test("\\400", "\\x200")
+
+			test("\\777", "\\x3f7")
+
+			test("\\0377", "\\x1f7")
+
+			test("[\\400]", "[\\x200]")
+
 			test(`(.)^`, "("+Re2Dot+")^")
 
 			test(`\$`, `\$`)

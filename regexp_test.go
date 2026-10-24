@@ -827,6 +827,17 @@ func TestRegexpUnicodeEscape(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestRegexpLegacyOctalEscape(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue(/\377/.exec("\xff")[0], "\xff");
+	assert.sameValue(/\400/.exec("\x200")[0], "\x200");
+	assert.sameValue(/\777/.exec("\x3f7")[0], "\x3f7");
+	assert.sameValue(/\0377/.exec("\x1f7")[0], "\x1f7");
+	assert.sameValue(/[\400]+/.exec("\x10 0")[0], " 0");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestRegexpUnicodeGroupNames(t *testing.T) {
 	const SCRIPT = `
 	var string = "The quick brown fox jumped over the lazy dog's back";

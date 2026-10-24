@@ -320,7 +320,12 @@ func (self *_RegExp_parser) scanEscape(inClass bool) {
 	case '0', '1', '2', '3', '4', '5', '6', '7':
 		var value int64
 		size := 0
-		for {
+		// Octal, at most three digits, or two if the first one is 4-7 (B.1.2)
+		maxSize := 3
+		if self.chr >= '4' {
+			maxSize = 2
+		}
+		for size < maxSize {
 			digit := int64(digitValue(self.chr))
 			if digit >= 8 {
 				// Not a valid digit

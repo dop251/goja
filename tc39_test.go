@@ -129,6 +129,9 @@ var (
 		"test/annexB/built-ins/RegExp/RegExp-invalid-control-escape-character-class.js": true,
 		"test/annexB/built-ins/RegExp/RegExp-control-escape-russian-letter.js":          true,
 
+		// \c followed by a digit or _ in a character class
+		"test/annexB/language/literals/regexp/class-escape.js": true,
+
 		"test/built-ins/RegExp/nullable-quantifier.js":               true,
 		"test/built-ins/RegExp/lookahead-quantifier-match-groups.js": true,
 
@@ -740,6 +743,7 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/annexB/built-ins/unescape")
 		ctx.runTC39Tests("test/annexB/built-ins/RegExp")
 		ctx.runTC39Tests("test/annexB/language/comments")
+		ctx.runTC39Tests("test/annexB/language/literals/regexp")
 		ctx.runTC39Tests("test/annexB/language/statements/try")
 
 		ctx.flush()
