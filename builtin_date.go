@@ -122,11 +122,11 @@ func (r *Runtime) dateproto_toISOString(call FunctionCall) Value {
 		if d.isSet() {
 			utc := d.timeUTC()
 			year := utc.Year()
-			if year >= -9999 && year <= 9999 {
+			if year >= 0 && year <= 9999 {
 				return asciiString(utc.Format(isoDateTimeLayout))
 			}
 			// extended year
-			return asciiString(fmt.Sprintf("%+06d-", year) + utc.Format(isoDateTimeLayout[5:]))
+			return asciiString(fmt.Sprintf("%+07d-", year) + utc.Format(isoDateTimeLayout[5:]))
 		} else {
 			panic(r.newError(r.getRangeError(), "Invalid time value"))
 		}
