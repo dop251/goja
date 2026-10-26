@@ -3168,6 +3168,24 @@ func TestToNumber(t *testing.T) {
 	assert.sameValue(Number(" "), 0);
 	assert.sameValue(Number(" Infinity"), Infinity);
 
+	assert.sameValue(Number("0x8000000000000000"), 2 ** 63, "2^63");
+	assert.sameValue(Number("0xffffffffffffffff"), 2 ** 64, "2^64-1");
+	assert.sameValue(Number("0XFFFFFFFFFFFFFFFF"), 2 ** 64, "uppercase");
+	assert.sameValue(+"0x10000000000000800", 2 ** 64, "tie rounds to even (down)");
+	assert.sameValue(+"0x10000000000001800", 2 ** 64 + 8192, "tie rounds to even (up)");
+	assert.sameValue(Number("0b" + "1".repeat(64)), 2 ** 64, "binary");
+	assert.sameValue(Number("0B" + "1".repeat(64)), 2 ** 64, "binary uppercase");
+	assert.sameValue(Number("0o1777777777777777777777"), 2 ** 64, "octal");
+	assert.sameValue(Number("0O1777777777777777777777"), 2 ** 64, "octal uppercase");
+	assert.sameValue(Number("0x" + "f".repeat(256)), Infinity, "Infinity");
+	assert.sameValue(Math.max("0xffffffffffffffff"), 2 ** 64, "ToFloat()");
+	assert(isNaN(Number("0x")));
+	assert(isNaN(Number("1x" + "f".repeat(16))));
+	assert(isNaN(Number("0x-ffffffffffffffff")));
+	assert(isNaN(Number("0x+ffffffffffffffff")));
+	assert(isNaN(Number("0xffffffffffffffffg")));
+	assert(isNaN(Number("0z" + "1".repeat(64))));
+
 	let a = [1];
 	assert.sameValue(1, a.at("0xfp1"));
 	assert.sameValue(1, a.at(" 0xfp1"));
