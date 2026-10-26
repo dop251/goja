@@ -20,7 +20,9 @@ Features
    pass all of them. See .tc39_test262_checkout.sh for the latest working commit id.
  * Capable of running Babel, Typescript compiler and pretty much anything written in ES5.
  * Sourcemaps.
- * Most of ES6 functionality, still work in progress, see https://github.com/dop251/goja/milestone/1?closed=1
+ * Most of ES6 functionality, still work in progress. See the [ECMAScript feature table](features.md)
+   for implemented and missing features, including additions beyond ES6, and the
+   [milestone](https://github.com/dop251/goja/milestone/1?closed=1) for related work.
 
 Known incompatibilities and caveats
 -----------------------------------
