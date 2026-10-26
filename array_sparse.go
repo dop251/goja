@@ -18,10 +18,12 @@ type sparseArrayItem struct {
 
 type sparseArrayObject struct {
 	baseObject
-	items          []sparseArrayItem
+	items []sparseArrayItem
+	// cache of length to avoid boxing
+	lenValue       Value
 	length         uint32
-	propValueCount int
-	lengthProp     valueProperty
+	propValueCount uint32
+	lenWritable    bool
 }
 
 func (a *sparseArrayObject) findIdx(idx uint32) int {
@@ -59,7 +61,7 @@ func (a *sparseArrayObject) _setLengthInt(l uint32, throw bool) bool {
 		aa[i].value = nil
 	}
 	a.items = a.items[:idx]
-	a.length = l
+	a.length, a.lenValue = l, nil
 	if !ret {
 		a.val.runtime.typeErrorResult(throw, "Cannot redefine property: length")
 	}
@@ -70,7 +72,7 @@ func (a *sparseArrayObject) setLengthInt(l uint32, throw bool) bool {
 	if l == a.length {
 		return true
 	}
-	if !a.lengthProp.writable {
+	if !a.lenWritable {
 		a.val.runtime.typeErrorResult(throw, "length is not writable")
 		return false
 	}
@@ -78,7 +80,7 @@ func (a *sparseArrayObject) setLengthInt(l uint32, throw bool) bool {
 }
 
 func (a *sparseArrayObject) setLength(v uint32, throw bool) bool {
-	if !a.lengthProp.writable {
+	if !a.lenWritable {
 		a.val.runtime.typeErrorResult(throw, "length is not writable")
 		return false
 	}
@@ -118,12 +120,15 @@ func (a *sparseArrayObject) getIdx(idx valueInt, receiver Value) Value {
 }
 
 func (a *sparseArrayObject) getLengthProp() *valueProperty {
-	a.lengthProp.value = intToValue(int64(a.length))
-	return &a.lengthProp
+	if a.lenValue == nil {
+		a.lenValue = intToValue(int64(a.length))
+	}
+	return &valueProperty{
+		value:    a.lenValue,
+		writable: a.lenWritable,
+	}
 }
 
-// 'length' is recomputed by getOwnPropStr (getLengthProp), so it must be consulted rather than
-// reading the shared (possibly stale) lengthProp directly from the values map.
 func (a *sparseArrayObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
 	return a.hasAndGetOwnStr(name, a.getOwnPropStr(name), receiver)
 }
@@ -252,7 +257,7 @@ func (i *sparseArrayPropIter) next() (propIterItem, iterNextFunc) {
 		}
 	}
 
-	return propIterItem{name: asciiString("length"), value: &i.a.lengthProp}, i.a.baseObject.iterateStringKeys()
+	return propIterItem{name: stringValueLength, enumerable: _ENUM_FALSE}, i.a.baseObject.iterateStringKeys()
 }
 
 func (a *sparseArrayObject) iterateStringKeys() iterNextFunc {
@@ -266,7 +271,7 @@ func (a *sparseArrayObject) stringKeys(all bool, accum []Value) []Value {
 		for _, item := range a.items {
 			accum = append(accum, asciiString(strconv.FormatUint(uint64(item.idx), 10)))
 		}
-		accum = append(accum, asciiString("length"))
+		accum = append(accum, stringValueLength)
 	} else {
 		for _, item := range a.items {
 			if prop, ok := item.value.(*valueProperty); ok && !prop.enumerable {
@@ -279,7 +284,7 @@ func (a *sparseArrayObject) stringKeys(all bool, accum []Value) []Value {
 	return a.baseObject.stringKeys(all, accum)
 }
 
-func (a *sparseArrayObject) setValues(values []Value, objCount int) {
+func (a *sparseArrayObject) setValues(values []Value, objCount uint32) {
 	a.items = make([]sparseArrayItem, 0, objCount)
 	for i, val := range values {
 		if val != nil {
@@ -333,11 +338,11 @@ func (a *sparseArrayObject) expand(idx uint32) bool {
 			ar := &arrayObject{
 				baseObject:     a.baseObject,
 				length:         a.length,
+				lenWritable:    a.lenWritable,
 				propValueCount: a.propValueCount,
 			}
-			ar.setValuesFromSparse(a.items, int(idx))
+			ar.setValuesFromSparse(a.items, idx)
 			ar.val.self = ar
-			ar.lengthProp.writable = a.lengthProp.writable
 			return false
 		}
 	}
@@ -367,6 +372,7 @@ func (a *sparseArrayObject) _defineIdxProperty(idx uint32, desc PropertyDescript
 				}
 				if idx >= a.length {
 					a.length = idx + 1
+					a.lenValue = nil
 				}
 			} else {
 				a.val.self.(*arrayObject).values[idx] = prop
@@ -386,7 +392,7 @@ func (a *sparseArrayObject) defineOwnPropertyStr(name unistring.String, descr Pr
 		return a._defineIdxProperty(idx, descr, throw)
 	}
 	if name == "length" {
-		return a.val.runtime.defineArrayLength(a.getLengthProp(), descr, a.setLength, throw)
+		return a.val.runtime.defineArrayLength(a.length, &a.lenWritable, descr, a.setLength, throw)
 	}
 	return a.baseObject.defineOwnPropertyStr(name, descr, throw)
 }

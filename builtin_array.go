@@ -25,8 +25,8 @@ func (r *Runtime) newArrayObject() *arrayObject {
 
 func setArrayValues(a *arrayObject, values []Value) *arrayObject {
 	a.values = values
-	a.length = uint32(len(values))
-	a.objCount = len(values)
+	a.length, a.objCount = uint32(len(values)), uint32(len(values))
+	a.lenValue = nil
 	return a
 }
 
@@ -151,8 +151,8 @@ func (r *Runtime) arrayproto_pop(call FunctionCall) Value {
 		} else {
 			val = _undefined
 		}
-		if a.lengthProp.writable {
-			a.length = l
+		if a.lenWritable {
+			a.length, a.lenValue = l, nil
 		} else {
 			a.setLength(0, true) // will throw
 		}
@@ -482,7 +482,7 @@ func (r *Runtime) arrayproto_splice(call FunctionCall) Value {
 			copy(values[actualStart:], call.Arguments[2:])
 		}
 		src.values = values
-		src.objCount = len(values)
+		src.objCount = uint32(len(values))
 	} else {
 		for k := int64(0); k < actualDeleteCount; k++ {
 			from := valueInt(k + actualStart)
@@ -549,7 +549,7 @@ func (r *Runtime) arrayproto_unshift(call FunctionCall) Value {
 				arr.values = values
 			}
 			copy(arr.values, call.Arguments)
-			arr.objCount = int(arr.length)
+			arr.objCount = arr.length
 		} else {
 			for k := length - 1; k >= 0; k-- {
 				from := valueInt(k)
@@ -1009,7 +1009,7 @@ func (r *Runtime) arrayproto_shift(call FunctionCall) Value {
 	o := call.This.ToObject(r)
 	if a := r.checkStdArrayObjWithProto(o); a != nil {
 		if len(a.values) == 0 {
-			if !a.lengthProp.writable {
+			if !a.lenWritable {
 				a.setLength(0, true) // will throw
 			}
 			return _undefined
@@ -1019,6 +1019,7 @@ func (r *Runtime) arrayproto_shift(call FunctionCall) Value {
 		a.values[len(a.values)-1] = nil
 		a.values = a.values[:len(a.values)-1]
 		a.length--
+		a.lenValue = nil
 		return first
 	}
 	length := toLength(o.self.getStr("length", nil))
@@ -1596,13 +1597,12 @@ func (r *Runtime) arrayIterProto_next(call FunctionCall) Value {
 	panic(r.NewTypeError("Method Array Iterator.prototype.next called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: thisObj})))
 }
 
+// The 'length' property is handled by templatedArrayObject, it must not be part of the template.
 func createArrayProtoTemplate() *objectTemplate {
 	t := newObjectTemplate()
 	t.protoFactory = func(r *Runtime) *Object {
 		return r.global.ObjectPrototype
 	}
-
-	t.putStr("length", func(r *Runtime) Value { return valueProp(_positiveZero, true, false, false) })
 
 	t.putStr("constructor", func(r *Runtime) Value { return valueProp(r.getArray(), true, false, true) })
 

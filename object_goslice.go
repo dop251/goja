@@ -11,9 +11,9 @@ import (
 
 type objectGoSlice struct {
 	baseObject
-	data       *[]interface{}
-	lengthProp valueProperty
-	origIsPtr  bool
+	data        *[]interface{}
+	lenWritable bool
+	origIsPtr   bool
 }
 
 func (r *Runtime) newObjectGoSlice(data *[]interface{}, isPtr bool) *objectGoSlice {
@@ -35,22 +35,25 @@ func (o *objectGoSlice) init() {
 	o.baseObject.init()
 	o.class = classArray
 	o.prototype = o.val.runtime.getArrayPrototype()
-	o.lengthProp.writable = true
+	o.lenWritable = true
 	o.extensible = true
-	o.baseObject._put("length", &o.lengthProp)
 }
 
-func (o *objectGoSlice) updateLen() {
-	o.lengthProp.value = intToValue(int64(len(*o.data)))
+func (o *objectGoSlice) getLengthProp() *valueProperty {
+	return &valueProperty{
+		value:    intToValue(int64(len(*o.data))),
+		writable: o.lenWritable,
+	}
 }
 
 func (o *objectGoSlice) _getIdx(idx int) Value {
 	return o.val.runtime.ToValue((*o.data)[idx])
 }
 
-// 'length' is recomputed by getOwnPropStr (updateLen), so it must be consulted rather than
-// reading the shared (possibly stale) lengthProp directly from the values map.
 func (o *objectGoSlice) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	if name == "length" {
+		return intToValue(int64(len(*o.data))), true
+	}
 	return o.hasAndGetOwnStr(name, o.getOwnPropStr(name), receiver)
 }
 
@@ -59,8 +62,7 @@ func (o *objectGoSlice) getStr(name unistring.String, receiver Value) Value {
 	if idx := strToGoIdx(name); idx >= 0 && idx < len(*o.data) {
 		ownProp = o._getIdx(idx)
 	} else if name == "length" {
-		o.updateLen()
-		ownProp = &o.lengthProp
+		return intToValue(int64(len(*o.data)))
 	}
 
 	return o.getStrWithOwnProp(ownProp, name, receiver)
@@ -91,8 +93,7 @@ func (o *objectGoSlice) getOwnPropStr(name unistring.String) Value {
 		return nil
 	}
 	if name == "length" {
-		o.updateLen()
-		return &o.lengthProp
+		return o.getLengthProp()
 	}
 	return nil
 }
@@ -245,7 +246,7 @@ func (o *objectGoSlice) defineOwnPropertyStr(name unistring.String, descr Proper
 		return true
 	}
 	if name == "length" {
-		return o.val.runtime.defineArrayLength(&o.lengthProp, descr, o.putLength, throw)
+		return o.val.runtime.defineArrayLength(uint32(len(*o.data)), &o.lenWritable, descr, o.putLength, throw)
 	}
 	o.val.runtime.typeErrorResult(throw, "Cannot define property '%s' on a Go slice", name)
 	return false
@@ -261,6 +262,9 @@ func (o *objectGoSlice) deleteStr(name unistring.String, throw bool) bool {
 	if idx := strToIdx64(name); idx >= 0 {
 		o._deleteIdx(idx)
 		return true
+	}
+	if name == "length" {
+		return o.checkDelete(name, o.getLengthProp(), throw)
 	}
 	return o.baseObject.deleteStr(name, throw)
 }

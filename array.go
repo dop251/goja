@@ -69,16 +69,18 @@ func (r *Runtime) createArrayIterator(iterObj *Object, kind iterationKind) Value
 
 type arrayObject struct {
 	baseObject
-	values         []Value
+	values []Value
+	// cache of length to avoid boxing
+	lenValue       Value
+	objCount       uint32
+	propValueCount uint32
 	length         uint32
-	objCount       int
-	propValueCount int
-	lengthProp     valueProperty
+	lenWritable    bool
 }
 
 func (a *arrayObject) init() {
 	a.baseObject.init()
-	a.lengthProp.writable = true
+	a.lenWritable = true
 }
 
 func (a *arrayObject) _setLengthInt(l uint32, throw bool) bool {
@@ -111,7 +113,7 @@ func (a *arrayObject) _setLengthInt(l uint32, throw bool) bool {
 			a.values = a.values[:l]
 		}
 	}
-	a.length = l
+	a.length, a.lenValue = l, nil
 	if !ret {
 		a.val.runtime.typeErrorResult(throw, "Cannot redefine property: length")
 	}
@@ -122,7 +124,7 @@ func (a *arrayObject) setLengthInt(l uint32, throw bool) bool {
 	if l == a.length {
 		return true
 	}
-	if !a.lengthProp.writable {
+	if !a.lenWritable {
 		a.val.runtime.typeErrorResult(throw, "length is not writable")
 		return false
 	}
@@ -130,7 +132,7 @@ func (a *arrayObject) setLengthInt(l uint32, throw bool) bool {
 }
 
 func (a *arrayObject) setLength(v uint32, throw bool) bool {
-	if !a.lengthProp.writable {
+	if !a.lenWritable {
 		a.val.runtime.typeErrorResult(throw, "length is not writable")
 		return false
 	}
@@ -197,19 +199,34 @@ func (a *arrayObject) swap(i int, j int) {
 	a.values[i], a.values[j] = a.values[j], a.values[i]
 }
 
-// 'length' is recomputed by getOwnPropStr (getLengthProp), so it must be consulted rather than
-// reading the shared (possibly stale) lengthProp directly from the values map.
 func (a *arrayObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	if name == "length" {
+		if a.lenValue == nil {
+			a.lenValue = intToValue(int64(a.length))
+		}
+		return a.lenValue, true
+	}
 	return a.hasAndGetOwnStr(name, a.getOwnPropStr(name), receiver)
 }
 
 func (a *arrayObject) getStr(name unistring.String, receiver Value) Value {
+	if name == "length" {
+		if a.lenValue == nil {
+			a.lenValue = intToValue(int64(a.length))
+		}
+		return a.lenValue
+	}
 	return a.getStrWithOwnProp(a.getOwnPropStr(name), name, receiver)
 }
 
 func (a *arrayObject) getLengthProp() *valueProperty {
-	a.lengthProp.value = intToValue(int64(a.length))
-	return &a.lengthProp
+	if a.lenValue == nil {
+		a.lenValue = intToValue(int64(a.length))
+	}
+	return &valueProperty{
+		value:    a.lenValue,
+		writable: a.lenWritable,
+	}
 }
 
 func (a *arrayObject) setOwnIdx(idx valueInt, val Value, throw bool) bool {
@@ -301,7 +318,7 @@ func (i *arrayPropIter) next() (propIterItem, iterNextFunc) {
 		}
 	}
 
-	return propIterItem{name: asciiString("length"), value: &i.a.lengthProp}, i.a.baseObject.iterateStringKeys()
+	return propIterItem{name: stringValueLength, enumerable: _ENUM_FALSE}, i.a.baseObject.iterateStringKeys()
 }
 
 func (a *arrayObject) iterateStringKeys() iterNextFunc {
@@ -324,7 +341,7 @@ func (a *arrayObject) stringKeys(all bool, accum []Value) []Value {
 		}
 	}
 	if all {
-		accum = append(accum, asciiString("length"))
+		accum = append(accum, stringValueLength)
 	}
 	return a.baseObject.stringKeys(all, accum)
 }
@@ -364,16 +381,16 @@ func (a *arrayObject) expand(idx uint32) bool {
 		if targetLen < uint32(cap(a.values)) {
 			a.values = a.values[:targetLen]
 		} else {
-			if idx > 4096 && (a.objCount == 0 || idx/uint32(a.objCount) > 10) {
+			if idx > 4096 && (a.objCount == 0 || idx/a.objCount > 10) {
 				//log.Println("Switching standard->sparse")
 				sa := &sparseArrayObject{
 					baseObject:     a.baseObject,
 					length:         a.length,
+					lenWritable:    a.lenWritable,
 					propValueCount: a.propValueCount,
 				}
 				sa.setValues(a.values, a.objCount+1)
 				sa.val.self = sa
-				sa.lengthProp.writable = a.lengthProp.writable
 				return false
 			} else {
 				if bits.UintSize == 32 {
@@ -391,31 +408,27 @@ func (a *arrayObject) expand(idx uint32) bool {
 	return true
 }
 
-func (r *Runtime) defineArrayLength(prop *valueProperty, descr PropertyDescriptor, setter func(uint32, bool) bool, throw bool) bool {
+func (r *Runtime) defineArrayLength(oldLen uint32, writable *bool, descr PropertyDescriptor, setter func(uint32, bool) bool, throw bool) bool {
 	var newLen uint32
 	ret := true
 	if descr.Value != nil {
 		newLen = r.toLengthUint32(descr.Value)
 	}
-
 	if descr.Configurable == FLAG_TRUE || descr.Enumerable == FLAG_TRUE || descr.Getter != nil || descr.Setter != nil {
 		ret = false
 		goto Reject
 	}
-
 	if descr.Value != nil {
-		oldLen := uint32(prop.value.ToInteger())
 		if oldLen != newLen {
 			ret = setter(newLen, false)
 		}
 	} else {
 		ret = true
 	}
-
 	if descr.Writable != FLAG_NOT_SET {
 		w := descr.Writable.Bool()
-		if prop.writable {
-			prop.writable = w
+		if *writable {
+			*writable = w
 		} else {
 			if w {
 				ret = false
@@ -462,7 +475,7 @@ func (a *arrayObject) defineOwnPropertyStr(name unistring.String, descr Property
 		return a._defineIdxProperty(idx, descr, throw)
 	}
 	if name == "length" {
-		return a.val.runtime.defineArrayLength(a.getLengthProp(), descr, a.setLength, throw)
+		return a.val.runtime.defineArrayLength(a.length, &a.lenWritable, descr, a.setLength, throw)
 	}
 	return a.baseObject.defineOwnPropertyStr(name, descr, throw)
 }
@@ -570,12 +583,12 @@ func (a *arrayObject) exportToArrayOrSlice(dst reflect.Value, typ reflect.Type, 
 	return exportToArrayOrSliceWithIterator(ir, a.val, dst, typ, ctx)
 }
 
-func (a *arrayObject) setValuesFromSparse(items []sparseArrayItem, newMaxIdx int) {
+func (a *arrayObject) setValuesFromSparse(items []sparseArrayItem, newMaxIdx uint32) {
 	a.values = make([]Value, newMaxIdx+1)
 	for _, item := range items {
 		a.values[item.idx] = item.value
 	}
-	a.objCount = len(items)
+	a.objCount = uint32(len(items))
 }
 
 func toIdx(v valueInt) uint32 {

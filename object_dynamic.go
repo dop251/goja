@@ -835,7 +835,7 @@ func (a *dynamicArray) stringKeys(all bool, accum []Value) []Value {
 		accum = append(accum, asciiString(strconv.Itoa(i)))
 	}
 	if all {
-		accum = append(accum, asciiString("length"))
+		accum = append(accum, stringValueLength)
 	}
 	return accum
 }

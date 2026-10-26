@@ -2812,6 +2812,7 @@ func (_pushArrayItem) exec(vm *vm) {
 	arr := vm.stack[vm.sp-2].(*Object).self.(*arrayObject)
 	if arr.length < math.MaxUint32 {
 		arr.length++
+		arr.lenValue = nil
 	} else {
 		vm.throw(vm.r.newError(vm.r.getRangeError(), "Invalid array length"))
 		return
@@ -2834,6 +2835,7 @@ func (_pushArraySpread) exec(vm *vm) {
 	vm.r.getIterator(vm.stack[vm.sp-1], nil).iterate(func(val Value) {
 		if arr.length < math.MaxUint32 {
 			arr.length++
+			arr.lenValue = nil
 		} else {
 			vm.throw(vm.r.newError(vm.r.getRangeError(), "Invalid array length"))
 			return
@@ -5497,11 +5499,11 @@ func (c *getTaggedTmplObject) exec(vm *vm) {
 	raw := vm.r.newArrayObject()
 	setArrayValues(raw, c.raw)
 
-	cooked.propValueCount = len(c.cooked)
-	cooked.lengthProp.writable = false
+	cooked.propValueCount = uint32(len(c.cooked))
+	cooked.lenWritable = false
 
-	raw.propValueCount = len(c.raw)
-	raw.lengthProp.writable = false
+	raw.propValueCount = uint32(len(c.raw))
+	raw.lenWritable = false
 
 	raw.preventExtensions(true)
 	raw.val.self = &taggedTemplateArray{

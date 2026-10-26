@@ -14,7 +14,7 @@ type objectGoSliceReflect struct {
 
 func (o *objectGoSliceReflect) init() {
 	o.objectGoArrayReflect._init()
-	o.lengthProp.writable = true
+	o.lenWritable = true
 	o.putIdx = o._putIdx
 }
 
@@ -83,7 +83,7 @@ func (o *objectGoSliceReflect) setOwnStr(name unistring.String, val Value, throw
 
 func (o *objectGoSliceReflect) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	if name == "length" {
-		return o.val.runtime.defineArrayLength(&o.lengthProp, descr, o.putLength, throw)
+		return o.val.runtime.defineArrayLength(uint32(o.fieldsValue.Len()), &o.lenWritable, descr, o.putLength, throw)
 	}
 	return o.objectGoArrayReflect.defineOwnPropertyStr(name, descr, throw)
 }

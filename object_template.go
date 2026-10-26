@@ -42,6 +42,8 @@ type templatedFuncObject struct {
 // uses Array.prototype as an actual array.
 type templatedArrayObject struct {
 	templatedObject
+	length      uint32
+	lenWritable bool
 }
 
 func newObjectTemplate() *objectTemplate {
@@ -384,40 +386,73 @@ func (r *Runtime) newTemplatedArrayObject(tmpl *objectTemplate, obj *Object) *te
 			},
 			tmpl: tmpl,
 		},
+		lenWritable: true,
 	}
 	obj.self = o
 	o.init()
 	return o
 }
 
-func (a *templatedArrayObject) getLenProp() *valueProperty {
-	lenProp, _ := a.getOwnPropStr("length").(*valueProperty)
-	if lenProp == nil {
-		panic(a.val.runtime.NewTypeError("missing length property"))
+func (a *templatedArrayObject) getLengthProp() *valueProperty {
+	return &valueProperty{
+		value:    intToValue(int64(a.length)),
+		writable: a.lenWritable,
 	}
-	return lenProp
+}
+
+func (a *templatedArrayObject) getOwnPropStr(p unistring.String) Value {
+	if p == "length" {
+		return a.getLengthProp()
+	}
+	return a.templatedObject.getOwnPropStr(p)
+}
+
+func (a *templatedArrayObject) getStr(name unistring.String, receiver Value) Value {
+	if name == "length" {
+		return intToValue(int64(a.length))
+	}
+	return a.templatedObject.getStr(name, receiver)
+}
+
+func (a *templatedArrayObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
+	if name == "length" {
+		return intToValue(int64(a.length)), true
+	}
+	return a.templatedObject.hasAndGetStr(name, receiver)
+}
+
+func (a *templatedArrayObject) hasOwnPropertyStr(p unistring.String) bool {
+	if p == "length" {
+		return true
+	}
+	return a.templatedObject.hasOwnPropertyStr(p)
+}
+
+// 'length' is not part of the template, it's a virtual property, hence it has to be handled here.
+func (a *templatedArrayObject) deleteStr(name unistring.String, throw bool) bool {
+	if name == "length" {
+		// 'length' is non-configurable
+		return a.checkDelete(name, a.getLengthProp(), throw)
+	}
+	return a.templatedObject.deleteStr(name, throw)
 }
 
 func (a *templatedArrayObject) _setOwnIdx(idx uint32) {
-	lenProp := a.getLenProp()
-	l := uint32(lenProp.value.ToInteger())
-	if idx >= l {
-		lenProp.value = intToValue(int64(idx) + 1)
+	if idx >= a.length {
+		a.length = idx + 1
 	}
 }
 
 func (a *templatedArrayObject) setLength(l uint32, throw bool) bool {
-	lenProp := a.getLenProp()
-	oldLen := uint32(lenProp.value.ToInteger())
-	if l == oldLen {
+	if l == a.length {
 		return true
 	}
-	if !lenProp.writable {
+	if !a.lenWritable {
 		a.val.runtime.typeErrorResult(throw, "length is not writable")
 		return false
 	}
 	ret := true
-	if l < oldLen {
+	if l < a.length {
 		a.materialisePropNames()
 		a.fixPropOrder()
 		i := sort.Search(a.idxPropCount, func(idx int) bool {
@@ -431,7 +466,7 @@ func (a *templatedArrayObject) setLength(l uint32, throw bool) bool {
 			}
 		}
 	}
-	lenProp.value = intToValue(int64(l))
+	a.length = l
 	return ret
 }
 
@@ -460,7 +495,7 @@ func (a *templatedArrayObject) setOwnIdx(p valueInt, v Value, throw bool) bool {
 
 func (a *templatedArrayObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
 	if name == "length" {
-		return a.val.runtime.defineArrayLength(a.getLenProp(), descr, a.setLength, throw)
+		return a.val.runtime.defineArrayLength(a.length, &a.lenWritable, descr, a.setLength, throw)
 	}
 	if !a.templatedObject.defineOwnPropertyStr(name, descr, throw) {
 		return false
@@ -479,4 +514,18 @@ func (a *templatedArrayObject) defineOwnPropertyIdx(p valueInt, desc PropertyDes
 		a._setOwnIdx(idx)
 	}
 	return true
+}
+
+// 'length' is not part of the template, it's a virtual property, hence it has to be handled here.
+func (a *templatedArrayObject) iterateStringKeys() iterNextFunc {
+	return func() (propIterItem, iterNextFunc) {
+		return propIterItem{name: stringValueLength, enumerable: _ENUM_FALSE}, a.templatedObject.iterateStringKeys()
+	}
+}
+
+func (a *templatedArrayObject) stringKeys(all bool, keys []Value) []Value {
+	if all {
+		keys = append(keys, stringValueLength)
+	}
+	return a.templatedObject.stringKeys(all, keys)
 }

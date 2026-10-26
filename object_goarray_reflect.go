@@ -9,7 +9,8 @@ import (
 
 type objectGoArrayReflect struct {
 	objectGoReflect
-	lengthProp valueProperty
+
+	lenWritable bool
 
 	valueCache valueArrayCache
 
@@ -60,17 +61,18 @@ func (o *objectGoArrayReflect) _init() {
 	o.objectGoReflect.init()
 	o.class = classArray
 	o.prototype = o.val.runtime.getArrayPrototype()
-	o.baseObject._put("length", &o.lengthProp)
 }
 
 func (o *objectGoArrayReflect) init() {
 	o._init()
-	o.updateLen()
 	o.putIdx = o._putIdx
 }
 
-func (o *objectGoArrayReflect) updateLen() {
-	o.lengthProp.value = intToValue(int64(o.fieldsValue.Len()))
+func (o *objectGoArrayReflect) getLengthProp() *valueProperty {
+	return &valueProperty{
+		value:    intToValue(int64(o.fieldsValue.Len())),
+		writable: o.lenWritable,
+	}
 }
 
 func (o *objectGoArrayReflect) _hasIdx(idx valueInt) bool {
@@ -111,28 +113,25 @@ func (o *objectGoArrayReflect) getIdx(idx valueInt, receiver Value) Value {
 
 func (o *objectGoArrayReflect) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
 	var ownProp Value
+	if name == "length" {
+		return intToValue(int64(o.fieldsValue.Len())), true
+	}
 	if idx := strToGoIdx(name); idx >= 0 && idx < o.fieldsValue.Len() {
 		ownProp = o._getIdx(idx)
-	} else if name == "length" {
-		if o.fieldsValue.Kind() == reflect.Slice {
-			o.updateLen()
-		}
-		ownProp = &o.lengthProp
 	} else {
 		ownProp = o.objectGoReflect.getOwnPropStr(name)
 	}
+
 	return o.hasAndGetOwnStr(name, ownProp, receiver)
 }
 
 func (o *objectGoArrayReflect) getStr(name unistring.String, receiver Value) Value {
 	var ownProp Value
+	if name == "length" {
+		return intToValue(int64(o.fieldsValue.Len()))
+	}
 	if idx := strToGoIdx(name); idx >= 0 && idx < o.fieldsValue.Len() {
 		ownProp = o._getIdx(idx)
-	} else if name == "length" {
-		if o.fieldsValue.Kind() == reflect.Slice {
-			o.updateLen()
-		}
-		ownProp = &o.lengthProp
 	} else {
 		ownProp = o.objectGoReflect.getOwnPropStr(name)
 	}
@@ -151,10 +150,7 @@ func (o *objectGoArrayReflect) getOwnPropStr(name unistring.String) Value {
 		return nil
 	}
 	if name == "length" {
-		if o.fieldsValue.Kind() == reflect.Slice {
-			o.updateLen()
-		}
-		return &o.lengthProp
+		return o.getLengthProp()
 	}
 	return o.objectGoReflect.getOwnPropStr(name)
 }
@@ -293,7 +289,9 @@ func (o *objectGoArrayReflect) deleteStr(name unistring.String, throw bool) bool
 		o._deleteIdx(idx)
 		return true
 	}
-
+	if name == "length" {
+		return o.checkDelete(name, o.getLengthProp(), throw)
+	}
 	return o.objectGoReflect.deleteStr(name, throw)
 }
 

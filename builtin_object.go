@@ -266,7 +266,7 @@ func (r *Runtime) object_seal(call FunctionCall) Value {
 		}
 
 		for item, next := obj.self.iterateKeys()(); next != nil; item, next = next() {
-			if prop, ok := item.value.(*valueProperty); ok {
+			if prop, ok := item.value.(*valueProperty); ok && item.enumerable == _ENUM_UNKNOWN {
 				prop.configurable = false
 			} else {
 				obj.defineOwnProperty(item.name, descr, true)
@@ -284,7 +284,7 @@ func (r *Runtime) object_freeze(call FunctionCall) Value {
 		obj.self.preventExtensions(true)
 
 		for item, next := obj.self.iterateKeys()(); next != nil; item, next = next() {
-			if prop, ok := item.value.(*valueProperty); ok {
+			if prop, ok := item.value.(*valueProperty); ok && item.enumerable == _ENUM_UNKNOWN {
 				prop.configurable = false
 				if !prop.accessor {
 					prop.writable = false
