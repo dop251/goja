@@ -167,6 +167,29 @@ func stringToFloat(trimmed string) (float64, error) {
 	return f, err
 }
 
+// prefixedIntToFloat converts a trimmed 0x, 0o or 0b integer that does not fit into int64 to the nearest float64.
+func prefixedIntToFloat(ss string) (float64, error) {
+	if len(ss) > 2 && ss[0] == '0' {
+		var base int
+		switch ss[1] {
+		case 'x', 'X':
+			base = 16
+		case 'o', 'O':
+			base = 8
+		case 'b', 'B':
+			base = 2
+		}
+		// big.Int accepts a sign after the prefix, ECMAScript does not.
+		if base != 0 && ss[2] != '+' && ss[2] != '-' {
+			if n, ok := new(big.Int).SetString(ss[2:], base); ok {
+				f, _ := n.Float64()
+				return f, nil
+			}
+		}
+	}
+	return 0, strconv.ErrSyntax
+}
+
 func (s asciiString) ToInteger() int64 {
 	return trimmedToInteger(strings.TrimSpace(string(s)))
 }
@@ -223,6 +246,9 @@ func trimmedToFloat(ss string) float64 {
 		if err == nil {
 			return float64(i)
 		}
+		if f, err := prefixedIntToFloat(ss); err == nil {
+			return f
+		}
 		f = math.NaN()
 	}
 	return f
@@ -249,6 +275,10 @@ func (s asciiString) ToNumber() Value {
 	}
 
 	if f, err := s._toFloat(ss); err == nil {
+		return floatToValue(f)
+	}
+
+	if f, err := prefixedIntToFloat(ss); err == nil {
 		return floatToValue(f)
 	}
 

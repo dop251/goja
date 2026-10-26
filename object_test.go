@@ -554,6 +554,26 @@ func TestObjectEquality(t *testing.T) {
 	`, _undefined, t)
 }
 
+func TestObjectGetIdx(t *testing.T) {
+	vm := New()
+	obj := vm.NewArray("a", "b")
+	if v := obj.GetIdx(0); v.Export() != "a" {
+		t.Fatal(v)
+	}
+
+	if v := obj.GetIdx(1); v.Export() != "b" {
+		t.Fatal(v)
+	}
+
+	if v := obj.GetIdx(2); v != nil {
+		t.Fatal(v)
+	}
+
+	if v := obj.GetIdx(-1); v != nil {
+		t.Fatal(v)
+	}
+}
+
 func BenchmarkPut(b *testing.B) {
 	v := &Object{}
 

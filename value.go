@@ -817,6 +817,13 @@ func (o *Object) Get(name string) Value {
 	return o.self.getStr(unistring.NewFromString(name), nil)
 }
 
+// GetIdx returns an object's property by a numeric key. This is mostly useful if the object is an Array to avoid
+// converting the index into a string.
+// This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.
+func (o *Object) GetIdx(idx int64) Value {
+	return o.self.getIdx(valueInt(idx), nil)
+}
+
 // GetSymbol returns the value of a symbol property. Use one of the Sym* values for well-known
 // symbols (such as SymIterator, SymToStringTag, etc...).
 // This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.

@@ -19,6 +19,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 	"golang.org/x/text/unicode/rangetable"
 )
 
@@ -884,7 +885,8 @@ func toUpper(s string, sb *StringBuilder) {
 	sb.WriteUTF8String(caserTransform(cases.Upper(language.Und), s))
 }
 
-func (s unicodeString) toCase(conv func(string, *StringBuilder)) String {
+// transform normalizes or maps valid Unicode spans while preserving lone UTF-16 units.
+func (s unicodeString) transform(conv func(string, *StringBuilder)) String {
 	var b StringBuilder
 	u := s[1:]
 	b.LikelyUnicode(len(u))
@@ -916,11 +918,17 @@ func (s unicodeString) toCase(conv func(string, *StringBuilder)) String {
 }
 
 func (s unicodeString) toLower() String {
-	return s.toCase(toLower)
+	return s.transform(toLower)
 }
 
 func (s unicodeString) toUpper() String {
-	return s.toCase(toUpper)
+	return s.transform(toUpper)
+}
+
+func (s unicodeString) normalize(form norm.Form) String {
+	return s.transform(func(span string, b *StringBuilder) {
+		b.WriteUTF8String(form.String(span))
+	})
 }
 
 func (s unicodeString) Export() interface{} {

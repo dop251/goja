@@ -1050,6 +1050,11 @@ func TestPrimitivePtr(t *testing.T) {
 	if v := res.ToBoolean(); !v {
 		t.Fatalf("value: %#v", res)
 	}
+
+	var ns *string
+	if v := vm.ToValue(ns); v != _null {
+		t.Fatalf("value: %#v", v)
+	}
 }
 
 func TestStringer(t *testing.T) {

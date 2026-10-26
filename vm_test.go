@@ -91,6 +91,14 @@ func TestNewArrayFromIterClosed(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestMulNegZero(t *testing.T) {
+	const SCRIPT = `
+		assert(Object.is(0 * -5, -0));
+		assert(Object.is(0 * -1, -0));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func BenchmarkVmNOP2(b *testing.B) {
 	prg := []func(*vm){
 		//loadVal(0).exec,
