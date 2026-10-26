@@ -926,9 +926,6 @@ func (s unicodeString) toUpper() String {
 }
 
 func (s unicodeString) normalize(form norm.Form) String {
-	if s.loneSurrogateIndex() < 0 {
-		return newStringValue(form.String(s.String()))
-	}
 	return s.transform(func(span string, b *StringBuilder) {
 		b.WriteUTF8String(form.String(span))
 	})
