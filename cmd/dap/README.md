@@ -1,32 +1,37 @@
-# goja DAP 调试器
+# goja DAP debugger
 
-`goja-dap` 是一个 [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol/) 服务器，基于本仓库的 VM 级调试器（`debugger.go` + `vm.debug()`），让你可以在 VS Code（或任何 DAP 客户端）里调试跑在 goja 里的 JavaScript。
+`goja-dap` is a [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol/)
+server built on top of the VM-level debugger in this repository (`debugger.go` +
+`vm.debug()`). It lets you debug JavaScript running in goja from VS Code, or from
+any other DAP client.
 
-## 功能
+## Features
 
-- 断点（`setBreakpoints`）
-- 单步：step over / step in / step out（`next` / `stepIn` / `stepOut`）
-- 调用栈（`stackTrace`）
-- 变量检查：Local / Global 作用域，对象可懒展开（`scopes` / `variables`）
-- 调试控制台表达式求值（`evaluate`，在暂停帧的上下文里执行）
-- `console.log` 输出转发为 DAP `output` 事件
-- `debugger;` 语句触发暂停
+- Breakpoints (`setBreakpoints`)
+- Stepping: step over / step in / step out (`next` / `stepIn` / `stepOut`)
+- Call stack (`stackTrace`)
+- Variable inspection: Local / Global scopes, with lazy expansion of objects
+  (`scopes` / `variables`)
+- Expression evaluation in the debug console (`evaluate`, executed in the
+  context of the paused frame)
+- `console.log` output forwarded as DAP `output` events
+- `debugger;` statements trigger a pause
 
-## 构建
+## Build
 
 ```sh
 go build -o goja-dap ./cmd/dap
 ```
 
-## 使用
+## Usage
 
-### TCP 模式（attach）
+### TCP mode (attach)
 
 ```sh
 ./goja-dap -port 5678 path/to/script.js
 ```
 
-VS Code `launch.json`（配合任意 DAP 客户端扩展，或 "Debugger for goja"）：
+VS Code `launch.json` (with any DAP client extension, or "Debugger for goja"):
 
 ```json
 {
@@ -42,13 +47,13 @@ VS Code `launch.json`（配合任意 DAP 客户端扩展，或 "Debugger for goj
 }
 ```
 
-### stdio 模式（编辑器托管 launch）
+### stdio mode (editor-managed launch)
 
 ```sh
 ./goja-dap -stdio path/to/script.js
 ```
 
-## 协议时序
+## Protocol sequence
 
 ```
 client                       goja-dap                       goja VM (debug loop)
@@ -66,19 +71,26 @@ client                       goja-dap                       goja VM (debug loop)
   |<-- terminated ------------|<-------------------------------| program end
 ```
 
-## 实现结构
+## Implementation
 
-| 文件 | 作用 |
+| File | Purpose |
 |---|---|
-| `main.go` | 入口：`-port` / `-stdio` / `-stopOnEntry`，DAP 读写循环 |
-| `adapter.go` | 请求分发、断点/栈/作用域/变量/求值、console 转发、writer 队列 |
-| `adapter_test.go` | 进程内管道冒烟测试（`go test ./...`） |
-| `testdata/sample.js` | 冒烟测试脚本 |
+| `main.go` | Entry point: `-port` / `-stdio` / `-stopOnEntry`, DAP read/write loop |
+| `adapter.go` | Request dispatch, breakpoints/stack/scopes/variables/evaluate, console forwarding, writer queue |
+| `adapter_test.go` | In-process pipe smoke test (`go test ./...`) |
+| `testdata/sample.js` | Smoke test script |
 
-VM 级调试器在本仓库根目录 `debugger.go`（`Runtime.AttachDebugger()` 返回 `*goja.Debugger`），相关钩子在 `vm.go`（`vm.debug()` 循环、`_debugger` 指令）、`compiler.go`（debug 模式禁用动态作用域优化）、`compiler_stmt.go`（debug 模式下发射 `debugger` 指令）、`runtime.go`（`compileDebug`）。
+The VM-level debugger lives in `debugger.go` at the repository root
+(`Runtime.AttachDebugger()` returns a `*goja.Debugger`). The hooks it relies on
+are in `vm.go` (the `vm.debug()` loop and the `_debugger` instruction),
+`compiler.go` (debug mode disables dynamic scope optimisations),
+`compiler_stmt.go` (emits the `debugger` instruction in debug mode) and
+`runtime.go` (`compileDebug`).
 
-## 限制
+## Limitations
 
-- 一次会话只调试一个脚本；每次 TCP 连接重新从头跑一遍脚本。
-- `pause`（异步中断）暂不支持。
-- 断点按「文件基名 + 行号」匹配，多文件同名时可能互相干扰。
+- One script per session; every new TCP connection replays the script from the
+  beginning.
+- `pause` (asynchronous interrupt) is not supported yet.
+- Breakpoints are matched by "file base name + line number", so files with the
+  same name in different directories may interfere with each other.
