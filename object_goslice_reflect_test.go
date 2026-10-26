@@ -509,6 +509,29 @@ func TestGoSliceReflectExternalLenUpdate(t *testing.T) {
     `, _undefined, t)
 }
 
+func TestGoSliceReflectNil(t *testing.T) {
+	vm := New()
+	t.Run("nil slice", func(t *testing.T) {
+		var a []int
+		if v := vm.ToValue(a); v != _null {
+			t.Fatal(v)
+		}
+	})
+
+	t.Run("pointer to nil slice", func(t *testing.T) {
+		var a []int
+		vm.Set("a", &a)
+		_, err := vm.RunString(`a.push(1);`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a[0] != 1 {
+			t.Fatal(a[0])
+		}
+	})
+
+}
+
 func BenchmarkGoSliceReflectSet(b *testing.B) {
 	vm := New()
 	a := vm.ToValue([]int{1}).(*Object)

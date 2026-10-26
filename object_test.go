@@ -138,6 +138,42 @@ func TestObjectAssign(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestObjectLegacyAccessors(t *testing.T) {
+	const SCRIPT = `
+	function getter() { return this.v * 2; }
+	function setter(v) { this.v = v; }
+	var proto = {};
+	proto.__defineGetter__("x", getter);
+	proto.__defineSetter__("x", setter);
+	var desc = Object.getOwnPropertyDescriptor(proto, "x");
+	assert.sameValue(desc.get, getter, "get");
+	assert.sameValue(desc.set, setter, "set");
+	assert(desc.enumerable, "enumerable");
+	assert(desc.configurable, "configurable");
+
+	var obj = Object.create(proto);
+	obj.x = 21;
+	assert.sameValue(obj.x, 42, "accessor works");
+	assert.sameValue(obj.__lookupGetter__("x"), getter, "inherited getter");
+	assert.sameValue(obj.__lookupSetter__("x"), setter, "inherited setter");
+	assert.sameValue(obj.__lookupGetter__("v"), undefined, "own data property");
+	assert.sameValue(obj.__lookupGetter__("missing"), undefined, "missing");
+
+	var sym = Symbol();
+	obj.__defineGetter__(sym, getter);
+	assert.sameValue(obj.__lookupGetter__(sym), getter, "symbol key");
+	assert.sameValue(obj.__lookupSetter__(sym), undefined, "symbol key without setter");
+
+	assert.throws(TypeError, function() {
+		obj.__defineGetter__("y", {});
+	}, "non-callable getter");
+	assert.throws(TypeError, function() {
+		Object.freeze({}).__defineSetter__("y", setter);
+	}, "non-extensible object");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestExportCircular(t *testing.T) {
 	vm := New()
 	o := vm.NewObject()
@@ -516,6 +552,26 @@ func TestObjectEquality(t *testing.T) {
 	assert.sameValue([s.F].indexOf(s.F), 0, "indexOf");
 	assert([s.F].includes(s.F));
 	`, _undefined, t)
+}
+
+func TestObjectGetIdx(t *testing.T) {
+	vm := New()
+	obj := vm.NewArray("a", "b")
+	if v := obj.GetIdx(0); v.Export() != "a" {
+		t.Fatal(v)
+	}
+
+	if v := obj.GetIdx(1); v.Export() != "b" {
+		t.Fatal(v)
+	}
+
+	if v := obj.GetIdx(2); v != nil {
+		t.Fatal(v)
+	}
+
+	if v := obj.GetIdx(-1); v != nil {
+		t.Fatal(v)
+	}
 }
 
 func BenchmarkPut(b *testing.B) {

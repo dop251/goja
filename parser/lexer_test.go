@@ -18,7 +18,7 @@ func TestLexer(t *testing.T) {
 		test := func(src string, test ...interface{}) {
 			parser := setup(src)
 			for len(test) > 0 {
-				tkn, literal, _, idx := parser.scan()
+				tkn, literal, _, _, idx := parser.scan()
 				if len(test) > 0 {
 					is(tkn, test[0].(token.Token))
 					test = test[1:]

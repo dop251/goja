@@ -34,7 +34,7 @@ func TestVM1(t *testing.T) {
 			add,
 			setElem,
 			pop,
-			loadDynamic("v"),
+			loadDynamic{name: "v"},
 		},
 	}
 
@@ -87,6 +87,14 @@ func TestNewArrayFromIterClosed(t *testing.T) {
 	assert.sameValue(a, undefined);
 	assert(Array.isArray(other));
 	assert.sameValue(other.length, 0);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestMulNegZero(t *testing.T) {
+	const SCRIPT = `
+		assert(Object.is(0 * -5, -0));
+		assert(Object.is(0 * -1, -0));
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }

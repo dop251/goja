@@ -321,6 +321,26 @@ func TestStringSplit(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestStringFromCodePoint(t *testing.T) {
+	const SCRIPT = `
+var one = (function() { var x = -0; x++; return x; })();
+
+assert.sameValue(String.fromCodePoint(-0), "\0", "-0");
+assert.sameValue(String.fromCodePoint("-0"), "\0", "string -0");
+assert.sameValue(String.fromCodePoint(one), "\x01", "float 1");
+assert.sameValue(String.fromCodePoint(0x10FFFF), "\uDBFF\uDFFF", "0x10FFFF");
+
+assert.throws(RangeError, () => { String.fromCodePoint(-1); }, "-1");
+assert.throws(RangeError, () => { String.fromCodePoint(0.5); }, "0.5");
+assert.throws(RangeError, () => { String.fromCodePoint(-0.5); }, "-0.5");
+assert.throws(RangeError, () => { String.fromCodePoint(0x110000); }, "0x110000");
+assert.throws(RangeError, () => { String.fromCodePoint(NaN); }, "NaN");
+assert.throws(RangeError, () => { String.fromCodePoint(Infinity); }, "Infinity");
+assert.throws(RangeError, () => { String.fromCodePoint(-Infinity); }, "-Infinity");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestStringWellFormed(t *testing.T) {
 	const SCRIPT = `
 var lo = '\uD834';
@@ -338,6 +358,30 @@ assert.sameValue('abc'.toWellFormed(), 'abc', "ascii");
 assert.sameValue(('a' + pair).toWellFormed(), 'a' + pair, "pair");
 assert.sameValue((lo + 'a' + pair + hi + lo).toWellFormed(), '\uFFFDa' + pair + '\uFFFD\uFFFD', "lone");
 assert.sameValue((hi + lo).toWellFormed(), '\uFFFD\uFFFD', "reversed pair");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestStringHTMLMethods(t *testing.T) {
+	const SCRIPT = `
+assert.sameValue('x'.anchor('a"b"'), '<a name="a&quot;b&quot;">x</a>', "anchor");
+assert.sameValue('x'.big(), '<big>x</big>', "big");
+assert.sameValue('x'.blink(), '<blink>x</blink>', "blink");
+assert.sameValue('x'.bold(), '<b>x</b>', "bold");
+assert.sameValue('x'.fixed(), '<tt>x</tt>', "fixed");
+assert.sameValue('x'.fontcolor('red'), '<font color="red">x</font>', "fontcolor");
+assert.sameValue('x'.fontsize(7), '<font size="7">x</font>', "fontsize");
+assert.sameValue('x'.italics(), '<i>x</i>', "italics");
+assert.sameValue('x'.link('"'), '<a href="&quot;">x</a>', "link");
+assert.sameValue('x'.small(), '<small>x</small>', "small");
+assert.sameValue('x'.strike(), '<strike>x</strike>', "strike");
+assert.sameValue('x'.sub(), '<sub>x</sub>', "sub");
+assert.sameValue('x'.sup(), '<sup>x</sup>', "sup");
+
+assert.sameValue('x'.anchor(), '<a name="undefined">x</a>', "no argument");
+assert.sameValue('é'.bold(), '<b>é</b>', "unicode this");
+assert.sameValue('x'.link('é"é"'), '<a href="é&quot;é&quot;">x</a>', "unicode attribute");
+assert.throws(TypeError, () => { 'x'.anchor(Symbol()); }, "symbol attribute");
 `
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }

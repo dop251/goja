@@ -170,6 +170,34 @@ func TestArrayFrom(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestArrayFromArrayLikeMaxLength(t *testing.T) {
+	const SCRIPT = `
+		class TestError extends Error {
+		}
+
+		var src = {
+			length: 2**32,
+			get 0() {
+				throw new TestError("element read");
+			},
+		};
+		assert.throws(RangeError, () => {
+			Array.from(src);
+		});
+		assert.throws(RangeError, () => {
+			Array.from(src, (v) => v);
+		});
+		assert.throws(RangeError, () => {
+			Array.from.call({}, src);
+		});
+		src.length = 2**32 - 1;
+		assert.throws(TestError, () => {
+			Array.from(src);
+		});
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestArrayOf(t *testing.T) {
 	const SCRIPT = `
 	function T1() {
@@ -371,6 +399,20 @@ func TestArrayToSpliced(t *testing.T) {
 	assert(compareArray(a, [1, 2, 3, 4, 5]));
 	assert(compareArray(a.toSpliced(1, 0, 'a'), [1, 'a', 2, 3, 4, 5]));
 	assert(compareArray(a, [1, 2, 3, 4, 5]));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestArrayIncludesNegativeZero(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue([-0].includes(0), true, "-0 element, +0 searched");
+	assert.sameValue([-0].includes(-0), true, "-0 element, -0 searched");
+	assert.sameValue([-0].includes(1), false, "-0 element, 1 searched");
+	assert.sameValue([NaN].includes(NaN), true, "NaN");
+	assert.sameValue(Array.prototype.includes.call({length: 1, 0: -0}, 0), true, "array-like");
+	assert.sameValue(Array.prototype.includes.call({length: 1, 0: -0}, 1), false, "array-like, 1 searched");
+	var z = -0;
+	assert.sameValue([-z].includes(0), true, "+0 from negating -0");
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }

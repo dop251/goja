@@ -3,6 +3,7 @@ package goja
 import (
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"weak"
@@ -90,6 +91,27 @@ func TestWeakMapUpdateKey(t *testing.T) {
 	testScript(SCRIPT, intToValue(2), t)
 }
 
+func TestWeakMapGetOrInsert(t *testing.T) {
+	const SCRIPT = `
+	const m = new WeakMap();
+	const key = {};
+	assert.sameValue(m.getOrInsert(key, 1), 1);
+	assert.sameValue(m.getOrInsert(key, 2), 1);
+	assert.sameValue(m.getOrInsertComputed(key, function() { throw new Error("should not be called"); }), 1);
+	const key1 = {};
+	assert.sameValue(m.getOrInsertComputed(key1, function(k) {
+		assert.sameValue(k, key1);
+		m.set(k, 1);
+		return 2;
+	}), 2);
+	assert.sameValue(m.get(key1), 2);
+	assert.throws(TypeError, function() { m.getOrInsert(1, 1); });
+	assert.throws(TypeError, function() { m.getOrInsertComputed(1, function() {}); });
+	assert.throws(TypeError, function() { m.getOrInsertComputed(key, null); });
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestWeakMapValueRefersKey(t *testing.T) {
 	vm := New()
 	key := vm.NewObject()
@@ -98,8 +120,8 @@ func TestWeakMapValueRefersKey(t *testing.T) {
 	value := vm.NewObject()
 	value.Set("owner", key)
 	var wm weakMap
-	wm.set(key, value)
-	if !wm.has(key) {
+	wm.set(key.getWeakMapRefs(true), value)
+	if !wm.has(key.getWeakMapRefs(false)) {
 		t.Fatal("weak map does not have key")
 	}
 	ref := weak.Make(key)
@@ -124,7 +146,7 @@ func TestWeakMapValueRemovedAfterMapIsGone(t *testing.T) {
 	value := vm.NewObject()
 	value.Set("pad", strings.Repeat("x", 200))
 	wm := &weakMap{}
-	wm.set(key, value)
+	wm.set(key.getWeakMapRefs(true), value)
 
 	ref := weak.Make(value)
 	wm = nil
@@ -141,4 +163,90 @@ func TestWeakMapValueRemovedAfterMapIsGone(t *testing.T) {
 
 	runtime.KeepAlive(key)
 	t.Fatal("the value has not been garbage-collected")
+}
+
+func TestWeakMapSymbolKeys(t *testing.T) {
+	const SCRIPT = `
+	var m = new WeakMap();
+	var s = new WeakSet();
+	var sym = Symbol("key");
+	m.set(sym, 1);
+	m.set(Symbol.iterator, 2);
+	s.add(sym);
+	assert.sameValue(m.get(sym), 1, "unique symbol");
+	assert.sameValue(m.get(Symbol.iterator), 2, "well-known symbol");
+	assert(s.has(sym), "WeakSet has symbol");
+	assert(m.delete(sym), "delete");
+	assert(!m.has(sym), "has after delete");
+	assert.sameValue(m.getOrInsert(sym, 3), 3, "getOrInsert");
+	assert.sameValue(m.getOrInsertComputed(sym, function() { throw new Error("should not be called"); }), 3, "getOrInsertComputed existing");
+	var sym1 = Symbol();
+	assert.sameValue(m.getOrInsertComputed(sym1, function(k) { assert.sameValue(k, sym1); return 4; }), 4, "getOrInsertComputed");
+	assert.sameValue(m.get(sym1), 4, "get after getOrInsertComputed");
+
+	var registered = Symbol.for("key");
+	assert.throws(TypeError, function() { m.set(registered, 1); }, "WeakMap.prototype.set");
+	assert.throws(TypeError, function() { s.add(registered); }, "WeakSet.prototype.add");
+	assert.throws(TypeError, function() { m.getOrInsert(registered, 1); }, "WeakMap.prototype.getOrInsert");
+	assert.throws(TypeError, function() { m.getOrInsertComputed(registered, function() {}); }, "WeakMap.prototype.getOrInsertComputed");
+	assert.throws(TypeError, function() { new WeakMap([[registered, 1]]); }, "WeakMap constructor");
+	assert.throws(TypeError, function() { new WeakSet([registered]); }, "WeakSet constructor");
+	assert.sameValue(m.get(registered), undefined, "WeakMap.prototype.get");
+	assert(!m.has(registered), "WeakMap.prototype.has");
+	assert(!s.delete(registered), "WeakSet.prototype.delete");
+
+	assert.throws(TypeError, function() { new WeakMap([[]]); }, "missing key");
+	assert.throws(TypeError, function() { new WeakSet([,]); }, "hole");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestWeakMapSymbolKeyGarbageCollected(t *testing.T) {
+	vm := New()
+	key := NewSymbol("key")
+	value := vm.NewObject()
+	value.Set("owner", key)
+	var wm weakMap
+	wm.set(key.getWeakMapRefs(true), value)
+	if !wm.has(key.getWeakMapRefs(false)) {
+		t.Fatal("weak map does not have key")
+	}
+	ref := weak.Make(key)
+	key = nil
+	value = nil
+
+	for range 5 {
+		runtime.GC()
+		runtime.GC()
+		if ref.Value() == nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	runtime.KeepAlive(&wm)
+	t.Fatal("the key has not been garbage-collected")
+}
+
+func TestWeakMapWellKnownSymbolKeyConcurrent(t *testing.T) {
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			vm := New()
+			_, err := vm.RunString(`
+			for (var i = 0; i < 100; i++) {
+				var m = new WeakMap();
+				m.set(Symbol.iterator, i);
+				if (m.get(Symbol.iterator) !== i) {
+					throw new Error("value does not match");
+				}
+			}
+			`)
+			if err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
 }

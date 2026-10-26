@@ -88,6 +88,23 @@ assert.sameValue(1n << 1n, 2n, "lsh");
 assert.sameValue(4n << -1n, 2n, "neg lsh");
 assert.sameValue(4n >> 1n, 2n, "rsh");
 assert.sameValue(2n >> -2n, 8n, "neg rsh");
+assert.sameValue(1n >> 2n ** 64n, 0n, "rsh 2^64");
+assert.sameValue(-5n >> 2n ** 64n, -1n, "neg rsh 2^64");
+assert.sameValue(-5n << -(2n ** 64n), -1n, "neg lsh -2^64");
+assert.sameValue(0n << 2n ** 64n, 0n, "zero lsh 2^64");
+assert.throws(RangeError, () => { 1n << 2n ** 64n; }, "lsh 2^64");
+assert.throws(RangeError, () => { 1n << 2n ** 30n; }, "lsh 2^30");
+assert.throws(RangeError, () => { 2n << (2n ** 30n - 1n); }, "lsh past 2^30 bits");
+assert.sameValue(1n >> (2n ** 30n + 1n), 0n, "rsh 2^30+1");
+try {
+	1n << 2n ** 30n;
+} catch (e) {
+	assert.sameValue(e.message, "Maximum BigInt size exceeded", "lsh 2^30 message");
+}
+assert.sameValue(2n ** 64n == false, false, "2^64 == false");
+assert.sameValue(2n ** 64n + 1n == true, false, "2^64+1 == true");
+assert.sameValue(-1n == true, false, "-1 == true");
+assert.sameValue(1n == true, true, "1 == true");
 
 let a = 1n;
 assert.sameValue(++a, 2n, "inc");
@@ -112,6 +129,33 @@ assert.sameValue(1n >= 0, true, "ge");
 assert.sameValue(0 >= 1n, false, "ge");
 assert.sameValue(1n <= 0, false, "le");
 assert.sameValue(0 <= 1n, true, "le");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestNumberFromBigInt(t *testing.T) {
+	const SCRIPT = `
+assert.sameValue(Number(2n ** 63n), 2 ** 63, "2^63");
+assert.sameValue(Number(2n ** 64n), 2 ** 64, "2^64");
+assert.sameValue(Number(-(2n ** 63n) - 1n), -(2 ** 63), "-2^63-1");
+assert.sameValue(Number(2n ** 64n + 2048n), 2 ** 64, "tie rounds to even (down)");
+assert.sameValue(Number(2n ** 64n + 2049n), 2 ** 64 + 4096, "above tie rounds up");
+assert.sameValue(Number(2n ** 64n + 6144n), 2 ** 64 + 8192, "tie rounds to even (up)");
+assert.sameValue(Number(2n ** 1024n - 2n ** 970n - 1n), Number.MAX_VALUE, "max value");
+assert.sameValue(Number(2n ** 1024n - 2n ** 970n), Infinity, "overflow tie");
+assert.sameValue(Number(10n ** 400n), Infinity, "+Infinity");
+assert.sameValue(Number(-(10n ** 400n)), -Infinity, "-Infinity");
+assert.sameValue(Number(Object(2n ** 64n)), 2 ** 64, "Object");
+assert.sameValue(Number({valueOf() { return 2n ** 64n; }}), 2 ** 64, "valueOf");
+assert.sameValue(new Number(2n ** 64n).valueOf(), 2 ** 64, "new");
+assert.sameValue(new Number(Object(2n ** 64n)).valueOf(), 2 ** 64, "new Object");
+
+assert.sameValue(Number(0n), 0, "0");
+assert.sameValue(Number(10n), 10, "10");
+assert.sameValue(Number(-5n), -5, "-5");
+assert.sameValue(Number(2n ** 53n + 1n), 2 ** 53, "2^53+1");
+assert.sameValue(Number(2n ** 63n - 1n), 2 ** 63, "2^63-1");
+assert.sameValue(new Number(7n).valueOf(), 7, "new 7");
 `
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }

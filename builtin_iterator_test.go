@@ -132,6 +132,76 @@ func TestIteratorConcat(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestIteratorZip(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue(Iterator.zip.length, 1);
+	assert.sameValue(Iterator.zipKeyed.length, 1);
+	assert.sameValue(Iterator.zip([]).next().done, true);
+
+	var it = Iterator.zip([[1, 2, 3], new Set(["a", "b"])]);
+	assert.sameValue(Object.getPrototypeOf(it), Object.getPrototypeOf([].values().map(x => x)));
+	assert.sameValue(it.next().value.join(), "1,a");
+	assert.sameValue(it.next().value.join(), "2,b");
+	assert.sameValue(it.next().done, true);
+
+	var longest = Iterator.zip([[1, 2, 3], [4]], {mode: "longest", padding: ["x", "y"]}).toArray();
+	assert.sameValue(JSON.stringify(longest), '[[1,4],[2,"y"],[3,"y"]]');
+	longest = Iterator.zip([[1], [2, 3]], {mode: "longest"}).toArray();
+	assert.sameValue(JSON.stringify(longest), '[[1,2],[null,3]]');
+
+	assert.sameValue(Iterator.zip([[1, 2], [3, 4]], {mode: "strict"}).toArray().length, 2);
+	assert.throws(TypeError, () => Iterator.zip([[1, 2], [3]], {mode: "strict"}).toArray());
+	assert.throws(TypeError, () => Iterator.zip([[1], [2, 3]], {mode: "strict"}).toArray());
+
+	var keyed = Iterator.zipKeyed({a: [1, 2], b: [3], c: undefined}, {mode: "longest", padding: {b: 0}}).toArray();
+	assert.sameValue(Object.getPrototypeOf(keyed[0]), null);
+	assert.sameValue(JSON.stringify(keyed), '[{"a":1,"b":3},{"a":2,"b":0}]');
+
+	assert.throws(TypeError, () => Iterator.zip(1));
+	assert.throws(TypeError, () => Iterator.zip(["ab"]));
+	assert.throws(TypeError, () => Iterator.zip([], 1));
+	assert.throws(TypeError, () => Iterator.zip([], {mode: "loose"}));
+	assert.throws(TypeError, () => Iterator.zip([], {mode: new String("strict")}));
+	assert.throws(TypeError, () => Iterator.zip([], {mode: "longest", padding: 1}));
+	assert.throws(TypeError, () => Iterator.zipKeyed({a: 1}));
+
+	var log = [];
+	function iter(name, length) {
+		var i = 0;
+		return {
+			next() {
+				return i < length ? {value: i++, done: false} : {done: true};
+			},
+			return() {
+				log.push(name);
+				return {};
+			}
+		};
+	}
+
+	Iterator.zip([iter("a", 1), iter("b", 1)]).return();
+	assert.sameValue(log.join(), "b,a");
+
+	log = [];
+	var z = Iterator.zip([iter("a", 2), iter("b", 1), iter("c", 2)]);
+	z.next();
+	assert.sameValue(z.next().done, true);
+	assert.sameValue(log.join(), "c,a");
+
+	log = [];
+	z = Iterator.zip([iter("a", 1), iter("b", 3)], {mode: "longest"});
+	z.next();
+	z.next();
+	z.return();
+	assert.sameValue(log.join(), "b");
+
+	log = [];
+	assert.throws(TypeError, () => Iterator.zip([iter("a", 1), 1]));
+	assert.sameValue(log.join(), "a");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestIteratorMapFilter(t *testing.T) {
 	const SCRIPT = `
 	assert.sameValue([1, 2, 3].values().map((x, i) => x * 10 + i).toArray().join(), "10,21,32");

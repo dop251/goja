@@ -265,6 +265,7 @@ type (
 		Idx     file.Idx
 		Literal string
 		Value   unistring.String
+		Sloppy  bool // Has a legacy octal or \8, \9 escape sequence, which is not allowed in strict mode
 	}
 
 	TemplateElement struct {

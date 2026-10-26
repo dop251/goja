@@ -140,7 +140,11 @@ func (r *Runtime) string_fromcodepoint(call FunctionCall) Value {
 			}
 			c = rune(numInt)
 		} else {
-			panic(r.newErrorf(r.getRangeError(), "Invalid code point %s", num))
+			f := num.ToFloat()
+			if f != math.Trunc(f) || f < 0 || f > utf8.MaxRune {
+				panic(r.newErrorf(r.getRangeError(), "Invalid code point %s", num))
+			}
+			c = rune(f)
 		}
 		sb.WriteRune(c)
 	}
@@ -474,6 +478,8 @@ func (r *Runtime) stringproto_normalize(call FunctionCall) Value {
 			return asciiString(s.s)
 		}
 		return newStringValue(f.String(s.s))
+	case *concatString:
+		return newStringValue(f.String(s.String()))
 	default:
 		panic(unknownStringTypeErr(s))
 	}
@@ -1084,6 +1090,92 @@ func (r *Runtime) stringproto_substr(call FunctionCall) Value {
 	return s.Substring(int(start), int(start+length))
 }
 
+// createHTML implements the CreateHTML abstract operation (B.2.2.2.1). If attribute is not empty, the first
+// argument is used as its value, with any '"' replaced by "&quot;".
+func (r *Runtime) createHTML(call FunctionCall, tag, attribute string) Value {
+	r.checkObjectCoercible(call.This)
+	s := call.This.toString()
+	var sb StringBuilder
+	sb.writeASCII("<")
+	sb.writeASCII(tag)
+	if attribute != "" {
+		v := call.Argument(0).toString()
+		sb.writeASCII(" ")
+		sb.writeASCII(attribute)
+		sb.writeASCII(`="`)
+		start := 0
+		for {
+			idx := v.index(asciiString(`"`), start)
+			if idx < 0 {
+				break
+			}
+			sb.WriteSubstring(v, start, idx)
+			sb.writeASCII("&quot;")
+			start = idx + 1
+		}
+		sb.WriteSubstring(v, start, v.Length())
+		sb.writeASCII(`"`)
+	}
+	sb.writeASCII(">")
+	sb.WriteString(s)
+	sb.writeASCII("</")
+	sb.writeASCII(tag)
+	sb.writeASCII(">")
+	return sb.String()
+}
+
+func (r *Runtime) stringproto_anchor(call FunctionCall) Value {
+	return r.createHTML(call, "a", "name")
+}
+
+func (r *Runtime) stringproto_big(call FunctionCall) Value {
+	return r.createHTML(call, "big", "")
+}
+
+func (r *Runtime) stringproto_blink(call FunctionCall) Value {
+	return r.createHTML(call, "blink", "")
+}
+
+func (r *Runtime) stringproto_bold(call FunctionCall) Value {
+	return r.createHTML(call, "b", "")
+}
+
+func (r *Runtime) stringproto_fixed(call FunctionCall) Value {
+	return r.createHTML(call, "tt", "")
+}
+
+func (r *Runtime) stringproto_fontcolor(call FunctionCall) Value {
+	return r.createHTML(call, "font", "color")
+}
+
+func (r *Runtime) stringproto_fontsize(call FunctionCall) Value {
+	return r.createHTML(call, "font", "size")
+}
+
+func (r *Runtime) stringproto_italics(call FunctionCall) Value {
+	return r.createHTML(call, "i", "")
+}
+
+func (r *Runtime) stringproto_link(call FunctionCall) Value {
+	return r.createHTML(call, "a", "href")
+}
+
+func (r *Runtime) stringproto_small(call FunctionCall) Value {
+	return r.createHTML(call, "small", "")
+}
+
+func (r *Runtime) stringproto_strike(call FunctionCall) Value {
+	return r.createHTML(call, "strike", "")
+}
+
+func (r *Runtime) stringproto_sub(call FunctionCall) Value {
+	return r.createHTML(call, "sub", "")
+}
+
+func (r *Runtime) stringproto_sup(call FunctionCall) Value {
+	return r.createHTML(call, "sup", "")
+}
+
 func (r *Runtime) stringIterProto_next(call FunctionCall) Value {
 	thisObj := r.toObject(call.This)
 	if iter, ok := thisObj.self.(*stringIterObject); ok {
@@ -1164,7 +1256,20 @@ func createStringProtoTemplate() *objectTemplate {
 	t.putStr("valueOf", func(r *Runtime) Value { return r.methodProp(r.stringproto_valueOf, "valueOf", 0) })
 
 	// Annex B
+	t.putStr("anchor", func(r *Runtime) Value { return r.methodProp(r.stringproto_anchor, "anchor", 1) })
+	t.putStr("big", func(r *Runtime) Value { return r.methodProp(r.stringproto_big, "big", 0) })
+	t.putStr("blink", func(r *Runtime) Value { return r.methodProp(r.stringproto_blink, "blink", 0) })
+	t.putStr("bold", func(r *Runtime) Value { return r.methodProp(r.stringproto_bold, "bold", 0) })
+	t.putStr("fixed", func(r *Runtime) Value { return r.methodProp(r.stringproto_fixed, "fixed", 0) })
+	t.putStr("fontcolor", func(r *Runtime) Value { return r.methodProp(r.stringproto_fontcolor, "fontcolor", 1) })
+	t.putStr("fontsize", func(r *Runtime) Value { return r.methodProp(r.stringproto_fontsize, "fontsize", 1) })
+	t.putStr("italics", func(r *Runtime) Value { return r.methodProp(r.stringproto_italics, "italics", 0) })
+	t.putStr("link", func(r *Runtime) Value { return r.methodProp(r.stringproto_link, "link", 1) })
+	t.putStr("small", func(r *Runtime) Value { return r.methodProp(r.stringproto_small, "small", 0) })
+	t.putStr("strike", func(r *Runtime) Value { return r.methodProp(r.stringproto_strike, "strike", 0) })
+	t.putStr("sub", func(r *Runtime) Value { return r.methodProp(r.stringproto_sub, "sub", 0) })
 	t.putStr("substr", func(r *Runtime) Value { return r.methodProp(r.stringproto_substr, "substr", 2) })
+	t.putStr("sup", func(r *Runtime) Value { return r.methodProp(r.stringproto_sup, "sup", 0) })
 
 	t.putSym(SymIterator, func(r *Runtime) Value {
 		return valueProp(r.newNativeFunc(r.stringproto_iterator, "[Symbol.iterator]", 0), true, false, true)

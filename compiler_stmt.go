@@ -154,7 +154,12 @@ func (c *compiler) compileTryStatement(v *ast.TryStatement, needResult bool) {
 						c.throwSyntaxError(offset, "Catch variable may not be eval or arguments in strict mode")
 					}
 				}
-				c.scope.bindNameLexical(name, true, offset)
+				b, _ := c.scope.bindNameLexical(name, true, offset)
+				if _, ok := v.Catch.Parameter.(*ast.Identifier); ok {
+					// A simple catch parameter may be redeclared with var in the catch block,
+					// including by a direct eval() (B.3.4).
+					b.isVar = true
+				}
 			})
 			enter := &enterBlock{}
 			c.emit(enter)
@@ -860,6 +865,9 @@ func (c *compiler) emitPatternAssign(target, init compiledExpr) {
 	if id, ok := target.(*compiledIdentifierExpr); ok {
 		b, noDyn := c.scope.lookupName(id.name)
 		if noDyn {
+			if c.scope.strict {
+				c.checkIdentifierLName(id.name, id.offset)
+			}
 			c.emitNamedOrConst(init, id.name)
 			b.emitSetP()
 		} else {

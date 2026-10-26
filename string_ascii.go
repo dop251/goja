@@ -123,6 +123,10 @@ func isRangeErr(err error) bool {
 }
 
 func (s asciiString) _toFloat(trimmed string) (float64, error) {
+	return stringToFloat(trimmed)
+}
+
+func stringToFloat(trimmed string) (float64, error) {
 	if trimmed == "" {
 		return 0, nil
 	}
@@ -164,7 +168,10 @@ func (s asciiString) _toFloat(trimmed string) (float64, error) {
 }
 
 func (s asciiString) ToInteger() int64 {
-	ss := strings.TrimSpace(string(s))
+	return trimmedToInteger(strings.TrimSpace(string(s)))
+}
+
+func trimmedToInteger(ss string) int64 {
 	if ss == "" {
 		return 0
 	}
@@ -174,9 +181,9 @@ func (s asciiString) ToInteger() int64 {
 	if ss == "-Infinity" {
 		return math.MinInt64
 	}
-	i, err := s._toInt(ss)
+	i, err := stringToInt(ss)
 	if err != nil {
-		f, err := s._toFloat(ss)
+		f, err := stringToFloat(ss)
 		if err == nil {
 			return int64(f)
 		}
@@ -197,7 +204,10 @@ func (s asciiString) String() string {
 }
 
 func (s asciiString) ToFloat() float64 {
-	ss := strings.TrimSpace(string(s))
+	return trimmedToFloat(strings.TrimSpace(string(s)))
+}
+
+func trimmedToFloat(ss string) float64 {
 	if ss == "" {
 		return 0
 	}
@@ -207,9 +217,9 @@ func (s asciiString) ToFloat() float64 {
 	if ss == "-Infinity" {
 		return math.Inf(-1)
 	}
-	f, err := s._toFloat(ss)
+	f, err := stringToFloat(ss)
 	if err != nil {
-		i, err := s._toInt(ss)
+		i, err := stringToInt(ss)
 		if err == nil {
 			return float64(i)
 		}
@@ -259,8 +269,12 @@ func (s asciiString) Equals(other Value) bool {
 	}
 
 	if o, ok := other.(valueInt); ok {
-		if o1, e := s._toInt(strings.TrimSpace(string(s))); e == nil {
+		ss := strings.TrimSpace(string(s))
+		if o1, e := s._toInt(ss); e == nil {
 			return o1 == int64(o)
+		}
+		if f, e := s._toFloat(ss); e == nil {
+			return f == float64(o)
 		}
 		return false
 	}
@@ -291,13 +305,15 @@ func (s asciiString) Equals(other Value) bool {
 }
 
 func (s asciiString) StrictEquals(other Value) bool {
-	if otherStr, ok := other.(asciiString); ok {
-		return s == otherStr
-	}
-	if otherStr, ok := other.(*importedString); ok {
-		if otherStr.u == nil {
-			return string(s) == otherStr.s
+	switch o := other.(type) {
+	case asciiString:
+		return s == o
+	case *importedString:
+		if o.u == nil {
+			return string(s) == o.s
 		}
+	case *concatString:
+		return s.StrictEquals(o.flatten())
 	}
 	return false
 }
@@ -325,17 +341,50 @@ func (s asciiString) Length() int {
 }
 
 func (s asciiString) Concat(other String) String {
-	a, u := devirtualizeString(other)
-	if u != nil {
-		b := make([]uint16, len(s)+len(u))
+	switch o := other.(type) {
+	case asciiString:
+		totalLen := len(s) + len(o)
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: o, length: totalLen}
+		}
+		return s + o
+	case unicodeString:
+		totalLen := len(s) + o.Length()
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: o, length: totalLen}
+		}
+		b := make([]uint16, len(s)+len(o))
 		b[0] = unistring.BOM
 		for i := 0; i < len(s); i++ {
 			b[i+1] = uint16(s[i])
 		}
-		copy(b[len(s)+1:], u[1:])
+		copy(b[len(s)+1:], o[1:])
 		return unicodeString(b)
+	case *importedString:
+		o.ensureScanned()
+		if o.u != nil {
+			totalLen := len(s) + o.u.Length()
+			if totalLen > concatThreshold {
+				return &concatString{left: s, right: o.u, length: totalLen}
+			}
+			b := make([]uint16, len(s)+len(o.u))
+			b[0] = unistring.BOM
+			for i := 0; i < len(s); i++ {
+				b[i+1] = uint16(s[i])
+			}
+			copy(b[len(s)+1:], o.u[1:])
+			return unicodeString(b)
+		}
+		totalLen := len(s) + len(o.s)
+		if totalLen > concatThreshold {
+			return &concatString{left: s, right: asciiString(o.s), length: totalLen}
+		}
+		return s + asciiString(o.s)
+	case *concatString:
+		return &concatString{left: s, right: o, length: len(s) + o.length}
+	default:
+		panic(unknownStringTypeErr(other))
 	}
-	return s + a
 }
 
 func (s asciiString) Substring(start, end int) String {

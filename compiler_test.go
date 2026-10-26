@@ -714,6 +714,26 @@ func TestTryExceptionInCatch(t *testing.T) {
 	testScript(SCRIPT, intToValue(5), t)
 }
 
+func TestTryExceptionInFinallyAfterNormalCompletion(t *testing.T) {
+	const SCRIPT = `
+	var finallyRuns = 0, innerCaught = false, outerCaught;
+	try {
+		try {
+			1;
+		} catch (e) {
+			innerCaught = true;
+		} finally {
+			finallyRuns++;
+			throw new Error("fin");
+		}
+	} catch (e) {
+		outerCaught = e.message;
+	}
+	[finallyRuns, innerCaught, outerCaught].join();
+	`
+	testScript(SCRIPT, asciiString("1,false,fin"), t)
+}
+
 func TestTryContinueInCatch(t *testing.T) {
 	const SCRIPT = `
 	var c3 = 0, fin3 = 0;
@@ -1314,6 +1334,58 @@ func TestCatchVarNotUsedInStashlessFunc(t *testing.T) {
 	f();
 	`
 	testScript(SCRIPT, asciiString("ok"), t)
+}
+
+func TestCatchParamVarRedeclaration(t *testing.T) {
+	const SCRIPT = `
+	try {
+		throw "ex";
+	} catch (e) {
+		var e = 1;
+		assert.sameValue(e, 1, "catch param");
+	}
+	assert.sameValue(e, undefined, "global var");
+
+	function f() {
+		try {
+			throw "ex";
+		} catch (e) {
+			for (var e = 2; e < 3; e++) {}
+			var captured = function() { return e; };
+		}
+		return [e, captured()];
+	}
+	assert(compareArray(f(), [undefined, 3]), "function var");
+
+	function f1() {
+		try {
+			throw "ex";
+		} catch (e) {
+			eval("var e = 4");
+			assert.sameValue(e, 4, "catch param (eval)");
+		}
+		return e;
+	}
+	assert.sameValue(f1(), undefined, "function var (eval)");
+
+	assert.throws(SyntaxError, function() {
+		eval("try {} catch ([e]) { var e; }");
+	}, "destructuring catch param");
+	assert.throws(SyntaxError, function() {
+		eval("try {} catch (e) { let e; }");
+	}, "let");
+	assert.throws(SyntaxError, function() {
+		eval("try {} catch (e) { function e() {} }");
+	}, "function declaration");
+	assert.throws(SyntaxError, function() {
+		try {
+			throw [];
+		} catch ([e]) {
+			eval("var e");
+		}
+	}, "destructuring catch param (eval)");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestNew(t *testing.T) {
@@ -2783,6 +2855,57 @@ func TestDeleteArguments(t *testing.T) {
 
 	`
 	testScript(SCRIPT, _undefined, t)
+}
+
+func TestStrictDestructuringAssignArguments(t *testing.T) {
+	for _, target := range []string{
+		"[arguments] = []",
+		"[arguments = 1] = []",
+		"[...arguments] = []",
+		"({arguments} = {})",
+		"({a: arguments} = {})",
+		"for ([arguments] of [[]]) {}",
+	} {
+		_, err := Compile("", "function f() { 'use strict'; "+target+"; }", false)
+		if _, ok := err.(*CompilerSyntaxError); !ok {
+			t.Errorf("%s: expected syntax error, got %v", target, err)
+		}
+		if _, err := Compile("", "function f() { "+target+"; }", false); err != nil {
+			t.Errorf("%s: unexpected error in non-strict mode: %v", target, err)
+		}
+	}
+	_, err := Compile("", "function f() { var eval; return function() { 'use strict'; [eval] = []; }; }", false)
+	if _, ok := err.(*CompilerSyntaxError); !ok {
+		t.Errorf("eval: expected syntax error, got %v", err)
+	}
+}
+
+func TestStrictStringOctalEscapes(t *testing.T) {
+	for _, lit := range []string{`'\1'`, `'\7'`, `'\00'`, `'\08'`, `'\8'`, `'\9'`, `'a\\\1'`} {
+		_, err := Compile("", "'use strict'; "+lit, false)
+		if _, ok := err.(*CompilerSyntaxError); !ok {
+			t.Errorf("%s: expected syntax error, got %v", lit, err)
+		}
+		if _, err := Compile("", lit, false); err != nil {
+			t.Errorf("%s: unexpected error in non-strict mode: %v", lit, err)
+		}
+	}
+	for _, src := range []string{
+		`function f() { '\1'; 'use strict'; }`,
+		`'use strict'; ({'\1': 0})`,
+		`class C { '\1'() {} }`,
+	} {
+		_, err := Compile("", src, false)
+		if _, ok := err.(*CompilerSyntaxError); !ok {
+			t.Errorf("%s: expected syntax error, got %v", src, err)
+		}
+	}
+
+	const SCRIPT = `
+	'use strict';
+	'\0' + 'a\0b' + '\\1';
+	`
+	testScript(SCRIPT, asciiString("\x00a\x00b\\1"), t)
 }
 
 func TestReturnUndefined(t *testing.T) {
@@ -5719,6 +5842,56 @@ func TestPrivateIn(t *testing.T) {
 	C.check(c);
 	`
 	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestClassPrivateElementsNonExtensible(t *testing.T) {
+	const SCRIPT = `
+	class Base {
+		constructor(o) {
+			return o;
+		}
+	}
+	class F extends Base {
+		#a = 1;
+		static inc(o) {
+			return ++o.#a;
+		}
+	}
+	class M extends Base {
+		#m() {}
+	}
+	class A extends Base {
+		get #a() {}
+	}
+	assert.throws(TypeError, () => new F(Object.preventExtensions({})), "field");
+	assert.throws(TypeError, () => new M(Object.preventExtensions({})), "method");
+	assert.throws(TypeError, () => new A(Object.preventExtensions({})), "accessor");
+
+	class Late {
+		#a = (Object.preventExtensions(this), 1);
+	}
+	assert.throws(TypeError, () => new Late(), "preventExtensions in initializer");
+	assert.throws(TypeError, () => {
+		class S {
+			static #a = (Object.preventExtensions(S), 1);
+		}
+	}, "static field");
+
+	const o = new F({});
+	Object.freeze(o);
+	assert.sameValue(F.inc(o), 2, "existing private fields remain writable");
+
+	let trapCalls = 0;
+	const p = new Proxy({}, {
+		isExtensible(target) {
+			trapCalls++;
+			return Reflect.isExtensible(target);
+		}
+	});
+	new F(p);
+	assert.sameValue(trapCalls, 1, "isExtensible trap calls");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestRelationalLeftAssociative(t *testing.T) {

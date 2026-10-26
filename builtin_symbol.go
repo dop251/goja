@@ -74,6 +74,12 @@ func (r *Runtime) symbol_for(call FunctionCall) Value {
 	return v
 }
 
+// isRegisteredSymbol reports whether s is in the GlobalSymbolRegistry, i.e. was created by Symbol.for().
+func (r *Runtime) isRegisteredSymbol(s *Symbol) bool {
+	// Symbol.for() uses the key as the description
+	return s.desc != nil && r.symbolRegistry[s.desc.string()] == s
+}
+
 func (r *Runtime) symbol_keyfor(call FunctionCall) Value {
 	arg := call.Argument(0)
 	sym, ok := arg.(*Symbol)

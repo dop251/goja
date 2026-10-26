@@ -350,10 +350,80 @@ func TestGoMapReflectKeyToString(t *testing.T) {
 }
 
 func TestGoMapReflectNil(t *testing.T) {
-	var m map[string]int
 	vm := New()
-	val := vm.ToValue(m)
-	if val != _null {
-		t.Fatal(val)
-	}
+
+	t.Run("nil map", func(t *testing.T) {
+		var m map[string]int
+		if v := vm.ToValue(m); v != _null {
+			t.Fatal(v)
+		}
+	})
+
+	t.Run("nil pointer to map", func(t *testing.T) {
+		var m *map[string]int
+		if v := vm.ToValue(m); v != _null {
+			t.Fatal(v)
+		}
+	})
+
+	t.Run("pointer to nil map", func(t *testing.T) {
+		var m map[string]int
+		var mp = &m
+		v := vm.ToValue(mp).Export()
+		if _, ok := v.(*map[string]int); !ok {
+			t.Fatal(v)
+		}
+		vm.Set("mp", mp)
+		_, err := vm.RunString("mp.a = 1") // the map is created at this point
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m["a"] != 1 {
+			t.Fatal(m["a"])
+		}
+
+		m = make(map[string]int)
+		res, err := vm.RunString("mp.a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !IsUndefined(res) {
+			t.Fatal(res)
+		}
+	})
+
+	t.Run("pointer to pointer to nil map", func(t *testing.T) {
+		var m map[string]int
+		var mp = &m
+		var mpp = &mp
+
+		// The pointer becomes a generic Object with no accessible properties, however it exports to the original
+		// value.
+		mppv := vm.ToValue(mpp)
+		if v := mppv.Export(); v != mpp {
+			t.Fatalf("%T", v)
+		}
+		vm.Set("mpp", mpp)
+		vm.testScriptWithTestLib(`
+			assert.sameValue(typeof mpp, "object");
+			assert.throws(TypeError, () => {
+				'use strict';
+				mpp.a = 1;
+			});
+		`, _undefined, t)
+	})
+
+	t.Run("pointer to nil pointer to map", func(t *testing.T) {
+		var mp *map[string]int
+		mpp := &mp
+		vm.Set("mpp", mpp)
+		vm.testScriptWithTestLib(`
+			assert.sameValue(typeof mpp, "object");
+			assert.throws(TypeError, () => {
+				'use strict';
+				mpp.a = 1;
+			});
+		`, _undefined, t)
+	})
+
 }

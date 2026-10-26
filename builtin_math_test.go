@@ -4,6 +4,23 @@ import (
 	"testing"
 )
 
+func TestMathSign(t *testing.T) {
+	const SCRIPT = `
+assert.sameValue(Math.sign(undefined), NaN, "undefined");
+assert.sameValue(Math.sign("abc"), NaN, "non-numeric string");
+assert.sameValue(Math.sign(null), 0, "null");
+assert.sameValue(Math.sign("0"), 0, "string zero");
+assert.sameValue(Math.sign("-0"), -0, "string negative zero");
+assert.sameValue(Math.sign(new Number(-0)), -0, "Number object");
+assert.sameValue(Math.sign(-3), -1, "negative");
+assert.sameValue(Math.sign(2), 1, "positive");
+assert.sameValue(Math.sign(0), 0, "zero");
+assert.sameValue(Math.sign(-0), -0, "negative zero");
+assert.sameValue(Math.sign(NaN), NaN, "NaN");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestMathSumPrecise(t *testing.T) {
 	const SCRIPT = `
 var tenths = [];
