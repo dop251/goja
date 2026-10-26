@@ -281,6 +281,17 @@ func TestDateParse(t *testing.T) {
 
 	assert.sameValue(Date.parse(belowRange), NaN, "parse below minimum time value");
 	assert.sameValue(Date.parse(aboveRange), NaN, "parse above maximum time value");
+
+	function testISOYear(t, str) {
+		assert.sameValue(new Date(t).toISOString(), str, "toISOString " + str);
+		assert.sameValue(Date.parse(str), t, "parse " + str);
+	}
+
+	testISOYear(-62198755200000, "-000001-01-01T00:00:00.000Z");
+	testISOYear(-62167219200000, "0000-01-01T00:00:00.000Z");
+	testISOYear(253370764800000, "9999-01-01T00:00:00.000Z");
+	testISOYear(253402300800000, "+010000-01-01T00:00:00.000Z");
+	assert.sameValue(JSON.stringify(new Date(253402300800000)), '"+010000-01-01T00:00:00.000Z"', "toJSON year 10000");
 	`
 
 	l := time.Local
