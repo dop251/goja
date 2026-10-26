@@ -1510,13 +1510,17 @@ func (_mul) exec(vm *vm) {
 	case valueInt:
 		switch right := right.(type) {
 		case valueInt:
-			if left == 0 && right == -1 || left == -1 && right == 0 {
-				result = _negativeZero
+			if left == 0 || right == 0 {
+				if (left < 0) != (right < 0) {
+					result = _negativeZero
+				} else {
+					result = intToValue(0)
+				}
 				goto end
 			}
 			res := left * right
 			// check for overflow
-			if left == 0 || right == 0 || res/left == right {
+			if res/left == right {
 				result = intToValue(int64(res))
 				goto end
 			}

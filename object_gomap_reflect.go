@@ -120,6 +120,9 @@ func (o *objectGoMapReflect) _put(key reflect.Value, val Value, throw bool) bool
 			if !ok {
 				return false
 			}
+			if o.fieldsValue.IsNil() {
+				o.fieldsValue.Set(reflect.MakeMap(o.fieldsValue.Type()))
+			}
 			o.fieldsValue.SetMapIndex(key, v)
 		} else {
 			o.val.runtime.typeErrorResult(throw, "Cannot set property %v, object is not extensible", key)
