@@ -159,3 +159,23 @@ assert.sameValue(new Number(7n).valueOf(), 7, "new 7");
 `
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func TestBigIntConversionErrors(t *testing.T) {
+	const SCRIPT = `
+assert.throws(SyntaxError, () => { BigInt([1, 2]); }, "array");
+assert.throws(SyntaxError, () => { BigInt({}); }, "plain object");
+assert.throws(SyntaxError, () => { BigInt({ toString() { return "1.5"; } }); }, "object to non-integer string");
+assert.sameValue(BigInt([5]), 5n, "array with one element");
+assert.sameValue(BigInt({ valueOf() { return 7; } }), 7n, "object to number");
+assert.sameValue(BigInt({ valueOf() { return 8n; } }), 8n, "object to bigint");
+assert.throws(RangeError, () => { BigInt({ valueOf() { return 1.5; } }); }, "object to non-integer number");
+
+assert.throws(RangeError, () => { BigInt.asIntN(-1); }, "asIntN negative bits before missing bigint");
+assert.throws(RangeError, () => { BigInt.asUintN(Infinity); }, "asUintN infinite bits before missing bigint");
+assert.throws(TypeError, () => { BigInt.asIntN(8); }, "asIntN missing bigint");
+assert.throws(TypeError, () => { BigInt.asUintN(8); }, "asUintN missing bigint");
+assert.sameValue(BigInt.asIntN(3, 25n), 1n, "asIntN");
+assert.sameValue(BigInt.asUintN(undefined, 5n), 0n, "asUintN undefined bits");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

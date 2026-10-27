@@ -162,6 +162,18 @@ func toBigInt(value Value) *valueBigInt {
 }
 
 func numberToBigInt(v Value) *valueBigInt {
+	if o, ok := v.(*Object); ok {
+		// BigInt(value) converts an object with ToPrimitive(value, number),
+		// and only a Number result is converted as a number. Anything else,
+		// including a string, goes through ToBigInt.
+		prim := o.toPrimitiveNumber()
+		switch prim.(type) {
+		case valueInt, valueFloat:
+			v = prim
+		default:
+			return toBigInt(prim)
+		}
+	}
 	switch v := toNumeric(v).(type) {
 	case *valueBigInt:
 		return v
@@ -176,14 +188,6 @@ func numberToBigInt(v Value) *valueBigInt {
 			return (*valueBigInt)(n)
 		}
 		panic(rangeError(fmt.Sprintf("Cannot convert %s to a BigInt", v)))
-	case *Object:
-		prim := v.toPrimitiveNumber()
-		switch prim.(type) {
-		case valueInt, valueFloat:
-			return numberToBigInt(prim)
-		default:
-			return toBigInt(prim)
-		}
 	default:
 		panic(newTypeError("Cannot convert %s to a BigInt", v))
 	}
@@ -245,13 +249,8 @@ func (r *Runtime) bigintproto_toString(call FunctionCall) Value {
 }
 
 func (r *Runtime) bigint_asIntN(call FunctionCall) Value {
-	if len(call.Arguments) < 2 {
-		panic(r.NewTypeError("Cannot convert undefined to a BigInt"))
-	}
+	// bits is converted (and range checked) before the bigint argument
 	bits := r.toIndex(call.Argument(0).ToNumber())
-	if bits < 0 {
-		panic(r.NewTypeError("Invalid value: not (convertible to) a safe integer"))
-	}
 	bigint := toBigInt(call.Argument(1))
 
 	twoToBits := new(big.Int).Lsh(big.NewInt(1), uint(bits))
@@ -264,13 +263,8 @@ func (r *Runtime) bigint_asIntN(call FunctionCall) Value {
 }
 
 func (r *Runtime) bigint_asUintN(call FunctionCall) Value {
-	if len(call.Arguments) < 2 {
-		panic(r.NewTypeError("Cannot convert undefined to a BigInt"))
-	}
+	// bits is converted (and range checked) before the bigint argument
 	bits := r.toIndex(call.Argument(0).ToNumber())
-	if bits < 0 {
-		panic(r.NewTypeError("Invalid value: not (convertible to) a safe integer"))
-	}
 	bigint := (*big.Int)(toBigInt(call.Argument(1)))
 	ret := new(big.Int).Mod(bigint, new(big.Int).Lsh(big.NewInt(1), uint(bits)))
 	return (*valueBigInt)(ret)
