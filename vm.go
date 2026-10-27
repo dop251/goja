@@ -1477,7 +1477,7 @@ func (_exp) exec(vm *vm) {
 	var result Value
 	if x, ok := x.(*valueBigInt); ok {
 		if y, ok := y.(*valueBigInt); ok {
-			if (*big.Int)(y).Cmp(big.NewInt(0)) < 0 {
+			if (*big.Int)(y).Cmp(big0) < 0 {
 				panic(vm.r.newError(vm.r.getRangeError(), "exponent must be positive"))
 			}
 			result = (*valueBigInt)(new(big.Int).Exp((*big.Int)(x), (*big.Int)(y), nil))
@@ -1509,13 +1509,13 @@ func (_div) exec(vm *vm) {
 
 	if left, ok := leftValue.(*valueBigInt); ok {
 		if right, ok := rightValue.(*valueBigInt); ok {
-			if (*big.Int)(right).Cmp(big.NewInt(0)) == 0 {
+			if (*big.Int)(right).Cmp(big0) == 0 {
 				panic(vm.r.newError(vm.r.getRangeError(), "Division by zero"))
 			}
 			if (*big.Int)(left).CmpAbs((*big.Int)(right)) < 0 {
-				result = (*valueBigInt)(big.NewInt(0))
+				result = (*valueBigInt)(big0)
 			} else {
-				i, _ := new(big.Int).QuoRem((*big.Int)(left), (*big.Int)(right), big.NewInt(0))
+				i, _ := new(big.Int).QuoRem((*big.Int)(left), (*big.Int)(right), &big.Int{})
 				result = (*valueBigInt)(i)
 			}
 			goto end
@@ -1610,9 +1610,9 @@ func (_mod) exec(vm *vm) {
 	case *valueBigInt:
 		if right, ok := right.(*valueBigInt); ok {
 			switch {
-			case (*big.Int)(right).Cmp(big.NewInt(0)) == 0:
+			case (*big.Int)(right).Cmp(big0) == 0:
 				panic(vm.r.newError(vm.r.getRangeError(), "Division by zero"))
-			case (*big.Int)(left).Cmp(big.NewInt(0)) < 0:
+			case (*big.Int)(left).Cmp(big0) < 0:
 				abs := new(big.Int).Abs((*big.Int)(left))
 				v := new(big.Int).Mod(abs, (*big.Int)(right))
 				result = (*valueBigInt)(v.Neg(v))
@@ -1679,7 +1679,7 @@ func (_inc) exec(vm *vm) {
 
 	switch n := v.(type) {
 	case *valueBigInt:
-		v = (*valueBigInt)(new(big.Int).Add((*big.Int)(n), big.NewInt(1)))
+		v = (*valueBigInt)(new(big.Int).Add((*big.Int)(n), big1))
 	case valueInt:
 		v = intToValue(int64(n + 1))
 	default:
@@ -1699,7 +1699,7 @@ func (_dec) exec(vm *vm) {
 
 	switch n := v.(type) {
 	case *valueBigInt:
-		v = (*valueBigInt)(new(big.Int).Sub((*big.Int)(n), big.NewInt(1)))
+		v = (*valueBigInt)(new(big.Int).Sub((*big.Int)(n), big1))
 	case valueInt:
 		v = intToValue(int64(n - 1))
 	default:

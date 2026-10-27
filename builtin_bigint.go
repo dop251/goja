@@ -8,11 +8,20 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"unsafe"
 
 	"github.com/dop251/goja/unistring"
 )
 
 type valueBigInt big.Int
+
+var (
+	big0 = big.NewInt(0)
+	big1 = big.NewInt(1)
+
+	bigTwoTo64 = new(big.Int).Lsh(big1, 64)
+	bigTwoTo63 = new(big.Int).Lsh(big1, 63)
+)
 
 func (v *valueBigInt) ToInteger() int64 {
 	v.ToNumber()
@@ -119,13 +128,18 @@ func (v *valueBigInt) baseObject(rt *Runtime) *Object {
 
 func (v *valueBigInt) hash(hash *maphash.Hash) uint64 {
 	var sign byte
-	if (*big.Int)(v).Sign() < 0 {
+	n := (*big.Int)(v)
+	if n.Sign() < 0 {
 		sign = 0x01
 	} else {
 		sign = 0x00
 	}
 	_ = hash.WriteByte(sign)
-	_, _ = hash.Write((*big.Int)(v).Bytes())
+	if words := n.Bits(); len(words) > 0 {
+		b := unsafe.Slice((*byte)(unsafe.Pointer(&words[0])),
+			len(words)*int(unsafe.Sizeof(words[0])))
+		_, _ = hash.Write(b)
+	}
 	h := hash.Sum64()
 	hash.Reset()
 	return h
@@ -162,7 +176,7 @@ func toBigInt(value Value) *valueBigInt {
 }
 
 func numberToBigInt(v Value) *valueBigInt {
-	switch v := toNumeric(v).(type) {
+	switch v := v.(type) {
 	case *valueBigInt:
 		return v
 	case valueInt:
@@ -190,13 +204,26 @@ func numberToBigInt(v Value) *valueBigInt {
 }
 
 func stringToBigInt(str string) (*big.Int, error) {
+	if str == "-0" {
+		return big0, nil
+	}
 	var bigint big.Int
 	n, err := stringToInt(str)
 	if err != nil {
 		switch {
 		case isRangeErr(err):
-			bigint.SetString(str, 0)
-		case err == strconv.ErrSyntax:
+			base := 10
+			if len(str) > 2 && str[0] == '0' {
+				switch str[1] {
+				case 'x', 'X':
+					str, base = str[2:], 16
+				case 'b', 'B':
+					str, base = str[2:], 2
+				case 'o', 'O':
+					str, base = str[2:], 8
+				}
+			}
+			bigint.SetString(str, base)
 		default:
 			return nil, strconv.ErrSyntax
 		}
@@ -245,18 +272,12 @@ func (r *Runtime) bigintproto_toString(call FunctionCall) Value {
 }
 
 func (r *Runtime) bigint_asIntN(call FunctionCall) Value {
-	if len(call.Arguments) < 2 {
-		panic(r.NewTypeError("Cannot convert undefined to a BigInt"))
-	}
 	bits := r.toIndex(call.Argument(0).ToNumber())
-	if bits < 0 {
-		panic(r.NewTypeError("Invalid value: not (convertible to) a safe integer"))
-	}
 	bigint := toBigInt(call.Argument(1))
 
-	twoToBits := new(big.Int).Lsh(big.NewInt(1), uint(bits))
+	twoToBits := new(big.Int).Lsh(big1, uint(bits))
 	mod := new(big.Int).Mod((*big.Int)(bigint), twoToBits)
-	if bits > 0 && mod.Cmp(new(big.Int).Lsh(big.NewInt(1), uint(bits-1))) >= 0 {
+	if bits > 0 && mod.Cmp(new(big.Int).Lsh(big1, uint(bits-1))) >= 0 {
 		return (*valueBigInt)(mod.Sub(mod, twoToBits))
 	} else {
 		return (*valueBigInt)(mod)
@@ -264,15 +285,9 @@ func (r *Runtime) bigint_asIntN(call FunctionCall) Value {
 }
 
 func (r *Runtime) bigint_asUintN(call FunctionCall) Value {
-	if len(call.Arguments) < 2 {
-		panic(r.NewTypeError("Cannot convert undefined to a BigInt"))
-	}
 	bits := r.toIndex(call.Argument(0).ToNumber())
-	if bits < 0 {
-		panic(r.NewTypeError("Invalid value: not (convertible to) a safe integer"))
-	}
 	bigint := (*big.Int)(toBigInt(call.Argument(1)))
-	ret := new(big.Int).Mod(bigint, new(big.Int).Lsh(big.NewInt(1), uint(bits)))
+	ret := new(big.Int).Mod(bigint, new(big.Int).Lsh(big1, uint(bits)))
 	return (*valueBigInt)(ret)
 }
 
@@ -311,20 +326,11 @@ func (r *Runtime) builtin_BigInt(call FunctionCall) Value {
 			return toBigInt(v)
 		}
 	}
-	return (*valueBigInt)(big.NewInt(0))
+	return (*valueBigInt)(big0)
 }
 
-func (r *Runtime) builtin_newBigInt(args []Value, newTarget *Object) *Object {
-	if newTarget != nil {
-		panic(r.NewTypeError("BigInt is not a constructor"))
-	}
-	var v Value
-	if len(args) > 0 {
-		v = numberToBigInt(args[0])
-	} else {
-		v = (*valueBigInt)(big.NewInt(0))
-	}
-	return r.newPrimitiveObject(v, newTarget, classObject)
+func (r *Runtime) builtin_newBigInt(_ []Value, _ *Object) *Object {
+	panic(r.NewTypeError("BigInt is not a constructor"))
 }
 
 func (r *Runtime) getBigInt() *Object {
