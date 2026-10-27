@@ -510,48 +510,42 @@ func _norm(hi, lo, base int64) (nhi, nlo int64, ok bool) {
 	return hi, lo, true
 }
 
-func mkTime(year, m, day, hour, min, sec, nsec int64, loc *time.Location) (t time.Time, ok bool) {
-	year, m, ok = _norm(year, m, 12)
-	if !ok {
-		return
-	}
-
-	// Normalise nsec, sec, min, hour, overflowing into day.
-	sec, nsec, ok = _norm(sec, nsec, 1e9)
-	if !ok {
-		return
-	}
-	min, sec, ok = _norm(min, sec, 60)
-	if !ok {
-		return
-	}
-	hour, min, ok = _norm(hour, min, 60)
-	if !ok {
-		return
-	}
-	day, hour, ok = _norm(day, hour, 24)
-	if !ok {
-		return
-	}
-	if year > math.MaxInt32 || year < math.MinInt32 ||
-		day > math.MaxInt32 || day < math.MinInt32 ||
-		m >= math.MaxInt32 || m < math.MinInt32-1 {
+// mkTime implements MakeDay, MakeTime and MakeDate, which use floating-point arithmetic, so large
+// arguments are rounded the same way as in other engines instead of being combined exactly.
+func mkTime(year, m, day, hour, min, sec, msec float64, loc *time.Location) (t time.Time, ok bool) {
+	ym := year + math.Floor(m/12)
+	if !(math.Abs(ym) <= math.MaxInt32) {
 		return time.Time{}, false
 	}
-	month := time.Month(m) + 1
-	return time.Date(int(year), month, int(day), int(hour), int(min), int(sec), int(nsec), loc), true
+	mn := math.Mod(m, 12)
+	if mn < 0 {
+		mn += 12
+	}
+	firstDay := time.Date(int(ym), time.Month(mn)+1, 1, 0, 0, 0, 0, time.UTC).Unix() / 86400
+	days := float64(firstDay) + day - 1
+
+	// The explicit conversions round every product, so they cannot be fused into FMA instructions.
+	tm := float64(hour*3.6e6) + float64(min*6e4) + float64(sec*1e3) + msec
+	tv := float64(days*msPerDay) + tm
+
+	// Only reject values that cannot be represented, the callers apply TimeClip.
+	if !(math.Abs(tv) <= math.MaxInt64) {
+		return time.Time{}, false
+	}
+	d := math.Floor(tv / msPerDay)
+	return time.Date(1970, time.January, 1+int(d), 0, 0, 0, int(tv-float64(d*msPerDay))*1e6, loc), true
 }
 
-func _intArg(call FunctionCall, argNum int) (int64, bool) {
-	n := call.Argument(argNum).ToNumber()
-	if IsNaN(n) {
+func _intArg(call FunctionCall, argNum int) (float64, bool) {
+	n := call.Argument(argNum).ToFloat()
+	if math.IsNaN(n) {
 		return 0, false
 	}
-	return n.ToInteger(), true
+	return math.Trunc(n), true
 }
 
 func _dateSetYear(t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
-	var year int64
+	var year float64
 	if argNum == 0 || argNum > 0 && argNum < len(call.Arguments) {
 		var ok bool
 		year, ok = _intArg(call, argNum)
@@ -562,14 +556,14 @@ func _dateSetYear(t time.Time, call FunctionCall, argNum int, utc bool) (time.Ti
 			year += 1900
 		}
 	} else {
-		year = int64(t.Year())
+		year = float64(t.Year())
 	}
 
 	return _dateSetMonth(year, t, call, argNum+1, utc)
 }
 
 func _dateSetFullYear(t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
-	var year int64
+	var year float64
 	if argNum == 0 || argNum > 0 && argNum < len(call.Arguments) {
 		var ok bool
 		year, ok = _intArg(call, argNum)
@@ -577,13 +571,13 @@ func _dateSetFullYear(t time.Time, call FunctionCall, argNum int, utc bool) (tim
 			return time.Time{}, false
 		}
 	} else {
-		year = int64(t.Year())
+		year = float64(t.Year())
 	}
 	return _dateSetMonth(year, t, call, argNum+1, utc)
 }
 
-func _dateSetMonth(year int64, t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
-	var mon int64
+func _dateSetMonth(year float64, t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
+	var mon float64
 	if argNum == 0 || argNum > 0 && argNum < len(call.Arguments) {
 		var ok bool
 		mon, ok = _intArg(call, argNum)
@@ -591,14 +585,14 @@ func _dateSetMonth(year int64, t time.Time, call FunctionCall, argNum int, utc b
 			return time.Time{}, false
 		}
 	} else {
-		mon = int64(t.Month()) - 1
+		mon = float64(t.Month()) - 1
 	}
 
 	return _dateSetDay(year, mon, t, call, argNum+1, utc)
 }
 
-func _dateSetDay(year, mon int64, t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
-	var day int64
+func _dateSetDay(year, mon float64, t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
+	var day float64
 	if argNum == 0 || argNum > 0 && argNum < len(call.Arguments) {
 		var ok bool
 		day, ok = _intArg(call, argNum)
@@ -606,14 +600,14 @@ func _dateSetDay(year, mon int64, t time.Time, call FunctionCall, argNum int, ut
 			return time.Time{}, false
 		}
 	} else {
-		day = int64(t.Day())
+		day = float64(t.Day())
 	}
 
 	return _dateSetHours(year, mon, day, t, call, argNum+1, utc)
 }
 
-func _dateSetHours(year, mon, day int64, t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
-	var hours int64
+func _dateSetHours(year, mon, day float64, t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
+	var hours float64
 	if argNum == 0 || argNum > 0 && argNum < len(call.Arguments) {
 		var ok bool
 		hours, ok = _intArg(call, argNum)
@@ -621,13 +615,13 @@ func _dateSetHours(year, mon, day int64, t time.Time, call FunctionCall, argNum 
 			return time.Time{}, false
 		}
 	} else {
-		hours = int64(t.Hour())
+		hours = float64(t.Hour())
 	}
 	return _dateSetMinutes(year, mon, day, hours, t, call, argNum+1, utc)
 }
 
-func _dateSetMinutes(year, mon, day, hours int64, t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
-	var min int64
+func _dateSetMinutes(year, mon, day, hours float64, t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
+	var min float64
 	if argNum == 0 || argNum > 0 && argNum < len(call.Arguments) {
 		var ok bool
 		min, ok = _intArg(call, argNum)
@@ -635,13 +629,13 @@ func _dateSetMinutes(year, mon, day, hours int64, t time.Time, call FunctionCall
 			return time.Time{}, false
 		}
 	} else {
-		min = int64(t.Minute())
+		min = float64(t.Minute())
 	}
 	return _dateSetSeconds(year, mon, day, hours, min, t, call, argNum+1, utc)
 }
 
-func _dateSetSeconds(year, mon, day, hours, min int64, t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
-	var sec int64
+func _dateSetSeconds(year, mon, day, hours, min float64, t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
+	var sec float64
 	if argNum == 0 || argNum > 0 && argNum < len(call.Arguments) {
 		var ok bool
 		sec, ok = _intArg(call, argNum)
@@ -649,13 +643,13 @@ func _dateSetSeconds(year, mon, day, hours, min int64, t time.Time, call Functio
 			return time.Time{}, false
 		}
 	} else {
-		sec = int64(t.Second())
+		sec = float64(t.Second())
 	}
 	return _dateSetMilliseconds(year, mon, day, hours, min, sec, t, call, argNum+1, utc)
 }
 
-func _dateSetMilliseconds(year, mon, day, hours, min, sec int64, t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
-	var msec int64
+func _dateSetMilliseconds(year, mon, day, hours, min, sec float64, t time.Time, call FunctionCall, argNum int, utc bool) (time.Time, bool) {
+	var msec float64
 	if argNum == 0 || argNum > 0 && argNum < len(call.Arguments) {
 		var ok bool
 		msec, ok = _intArg(call, argNum)
@@ -663,12 +657,7 @@ func _dateSetMilliseconds(year, mon, day, hours, min, sec int64, t time.Time, ca
 			return time.Time{}, false
 		}
 	} else {
-		msec = int64(t.Nanosecond() / 1e6)
-	}
-	var ok bool
-	sec, msec, ok = _norm(sec, msec, 1e3)
-	if !ok {
-		return time.Time{}, false
+		msec = float64(t.Nanosecond() / 1e6)
 	}
 
 	var loc *time.Location
@@ -677,7 +666,7 @@ func _dateSetMilliseconds(year, mon, day, hours, min, sec int64, t time.Time, ca
 	} else {
 		loc = time.Local
 	}
-	r, ok := mkTime(year, mon, day, hours, min, sec, msec*1e6, loc)
+	r, ok := mkTime(year, mon, day, hours, min, sec, msec, loc)
 	if !ok {
 		return time.Time{}, false
 	}
@@ -742,11 +731,11 @@ func (r *Runtime) dateproto_setSeconds(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		tv := d.msec
 		t, ok := _dateSetFullYear(d.time(), call, -5, false)
-		if !ok {
-			d.unset()
+		if tv == timeUnset {
 			return _NaN
 		}
-		if tv == timeUnset {
+		if !ok {
+			d.unset()
 			return _NaN
 		}
 		return d.setTime(t)
@@ -759,11 +748,11 @@ func (r *Runtime) dateproto_setUTCSeconds(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		tv := d.msec
 		t, ok := _dateSetFullYear(d.timeUTC(), call, -5, true)
-		if !ok {
-			d.unset()
+		if tv == timeUnset {
 			return _NaN
 		}
-		if tv == timeUnset {
+		if !ok {
+			d.unset()
 			return _NaN
 		}
 		return d.setTime(t)
@@ -776,11 +765,11 @@ func (r *Runtime) dateproto_setMinutes(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		tv := d.msec
 		t, ok := _dateSetFullYear(d.time(), call, -4, false)
-		if !ok {
-			d.unset()
+		if tv == timeUnset {
 			return _NaN
 		}
-		if tv == timeUnset {
+		if !ok {
+			d.unset()
 			return _NaN
 		}
 		return d.setTime(t)
@@ -793,11 +782,11 @@ func (r *Runtime) dateproto_setUTCMinutes(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		tv := d.msec
 		t, ok := _dateSetFullYear(d.timeUTC(), call, -4, true)
-		if !ok {
-			d.unset()
+		if tv == timeUnset {
 			return _NaN
 		}
-		if tv == timeUnset {
+		if !ok {
+			d.unset()
 			return _NaN
 		}
 		return d.setTime(t)
@@ -810,11 +799,11 @@ func (r *Runtime) dateproto_setHours(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		tv := d.msec
 		t, ok := _dateSetFullYear(d.time(), call, -3, false)
-		if !ok {
-			d.unset()
+		if tv == timeUnset {
 			return _NaN
 		}
-		if tv == timeUnset {
+		if !ok {
+			d.unset()
 			return _NaN
 		}
 		return d.setTime(t)
@@ -827,11 +816,11 @@ func (r *Runtime) dateproto_setUTCHours(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		tv := d.msec
 		t, ok := _dateSetFullYear(d.timeUTC(), call, -3, true)
-		if !ok {
-			d.unset()
+		if tv == timeUnset {
 			return _NaN
 		}
-		if tv == timeUnset {
+		if !ok {
+			d.unset()
 			return _NaN
 		}
 		return d.setTime(t)
@@ -844,11 +833,11 @@ func (r *Runtime) dateproto_setDate(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		tv := d.msec
 		t, ok := _dateSetFullYear(d.time(), limitCallArgs(call, 1), -2, false)
-		if !ok {
-			d.unset()
+		if tv == timeUnset {
 			return _NaN
 		}
-		if tv == timeUnset {
+		if !ok {
+			d.unset()
 			return _NaN
 		}
 		return d.setTime(t)
@@ -861,11 +850,11 @@ func (r *Runtime) dateproto_setUTCDate(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		tv := d.msec
 		t, ok := _dateSetFullYear(d.timeUTC(), limitCallArgs(call, 1), -2, true)
-		if !ok {
-			d.unset()
+		if tv == timeUnset {
 			return _NaN
 		}
-		if tv == timeUnset {
+		if !ok {
+			d.unset()
 			return _NaN
 		}
 		return d.setTime(t)
@@ -878,11 +867,11 @@ func (r *Runtime) dateproto_setMonth(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		tv := d.msec
 		t, ok := _dateSetFullYear(d.time(), limitCallArgs(call, 2), -1, false)
-		if !ok {
-			d.unset()
+		if tv == timeUnset {
 			return _NaN
 		}
-		if tv == timeUnset {
+		if !ok {
+			d.unset()
 			return _NaN
 		}
 		return d.setTime(t)
@@ -895,11 +884,11 @@ func (r *Runtime) dateproto_setUTCMonth(call FunctionCall) Value {
 	if d, ok := obj.self.(*dateObject); ok {
 		tv := d.msec
 		t, ok := _dateSetFullYear(d.timeUTC(), limitCallArgs(call, 2), -1, true)
-		if !ok {
-			d.unset()
+		if tv == timeUnset {
 			return _NaN
 		}
-		if tv == timeUnset {
+		if !ok {
+			d.unset()
 			return _NaN
 		}
 		return d.setTime(t)
