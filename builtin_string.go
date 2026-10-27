@@ -9,11 +9,12 @@ import (
 
 	"github.com/dop251/goja/unistring"
 
-	"github.com/dop251/goja/parser"
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
 	"golang.org/x/text/unicode/norm"
 )
+
+const WhitespaceChars = " \f\n\r\t\v\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
 
 func (r *Runtime) collator() *collate.Collator {
 	collator := r._collator
@@ -1050,7 +1051,7 @@ func (r *Runtime) stringproto_trim(call FunctionCall) Value {
 	s := call.This.toString()
 
 	// TODO handle invalid UTF-16
-	return newStringValue(strings.Trim(s.String(), parser.WhitespaceChars))
+	return newStringValue(strings.Trim(s.String(), WhitespaceChars))
 }
 
 func (r *Runtime) stringproto_trimEnd(call FunctionCall) Value {
@@ -1058,7 +1059,7 @@ func (r *Runtime) stringproto_trimEnd(call FunctionCall) Value {
 	s := call.This.toString()
 
 	// TODO handle invalid UTF-16
-	return newStringValue(strings.TrimRight(s.String(), parser.WhitespaceChars))
+	return newStringValue(strings.TrimRight(s.String(), WhitespaceChars))
 }
 
 func (r *Runtime) stringproto_trimStart(call FunctionCall) Value {
@@ -1066,7 +1067,7 @@ func (r *Runtime) stringproto_trimStart(call FunctionCall) Value {
 	s := call.This.toString()
 
 	// TODO handle invalid UTF-16
-	return newStringValue(strings.TrimLeft(s.String(), parser.WhitespaceChars))
+	return newStringValue(strings.TrimLeft(s.String(), WhitespaceChars))
 }
 
 func (r *Runtime) stringproto_substr(call FunctionCall) Value {

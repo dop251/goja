@@ -1,16 +1,11 @@
 package goja
 
 import (
-	"errors"
 	"fmt"
-	"regexp"
-	"regexp/syntax"
 	"strings"
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
-
-	"github.com/dop251/goja/parser"
 )
 
 func (r *Runtime) newRegexpObject(proto *Object) *regexpObject {
@@ -188,7 +183,6 @@ func compileRegexpFromValueString(patternStr String, flags string) (*regexpPatte
 
 func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 	var global, ignoreCase, multiline, dotAll, sticky, unicode bool
-	var wrapper *regexpWrapper
 	var wrapper2 *regexp2Wrapper
 
 	if flags != "" {
@@ -245,50 +239,14 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 		patternStr = convertRegexpToUtf16(patternStr)
 	}
 
-	re2Str, err := parser.TransformRegExp(patternStr, dotAll, unicode)
-	if err == nil {
-		re2flags := ""
-		if multiline {
-			re2flags += "m"
-		}
-		if dotAll {
-			re2flags += "s"
-		}
-		if ignoreCase {
-			re2flags += "i"
-		}
-		if len(re2flags) > 0 {
-			re2Str = fmt.Sprintf("(?%s:%s)", re2flags, re2Str)
-		}
-
-		pattern, err1 := regexp.Compile(re2Str)
-		if err1 != nil {
-			var syntaxError *syntax.Error
-			if !errors.As(err1, &syntaxError) || syntaxError.Code != syntax.ErrInvalidRepeatSize {
-				err = fmt.Errorf("Invalid regular expression (re2): %s (%v)", re2Str, err1)
-				return
-			}
-		} else {
-			wrapper = (*regexpWrapper)(pattern)
-		}
-	} else {
-		var incompat parser.RegexpErrorIncompatible
-		if !errors.As(err, &incompat) {
-			return
-		}
-	}
-
-	if wrapper == nil {
-		wrapper2, err = compileRegexp2(patternStr, multiline, dotAll, ignoreCase, unicode)
-		if err != nil {
-			err = fmt.Errorf("Invalid regular expression (regexp2): %s (%v)", patternStr, err)
-			return
-		}
+	wrapper2, err = compileRegexp2(patternStr, multiline, dotAll, ignoreCase, unicode)
+	if err != nil {
+		err = fmt.Errorf("Invalid regular expression (regexp2): %s (%v)", patternStr, err)
+		return
 	}
 
 	p = &regexpPattern{
 		src:            patternStr,
-		regexpWrapper:  wrapper,
 		regexp2Wrapper: wrapper2,
 		global:         global,
 		ignoreCase:     ignoreCase,
@@ -1107,7 +1065,7 @@ func (r *Runtime) regexpproto_stdSplitter(call FunctionCall) Value {
 	for _, result := range results {
 		if result.indexes[0] == result.indexes[1] {
 			// FIXME Ugh, this is a hack
-			if result.indexes[0] == 0 || result.indexes[0] == targetLength {
+			if result.indexes[0] == 0 || result.indexes[0] == targetLength || result.indexes[0] == lastIndex {
 				continue
 			}
 		}

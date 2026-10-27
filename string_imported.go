@@ -8,7 +8,6 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
 )
 
@@ -310,5 +309,5 @@ func (i *importedString) toUpper() String {
 }
 
 func (i *importedString) toTrimmedUTF8() string {
-	return strings.Trim(i.s, parser.WhitespaceChars)
+	return strings.Trim(i.s, WhitespaceChars)
 }

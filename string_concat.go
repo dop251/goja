@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
 )
 
@@ -232,5 +231,5 @@ func (s *concatString) toUpper() String {
 }
 
 func (s *concatString) toTrimmedUTF8() string {
-	return strings.Trim(s.String(), parser.WhitespaceChars)
+	return strings.Trim(s.String(), WhitespaceChars)
 }

@@ -14,7 +14,6 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
-	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -421,7 +420,7 @@ func (s unicodeString) toTrimmedUTF8() string {
 	if len(s) == 0 {
 		return ""
 	}
-	return strings.Trim(s.String(), parser.WhitespaceChars)
+	return strings.Trim(s.String(), WhitespaceChars)
 }
 
 func (s unicodeString) ToNumber() Value {
