@@ -204,31 +204,27 @@ func numberToBigInt(v Value) *valueBigInt {
 }
 
 func stringToBigInt(str string) (*big.Int, error) {
-	if str == "-0" {
+	if str == "" {
 		return big0, nil
 	}
-	var bigint big.Int
-	n, err := stringToInt(str)
-	if err != nil {
-		switch {
-		case isRangeErr(err):
-			base := 10
-			if len(str) > 2 && str[0] == '0' {
-				switch str[1] {
-				case 'x', 'X':
-					str, base = str[2:], 16
-				case 'b', 'B':
-					str, base = str[2:], 2
-				case 'o', 'O':
-					str, base = str[2:], 8
-				}
-			}
-			bigint.SetString(str, base)
-		default:
-			return nil, strconv.ErrSyntax
+	base := 10
+	if len(str) > 2 && str[0] == '0' {
+		switch str[1] {
+		case 'x', 'X':
+			str, base = str[2:], 16
+		case 'b', 'B':
+			str, base = str[2:], 2
+		case 'o', 'O':
+			str, base = str[2:], 8
 		}
-	} else {
-		bigint.SetInt64(n)
+	}
+	if base != 10 && len(str) > 0 && (str[0] == '-' || str[0] == '+') {
+		return nil, strconv.ErrSyntax
+	}
+	var bigint big.Int
+	_, ok := bigint.SetString(str, base)
+	if !ok {
+		return nil, strconv.ErrSyntax
 	}
 	return &bigint, nil
 }

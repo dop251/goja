@@ -166,6 +166,12 @@ func TestBigIntConversionErrors(t *testing.T) {
 assert.throws(SyntaxError, () => { BigInt([1, 2]); }, "array");
 assert.throws(SyntaxError, () => { BigInt({}); }, "plain object");
 assert.throws(SyntaxError, () => { BigInt({ toString() { return "1.5"; } }); }, "object to non-integer string");
+assert.throws(SyntaxError, () => { BigInt("184467440737095516160x") }, "trailing garbage");
+assert.throws(SyntaxError, () => { BigInt("18446744073_7095516160") }, "group separator");
+assert.throws(SyntaxError, () => { BigInt("0x-1") }, "0x-1");
+assert.throws(SyntaxError, () => { BigInt("0x+1") }, "0x+1");
+
+assert.sameValue(BigInt("-0"), 0n, "-0");
 assert.sameValue(BigInt([5]), 5n, "array with one element");
 assert.sameValue(BigInt({ valueOf() { return 7; } }), 7n, "object to number");
 assert.sameValue(BigInt({ valueOf() { return 8n; } }), 8n, "object to bigint");
@@ -190,4 +196,19 @@ func BenchmarkBigIntHash(b *testing.B) {
 	for b.Loop() {
 		v.hash(h)
 	}
+}
+
+func BenchmarkStringToBigInt(b *testing.B) {
+	b.Run("short", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			stringToBigInt("1234567890")
+		}
+	})
+	b.Run("long", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			stringToBigInt("09223372036854775808")
+		}
+	})
 }

@@ -23,6 +23,22 @@ const (
 	PropertyKindMethod PropertyKind = "method"
 )
 
+// NumberLiteralKind describes the lexical form of a numeric literal, in
+// particular whether it uses legacy syntax that is only allowed in sloppy mode.
+type NumberLiteralKind uint8
+
+const (
+	// NumberLiteralPlain is a numeric literal that does not use any legacy
+	// syntax, e.g. 10, 0, 0.5, 0e1, 0x10, 0o17, 0b1 or 1_000.
+	NumberLiteralPlain NumberLiteralKind = iota
+	// NumberLiteralLegacyOctal is a legacy octal integer literal, e.g. 0777.
+	// Legacy octal literals are only allowed in sloppy mode.
+	NumberLiteralLegacyOctal
+	// NumberLiteralNonOctalDecimal is a decimal integer literal with a leading
+	// zero, e.g. 089 or 08e5. It is only allowed in sloppy mode.
+	NumberLiteralNonOctalDecimal
+)
+
 // All nodes implement the Node interface.
 type Node interface {
 	Idx0() file.Idx // The index of the first character belonging to the node
@@ -207,6 +223,7 @@ type (
 		Idx     file.Idx
 		Literal string
 		Value   interface{}
+		Kind    NumberLiteralKind
 	}
 
 	ObjectLiteral struct {

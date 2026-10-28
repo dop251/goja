@@ -86,12 +86,13 @@ type _parser struct {
 	chrOffset int  // The offset of current character
 	offset    int  // The offset after current character (may be greater than 1)
 
-	idx           file.Idx    // The index of token
-	prevTokenEnd  file.Idx    // The index right after the previous token
-	token         token.Token // The token
-	literal       string      // The literal of the token, if any
-	parsedLiteral unistring.String
-	sloppyLiteral bool // The string literal token has a legacy octal or \8, \9 escape sequence
+	idx            file.Idx    // The index of token
+	prevTokenEnd   file.Idx    // The index right after the previous token
+	token          token.Token // The token
+	literal        string      // The literal of the token, if any
+	parsedLiteral  unistring.String
+	sloppyLiteral  bool                  // The string literal token has a legacy octal or \8, \9 escape sequence
+	numLiteralKind ast.NumberLiteralKind // The lexical form of the current numeric literal token, if any
 
 	scope             *_scope
 	insertSemicolon   bool // If we see a newline, then insert an implicit semicolon
@@ -235,7 +236,7 @@ func (self *_parser) enterNesting() {
 func (self *_parser) nestingExceeded() {
 	self.error(self.idx, "Maximum nesting depth exceeded")
 	self.chr, self.chrOffset, self.offset = -1, self.length, self.length
-	self.token, self.literal, self.parsedLiteral, self.sloppyLiteral, self.idx = token.EOF, "", "", false, self.idxOf(self.length)
+	self.token, self.literal, self.parsedLiteral, self.sloppyLiteral, self.numLiteralKind, self.idx = token.EOF, "", "", false, ast.NumberLiteralPlain, self.idxOf(self.length)
 }
 
 func (self *_parser) leaveNesting() {
@@ -244,7 +245,7 @@ func (self *_parser) leaveNesting() {
 
 func (self *_parser) next() {
 	self.prevTokenEnd = self.idxOf(self.chrOffset)
-	self.token, self.literal, self.parsedLiteral, self.sloppyLiteral, self.idx = self.scan()
+	self.token, self.literal, self.parsedLiteral, self.sloppyLiteral, self.numLiteralKind, self.idx = self.scan()
 }
 
 func (self *_parser) optionalSemicolon() {

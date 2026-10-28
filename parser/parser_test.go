@@ -2,6 +2,7 @@ package parser
 
 import (
 	"errors"
+	"math"
 	"math/big"
 	"regexp"
 	"strings"
@@ -52,7 +53,7 @@ func TestParseFile(t *testing.T) {
 		is(err, nil)
 
 		_, err = ParseFile(nil, "", `/(?!def)abc/; return`, IgnoreRegExpErrors)
-		is(err, "(anonymous): Line 1:15 Illegal return statement")
+		is(err.Error(), "(anonymous): Line 1:15 Illegal return statement")
 	})
 }
 
@@ -60,7 +61,12 @@ func TestParseFunction(t *testing.T) {
 	tt(t, func() {
 		test := func(prm, bdy string, expect interface{}) *ast.FunctionLiteral {
 			function, err := ParseFunction(prm, bdy)
-			is(firstErr(err), expect)
+			e1 := firstErr(err)
+			if e1 == nil {
+				is(nil, expect)
+			} else {
+				is(e1.Error(), expect)
+			}
 			return function
 		}
 
@@ -85,7 +91,12 @@ func TestParserErr(t *testing.T) {
 		test := func(input string, expect interface{}) (*ast.Program, *_parser) {
 			parser := newParser("", input)
 			program, err := parser.parse()
-			is(firstErr(err), expect)
+			e1 := firstErr(err)
+			if e1 == nil {
+				is(nil, expect)
+			} else {
+				is(e1.Error(), expect)
+			}
 			return program, parser
 		}
 
@@ -539,7 +550,12 @@ func TestParser(t *testing.T) {
 	tt(t, func() {
 		test := func(source string, chk interface{}) *ast.Program {
 			_, program, err := testParse(source)
-			is(firstErr(err), chk)
+			e1 := firstErr(err)
+			if e1 == nil {
+				is(nil, chk)
+			} else {
+				is(e1.Error(), chk)
+			}
 			return program
 		}
 		test(`new (() => {});`, nil)
@@ -936,7 +952,7 @@ func TestParser(t *testing.T) {
 		test(`(2 ?? 2) && 3 + 3`, nil)
 		program = test(`a ?? b ?? c`, nil)
 		is(len(program.Body), 1)
-		is(program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression).Right.(*ast.Identifier).Name, "c")
+		is(program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.BinaryExpression).Right.(*ast.Identifier).Name, unistring.String("c"))
 
 		program = test(`
 		class C {
@@ -1010,22 +1026,22 @@ func Test_parseStringLiteral(t *testing.T) {
 
 		test("'1(\\\\d+)'", "1(\\d+)")
 
-		test("'\\u2029'", "\u2029")
+		test("'\\u2029'", unistring.NewFromString("\u2029"))
 
-		test("'abc\\uFFFFabc'", "abc\uFFFFabc")
+		test("'abc\\uFFFFabc'", unistring.NewFromString("abc\uFFFFabc"))
 
 		test("'[First line \\\nSecond line \\\n Third line\\\n.     ]'",
 			"[First line Second line  Third line.     ]")
 
 		test("'\\u007a\\x79\\u000a\\x78'", "zy\nx")
 
-		test("'\\u{7a}\\u{1F600}'", "z\U0001F600")
-		test("'a\\u{10FFFF}b'", "a\U0010FFFFb")
-		test("'\\u{0010FFFF}'", "\U0010FFFF")
+		test("'\\u{7a}\\u{1F600}'", unistring.NewFromString("z\U0001F600"))
+		test("'a\\u{10FFFF}b'", unistring.NewFromString("a\U0010FFFFb"))
+		test("'\\u{0010FFFF}'", unistring.NewFromString("\U0010FFFF"))
 
 		// S7.8.4_A4.2_T3
 		test("'\\a'", "a")
-		test("'\u0410'", "\u0410")
+		test("'\u0410'", unistring.NewFromString("\u0410"))
 
 		// S7.8.4_A5.1_T1
 		test("'\\0'", "\u0000")
@@ -1056,25 +1072,25 @@ func Test_parseStringLiteral(t *testing.T) {
 		test("'\\777'", "?7")
 		test("'\\1777'", "\1777")
 
-		test("'\\\u4e16'", "\u4e16")
+		test("'\\\u4e16'", unistring.NewFromString("\u4e16"))
 
 		// err
-		test = func(have string, want unistring.String) {
+		testErr := func(have string, want string) {
 			parser := newParser("", have)
 			parser.read()
 			parser.read()
 			_, res, _, err := parser.scanString(0, true)
 			is(err, want)
-			is(res, "")
+			is(res, unistring.String(""))
 		}
 
-		test(`"\u"`, `invalid escape: \u: len("") != 4`)
-		test(`"\u0"`, `invalid escape: \u: len("0") != 4`)
-		test(`"\u00"`, `invalid escape: \u: len("00") != 4`)
-		test(`"\u000"`, `invalid escape: \u: len("000") != 4`)
+		testErr(`"\u"`, `invalid escape: \u: len("") != 4`)
+		testErr(`"\u0"`, `invalid escape: \u: len("0") != 4`)
+		testErr(`"\u00"`, `invalid escape: \u: len("00") != 4`)
+		testErr(`"\u000"`, `invalid escape: \u: len("000") != 4`)
 
-		test(`"\x"`, `invalid escape: \x: len("") != 2`)
-		test(`"\x0"`, `invalid escape: \x: len("0") != 2`)
+		testErr(`"\x"`, `invalid escape: \x: len("") != 2`)
+		testErr(`"\x0"`, `invalid escape: \x: len("0") != 2`)
 	})
 }
 
@@ -1115,17 +1131,57 @@ func TestParseStringLiteralSloppy(t *testing.T) {
 	}
 }
 
+func TestNumberLiteralKind(t *testing.T) {
+	tt(t, func() {
+		testKind := func(src string, expect ast.NumberLiteralKind) {
+			_, program, err := testParse(src)
+			is(err, nil)
+			is(len(program.Body), 1)
+			literal, ok := program.Body[0].(*ast.ExpressionStatement).Expression.(*ast.NumberLiteral)
+			is(ok, true)
+			is(literal.Kind, expect)
+		}
+
+		testKind("10", ast.NumberLiteralPlain)
+		testKind("0", ast.NumberLiteralPlain)
+		testKind("0.5", ast.NumberLiteralPlain)
+		testKind("0e1", ast.NumberLiteralPlain)
+		testKind("0x10", ast.NumberLiteralPlain)
+		testKind("0X10", ast.NumberLiteralPlain)
+		testKind("0o17", ast.NumberLiteralPlain)
+		testKind("0b1", ast.NumberLiteralPlain)
+		testKind("1_000", ast.NumberLiteralPlain)
+		testKind(".5", ast.NumberLiteralPlain)
+		testKind("0n", ast.NumberLiteralPlain)
+		testKind("0x1_0n", ast.NumberLiteralPlain)
+
+		testKind("0777", ast.NumberLiteralLegacyOctal)
+		testKind("00", ast.NumberLiteralLegacyOctal)
+		testKind("07777777777777777777777", ast.NumberLiteralLegacyOctal)
+
+		testKind("089", ast.NumberLiteralNonOctalDecimal)
+		testKind("08", ast.NumberLiteralNonOctalDecimal)
+		testKind("08e5", ast.NumberLiteralNonOctalDecimal)
+		testKind("09.5", ast.NumberLiteralNonOctalDecimal)
+		testKind("0778", ast.NumberLiteralNonOctalDecimal)
+		testKind("0899999999999999999999999", ast.NumberLiteralNonOctalDecimal)
+	})
+}
+
 func Test_parseNumberLiteral(t *testing.T) {
 	tt(t, func() {
-		test := func(input string, expect interface{}) {
-			result, err := parseNumberLiteral(input)
+		testKind := func(input string, kind ast.NumberLiteralKind, expect interface{}) {
+			result, err := parseNumberLiteral(input, kind)
 			is(err, nil)
 			is(result, expect)
 		}
 
-		test("0", 0)
+		test := func(input string, expect interface{}) {
+			testKind(input, ast.NumberLiteralPlain, expect)
+		}
+		test("0", int64(0))
 
-		test("0x8000000000000000", float64(9.223372036854776e+18))
+		test("0x8000000000000000", 9.223372036854776e+18)
 
 		test("1n", big.NewInt(1))
 
@@ -1138,6 +1194,27 @@ func Test_parseNumberLiteral(t *testing.T) {
 		var n big.Int
 		n.SetString("0xabcdef0123456789abcdef0123", 0)
 		test("0xabcdef0123456789abcdef0123n", &n)
+
+		test("-0n", big.NewInt(0))
+		test("0o7777777777777777777777777777777777777777777777777777777777777777777777777777", 4.3135914667441024e+68)
+		test("0o777777777777777777777777777777777777777777_7777777777777777777777777777777777", 4.3135914667441024e+68)
+		test("0b1111111111111111111111111111111111111111111111111111111111111111111111", 1.1805916207174113e+21)
+		test("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", math.Inf(1))
+		// correctly rounded values (round-to-nearest-even of the exact value)
+		test("0xda3878bde71c74ee", 1.5724450855985641e+19)
+		test("0xda38_78bd_e71c_74ee", 1.5724450855985641e+19)
+		test("0o5174451045634_202753554666", 2.4760882153427304e+22)
+		test("0x10000000000001800", 1.844674407370956e+19) // exact tie -> ties to even
+		test("18446744073709551615", 1.8446744073709552e+19)
+		test("184467440_7370955161500000", 1.8446744073709552e+24)
+
+		// legacy octal that doesn't fit into int64 must not be parsed as decimal
+		testKind("07777777777777777777777", ast.NumberLiteralLegacyOctal, 7.378697629483821e+19)
+		testKind("0007777777777777777777777", ast.NumberLiteralLegacyOctal, 7.378697629483821e+19)
+		// group separators between leading zeros must not break the rounding
+		test("0x0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_ffffffffffffffffffffffff", 7.922816251426434e+28)
+		test("0b"+strings.Repeat("0_", 70)+strings.Repeat("1", 65), 3.6893488147419103e+19)
+		test("0o"+strings.Repeat("0_", 22)+strings.Repeat("7", 23), 5.902958103587057e+20)
 	})
 }
 
