@@ -1019,6 +1019,10 @@ func Test_parseStringLiteral(t *testing.T) {
 
 		test("'\\u007a\\x79\\u000a\\x78'", "zy\nx")
 
+		test("'\\u{7a}\\u{1F600}'", "z\U0001F600")
+		test("'a\\u{10FFFF}b'", "a\U0010FFFFb")
+		test("'\\u{0010FFFF}'", "\U0010FFFF")
+
 		// S7.8.4_A4.2_T3
 		test("'\\a'", "a")
 		test("'\u0410'", "\u0410")
