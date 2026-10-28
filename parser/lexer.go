@@ -712,7 +712,7 @@ func (self *_parser) scanEscape(quote rune) (int, bool) {
 				self.read()
 			}
 		} else {
-			for self.chr != quote && self.chr >= 0 && value < utf8.MaxRune {
+			for self.chr != quote && self.chr >= 0 && value <= utf8.MaxRune {
 				if self.chr == '}' {
 					self.read()
 					break

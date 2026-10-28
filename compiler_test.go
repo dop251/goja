@@ -2908,6 +2908,18 @@ func TestStrictStringOctalEscapes(t *testing.T) {
 	testScript(SCRIPT, asciiString("\x00a\x00b\\1"), t)
 }
 
+func TestStringLiteralMaxCodePointEscape(t *testing.T) {
+	const SCRIPT = `
+	const s = String.fromCodePoint(0x10FFFF);
+	assert.sameValue('\u{10FFFF}', s, "string");
+	assert.sameValue('a\u{10FFFF}b', "a" + s + "b", "string with other characters");
+	assert.sameValue(` + "`\\u{10FFFF}`" + `, s, "template");
+	assert.sameValue(eval("'\\u{10FFFF}'"), s, "eval");
+	assert.sameValue({'\u{10FFFF}': 1}[s], 1, "property key");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestReturnUndefined(t *testing.T) {
 	const SCRIPT = `
 	function f() {
