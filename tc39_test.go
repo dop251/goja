@@ -97,9 +97,6 @@ var (
 		// Left-hand side as a CoverParenthesizedExpression
 		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
 
-		// Unicode full case folding
-		"test/built-ins/RegExp/unicode_full_case_folding.js": true,
-
 		// quantifier integer limit in regexp
 		"test/built-ins/RegExp/quantifier-integer-limit.js": true,
 
@@ -226,6 +223,9 @@ func init() {
 				skip(
 					"test/language/identifiers/start-unicode-15.1.",
 					"test/language/identifiers/part-unicode-15.1.",
+
+					// simple case folding mappings added in Unicode 15.1
+					"test/built-ins/RegExp/unicode_full_case_folding.js",
 				)
 			}
 		}
@@ -704,6 +704,7 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/language")
 		ctx.runTC39Tests("test/built-ins")
 		ctx.runTC39Tests("test/annexB/built-ins/Date")
+		ctx.runTC39Tests("test/annexB/built-ins/Function")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/anchor")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/big")
 		ctx.runTC39Tests("test/annexB/built-ins/String/prototype/blink")
@@ -724,6 +725,7 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/annexB/built-ins/unescape")
 		ctx.runTC39Tests("test/annexB/built-ins/RegExp")
 		ctx.runTC39Tests("test/annexB/language/comments")
+		ctx.runTC39Tests("test/annexB/language/literals")
 		ctx.runTC39Tests("test/annexB/language/statements/try")
 
 		ctx.flush()
