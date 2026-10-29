@@ -726,6 +726,7 @@ func TestTC39(t *testing.T) {
 		ctx.runTC39Tests("test/annexB/built-ins/RegExp")
 		ctx.runTC39Tests("test/annexB/language/comments")
 		ctx.runTC39Tests("test/annexB/language/literals")
+		ctx.runTC39Tests("test/annexB/language/statements/for-in")
 		ctx.runTC39Tests("test/annexB/language/statements/try")
 
 		ctx.flush()

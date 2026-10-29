@@ -2366,6 +2366,41 @@ func TestForInLetWithInitializer(t *testing.T) {
 	}
 }
 
+func TestForInVarWithInitializer(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		var effects = 0;
+		var iterations = 0;
+		var stored;
+		for (var a = (++effects, -1) in stored = a, {x: 0, y: 1}) {
+			iterations++;
+		}
+		return [effects, iterations, stored, a];
+	}
+	assert(compareArray(f(), [1, 2, -1, "y"]), "function var");
+
+	for (var b = 1 in {});
+	assert.sameValue(b, 1, "global var");
+
+	for (var fn = function() {} in {});
+	assert.sameValue(fn.name, "fn", "function name");
+
+	assert.throws(SyntaxError, function() {
+		eval("'use strict'; for (var c = 0 in {});");
+	}, "strict mode");
+	assert.throws(SyntaxError, function() {
+		eval("for (var [c] = 0 in {});");
+	}, "array pattern");
+	assert.throws(SyntaxError, function() {
+		eval("for (var {c} = 0 in {});");
+	}, "object pattern");
+	assert.throws(SyntaxError, function() {
+		eval("for (var c = 0 of []);");
+	}, "for-of");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestForInLoop(t *testing.T) {
 	const SCRIPT = `
 	function Proto() {}
