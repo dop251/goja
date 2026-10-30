@@ -364,9 +364,6 @@ func (c *compiler) compileForInto(into ast.ForInto, needResult bool) (enter *ent
 	case *ast.ForIntoExpression:
 		c.compileExpression(into.Expression).emitSetter(&c.enumGetExpr, false)
 	case *ast.ForIntoVar:
-		if c.scope.strict && into.Binding.Initializer != nil {
-			c.throwSyntaxError(int(into.Binding.Initializer.Idx0())-1, "for-in loop variable declaration may not have an initializer.")
-		}
 		switch target := into.Binding.Target.(type) {
 		case *ast.Identifier:
 			c.compileIdentifierExpression(target).emitSetter(&c.enumGetExpr, false)
@@ -522,6 +519,13 @@ func (c *compiler) emitIterClose(async bool) {
 }
 
 func (c *compiler) compileLabeledForInStatement(v *ast.ForInStatement, needResult bool, label unistring.String) {
+	if into, ok := v.Into.(*ast.ForIntoVar); ok && into.Binding.Initializer != nil {
+		// B.3.5 Initializers in ForIn Statement Heads
+		if c.scope.strict {
+			c.throwSyntaxError(int(into.Binding.Initializer.Idx0())-1, "for-in loop variable declaration may not have an initializer.")
+		}
+		c.compileVarBinding(into.Binding)
+	}
 	c.compileLabeledForInOfStatement(v.Into, v.Source, v.Body, false, false, needResult, label)
 }
 
