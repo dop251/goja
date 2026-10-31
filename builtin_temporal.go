@@ -19,7 +19,8 @@ func (r *Runtime) getTemporal() *Object {
 		// Placeholders keep the namespace coherent while the remaining types
 		// are implemented; they are replaced as their milestones land.
 		o._putProp("PlainDate", r.getTemporalPlainDate(), true, false, true)
-		for _, name := range []string{"Instant", "PlainDateTime", "PlainTime",
+		o._putProp("PlainTime", r.getTemporalPlainTime(), true, false, true)
+		for _, name := range []string{"Instant", "PlainDateTime",
 			"ZonedDateTime", "PlainYearMonth", "PlainMonthDay"} {
 			o._putProp(unistring.NewFromString(name), r.newTemporalStub(name), true, false, true)
 		}

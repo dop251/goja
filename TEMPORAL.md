@@ -65,8 +65,11 @@ once the namespace is complete.
       `toJSON`, `getISOFields` — **532 / 648 tests pass**
 - [ ] PlainDate cross-type methods (`toPlainDateTime`, `toZonedDateTime`,
       `toPlainYearMonth`, `toPlainMonthDay`) — need the remaining types
-- [ ] PlainTime
-- [ ] PlainDateTime
+- [x] PlainTime: constructor, `from`, getters, `with`, `add`, `subtract`,
+      `until`, `since`, `round`, `equals`, `compare`, `toString`, `toJSON`,
+      `getISOFields` — **442 / 493 tests pass**
+- [ ] PlainDateTime (next: unblocks the remaining `relativeTo` failures in
+      Duration/PlainDate and the cross-type methods)
 - [ ] Instant
 - [ ] PlainYearMonth / PlainMonthDay
 - [ ] TimeZone / ZonedDateTime / Now
@@ -85,5 +88,6 @@ The current remaining failures in Duration and PlainDate are mostly:
 
 - `relativeTo` values that are `PlainDateTime` or `ZonedDateTime`
 - `PlainDate.toPlainDateTime()` / `toZonedDateTime()` (cross-type)
-- the last few calendar rounding edge cases in `until`/`since`
-- option-ordering observability tests that need the remaining types
+- `PlainTime.toPlainDateTime()` (cross-type)
+- the last few calendar rounding edge cases and option-ordering tests
+- annotations/strings that require the remaining types
