@@ -2,9 +2,11 @@ package goja
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/parser"
+	"github.com/dop251/goja/unistring"
 )
 
 // ModuleStatus is a module record's lifecycle state.
@@ -82,6 +84,13 @@ func (r *Runtime) DefineModule(name, src string) error {
 				})
 			}
 		case *ast.ExportDeclaration:
+			if s.Declaration != nil && !s.IsDefault {
+				for _, name := range moduleDeclaredNames(s.Declaration) {
+					if err := addExport(rec, seen, name, name, ""); err != nil {
+						return err
+					}
+				}
+			}
 			if s.IsDefault {
 				if err := addExport(rec, seen, "", "default", ""); err != nil {
 					return err
@@ -197,4 +206,72 @@ func (r *Runtime) linkModule(name string) error {
 	}
 	rec.status = ModuleLinked
 	return nil
+}
+
+// moduleDeclaredNames returns the names bound by an exported declaration.
+func moduleDeclaredNames(n ast.Node) []string {
+	switch d := n.(type) {
+	case *ast.VariableStatement:
+		return moduleBindingNames(d.List)
+	case *ast.LexicalDeclaration:
+		return moduleBindingNames(d.List)
+	case *ast.FunctionDeclaration:
+		if d.Function != nil && d.Function.Name != nil {
+			return []string{d.Function.Name.Name.String()}
+		}
+	case *ast.ClassDeclaration:
+		if d.Class != nil && d.Class.Name != nil {
+			return []string{d.Class.Name.Name.String()}
+		}
+	}
+	return nil
+}
+
+func moduleBindingNames(list []*ast.Binding) []string {
+	var res []string
+	for _, b := range list {
+		if id, ok := b.Target.(*ast.Identifier); ok {
+			res = append(res, id.Name.String())
+		}
+	}
+	return res
+}
+
+// ModuleNamespace returns the module namespace exotic object for a module.
+func (r *Runtime) ModuleNamespace(name string) (Value, error) {
+	rec, ok := r.modules[name]
+	if !ok {
+		return nil, fmt.Errorf("module %q is not defined", name)
+	}
+	if rec.namespace != nil {
+		return rec.namespace, nil
+	}
+	ns := r.newBaseObject(nil, classObject)
+	seen := map[string]bool{}
+	var names []string
+	for _, e := range rec.exports {
+		if e.exportName == "" || seen[e.exportName] {
+			continue
+		}
+		seen[e.exportName] = true
+		names = append(names, e.exportName)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		key := unistring.NewFromString(n)
+		ns.defineOwnPropertyStr(key, PropertyDescriptor{
+			Value:        _undefined,
+			Writable:     FLAG_TRUE,
+			Enumerable:   FLAG_TRUE,
+			Configurable: FLAG_FALSE,
+		}, false)
+	}
+	ns.defineOwnPropertySym(SymToStringTag, PropertyDescriptor{
+		Value:        asciiString("Module"),
+		Writable:     FLAG_FALSE,
+		Enumerable:   FLAG_FALSE,
+		Configurable: FLAG_FALSE,
+	}, false)
+	rec.namespace = ns.val
+	return ns.val, nil
 }
