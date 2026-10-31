@@ -1235,7 +1235,7 @@ func (r *Runtime) temporalPlainDateToJSON(call FunctionCall) Value {
 }
 
 func (r *Runtime) temporalPlainDateToLocaleString(call FunctionCall) Value {
-	return r.temporalPlainDateToString(FunctionCall{This: call.This, Arguments: []Value{_undefined}})
+	return r.temporalToLocaleString(call, "date")
 }
 
 func (r *Runtime) temporalPlainDateValueOf(call FunctionCall) Value {

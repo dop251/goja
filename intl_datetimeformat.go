@@ -1129,7 +1129,7 @@ func (r *Runtime) intlDateTimeFormatGetFormat(call FunctionCall) Value {
 	d := r.intlDateTimeFormatThis(call)
 	if d.bound == nil {
 		d.bound = r.newNativeFunc(func(call FunctionCall) Value {
-			return intlStr(intlPartsToString(d.formatDate(call.Argument(0).ToFloat())))
+			return intlStr(intlPartsToString(d.formatDate(r.intlFormatArgMillis(call.Argument(0)))))
 		}, "", 1)
 	}
 	return d.bound
@@ -1137,13 +1137,13 @@ func (r *Runtime) intlDateTimeFormatGetFormat(call FunctionCall) Value {
 
 func (r *Runtime) intlDateTimeFormatProtoFormatToParts(call FunctionCall) Value {
 	d := r.intlDateTimeFormatThis(call)
-	return r.intlPartsArray(d.formatDate(call.Argument(0).ToFloat()))
+	return r.intlPartsArray(d.formatDate(r.intlFormatArgMillis(call.Argument(0))))
 }
 
 func (r *Runtime) intlDateTimeFormatProtoFormatRange(call FunctionCall) Value {
 	d := r.intlDateTimeFormatThis(call)
-	a := call.Argument(0).ToFloat()
-	b := call.Argument(1).ToFloat()
+	a := r.intlFormatArgMillis(call.Argument(0))
+	b := r.intlFormatArgMillis(call.Argument(1))
 	if math.IsNaN(a) || math.IsInf(a, 0) || math.IsNaN(b) || math.IsInf(b, 0) {
 		panic(r.intlRangeError("Invalid range"))
 	}
@@ -1155,8 +1155,8 @@ func (r *Runtime) intlDateTimeFormatProtoFormatRange(call FunctionCall) Value {
 
 func (r *Runtime) intlDateTimeFormatProtoFormatRangeToParts(call FunctionCall) Value {
 	d := r.intlDateTimeFormatThis(call)
-	a := call.Argument(0).ToFloat()
-	b := call.Argument(1).ToFloat()
+	a := r.intlFormatArgMillis(call.Argument(0))
+	b := r.intlFormatArgMillis(call.Argument(1))
 	if math.IsNaN(a) || math.IsInf(a, 0) || math.IsNaN(b) || math.IsInf(b, 0) {
 		panic(r.intlRangeError("Invalid range"))
 	}

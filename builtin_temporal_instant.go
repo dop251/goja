@@ -410,7 +410,7 @@ func (r *Runtime) temporalInstantToJSON(call FunctionCall) Value {
 }
 
 func (r *Runtime) temporalInstantToLocaleString(call FunctionCall) Value {
-	return r.temporalInstantToString(FunctionCall{This: call.This, Arguments: []Value{_undefined}})
+	return r.temporalToLocaleString(call, "any")
 }
 
 func (r *Runtime) temporalInstantValueOf(call FunctionCall) Value {
