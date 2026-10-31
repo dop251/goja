@@ -53,12 +53,15 @@ once the namespace is complete.
 
 - [x] core (ISO arithmetic, float64-backed duration fields, exact `big.Rat` totals)
 - [x] Duration: constructor, `from`, getters, `with`, `negated`, `abs`, `add`,
-      `subtract`, `compare`, `total`, `round` (time/day units), `toString`,
-      `toJSON`, `toLocaleString` — **378 / 533 tests pass**
-- [ ] Duration relativeTo support (the remaining 155 tests need `PlainDate` /
-      `PlainDateTime` / `ZonedDateTime`)
+      `subtract`, `compare`, `total`, `round`, `toString`, `toJSON`,
+      `toLocaleString`, including `relativeTo` for `PlainDate` — **412 / 533
+      tests pass**
+- [x] PlainDate: constructor, `from`, getters, `with`, `withCalendar`, `add`,
+      `subtract`, `until`, `since`, `equals`, `compare`, `toString`,
+      `toJSON`, `getISOFields` — **532 / 648 tests pass**
+- [ ] PlainDate cross-type methods (`toPlainDateTime`, `toZonedDateTime`,
+      `toPlainYearMonth`, `toPlainMonthDay`) — need the remaining types
 - [ ] PlainTime
-- [ ] PlainDate
 - [ ] PlainDateTime
 - [ ] Instant
 - [ ] PlainYearMonth / PlainMonthDay
@@ -67,7 +70,16 @@ once the namespace is complete.
 ### Development placeholders
 
 Until the remaining types are implemented, `Temporal` exposes placeholder
-constructors for them. The placeholders throw when constructed or called; they
-exist so test262 helper code that does `x instanceof Temporal.PlainDateTime`
-keeps working while Duration is tested in isolation. They must be replaced by
-the real implementations before this is submitted upstream.
+constructors for `Instant`, `PlainDateTime`, `PlainTime`, `ZonedDateTime`,
+`PlainYearMonth`, and `PlainMonthDay`. The placeholders throw when constructed
+or called; they exist so test262 helper code that does
+`x instanceof Temporal.PlainDateTime` keeps working while Duration and
+PlainDate are tested in isolation. They must be replaced by the real
+implementations before this is submitted upstream.
+
+The current remaining failures in Duration and PlainDate are mostly:
+
+- `relativeTo` values that are `PlainDateTime` or `ZonedDateTime`
+- `PlainDate.toPlainDateTime()` / `toZonedDateTime()` (cross-type)
+- the last few calendar rounding edge cases in `until`/`since`
+- option-ordering observability tests that need the remaining types

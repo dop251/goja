@@ -88,9 +88,11 @@ type global struct {
 	Map     *Object
 	Set     *Object
 
-	Temporal                  *Object
-	TemporalDuration          *Object
-	TemporalDurationPrototype *Object
+	Temporal                   *Object
+	TemporalDuration           *Object
+	TemporalDurationPrototype  *Object
+	TemporalPlainDate          *Object
+	TemporalPlainDatePrototype *Object
 
 	Error          *Object
 	AggregateError *Object

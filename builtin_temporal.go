@@ -18,7 +18,8 @@ func (r *Runtime) getTemporal() *Object {
 		o._putProp("Duration", r.getTemporalDuration(), true, false, true)
 		// Placeholders keep the namespace coherent while the remaining types
 		// are implemented; they are replaced as their milestones land.
-		for _, name := range []string{"Instant", "PlainDateTime", "PlainTime", "PlainDate",
+		o._putProp("PlainDate", r.getTemporalPlainDate(), true, false, true)
+		for _, name := range []string{"Instant", "PlainDateTime", "PlainTime",
 			"ZonedDateTime", "PlainYearMonth", "PlainMonthDay"} {
 			o._putProp(unistring.NewFromString(name), r.newTemporalStub(name), true, false, true)
 		}
@@ -500,6 +501,12 @@ func (r *Runtime) temporalDurationRound(call FunctionCall) Value {
 	if !hasSmallest && largest == "" {
 		panic(r.NewTypeError("smallestUnit or largestUnit is required"))
 	}
+	rel := r.temporalDurationRelativeTo(opts)
+	if rel != nil && (d.hasCalendarUnits() ||
+		(hasSmallest && temporalUnitIndex(smallest) <= 3) ||
+		(largest != "" && temporalUnitIndex(largest) <= 3)) {
+		return r.roundCalendarDuration(d, rel, smallest, largest, increment, mode, hasSmallest)
+	}
 	if d.hasCalendarUnits() {
 		panic(r.newError(r.getRangeError(), "relativeTo is required for calendar units"))
 	}
@@ -586,6 +593,56 @@ func (r *Runtime) temporalDurationRound(call FunctionCall) Value {
 	return r.newTemporalDurationObject(fields, r.getTemporalDurationPrototype())
 }
 
+func (r *Runtime) roundCalendarDuration(d *temporalDurationObject, rel *temporalPlainDateObject, smallest, largest string, increment int64, mode temporalRoundingMode, hasSmallest bool) Value {
+	fields := d.fields()
+	end := rel.date
+	end = addISOMonths(end, int64(fields[0])*12+int64(fields[1]))
+	end = addISODays(end, int64(fields[2])*7+int64(fields[3]))
+	// Fold whole time days into the end date; sub-day time is not representable
+	// in a date-only round and is dropped (matching the date component).
+	end = addISODays(end, int64(fields[4]/24+fields[5]/1440+fields[6]/86400))
+	endObj := r.plainDateFieldsObject(end, rel.calendar)
+	if largest == "" {
+		largest = "day"
+		for i := 0; i <= 3; i++ {
+			if fields[i] != 0 {
+				largest = temporalUnitName(i)
+				break
+			}
+		}
+		if hasSmallest && temporalUnitIndex(smallest) < temporalUnitIndex(largest) {
+			largest = smallest
+		}
+	}
+	opts := r.NewObject()
+	opts.Set("largestUnit", r.ToValue(largest))
+	if hasSmallest {
+		opts.Set("smallestUnit", r.ToValue(smallest))
+	}
+	opts.Set("roundingIncrement", r.ToValue(increment))
+	switch mode {
+	case temporalRoundCeil:
+		opts.Set("roundingMode", r.ToValue("ceil"))
+	case temporalRoundFloor:
+		opts.Set("roundingMode", r.ToValue("floor"))
+	case temporalRoundExpand:
+		opts.Set("roundingMode", r.ToValue("expand"))
+	case temporalRoundTrunc:
+		opts.Set("roundingMode", r.ToValue("trunc"))
+	case temporalRoundHalfCeil:
+		opts.Set("roundingMode", r.ToValue("halfCeil"))
+	case temporalRoundHalfFloor:
+		opts.Set("roundingMode", r.ToValue("halfFloor"))
+	case temporalRoundHalfTrunc:
+		opts.Set("roundingMode", r.ToValue("halfTrunc"))
+	case temporalRoundHalfEven:
+		opts.Set("roundingMode", r.ToValue("halfEven"))
+	default:
+		opts.Set("roundingMode", r.ToValue("halfExpand"))
+	}
+	return r.temporalPlainDateDifference(rel, endObj, opts, false)
+}
+
 // normalizeTemporalUnit validates a unit name and returns its canonical
 // singular form.
 func normalizeTemporalUnit(unit string) (string, bool) {
@@ -665,17 +722,121 @@ func (r *Runtime) temporalDurationTotal(call FunctionCall) Value {
 	if !ok {
 		panic(r.NewTypeError("Invalid unit"))
 	}
-	if d.hasCalendarUnits() {
+	rel := r.temporalDurationRelativeTo(call.Argument(0))
+	if d.hasCalendarUnits() && rel == nil {
 		panic(r.newError(r.getRangeError(), "relativeTo is required for calendar units"))
 	}
-	total := durationTimeNanos(d)
-	unitNanos := temporalUnitNanos(unit)
-	if unitNanos == 0 {
-		panic(r.NewTypeError("Invalid unit"))
+	if rel == nil {
+		total := durationTimeNanos(d)
+		unitNanos := temporalUnitNanos(unit)
+		if unitNanos == 0 {
+			panic(r.NewTypeError("Invalid unit"))
+		}
+		rat := new(big.Rat).Quo(total, big.NewRat(unitNanos, 1))
+		f, _ := rat.Float64()
+		return r.ToValue(f)
 	}
-	rat := new(big.Rat).Quo(total, big.NewRat(unitNanos, 1))
-	f, _ := rat.Float64()
+	f := r.durationTotalRelative(d, rel, unit)
 	return r.ToValue(f)
+}
+
+// durationTotalRelative computes Duration.total(unit) in the presence of a
+// relativeTo date.
+func (r *Runtime) durationTotalRelative(d *temporalDurationObject, rel *temporalPlainDateObject, unit string) float64 {
+	fields := d.fields()
+	dateEnd := rel.date
+	dateEnd = addISOMonths(dateEnd, int64(fields[0])*12+int64(fields[1]))
+	dateEnd = isoDate{year: dateEnd.year, month: dateEnd.month, day: dateEnd.day}
+	if fields[2] != 0 {
+		dateEnd = addISODays(dateEnd, int64(fields[2])*7)
+	}
+	dateEnd = addISODays(dateEnd, int64(fields[3]))
+	// Time part in days (fractional).
+	timeRat := new(big.Rat)
+	addTime := func(v float64, mul float64) {
+		if v != 0 {
+			timeRat.Add(timeRat, new(big.Rat).SetFloat64(v*mul))
+		}
+	}
+	addTime(fields[4], 3600)
+	addTime(fields[5], 60)
+	addTime(fields[6], 1)
+	addTime(fields[7], 1.0/1e3)
+	addTime(fields[8], 1.0/1e6)
+	addTime(fields[9], 1.0/1e9)
+	timeDays, _ := new(big.Rat).Quo(timeRat, big.NewRat(86400, 1)).Float64()
+
+	wholeDays := float64(dateEnd.days() - rel.date.days())
+	switch unit {
+	case "day":
+		return wholeDays + timeDays
+	case "week":
+		return (wholeDays + timeDays) / 7
+	case "hour":
+		return (wholeDays+timeDays)*24 + timeRatHours(fields)
+	case "minute":
+		return (wholeDays+timeDays)*1440 + timeRatMinutes(fields)
+	case "second":
+		return (wholeDays+timeDays)*86400 + timeRatSeconds(fields)
+	case "millisecond":
+		return (wholeDays+timeDays)*86400*1e3 + timeRatSeconds(fields)*1e3
+	case "microsecond":
+		return (wholeDays+timeDays)*86400*1e6 + timeRatSeconds(fields)*1e6
+	case "nanosecond":
+		return (wholeDays+timeDays)*86400*1e9 + timeRatSeconds(fields)*1e9
+	}
+
+	// Calendar units: whole months/years between rel and dateEnd, plus a
+	// fractional remainder based on the next unit's length.
+	start, end := rel.date, dateEnd
+	neg := false
+	if start.days() > end.days() {
+		start, end = end, start
+		neg = true
+	}
+	totalMonths := (end.year-start.year)*12 + (end.month - start.month)
+	if end.day < start.day {
+		totalMonths--
+	}
+	if totalMonths < 0 {
+		totalMonths = 0
+	}
+	mid := addISOMonths(start, totalMonths)
+	rem := float64(end.days() - mid.days())
+	var result float64
+	if unit == "month" {
+		next := addISOMonths(start, totalMonths+1)
+		denom := float64(next.days() - mid.days())
+		result = float64(totalMonths) + rem/denom
+	} else { // year
+		years := totalMonths / 12
+		midY := addISOMonths(start, years*12)
+		nextY := addISOMonths(midY, 12)
+		denom := float64(nextY.days() - midY.days())
+		rem := float64(end.days() - midY.days())
+		result = float64(years) + rem/denom
+	}
+	result += timeDays / 365
+	if neg {
+		result = -result
+	}
+	return result
+}
+
+func timeRatHours(f [10]float64) float64 {
+	return f[4] + f[5]/60 + f[6]/3600 + f[7]/3.6e6 + f[8]/3.6e9 + f[9]/3.6e12
+}
+func timeRatMinutes(f [10]float64) float64 {
+	return f[4]*60 + f[5] + f[6]/60 + f[7]/6e4 + f[8]/6e7 + f[9]/6e10
+}
+func timeRatSeconds(f [10]float64) float64 {
+	return f[4]*3600 + f[5]*60 + f[6] + f[7]/1e3 + f[8]/1e6 + f[9]/1e9
+}
+
+func addISODays(d isoDate, days int64) isoDate {
+	z := d.days() + days
+	y, m, day := isoCivilFromDays(z)
+	return isoDate{year: y, month: m, day: day}
 }
 
 func (r *Runtime) temporalDurationUnit(v Value) (string, bool) {
@@ -754,12 +915,40 @@ func (r *Runtime) temporalDurationValueOf(call FunctionCall) Value {
 func (r *Runtime) temporalDurationCompare(call FunctionCall) Value {
 	a := r.temporalDurationFromValue(call.Argument(0))
 	b := r.temporalDurationFromValue(call.Argument(1))
-	if a.hasCalendarUnits() || b.hasCalendarUnits() {
+	rel := r.temporalDurationRelativeTo(call.Argument(2))
+	if rel == nil && (a.hasCalendarUnits() || b.hasCalendarUnits()) {
 		panic(r.newError(r.getRangeError(), "relativeTo is required for calendar units"))
 	}
-	ta := durationTimeNanos(a)
-	tb := durationTimeNanos(b)
+	var ta, tb *big.Rat
+	if rel != nil {
+		ta = new(big.Rat).SetFloat64(r.durationTotalRelative(a, rel, "day"))
+		tb = new(big.Rat).SetFloat64(r.durationTotalRelative(b, rel, "day"))
+	} else {
+		ta = durationTimeNanos(a)
+		tb = durationTimeNanos(b)
+	}
 	return intToValue(int64(ta.Cmp(tb)))
+}
+
+// temporalDurationRelativeTo extracts options.relativeTo.
+func (r *Runtime) temporalDurationRelativeTo(options Value) *temporalPlainDateObject {
+	if options == nil || IsUndefined(options) || IsNull(options) {
+		return nil
+	}
+	obj, ok := options.(*Object)
+	if !ok {
+		return nil
+	}
+	v := obj.self.getStr("relativeTo", nil)
+	if v == nil || IsUndefined(v) || IsNull(v) {
+		return nil
+	}
+	if d, ok := v.(*Object); ok {
+		if pd, ok := d.self.(*temporalPlainDateObject); ok {
+			return pd
+		}
+	}
+	return r.temporalPlainDateFromValue(v, _undefined)
 }
 
 func durationTimeNanos(d *temporalDurationObject) *big.Rat {
