@@ -30,15 +30,18 @@ func intlHasLocaleData(tag *intlTag) bool {
 
 func intlLocaleLookupKeys(tag *intlTag) []string {
 	var keys []string
-	base := tag.baseName()
-	keys = append(keys, base)
-	if tag.script != "" && tag.region != "" {
+	keys = append(keys, tag.baseName())
+	if tag.script != "" {
 		keys = append(keys, tag.language+"-"+tag.script)
+	} else {
+		// Prefer the likely script bundle (e.g. zh-TW -> zh-Hant).
+		mt := intlMaximize(tag)
+		if mt.script != "" {
+			keys = append(keys, tag.language+"-"+mt.script)
+		}
+	}
+	if tag.region != "" {
 		keys = append(keys, tag.language+"-"+tag.region)
-	} else if tag.script != "" {
-		keys = append(keys, tag.language)
-	} else if tag.region != "" {
-		keys = append(keys, tag.language)
 	}
 	keys = append(keys, tag.language)
 	return keys
