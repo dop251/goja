@@ -84,6 +84,10 @@ type global struct {
 	IntlDateTimeFormatPrototype     *Object
 	IntlDisplayNames                *Object
 	IntlDisplayNamesPrototype       *Object
+	IntlSegmenter                   *Object
+	IntlSegmenterPrototype          *Object
+	IntlSegmentsPrototype           *Object
+	IntlSegmentIteratorPrototype    *Object
 
 	AsyncFunction *Object
 
