@@ -75,15 +75,18 @@ once the namespace is complete.
       `getISOFields` — **725 / 769 tests pass** (remaining failures are the
       `toZonedDateTime` method and cross-type conversions that need
       `ZonedDateTime` / `PlainMonthDay`)
-- [ ] Instant
+- [x] Instant: constructor, `from`, `fromEpochMilliseconds`,
+      `fromEpochNanoseconds`, `epochMilliseconds`, `epochNanoseconds`, `add`,
+      `subtract`, `until`, `since`, `round`, `equals`, `compare`, `toString`,
+      `toJSON`, `toLocaleString` — **449 / 465 tests pass** (`toZonedDateTimeISO`
+      and `ZonedDateTime` conversion need time zone support)
 - [ ] PlainYearMonth / PlainMonthDay
 - [ ] TimeZone / ZonedDateTime / Now
 
 ### Development placeholders
 
 Until the remaining types are implemented, `Temporal` exposes placeholder
-constructors for `Instant`, `ZonedDateTime`, `PlainYearMonth`, and
-`PlainMonthDay`. The placeholders throw when constructed
+constructors for `ZonedDateTime`, `PlainYearMonth`, and `PlainMonthDay`. The placeholders throw when constructed
 or called; they exist so test262 helper code that does
 `x instanceof Temporal.PlainDateTime` keeps working while Duration and
 PlainDate are tested in isolation. They must be replaced by the real
@@ -91,7 +94,8 @@ implementations before this is submitted upstream.
 
 The current remaining failures in Duration and PlainDate are mostly:
 
-- `relativeTo` values that are `PlainDateTime` or `ZonedDateTime`
+- `relativeTo` values that are `ZonedDateTime`
+- `Instant.toZonedDateTimeISO()`
 - `PlainDate.toPlainDateTime()` / `toZonedDateTime()` (cross-type)
 - `PlainTime.toPlainDateTime()` (cross-type)
 - the last few calendar rounding edge cases and option-ordering tests

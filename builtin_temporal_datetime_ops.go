@@ -372,13 +372,19 @@ type temporalStringPrecision struct {
 
 // temporalGetStringPrecision implements ToSecondsStringPrecision, reading the
 // options in the observable order.
-func (r *Runtime) temporalGetStringPrecision(options Value) temporalStringPrecision {
+func (r *Runtime) temporalGetStringPrecision(options Value, between func()) temporalStringPrecision {
 	p := temporalStringPrecision{digits: -1, mode: temporalRoundTrunc}
 	if options == nil || IsUndefined(options) {
+		if between != nil {
+			between()
+		}
 		return p
 	}
 	obj := r.temporalOptionsObject(options)
 	if obj == nil {
+		if between != nil {
+			between()
+		}
 		return p
 	}
 	if v := obj.self.getStr("fractionalSecondDigits", nil); v != nil && !IsUndefined(v) {
@@ -401,9 +407,17 @@ func (r *Runtime) temporalGetStringPrecision(options Value) temporalStringPrecis
 		}
 	}
 	p.mode = r.parseTemporalRoundingMode(obj.self.getStr("roundingMode", nil), temporalRoundTrunc)
+	rawUnit := ""
+	hasUnit := false
 	if v := obj.self.getStr("smallestUnit", nil); v != nil && !IsUndefined(v) {
-		s, _ := temporalToStringOption(r, v)
-		u, ok := normalizeTemporalUnit(s)
+		rawUnit, _ = temporalToStringOption(r, v)
+		hasUnit = true
+	}
+	if between != nil {
+		between()
+	}
+	if hasUnit {
+		u, ok := normalizeTemporalUnit(rawUnit)
 		if !ok {
 			panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
 		}

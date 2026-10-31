@@ -570,7 +570,7 @@ func (r *Runtime) temporalPlainDateTimeToString(call FunctionCall) Value {
 			}
 		}
 	}
-	p := r.temporalGetStringPrecision(options)
+	p := r.temporalGetStringPrecision(options, nil)
 	date, tm := d.date, d.time
 	if p.hasUnit {
 		date, tm = r.roundISODateTime(date, tm, p.unit, 1, p.mode)

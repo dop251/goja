@@ -689,7 +689,7 @@ func (r *Runtime) temporalPlainTimeCompare(call FunctionCall) Value {
 }
 
 func (r *Runtime) formatTemporalTime(t *temporalPlainTimeObject, options Value) string {
-	p := r.temporalGetStringPrecision(options)
+	p := r.temporalGetStringPrecision(options, nil)
 	tm := isoTime{
 		hour:        t.hour,
 		minute:      t.minute,
