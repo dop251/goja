@@ -67,9 +67,14 @@ once the namespace is complete.
       `toPlainYearMonth`, `toPlainMonthDay`) — need the remaining types
 - [x] PlainTime: constructor, `from`, getters, `with`, `add`, `subtract`,
       `until`, `since`, `round`, `equals`, `compare`, `toString`, `toJSON`,
-      `getISOFields` — **442 / 493 tests pass**
-- [ ] PlainDateTime (next: unblocks the remaining `relativeTo` failures in
-      Duration/PlainDate and the cross-type methods)
+      `getISOFields` — **482 / 493 tests pass** (remaining failures need
+      `ZonedDateTime` / `PlainMonthDay` conversion)
+- [x] PlainDateTime: constructor, `from`, getters, `with`, `withCalendar`,
+      `withPlainTime`, `add`, `subtract`, `until`, `since`, `round`, `equals`,
+      `compare`, `toString`, `toJSON`, `toPlainDate`, `toPlainTime`,
+      `getISOFields` — **725 / 769 tests pass** (remaining failures are the
+      `toZonedDateTime` method and cross-type conversions that need
+      `ZonedDateTime` / `PlainMonthDay`)
 - [ ] Instant
 - [ ] PlainYearMonth / PlainMonthDay
 - [ ] TimeZone / ZonedDateTime / Now
@@ -77,8 +82,8 @@ once the namespace is complete.
 ### Development placeholders
 
 Until the remaining types are implemented, `Temporal` exposes placeholder
-constructors for `Instant`, `PlainDateTime`, `PlainTime`, `ZonedDateTime`,
-`PlainYearMonth`, and `PlainMonthDay`. The placeholders throw when constructed
+constructors for `Instant`, `ZonedDateTime`, `PlainYearMonth`, and
+`PlainMonthDay`. The placeholders throw when constructed
 or called; they exist so test262 helper code that does
 `x instanceof Temporal.PlainDateTime` keeps working while Duration and
 PlainDate are tested in isolation. They must be replaced by the real

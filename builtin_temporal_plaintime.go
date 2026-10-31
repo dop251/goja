@@ -39,7 +39,8 @@ func (r *Runtime) getTemporalPlainTime() *Object {
 			ms := r.temporalTimeArgument(args, 3)
 			us := r.temporalTimeArgument(args, 4)
 			ns := r.temporalTimeArgument(args, 5)
-			if h > 23 || mi > 59 || s > 59 || ms > 999 || us > 999 || ns > 999 {
+			if h < 0 || h > 23 || mi < 0 || mi > 59 || s < 0 || s > 59 ||
+				ms < 0 || ms > 999 || us < 0 || us > 999 || ns < 0 || ns > 999 {
 				panic(r.newError(r.getRangeError(), "Invalid time"))
 			}
 			proto := r.getTemporalPlainTimePrototype()
@@ -137,7 +138,12 @@ func (r *Runtime) temporalPlainTimeFrom(call FunctionCall) Value {
 func (r *Runtime) temporalPlainTimeFromValue(v Value, options Value) *temporalPlainTimeObject {
 	if o, ok := v.(*Object); ok {
 		if t, ok := o.self.(*temporalPlainTimeObject); ok {
+			_ = r.temporalOverflowOption(options)
 			return t
+		}
+		if dt, ok := o.self.(*temporalPlainDateTimeObject); ok {
+			_ = r.temporalOverflowOption(options)
+			return r.plainTimeFieldsObject(dt.time.hour, dt.time.minute, dt.time.second, dt.time.millisecond, dt.time.microsecond, dt.time.nanosecond)
 		}
 	}
 	if s, ok := v.(String); ok {
@@ -238,11 +244,14 @@ func (r *Runtime) plainTimeFieldsObject(h, mi, s, ms, us, ns int64) *temporalPla
 
 // parseTemporalPlainTimeString parses a PlainTime ISO string.
 func parseTemporalPlainTimeString(s string) (h, mi, sec, ms, us, ns int64, ok bool) {
-	base, ok := stripPlainTimeAnnotations(s)
-	if !ok {
+	base, annOK := stripPlainTimeAnnotations(s)
+	if !annOK {
 		return
 	}
 	s = base
+	if !strings.ContainsAny(s, "Tt") && !strings.Contains(s, " ") && ambiguousISOYearMonthOrMonthDay(s) {
+		return
+	}
 	timePart := s
 	if i := strings.IndexAny(s, "Tt"); i >= 0 {
 		prefix := s[:i]
@@ -250,7 +259,7 @@ func parseTemporalPlainTimeString(s string) (h, mi, sec, ms, us, ns int64, ok bo
 			return
 		}
 		timePart = s[i+1:]
-	} else if i := strings.IndexByte(s, ' '); i >= 0 {
+	} else if i := strings.IndexByte(s, ' '); i > 0 {
 		prefix := s[:i]
 		if !validDatePrefix(prefix) {
 			return
@@ -267,14 +276,17 @@ func validDatePrefix(prefix string) bool {
 	if prefix == "" {
 		return true
 	}
+	if norm, ok := normalizeBasicDate(prefix); ok {
+		if strings.Contains(norm, "-000000") || strings.HasPrefix(norm, "-0000-") {
+			return false
+		}
+		_, _, ok := parseTemporalPlainDateString(norm)
+		return ok
+	}
 	if strings.Contains(prefix, "-000000") || strings.HasPrefix(prefix, "-0000-") {
 		return false
 	}
 	if !strings.Contains(prefix, "-") {
-		// Basic-format YYYYMMDD.
-		if len(prefix) == 8 && isDigits(prefix) {
-			return true
-		}
 		return false
 	}
 	_, _, ok := parseTemporalPlainDateString(prefix)
@@ -282,17 +294,12 @@ func validDatePrefix(prefix string) bool {
 }
 
 func looksLikeDateOnly(s string) bool {
-	if len(s) >= 8 && isDigits(s[:8]) {
-		return true
+	if len(s) == 7 && isDigits(s[:4]) && s[4] == '-' && isDigits(s[5:]) {
+		m := int64(s[5]-'0')*10 + int64(s[6]-'0')
+		return m >= 1 && m <= 12
 	}
-	if len(s) >= 7 && isDigits(s[:4]) && s[4] == '-' {
-		// YYYY-MM or YYYY-MM-DD without a time.
-		if len(s) == 7 && isDigits(s[5:]) {
-			return true
-		}
-		if len(s) == 10 && isDigits(s[5:7]) && s[7] == '-' && isDigits(s[8:]) {
-			return true
-		}
+	if _, _, ok := parseTemporalPlainDateString(s); ok {
+		return true
 	}
 	return false
 }
@@ -316,6 +323,7 @@ func stripPlainTimeAnnotations(s string) (string, bool) {
 		rest = rest[j+1:]
 	}
 	tz, cal := 0, 0
+	calCritical := false
 	for _, ann := range anns {
 		if ann == "" {
 			return "", false
@@ -330,8 +338,14 @@ func stripPlainTimeAnnotations(s string) (string, bool) {
 				return "", false
 			}
 			if key == "u-ca" {
-				// PlainTime ignores all calendar annotations.
+				// PlainTime ignores all calendar annotations, but a critical
+				// annotation cannot be followed by a second one.
 				cal++
+				if cal == 1 {
+					calCritical = critical
+				} else if critical || calCritical {
+					return "", false
+				}
 				continue
 			}
 		}
@@ -367,6 +381,7 @@ func parseTemporalTimeFields(s string) (h, mi, sec, ms, us, ns int64, ok bool) {
 		return
 	}
 	hasMinute := false
+	colonMinute := false
 	if i < len(s) && s[i] == ':' {
 		i++
 		mi, ok = read2()
@@ -374,6 +389,7 @@ func parseTemporalTimeFields(s string) (h, mi, sec, ms, us, ns int64, ok bool) {
 			return
 		}
 		hasMinute = true
+		colonMinute = true
 	} else if i+2 <= len(s) && isDigits(s[i:i+2]) && !isOffsetStart(s, i) {
 		mi, ok = read2()
 		if !ok {
@@ -383,13 +399,18 @@ func parseTemporalTimeFields(s string) (h, mi, sec, ms, us, ns int64, ok bool) {
 	}
 	hasSecond := false
 	if hasMinute {
-		if i < len(s) && s[i] == ':' {
-			i++
-			sec, ok = read2()
-			if !ok {
+		if colonMinute {
+			if i < len(s) && s[i] == ':' {
+				i++
+				sec, ok = read2()
+				if !ok {
+					return
+				}
+				hasSecond = true
+			} else if i < len(s) && s[i] >= '0' && s[i] <= '9' {
+				ok = false
 				return
 			}
-			hasSecond = true
 		} else if i+2 <= len(s) && isDigits(s[i:i+2]) && !isOffsetStart(s, i) {
 			sec, ok = read2()
 			if !ok {
@@ -423,50 +444,11 @@ func parseTemporalTimeFields(s string) (h, mi, sec, ms, us, ns int64, ok bool) {
 		return
 	}
 	if i < len(s) && (s[i] == '+' || s[i] == '-') {
-		i++
-		if i+2 > len(s) || !isDigits(s[i:i+2]) {
+		if !validOffsetString(s[i:]) {
 			ok = false
 			return
 		}
-		i += 2
-		readPair := func() bool {
-			if i < len(s) && s[i] == ':' {
-				i++
-				if i+2 > len(s) || !isDigits(s[i:i+2]) {
-					return false
-				}
-				i += 2
-				return true
-			}
-			if i+2 <= len(s) && isDigits(s[i:i+2]) {
-				i += 2
-				return true
-			}
-			return true
-		}
-		if i < len(s) && (s[i] == ':' || (s[i] >= '0' && s[i] <= '9')) {
-			if !readPair() {
-				ok = false
-				return
-			}
-		}
-		if i < len(s) && (s[i] == ':' || (s[i] >= '0' && s[i] <= '9')) {
-			if !readPair() {
-				ok = false
-				return
-			}
-			if i < len(s) && (s[i] == '.' || s[i] == ',') {
-				i++
-				fs := i
-				for i < len(s) && s[i] >= '0' && s[i] <= '9' {
-					i++
-				}
-				if i == fs || i-fs > 9 {
-					ok = false
-					return
-				}
-			}
-		}
+		i = len(s)
 	}
 	if i != len(s) {
 		ok = false
@@ -479,6 +461,49 @@ func parseTemporalTimeFields(s string) (h, mi, sec, ms, us, ns int64, ok bool) {
 		ok = false
 	}
 	return
+}
+
+// validOffsetString validates a UTC offset suffix such as +01:00 or -0130.
+func validOffsetString(s string) bool {
+	if len(s) < 3 || (s[0] != '+' && s[0] != '-') || !isDigits(s[1:3]) {
+		return false
+	}
+	if s[1] > '2' || (s[1] == '2' && s[2] > '3') {
+		return false
+	}
+	rest := s[3:]
+	if rest == "" {
+		return true
+	}
+	colon := rest[0] == ':'
+	if colon {
+		rest = rest[1:]
+	}
+	if len(rest) < 2 || !isDigits(rest[:2]) || rest[0] > '5' {
+		return false
+	}
+	rest = rest[2:]
+	if rest == "" {
+		return true
+	}
+	if colon {
+		if rest[0] != ':' {
+			return false
+		}
+		rest = rest[1:]
+	}
+	if len(rest) < 2 || !isDigits(rest[:2]) || rest[0] > '5' {
+		return false
+	}
+	rest = rest[2:]
+	if rest == "" {
+		return true
+	}
+	if rest[0] != '.' && rest[0] != ',' {
+		return false
+	}
+	frac := rest[1:]
+	return len(frac) >= 1 && len(frac) <= 9 && isDigits(frac)
 }
 
 func isOffsetStart(s string, i int) bool {
@@ -582,83 +607,17 @@ func (r *Runtime) temporalPlainTimeSince(call FunctionCall) Value {
 	return r.temporalPlainTimeDifference(t, other, call.Argument(1), true)
 }
 
-func (r *Runtime) temporalPlainTimeDifference(a, b *temporalPlainTimeObject, options Value, negate bool) Value {
-	largest := "hour"
-	smallest := ""
-	increment := int64(1)
-	mode := temporalRoundTrunc
-	if options != nil && !IsUndefined(options) {
-		obj, ok := options.(*Object)
-		if !ok {
-			panic(r.NewTypeError("options must be an object"))
-		}
-		if v := obj.self.getStr("largestUnit", nil); v != nil && !IsUndefined(v) {
-			s, _ := temporalToStringOption(r, v)
-			if s == "auto" {
-				largest = "hour"
-			} else {
-				var ok bool
-				largest, ok = normalizeTemporalUnit(s)
-				if !ok || temporalUnitIndex(largest) < 4 {
-					panic(r.newError(r.getRangeError(), "Invalid largestUnit"))
-				}
-			}
-		}
-		if v := obj.self.getStr("roundingIncrement", nil); v != nil && !IsUndefined(v) {
-			increment = r.temporalIntegerFromValue(v)
-			if increment < 1 || increment > 1e9 {
-				panic(r.newError(r.getRangeError(), "Invalid roundingIncrement"))
-			}
-		}
-		mode = r.parseTemporalRoundingMode(obj.self.getStr("roundingMode", nil), temporalRoundTrunc)
-		if v := obj.self.getStr("smallestUnit", nil); v != nil && !IsUndefined(v) {
-			s, _ := temporalToStringOption(r, v)
-			var ok bool
-			smallest, ok = normalizeTemporalUnit(s)
-			if !ok || temporalUnitIndex(smallest) < 4 {
-				panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
-			}
-		}
+func (r *Runtime) temporalPlainTimeDifference(a, b *temporalPlainTimeObject, options Value, since bool) Value {
+	s := r.temporalGetDifferenceSettings(options, "hour", "nanosecond", 4, 9)
+	if since {
+		s.mode = negateRoundingMode(s.mode)
 	}
-	if smallest == "" && increment > 1 {
-		smallest = "nanosecond"
-	}
-	diff := b.nanosOfDay() - a.nanosOfDay()
-	if negate {
-		diff = -diff
-	}
-	negative := diff < 0
-	abs := diff
-	if abs < 0 {
-		abs = -abs
-	}
-	if smallest != "" {
-		unit := int64(temporalUnitNanos(smallest))
-		if unit == 0 {
-			panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
-		}
-		if err := validateTimeRoundingIncrement(smallest, increment); err != nil {
-			panic(r.newError(r.getRangeError(), err.Error()))
-		}
-		scale := unit * increment
-		q := abs / scale
-		rem := abs % scale
-		if roundMagnitude(mode, negative, big.NewInt(q), big.NewInt(rem), big.NewInt(scale)) {
-			q++
-		}
-		abs = q * scale
-	}
+	total := big.NewInt(b.nanosOfDay() - a.nanosOfDay())
+	unit := new(big.Int).Mul(big.NewInt(temporalUnitNanos(s.smallest)), big.NewInt(s.increment))
+	total = temporalRoundNanos(total, unit, s.mode)
 	fields := [10]float64{}
-	rem := abs
-	for i := temporalUnitIndex(largest); i <= 9; i++ {
-		u := temporalUnitNanosIndex(i)
-		if u == 0 {
-			break
-		}
-		fields[i] = float64(rem / u)
-		rem %= u
-	}
-	if negative {
+	temporalTimeFieldsFromNanos(total, temporalUnitIndex(s.largest), &fields)
+	if since {
 		for i := range fields {
 			fields[i] = -fields[i]
 		}
@@ -670,60 +629,44 @@ func (r *Runtime) temporalPlainTimeDifference(a, b *temporalPlainTimeObject, opt
 func (r *Runtime) temporalPlainTimeRound(call FunctionCall) Value {
 	t := r.toTemporalPlainTime(call.This)
 	opts := call.Argument(0)
+	if opts == nil || IsUndefined(opts) {
+		panic(r.NewTypeError("options are required"))
+	}
 	smallest := ""
 	increment := int64(1)
 	mode := temporalRoundHalfExpand
-	if opts == nil || IsUndefined(opts) || IsNull(opts) {
-		panic(r.NewTypeError("options are required"))
-	}
-	if s, ok := opts.(String); ok {
-		var valid bool
-		smallest, valid = normalizeTemporalUnit(s.String())
-		if !valid || temporalUnitIndex(smallest) < 4 {
+	if str, ok := opts.(String); ok {
+		u, valid := normalizeTemporalUnit(str.String())
+		if !valid || temporalUnitIndex(u) < 4 {
 			panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
 		}
-	} else if opts != nil && !IsUndefined(opts) && !IsNull(opts) {
+		smallest = u
+	} else {
 		obj, ok := opts.(*Object)
 		if !ok {
 			panic(r.NewTypeError("options must be an object"))
 		}
-		if v := obj.self.getStr("smallestUnit", nil); v != nil && !IsUndefined(v) {
-			s, _ := temporalToStringOption(r, v)
-			var valid bool
-			smallest, valid = normalizeTemporalUnit(s)
-			if !valid || temporalUnitIndex(smallest) < 4 {
-				panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
-			}
-		}
-		if v := obj.self.getStr("roundingIncrement", nil); v != nil && !IsUndefined(v) {
-			increment = r.temporalIntegerFromValue(v)
-			if increment < 1 || increment > 1e9 {
-				panic(r.newError(r.getRangeError(), "Invalid roundingIncrement"))
-			}
-		}
+		increment = r.temporalGetRoundingIncrementOption(obj)
 		mode = r.parseTemporalRoundingMode(obj.self.getStr("roundingMode", nil), temporalRoundHalfExpand)
-	}
-	if smallest == "" {
-		panic(r.newError(r.getRangeError(), "smallestUnit is required"))
-	}
-	if temporalUnitIndex(smallest) < 4 {
-		panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
-	}
-	unit := int64(temporalUnitNanos(smallest))
-	if unit == 0 {
-		panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
+		v := obj.self.getStr("smallestUnit", nil)
+		if v == nil || IsUndefined(v) {
+			panic(r.newError(r.getRangeError(), "smallestUnit is required"))
+		}
+		str, _ := temporalToStringOption(r, v)
+		u, valid := normalizeTemporalUnit(str)
+		if !valid || temporalUnitIndex(u) < 4 {
+			panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
+		}
+		smallest = u
 	}
 	if err := validateTimeRoundingIncrement(smallest, increment); err != nil {
 		panic(r.newError(r.getRangeError(), err.Error()))
 	}
-	scale := unit * increment
-	ns := t.nanosOfDay()
-	q := ns / scale
-	rem := ns % scale
-	if roundMagnitude(mode, false, big.NewInt(q), big.NewInt(rem), big.NewInt(scale)) {
-		q++
-	}
-	return r.plainTimeFromNanos(q * scale)
+	unit := big.NewInt(temporalUnitNanos(smallest) * increment)
+	rounded := temporalRoundNanos(big.NewInt(t.nanosOfDay()), unit, mode)
+	dayNs := big.NewInt(86400e9)
+	rounded.Mod(rounded, dayNs)
+	return r.plainTimeFromNanos(rounded.Int64())
 }
 
 func (r *Runtime) temporalPlainTimeEquals(call FunctionCall) Value {
@@ -746,105 +689,29 @@ func (r *Runtime) temporalPlainTimeCompare(call FunctionCall) Value {
 }
 
 func (r *Runtime) formatTemporalTime(t *temporalPlainTimeObject, options Value) string {
-	digits := -1
-	unit := ""
-	mode := temporalRoundTrunc
-	if options != nil && !IsUndefined(options) {
-		obj, ok := options.(*Object)
-		if !ok {
-			panic(r.NewTypeError("options must be an object"))
-		}
-		if v := obj.self.getStr("fractionalSecondDigits", nil); v != nil && !IsUndefined(v) {
-			if s, ok := v.(String); ok {
-				if s.String() != "auto" {
-					panic(r.newError(r.getRangeError(), "Invalid fractionalSecondDigits"))
-				}
-			} else {
-				f := v.ToNumber().ToFloat()
-				if math.IsNaN(f) {
-					panic(r.newError(r.getRangeError(), "Invalid fractionalSecondDigits"))
-				}
-				f = math.Floor(f)
-				if f < 0 || f > 9 {
-					panic(r.newError(r.getRangeError(), "Invalid fractionalSecondDigits"))
-				}
-				digits = int(f)
+	p := r.temporalGetStringPrecision(options)
+	tm := isoTime{
+		hour:        t.hour,
+		minute:      t.minute,
+		second:      t.second,
+		millisecond: t.millisecond,
+		microsecond: t.microsecond,
+		nanosecond:  t.nanosecond,
+	}
+	if p.hasUnit {
+		_, tm = r.roundISODateTime(isoDate{year: 2000, month: 1, day: 1}, tm, p.unit, 1, p.mode)
+	} else if p.digits >= 0 {
+		if p.digits == 0 {
+			_, tm = r.roundISODateTime(isoDate{year: 2000, month: 1, day: 1}, tm, "second", 1, p.mode)
+		} else {
+			inc := int64(1)
+			for i := 0; i < 9-p.digits; i++ {
+				inc *= 10
 			}
-		}
-		mode = r.parseTemporalRoundingMode(obj.self.getStr("roundingMode", nil), temporalRoundTrunc)
-		if v := obj.self.getStr("smallestUnit", nil); v != nil && !IsUndefined(v) {
-			str, _ := temporalToStringOption(r, v)
-			u, ok := normalizeTemporalUnit(str)
-			if !ok {
-				panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
-			}
-			switch u {
-			case "minute":
-				unit = "minute"
-				digits = 0
-			case "second":
-				unit = "second"
-				digits = 0
-			case "millisecond":
-				unit = "millisecond"
-				digits = 3
-			case "microsecond":
-				unit = "microsecond"
-				digits = 6
-			case "nanosecond":
-				unit = "nanosecond"
-				digits = 9
-			default:
-				panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
-			}
+			_, tm = r.roundISODateTime(isoDate{year: 2000, month: 1, day: 1}, tm, "nanosecond", inc, p.mode)
 		}
 	}
-
-	total := t.nanosOfDay()
-	if unit == "minute" {
-		scale := int64(60 * 1e9)
-		q := total / scale
-		rem := total % scale
-		if roundMagnitude(mode, false, big.NewInt(q), big.NewInt(rem), big.NewInt(scale)) {
-			q++
-		}
-		ns := ((q * scale) % 86400e9)
-		h := ns / 3600e9
-		mi := (ns % 3600e9) / 60e9
-		return fmt.Sprintf("%02d:%02d", h, mi)
-	}
-	if digits >= 0 {
-		scale := int64(1)
-		for i := 0; i < 9-digits; i++ {
-			scale *= 10
-		}
-		q := total / scale
-		rem := total % scale
-		if roundMagnitude(mode, false, big.NewInt(q), big.NewInt(rem), big.NewInt(scale)) {
-			q++
-		}
-		total = q * scale
-	}
-	total = ((total % 86400e9) + 86400e9) % 86400e9
-	h := total / 3600e9
-	mi := (total % 3600e9) / 60e9
-	sec := (total % 60e9) / 1e9
-	ns := total % 1e9
-	var frac string
-	if digits < 0 {
-		frac = strings.TrimRight(fmt.Sprintf("%09d", ns), "0")
-	} else if digits > 0 {
-		div := int64(1)
-		for i := 0; i < 9-digits; i++ {
-			div *= 10
-		}
-		frac = fmt.Sprintf("%0*d", digits, ns/div)
-	}
-	out := fmt.Sprintf("%02d:%02d:%02d", h, mi, sec)
-	if frac != "" {
-		out += "." + frac
-	}
-	return out
+	return formatISOTimePrecision(tm, p)
 }
 
 func (r *Runtime) temporalPlainTimeToString(call FunctionCall) Value {

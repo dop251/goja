@@ -90,6 +90,15 @@ func (d isoDate) isValid() bool {
 	return days >= temporalMinISODate && days <= temporalMaxISODate
 }
 
+// isValidDateTime reports whether the date-time is within the ISO limits. The
+// lower bound is exclusive at midnight, so -271821-04-19T00:00:00 is invalid.
+func (d isoDate) isValidDateTime(t isoTime) bool {
+	if !d.isValid() || !t.isValid() {
+		return false
+	}
+	return !(d.days() == temporalMinISODate && t.nanos() == 0)
+}
+
 func (d isoDate) weekInfo() (week, year int64) {
 	dayOfYear := d.days() - isoDaysFromCivil(d.year, 1, 1) + 1
 	dayOfWeek := ((d.days()+3)%7+7)%7 + 1 // Monday=1
@@ -238,6 +247,15 @@ func calendarFromISOString(s string) (string, bool) {
 	if strings.Contains(s, "[") {
 		return "", false
 	}
+	if _, _, _, ok := parseTemporalPlainDateTimeString(s); ok {
+		return "iso8601", true
+	}
+	if _, _, _, _, _, _, ok := parseTemporalPlainTimeString(s); ok {
+		return "iso8601", true
+	}
+	if _, _, ok := parseTemporalPlainDateString(s); ok {
+		return "iso8601", true
+	}
 	if looksLikeISODateOrTime(s) {
 		return "iso8601", true
 	}
@@ -249,6 +267,9 @@ func looksLikeISODateOrTime(s string) bool {
 		return true
 	}
 	if (len(s) == 4 || len(s) == 6) && isDigits(s) {
+		return true
+	}
+	if len(s) > 5 && isDigits(s[:6]) && (s[6] == '.' || s[6] == ',') && isDigits(s[7:]) {
 		return true
 	}
 	if len(s) == 5 && isDigits(s[:2]) && s[2] == '-' && isDigits(s[3:5]) {
