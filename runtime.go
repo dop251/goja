@@ -187,6 +187,8 @@ type Now func() time.Time
 type Runtime struct {
 	dynamicImportHandler DynamicImportHandler
 	importMeta           *Object
+	modules              map[string]*ModuleRecord
+	moduleLoader         ModuleLoader
 
 	global          global
 	globalObject    *Object
