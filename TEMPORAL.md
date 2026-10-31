@@ -44,8 +44,12 @@ once the namespace is complete.
 - Tests are run with the upstream `tc39_test.go` runner:
 
   ```sh
-  go test -run 'TestTC39/tc39/test/built-ins/Temporal' -count=1
+  GOJA_TEMPORAL_TESTS=1 go test -run 'TestTC39/tc39/test/built-ins/Temporal/Duration$/' -count=1
+  GOJA_TEMPORAL_TESTS=1 go test -run 'TestTC39/tc39/test/built-ins/Temporal/PlainDate$/' -count=1
   ```
+
+  The default test run keeps `Temporal` in the feature blacklist until all
+  types are implemented, so ordinary CI stays green.
 
   `testdata/test262` may be a symlink to a local test262 checkout.
 
