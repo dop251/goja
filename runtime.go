@@ -86,6 +86,8 @@ type global struct {
 	IntlDisplayNamesPrototype       *Object
 	IntlSegmenter                   *Object
 	IntlSegmenterPrototype          *Object
+	IntlDurationFormat              *Object
+	IntlDurationFormatPrototype     *Object
 	IntlSegmentsPrototype           *Object
 	IntlSegmentIteratorPrototype    *Object
 

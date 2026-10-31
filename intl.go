@@ -24,6 +24,7 @@ func (r *Runtime) getIntl() *Object {
 		o._putProp("DateTimeFormat", r.getIntlDateTimeFormat(), true, false, true)
 		o._putProp("DisplayNames", r.getIntlDisplayNames(), true, false, true)
 		o._putProp("Segmenter", r.getIntlSegmenter(), true, false, true)
+		o._putProp("DurationFormat", r.getIntlDurationFormat(), true, false, true)
 		o._putProp("getCanonicalLocales", r.newNativeFunc(r.intlGetCanonicalLocales, "getCanonicalLocales", 1), true, false, true)
 		o._putProp("supportedValuesOf", r.newNativeFunc(r.intlSupportedValuesOf, "supportedValuesOf", 1), true, false, true)
 		o.defineOwnPropertySym(SymToStringTag, PropertyDescriptor{
