@@ -999,6 +999,9 @@ func (r *Runtime) stringproto_substring(call FunctionCall) Value {
 func (r *Runtime) stringproto_toLocaleLowerCase(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	requested := r.intlCanonicalizeLocaleList(call.Argument(0))
+	if len(requested) == 0 {
+		return call.This.toString().toLower()
+	}
 	_, tag := r.intlResolveServiceLocale(requested, nil, nil)
 	return newStringValue(cases.Lower(language.Make(tag.language)).String(call.This.toString().String()))
 }
@@ -1006,6 +1009,9 @@ func (r *Runtime) stringproto_toLocaleLowerCase(call FunctionCall) Value {
 func (r *Runtime) stringproto_toLocaleUpperCase(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	requested := r.intlCanonicalizeLocaleList(call.Argument(0))
+	if len(requested) == 0 {
+		return call.This.toString().toUpper()
+	}
 	_, tag := r.intlResolveServiceLocale(requested, nil, nil)
 	return newStringValue(cases.Upper(language.Make(tag.language)).String(call.This.toString().String()))
 }

@@ -6,6 +6,7 @@ import (
 
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
+	"golang.org/x/text/unicode/norm"
 )
 
 type intlCollatorObject struct {
@@ -218,6 +219,8 @@ func (c *intlCollatorObject) getCollator() *collate.Collator {
 }
 
 func (c *intlCollatorObject) compare(a, b string) int {
+	a = norm.NFD.String(a)
+	b = norm.NFD.String(b)
 	if c.ignorePunctuation {
 		a = intlStripPunctuation(a)
 		b = intlStripPunctuation(b)
