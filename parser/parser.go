@@ -49,6 +49,8 @@ type Mode uint
 
 const (
 	IgnoreRegExpErrors Mode = 1 << iota // Ignore RegExp compatibility errors (allow backtracking)
+	// Module enables the module goal (import/export declarations).
+	Module
 )
 
 type options struct {

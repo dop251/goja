@@ -45,6 +45,15 @@ func (self *_parser) parseStatement() ast.Statement {
 	}
 
 	switch self.token {
+	case token.KEYWORD:
+		if self.mode&Module != 0 {
+			if self.literal == "import" {
+				return self.parseImportDeclaration()
+			}
+			if self.literal == "export" {
+				return self.parseExportDeclaration()
+			}
+		}
 	case token.SEMICOLON:
 		return self.parseEmptyStatement()
 	case token.LEFT_BRACE:
