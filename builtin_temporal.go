@@ -467,47 +467,56 @@ func (r *Runtime) temporalDurationRound(call FunctionCall) Value {
 	increment := int64(1)
 	mode := temporalRoundHalfExpand
 	hasSmallest := false
+	hasLargest := false
+	var rel *temporalPlainDateObject
 	if opts == nil || IsUndefined(opts) || IsNull(opts) {
 		panic(r.NewTypeError("options are required"))
 	}
 	if s, ok := opts.(String); ok {
-		smallest, hasSmallest = normalizeTemporalUnit(s.String())
+		u, valid := normalizeTemporalUnit(s.String())
+		if !valid {
+			panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
+		}
+		smallest, hasSmallest = u, true
 	} else {
 		obj, ok := opts.(*Object)
 		if !ok {
 			panic(r.NewTypeError("options must be an object"))
 		}
+		// Spec order: largestUnit, relativeTo, roundingIncrement,
+		// roundingMode, smallestUnit.
+		if v := obj.self.getStr("largestUnit", nil); v != nil && !IsUndefined(v) {
+			str, _ := temporalToStringOption(r, v)
+			hasLargest = true
+			if str != "auto" {
+				u, valid := normalizeTemporalUnit(str)
+				if !valid {
+					panic(r.newError(r.getRangeError(), "Invalid largestUnit"))
+				}
+				largest = u
+			}
+		}
+		if v := obj.self.getStr("relativeTo", nil); v != nil && !IsUndefined(v) {
+			rel = r.temporalRelativeToFromValue(v)
+		}
+		increment = r.temporalGetRoundingIncrementOption(obj)
+		mode = r.parseTemporalRoundingMode(obj.self.getStr("roundingMode", nil), temporalRoundHalfExpand)
 		if v := obj.self.getStr("smallestUnit", nil); v != nil && !IsUndefined(v) {
-			s, ok := v.(String)
-			if !ok {
+			str, _ := temporalToStringOption(r, v)
+			u, valid := normalizeTemporalUnit(str)
+			if !valid {
 				panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
 			}
-			smallest, hasSmallest = normalizeTemporalUnit(s.String())
+			smallest, hasSmallest = u, true
 		}
-		if v := obj.self.getStr("largestUnit", nil); v != nil && !IsUndefined(v) {
-			s, ok := v.(String)
-			if !ok {
-				panic(r.newError(r.getRangeError(), "Invalid largestUnit"))
-			}
-			largest, _ = normalizeTemporalUnit(s.String())
-		}
-		if v := obj.self.getStr("roundingIncrement", nil); v != nil && !IsUndefined(v) {
-			n := v.ToNumber().ToFloat()
-			if math.IsNaN(n) || math.IsInf(n, 0) || n != math.Trunc(n) || n < 1 || n > 1e9 {
-				panic(r.newError(r.getRangeError(), "Invalid roundingIncrement"))
-			}
-			increment = int64(n)
-		}
-		mode = r.parseTemporalRoundingMode(obj.self.getStr("roundingMode", nil), temporalRoundHalfExpand)
 	}
-	if !hasSmallest && largest == "" {
-		panic(r.NewTypeError("smallestUnit or largestUnit is required"))
+	if !hasSmallest && !hasLargest && largest == "" {
+		panic(r.newError(r.getRangeError(), "smallestUnit or largestUnit is required"))
 	}
-	rel := r.temporalDurationRelativeTo(opts)
 	if rel != nil && (d.hasCalendarUnits() ||
 		(hasSmallest && temporalUnitIndex(smallest) <= 3) ||
 		(largest != "" && temporalUnitIndex(largest) <= 3)) {
-		return r.roundCalendarDuration(d, rel, smallest, largest, increment, mode, hasSmallest)
+		return r.roundDurationRelativeToPlainDate(d, rel, largest, smallest, increment, mode, hasSmallest)
 	}
 	if d.hasCalendarUnits() {
 		panic(r.newError(r.getRangeError(), "relativeTo is required for calendar units"))
@@ -593,6 +602,68 @@ func (r *Runtime) temporalDurationRound(call FunctionCall) Value {
 	}
 	r.validateTemporalDuration(fields)
 	return r.newTemporalDurationObject(fields, r.getTemporalDurationPrototype())
+}
+
+// roundDurationRelativeToPlainDate rounds a duration using the ISO date-time
+// anchored at the start of relativeTo's day. This handles calendar units and
+// time-of-day fractions uniformly.
+func (r *Runtime) roundDurationRelativeToPlainDate(d *temporalDurationObject, rel *temporalPlainDateObject, largest, smallest string, increment int64, mode temporalRoundingMode, hasSmallest bool) Value {
+	fields := d.fields()
+	date := addISOMonths(rel.date, int64(fields[0])*12+int64(fields[1]))
+	dayNanos := big.NewInt(86400e9)
+	timeNs := new(big.Int)
+	addRat := func(v float64, mul int64) {
+		if v != 0 {
+			x := new(big.Rat).Mul(new(big.Rat).SetFloat64(v), big.NewRat(mul, 1))
+			timeNs.Add(timeNs, new(big.Int).Quo(x.Num(), x.Denom()))
+		}
+	}
+	addRat(fields[2], 7*86400*1e9)
+	addRat(fields[3], 86400*1e9)
+	addRat(fields[4], 3600*1e9)
+	addRat(fields[5], 60*1e9)
+	addRat(fields[6], 1e9)
+	addRat(fields[7], 1e6)
+	addRat(fields[8], 1e3)
+	addRat(fields[9], 1)
+	carry := new(big.Int)
+	rem := new(big.Int)
+	carry.DivMod(new(big.Int).Set(timeNs), dayNanos, rem)
+	date = addISODays(date, carry.Int64())
+	endTime := isoTimeFromNanos(rem.Int64())
+	if !date.isValidDateTime(endTime) {
+		panic(r.newError(r.getRangeError(), "Resulting date-time is out of range"))
+	}
+
+	if largest == "" {
+		largest = "nanosecond"
+		for i := 0; i <= 3; i++ {
+			if fields[i] != 0 {
+				largest = temporalUnitName(i)
+				break
+			}
+		}
+		if largest == "nanosecond" {
+			for i := 4; i <= 9; i++ {
+				if fields[i] != 0 {
+					largest = temporalUnitName(i)
+					break
+				}
+			}
+		}
+		if hasSmallest && temporalUnitIndex(smallest) < temporalUnitIndex(largest) {
+			largest = smallest
+		}
+	}
+	s := temporalDiffSettings{largest: largest, smallest: "nanosecond", increment: 1, mode: temporalRoundTrunc}
+	if hasSmallest {
+		s.smallest = smallest
+		s.increment = increment
+		s.mode = mode
+	}
+	out := r.temporalDiffISODateTime(rel.date, isoTime{}, date, endTime, s)
+	r.validateTemporalDuration(out)
+	return r.newTemporalDurationObject(out, r.getTemporalDurationPrototype())
 }
 
 func (r *Runtime) roundCalendarDuration(d *temporalDurationObject, rel *temporalPlainDateObject, smallest, largest string, increment int64, mode temporalRoundingMode, hasSmallest bool) Value {
@@ -701,6 +772,12 @@ func temporalUnitIndex(unit string) int {
 
 func temporalUnitName(index int) string {
 	switch index {
+	case 0:
+		return "year"
+	case 1:
+		return "month"
+	case 2:
+		return "week"
 	case 3:
 		return "day"
 	case 4:
@@ -720,11 +797,35 @@ func temporalUnitName(index int) string {
 
 func (r *Runtime) temporalDurationTotal(call FunctionCall) Value {
 	d := r.toTemporalDuration(call.This)
-	unit, ok := r.temporalDurationUnit(call.Argument(0))
-	if !ok {
-		panic(r.NewTypeError("Invalid unit"))
+	arg := call.Argument(0)
+	var unit string
+	var rel *temporalPlainDateObject
+	if s, ok := arg.(String); ok {
+		u, valid := normalizeTemporalUnit(s.String())
+		if !valid {
+			panic(r.newError(r.getRangeError(), "Invalid unit"))
+		}
+		unit = u
+	} else {
+		obj := r.temporalOptionsObject(arg)
+		if obj == nil {
+			panic(r.NewTypeError("options are required"))
+		}
+		// Spec order: relativeTo, then unit.
+		if v := obj.self.getStr("relativeTo", nil); v != nil && !IsUndefined(v) {
+			rel = r.temporalRelativeToFromValue(v)
+		}
+		uv := obj.self.getStr("unit", nil)
+		if uv == nil || IsUndefined(uv) {
+			panic(r.newError(r.getRangeError(), "unit is required"))
+		}
+		str, _ := temporalToStringOption(r, uv)
+		u, valid := normalizeTemporalUnit(str)
+		if !valid {
+			panic(r.newError(r.getRangeError(), "Invalid unit"))
+		}
+		unit = u
 	}
-	rel := r.temporalDurationRelativeTo(call.Argument(0))
 	if d.hasCalendarUnits() && rel == nil {
 		panic(r.newError(r.getRangeError(), "relativeTo is required for calendar units"))
 	}
@@ -945,9 +1046,25 @@ func (r *Runtime) temporalDurationRelativeTo(options Value) *temporalPlainDateOb
 	if v == nil || IsUndefined(v) || IsNull(v) {
 		return nil
 	}
+	return r.temporalRelativeToFromValue(v)
+}
+
+// temporalRelativeToFromValue converts a relativeTo value to its date part.
+func (r *Runtime) temporalRelativeToFromValue(v Value) *temporalPlainDateObject {
+	if v == nil || IsUndefined(v) || IsNull(v) {
+		panic(r.NewTypeError("relativeTo must be an object or string"))
+	}
 	if d, ok := v.(*Object); ok {
 		if pd, ok := d.self.(*temporalPlainDateObject); ok {
 			return pd
+		}
+		if dt, ok := d.self.(*temporalPlainDateTimeObject); ok {
+			return r.plainDateFieldsObject(dt.date, dt.calendar)
+		}
+	}
+	if s, ok := v.(String); ok {
+		if date, _, cal, ok := parseTemporalPlainDateTimeString(s.String()); ok {
+			return r.plainDateFieldsObject(date, cal)
 		}
 	}
 	return r.temporalPlainDateFromValue(v, _undefined)

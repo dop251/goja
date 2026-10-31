@@ -58,13 +58,13 @@ once the namespace is complete.
 - [x] core (ISO arithmetic, float64-backed duration fields, exact `big.Rat` totals)
 - [x] Duration: constructor, `from`, getters, `with`, `negated`, `abs`, `add`,
       `subtract`, `compare`, `total`, `round`, `toString`, `toJSON`,
-      `toLocaleString`, including `relativeTo` for `PlainDate` — **412 / 533
-      tests pass**
+      `toLocaleString`, including `relativeTo` for `PlainDate` and
+      `PlainDateTime` — **437 / 533 tests pass**
 - [x] PlainDate: constructor, `from`, getters, `with`, `withCalendar`, `add`,
       `subtract`, `until`, `since`, `equals`, `compare`, `toString`,
-      `toJSON`, `getISOFields` — **532 / 648 tests pass**
-- [ ] PlainDate cross-type methods (`toPlainDateTime`, `toZonedDateTime`,
-      `toPlainYearMonth`, `toPlainMonthDay`) — need the remaining types
+      `toJSON`, `toPlainDateTime`, `getISOFields` — **557 / 648 tests pass**
+- [ ] PlainDate cross-type methods (`toZonedDateTime`, `toPlainYearMonth`,
+      `toPlainMonthDay`) — need the remaining types
 - [x] PlainTime: constructor, `from`, getters, `with`, `add`, `subtract`,
       `until`, `since`, `round`, `equals`, `compare`, `toString`, `toJSON`,
       `getISOFields` — **482 / 493 tests pass** (remaining failures need

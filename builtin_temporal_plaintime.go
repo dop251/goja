@@ -105,7 +105,7 @@ func (r *Runtime) getTemporalPlainTimePrototype() *Object {
 		o._putProp("toLocaleString", r.newNativeFunc(r.temporalPlainTimeToLocaleString, "toLocaleString", 0), true, false, true)
 		o._putProp("valueOf", r.newNativeFunc(r.temporalPlainTimeValueOf, "valueOf", 0), true, false, true)
 		o._putProp("getISOFields", r.newNativeFunc(r.temporalPlainTimeGetISOFields, "getISOFields", 0), true, false, true)
-		o._putProp("toPlainDateTime", r.newNativeFunc(r.temporalPlainTimeNotImplemented, "toPlainDateTime", 1), true, false, true)
+		o._putProp("toPlainDateTime", r.newNativeFunc(r.temporalPlainTimeToPlainDateTime, "toPlainDateTime", 1), true, false, true)
 		o._putSym(SymToStringTag, &valueProperty{
 			value: asciiString("Temporal.PlainTime"), writable: false, enumerable: false, configurable: true,
 		})
@@ -743,6 +743,23 @@ func (r *Runtime) temporalPlainTimeGetISOFields(call FunctionCall) Value {
 	o.Set("isoMicrosecond", r.ToValue(t.microsecond))
 	o.Set("isoNanosecond", r.ToValue(t.nanosecond))
 	return o
+}
+
+func (r *Runtime) temporalPlainTimeToPlainDateTime(call FunctionCall) Value {
+	t := r.toTemporalPlainTime(call.This)
+	d := r.temporalPlainDateFromValue(call.Argument(0), _undefined)
+	tm := isoTime{
+		hour:        t.hour,
+		minute:      t.minute,
+		second:      t.second,
+		millisecond: t.millisecond,
+		microsecond: t.microsecond,
+		nanosecond:  t.nanosecond,
+	}
+	if !d.date.isValidDateTime(tm) {
+		panic(r.newError(r.getRangeError(), "Resulting date-time is out of range"))
+	}
+	return r.newTemporalPlainDateTimeObject(d.date, tm, d.calendar, r.getTemporalPlainDateTimePrototype())
 }
 
 func (r *Runtime) temporalPlainTimeNotImplemented(call FunctionCall) Value {

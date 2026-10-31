@@ -385,7 +385,7 @@ func (r *Runtime) getTemporalPlainDatePrototype() *Object {
 		o._putProp("toLocaleString", r.newNativeFunc(r.temporalPlainDateToLocaleString, "toLocaleString", 0), true, false, true)
 		o._putProp("valueOf", r.newNativeFunc(r.temporalPlainDateValueOf, "valueOf", 0), true, false, true)
 		o._putProp("getISOFields", r.newNativeFunc(r.temporalPlainDateGetISOFields, "getISOFields", 0), true, false, true)
-		o._putProp("toPlainDateTime", r.newNativeFunc(r.temporalPlainDateNotImplemented, "toPlainDateTime", 0), true, false, true)
+		o._putProp("toPlainDateTime", r.newNativeFunc(r.temporalPlainDateToPlainDateTime, "toPlainDateTime", 0), true, false, true)
 		o._putProp("toZonedDateTime", r.newNativeFunc(r.temporalPlainDateNotImplemented, "toZonedDateTime", 1), true, false, true)
 		o._putProp("toPlainYearMonth", r.newNativeFunc(r.temporalPlainDateNotImplemented, "toPlainYearMonth", 0), true, false, true)
 		o._putProp("toPlainMonthDay", r.newNativeFunc(r.temporalPlainDateNotImplemented, "toPlainMonthDay", 0), true, false, true)
@@ -1226,6 +1226,27 @@ func addISOMonths(d isoDate, months int64) isoDate {
 		day = max
 	}
 	return isoDate{year: y, month: m, day: day}
+}
+
+func (r *Runtime) temporalPlainDateToPlainDateTime(call FunctionCall) Value {
+	d := r.toTemporalPlainDate(call.This)
+	tm := isoTime{}
+	v := call.Argument(0)
+	if v != nil && !IsUndefined(v) {
+		t := r.temporalPlainTimeFromValue(v, _undefined)
+		tm = isoTime{
+			hour:        t.hour,
+			minute:      t.minute,
+			second:      t.second,
+			millisecond: t.millisecond,
+			microsecond: t.microsecond,
+			nanosecond:  t.nanosecond,
+		}
+	}
+	if !d.date.isValidDateTime(tm) {
+		panic(r.newError(r.getRangeError(), "Resulting date-time is out of range"))
+	}
+	return r.newTemporalPlainDateTimeObject(d.date, tm, d.calendar, r.getTemporalPlainDateTimePrototype())
 }
 
 func (r *Runtime) temporalPlainDateEquals(call FunctionCall) Value {
