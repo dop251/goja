@@ -1315,15 +1315,6 @@ func safeMul(left, right int) int {
 	panic(rangeError("Integer overflow"))
 }
 
-func safeAdd(left, right int) int {
-	res := left + right
-	// check for overflow
-	if (res > left) == (right > 0) {
-		return res
-	}
-	panic(rangeError("Integer overflow"))
-}
-
 func toStringLen(n int) int {
 	if n < 0 {
 		panic(rangeError("Invalid string length"))

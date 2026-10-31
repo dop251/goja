@@ -167,11 +167,11 @@ func (b *unicodeStringBuilder) Grow(n int) {
 	}
 	if len(b.buf) == 0 {
 		// Reserve room for the BOM. With n == math.MaxInt the increment
-		// would wrap around and skip the allocation below entirely.
-		n = safeAdd(n, 1)
+		// wraps around to a negative length.
+		n = toStringLen(n + 1)
 	}
 	if cap(b.buf)-len(b.buf) < n {
-		newCap := safeAdd(safeMul(2, cap(b.buf)), n)
+		newCap := safeMul(2, cap(b.buf)) + n
 		buf := make([]uint16, len(b.buf), newCap)
 		copy(buf, b.buf)
 		b.buf = buf
