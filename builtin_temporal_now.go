@@ -7,13 +7,17 @@ import (
 
 // getTemporalNow builds the Temporal.Now namespace.
 func (r *Runtime) getTemporalNow() *Object {
-	o := r.NewObject()
-	o.Set("instant", r.newNativeFunc(r.temporalNowInstant, "instant", 0))
-	o.Set("timeZoneId", r.newNativeFunc(r.temporalNowTimeZoneID, "timeZoneId", 0))
-	o.Set("zonedDateTimeISO", r.newNativeFunc(r.temporalNowZonedDateTimeISO, "zonedDateTimeISO", 0))
-	o.Set("plainDateTimeISO", r.newNativeFunc(r.temporalNowPlainDateTimeISO, "plainDateTimeISO", 0))
-	o.Set("plainDateISO", r.newNativeFunc(r.temporalNowPlainDateISO, "plainDateISO", 0))
-	o.Set("plainTimeISO", r.newNativeFunc(r.temporalNowPlainTimeISO, "plainTimeISO", 0))
+	bo := r.newBaseObject(r.global.ObjectPrototype, classObject)
+	o := bo.val
+	bo._putProp("instant", r.newNativeFunc(r.temporalNowInstant, "instant", 0), true, false, true)
+	bo._putProp("timeZoneId", r.newNativeFunc(r.temporalNowTimeZoneID, "timeZoneId", 0), true, false, true)
+	bo._putProp("zonedDateTimeISO", r.newNativeFunc(r.temporalNowZonedDateTimeISO, "zonedDateTimeISO", 0), true, false, true)
+	bo._putProp("plainDateTimeISO", r.newNativeFunc(r.temporalNowPlainDateTimeISO, "plainDateTimeISO", 0), true, false, true)
+	bo._putProp("plainDateISO", r.newNativeFunc(r.temporalNowPlainDateISO, "plainDateISO", 0), true, false, true)
+	bo._putProp("plainTimeISO", r.newNativeFunc(r.temporalNowPlainTimeISO, "plainTimeISO", 0), true, false, true)
+	bo._putSym(SymToStringTag, &valueProperty{
+		value: asciiString("Temporal.Now"), writable: false, enumerable: false, configurable: true,
+	})
 	return o
 }
 

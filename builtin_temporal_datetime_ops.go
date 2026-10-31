@@ -534,6 +534,7 @@ type temporalDateTimeFieldsResult struct {
 	haveYear   bool
 	haveMonth  bool
 	haveDay    bool
+	hasTime    bool
 	provided   bool
 	monthSet   bool
 	monthCode  string
@@ -594,6 +595,7 @@ func (r *Runtime) temporalReadDateTimeFields(obj *Object, base temporalDateTimeF
 				out.haveDay = true
 			}
 		} else {
+			out.hasTime = true
 			switch f.index {
 			case 0:
 				out.time.hour = v
@@ -895,6 +897,10 @@ func (r *Runtime) zonedResolve(zone *temporalZone, local *big.Int, offset *big.I
 			return exact
 		}
 		if zone.offsetAt(exact).Cmp(offset) == 0 {
+			minInstant := new(big.Int).Neg(temporalMaxInstantNs)
+			if offsetOpt != "ignore" && local.Cmp(minInstant) < 0 {
+				panic(r.newError(r.getRangeError(), "Wall-clock time is outside the representable range"))
+			}
 			return exact
 		}
 		if offsetOpt == "reject" {

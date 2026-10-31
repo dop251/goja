@@ -55,43 +55,23 @@ once the namespace is complete.
 
 ## Status
 
-- [x] core (ISO arithmetic, exact `big.Rat`/`big.Int` totals)
-- [x] Duration: constructor, `from`, getters, `with`, `negated`, `abs`, `add`,
-      `subtract`, `compare`, `total`, `round`, `toString`, `toJSON`,
-      `toLocaleString`, including `relativeTo` for `PlainDate`,
-      `PlainDateTime` and `ZonedDateTime` — **470 / 533 tests pass**
-- [x] PlainDate: constructor, `from`, getters, `with`, `withCalendar`, `add`,
-      `subtract`, `until`, `since`, `equals`, `compare`, `toString`,
-      `toJSON`, `toPlainDateTime`, `toZonedDateTime`, `toPlainYearMonth`,
-      `toPlainMonthDay`, `getISOFields` — **648 / 648 tests pass**
-- [x] PlainTime: constructor, `from`, getters, `with`, `add`, `subtract`,
-      `until`, `since`, `round`, `equals`, `compare`, `toString`, `toJSON`,
-      `getISOFields`, `toPlainDateTime` — **493 / 493 tests pass**
-- [x] PlainDateTime: constructor, `from`, getters, `with`, `withCalendar`,
-      `withPlainTime`, `add`, `subtract`, `until`, `since`, `round`, `equals`,
-      `compare`, `toString`, `toJSON`, `toPlainDate`, `toPlainTime`,
-      `toZonedDateTime`, `toPlainYearMonth`, `toPlainMonthDay`,
-      `getISOFields` — **769 / 769 tests pass**
-- [x] Instant: constructor, `from`, `fromEpochMilliseconds`,
-      `fromEpochNanoseconds`, `epochMilliseconds`, `epochNanoseconds`, `add`,
-      `subtract`, `until`, `since`, `round`, `equals`, `compare`, `toString`,
-      `toJSON`, `toLocaleString`, `toZonedDateTimeISO` — **465 / 465 tests
-      pass**
-- [x] ZonedDateTime: IANA and fixed-offset time zones, DST-aware wall-clock
-      arithmetic, `getTimeZoneTransition`, and the full date/time surface —
-      **894 / 899 tests pass** (remaining failures are a few ISO-limit edge
-      cases)
-- [x] PlainYearMonth: constructor, `from`, getters, `with`, `add`, `subtract`,
-      `until`, `since`, `equals`, `compare`, `toString`, `toJSON`,
-      `toPlainDate`, `getISOFields` — **507 / 507 tests pass**
-- [x] PlainMonthDay: constructor, `from`, getters, `with`, `equals`,
-      `toString`, `toJSON`, `toPlainDate`, `getISOFields` — **199 / 199 tests
-      pass**
-- [x] `Temporal.Now` (system clock, optional time zone)
-- [ ] exact calendar-unit `Duration.total`/`compare` for a few remaining
-      relative-to cases
-- [ ] non-ISO calendars / Intl integration
+`GOJA_TEMPORAL_TESTS=1 go test -run 'TestTC39/tc39/test/built-ins/Temporal$/' -count=1`
+passes **4584 / 4584** tests.
 
-The remaining Duration failures are concentrated in `total`/`compare` for
-durations that mix calendar and time units, plus `relativeTo` strings that
-carry time zone offsets.
+- [x] core (ISO arithmetic, exact `big.Rat`/`big.Int` totals)
+- [x] `Duration` (including `relativeTo` for `PlainDate`, `PlainDateTime` and
+      `ZonedDateTime`)
+- [x] `PlainDate`, `PlainTime`, `PlainDateTime`
+- [x] `Instant`
+- [x] `ZonedDateTime` (IANA and fixed-offset time zones via Go's `time`
+      package, DST-aware wall-clock arithmetic, transitions)
+- [x] `PlainYearMonth`, `PlainMonthDay`
+- [x] `Temporal.Now`
+- [x] all cross-type conversions
+- [ ] non-ISO calendars and `intl402/Temporal` formatting (needs CLDR/Intl
+      data that goja does not have)
+
+`Temporal` remains in the test262 feature blacklist by default until the
+project decides how to gate a stage-3 global. Remove the `Temporal` entry from
+`featuresBlackList` in `tc39_test.go` and the `GOJA_TEMPORAL_TESTS` gate when
+that decision is made.
