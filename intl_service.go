@@ -232,17 +232,14 @@ func intlRoundDigits(intPart, fracPart string, maxFrac int, mode string) (string
 		first := rest[0]
 		up = first > '5' || (first == '5' && (intlHasNonZero(rest[1:]) || intlLastDigitOdd(keep)))
 	case "halfCeil":
-		first := rest[0]
-		up = first > '5' || (first == '5' && intlHasNonZero(rest[1:]))
+		up = rest[0] >= '5'
 	case "halfFloor":
-		first := rest[0]
-		up = first > '5' || (first == '5' && intlHasNonZero(rest[1:]))
+		up = rest[0] > '5'
 	case "halfTrunc":
 		first := rest[0]
 		up = first > '5'
 	default: // halfExpand
-		first := rest[0]
-		up = first > '5' || (first == '5' && intlHasNonZero(rest[1:]))
+		up = rest[0] >= '5'
 	}
 	if up {
 		keep = intlIncrementDigits(keep)

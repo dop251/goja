@@ -59,7 +59,11 @@ func intlFormatNumberParts(n float64, opts *intlNumberFormatOptions, loc *intlNu
 	digits := intlNumberingDigits(ns)
 
 	if math.IsNaN(n) {
-		return []intlStringPart{{"nan", sym.NaN}}
+		var parts []intlStringPart
+		if opts.signDisplay == "always" || opts.signDisplay == "exceptZero" {
+			parts = append(parts, intlStringPart{"plusSign", sym.PlusSign})
+		}
+		return append(parts, intlStringPart{"nan", sym.NaN})
 	}
 	if math.IsInf(n, 0) {
 		var parts []intlStringPart
@@ -72,11 +76,12 @@ func intlFormatNumberParts(n float64, opts *intlNumberFormatOptions, loc *intlNu
 	}
 
 	negative := intlNumberIsNegative(n)
+	negZero := negative && n == 0
 	if negative {
 		n = -n
 	}
 	if opts.notation == "scientific" || opts.notation == "engineering" ||
-		(opts.notation == "standard" && n != 0 && (n >= 1e21 || n < 1e-6)) {
+		(opts.notation == "standard" && n >= 1e21) {
 		return intlFormatExponentialParts(n, negative, opts, loc, sym)
 	}
 	scale := 1.0
@@ -128,6 +133,7 @@ func intlFormatNumberParts(n float64, opts *intlNumberFormatOptions, loc *intlNu
 	if intPart == "" {
 		intPart = "0"
 	}
+	_ = negZero
 
 	if ns != "" && ns != "latn" {
 		if sym2, ok := intlNumberingSystemSymbols[ns]; ok {
