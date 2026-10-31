@@ -192,17 +192,8 @@ func (r *Runtime) builtin_newIntlDateTimeFormat(args []Value, proto *Object) *Ob
 		year, month, day = "numeric", "numeric", "numeric"
 	}
 
-	var relevant []string
-	if !calendarSet {
-		relevant = append(relevant, "ca")
-	}
-	if !numberingSystemSet {
-		relevant = append(relevant, "nu")
-	}
-	if !hourCycleSet && !hour12Set {
-		relevant = append(relevant, "hc")
-	}
-	locale, tag := r.intlResolveServiceLocale(requested, relevant, options)
+	baseLocale, tag := r.intlResolveServiceLocale(requested, nil, options)
+	locale := baseLocale
 	dataLocale := "en"
 	if key, ok := intlDataLocale(tag); ok {
 		dataLocale = key
@@ -249,6 +240,25 @@ func (r *Runtime) builtin_newIntlDateTimeFormat(args []Value, proto *Object) *Ob
 		}
 	}
 	hour12 = hourCycle == "h11" || hourCycle == "h12"
+
+	var ext []string
+	if v, ok := tag.uKw["ca"]; ok && calendarSet == false && v == cal {
+		ext = append(ext, "ca-"+v)
+	} else if v, ok := tag.uKw["ca"]; ok && calendarSet && v == cal {
+		ext = append(ext, "ca-"+v)
+	}
+	if v, ok := tag.uKw["nu"]; ok && intlValidNumberingSystem(v) && v == numberingSystem {
+		ext = append(ext, "nu-"+v)
+	}
+	if v, ok := tag.uKw["hc"]; ok && v == hourCycle {
+		if hourCycle == "h11" || hourCycle == "h12" || hourCycle == "h23" || hourCycle == "h24" {
+			ext = append(ext, "hc-"+v)
+		}
+	}
+	if len(ext) > 0 {
+		locale = baseLocale + "-u-" + strings.Join(ext, "-")
+	}
+	_, _, _ = calendarSet, numberingSystemSet, hourCycleSet
 
 	o := &Object{runtime: r}
 	obj := &intlDateTimeFormatObject{
@@ -1136,6 +1146,9 @@ func (r *Runtime) intlDateTimeFormatProtoFormatRange(call FunctionCall) Value {
 	b := call.Argument(1).ToFloat()
 	if math.IsNaN(a) || math.IsInf(a, 0) || math.IsNaN(b) || math.IsInf(b, 0) {
 		panic(r.intlRangeError("Invalid range"))
+	}
+	if a == b {
+		return intlStr(intlPartsToString(d.formatDate(a)))
 	}
 	return intlStr(intlPartsToString(d.formatDate(a)) + " – " + intlPartsToString(d.formatDate(b)))
 }

@@ -82,6 +82,8 @@ type global struct {
 	IntlCollatorPrototype           *Object
 	IntlDateTimeFormat              *Object
 	IntlDateTimeFormatPrototype     *Object
+	IntlDisplayNames                *Object
+	IntlDisplayNamesPrototype       *Object
 
 	AsyncFunction *Object
 

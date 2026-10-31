@@ -193,39 +193,15 @@ func (r *Runtime) dateproto_toTimeString(call FunctionCall) Value {
 }
 
 func (r *Runtime) dateproto_toLocaleString(call FunctionCall) Value {
-	obj := r.toObject(call.This)
-	if d, ok := obj.self.(*dateObject); ok {
-		if d.isSet() {
-			return asciiString(d.time().Format(datetimeLayout_en_GB))
-		} else {
-			return stringInvalidDate
-		}
-	}
-	panic(r.NewTypeError("Method Date.prototype.toLocaleString is called on incompatible receiver"))
+	return r.intlDateToLocaleString(call, "any", "all")
 }
 
 func (r *Runtime) dateproto_toLocaleDateString(call FunctionCall) Value {
-	obj := r.toObject(call.This)
-	if d, ok := obj.self.(*dateObject); ok {
-		if d.isSet() {
-			return asciiString(d.time().Format(dateLayout_en_GB))
-		} else {
-			return stringInvalidDate
-		}
-	}
-	panic(r.NewTypeError("Method Date.prototype.toLocaleDateString is called on incompatible receiver"))
+	return r.intlDateToLocaleString(call, "date", "date")
 }
 
 func (r *Runtime) dateproto_toLocaleTimeString(call FunctionCall) Value {
-	obj := r.toObject(call.This)
-	if d, ok := obj.self.(*dateObject); ok {
-		if d.isSet() {
-			return asciiString(d.time().Format(timeLayout_en_GB))
-		} else {
-			return stringInvalidDate
-		}
-	}
-	panic(r.NewTypeError("Method Date.prototype.toLocaleTimeString is called on incompatible receiver"))
+	return r.intlDateToLocaleString(call, "time", "time")
 }
 
 func (r *Runtime) dateproto_valueOf(call FunctionCall) Value {

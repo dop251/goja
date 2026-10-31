@@ -112,7 +112,7 @@ func intlRelevantExtensionValueValid(k, v string) bool {
 	case "ca":
 		return intlContains(intlCalendarValues, v)
 	case "nu":
-		return intlContains(intlNumberingSystemValues, v)
+		return intlValidNumberingSystem(v)
 	case "hc":
 		return intlContains(intlHourCycleValues, v)
 	case "co":

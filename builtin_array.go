@@ -250,12 +250,13 @@ func (r *Runtime) arrayproto_toString(call FunctionCall) Value {
 	})
 }
 
-func (r *Runtime) writeItemLocaleString(item Value, buf *StringBuilder) {
+func (r *Runtime) writeItemLocaleString(item Value, buf *StringBuilder, args []Value) {
 	if item != nil && item != _undefined && item != _null {
 		if f, ok := r.getVStr(item, "toLocaleString").(*Object); ok {
 			if c, ok := f.self.assertCallable(); ok {
 				strVal := c(FunctionCall{
-					This: item,
+					This:      item,
+					Arguments: args,
 				})
 				buf.WriteString(strVal.toString())
 				return
@@ -280,7 +281,7 @@ func (r *Runtime) arrayproto_toLocaleString(call FunctionCall) Value {
 			if i > 0 {
 				buf.WriteRune(',')
 			}
-			r.writeItemLocaleString(item, &buf)
+			r.writeItemLocaleString(item, &buf, []Value{call.Argument(0), call.Argument(1)})
 		}
 	} else {
 		length := toLength(array.self.getStr("length", nil))
@@ -289,7 +290,7 @@ func (r *Runtime) arrayproto_toLocaleString(call FunctionCall) Value {
 				buf.WriteRune(',')
 			}
 			item := array.self.getIdx(valueInt(i), nil)
-			r.writeItemLocaleString(item, &buf)
+			r.writeItemLocaleString(item, &buf, []Value{call.Argument(0), call.Argument(1)})
 		}
 	}
 

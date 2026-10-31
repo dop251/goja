@@ -350,7 +350,7 @@ func createBigIntProtoTemplate() *objectTemplate {
 	t.putStr("name", func(r *Runtime) Value { return valueProp(asciiString("BigInt"), false, false, true) })
 	t.putStr("constructor", func(r *Runtime) Value { return valueProp(r.getBigInt(), true, false, true) })
 
-	t.putStr("toLocaleString", func(r *Runtime) Value { return r.methodProp(r.bigintproto_toString, "toLocaleString", 0) })
+	t.putStr("toLocaleString", func(r *Runtime) Value { return r.methodProp(r.intlBigIntToLocaleString, "toLocaleString", 0) })
 	t.putStr("toString", func(r *Runtime) Value { return r.methodProp(r.bigintproto_toString, "toString", 0) })
 	t.putStr("valueOf", func(r *Runtime) Value { return r.methodProp(r.bigintproto_valueOf, "valueOf", 0) })
 	t.putSym(SymToStringTag, func(r *Runtime) Value { return valueProp(asciiString("BigInt"), false, false, true) })

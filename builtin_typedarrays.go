@@ -1223,7 +1223,7 @@ func (r *Runtime) typedArrayProto_toLocaleString(call FunctionCall) Value {
 				buf.WriteRune(',')
 			}
 			item := ta.typedArray.get(ta.offset + i)
-			r.writeItemLocaleString(item, &buf)
+			r.writeItemLocaleString(item, &buf, []Value{call.Argument(0), call.Argument(1)})
 		}
 		return buf.String()
 	}
