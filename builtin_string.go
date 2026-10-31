@@ -9,6 +9,7 @@ import (
 
 	"github.com/dop251/goja/unistring"
 
+	"golang.org/x/text/cases"
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
 	"golang.org/x/text/unicode/norm"
@@ -378,9 +379,9 @@ func (r *Runtime) stringproto_lastIndexOf(call FunctionCall) Value {
 
 func (r *Runtime) stringproto_localeCompare(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
-	this := norm.NFD.String(call.This.toString().String())
-	that := norm.NFD.String(call.Argument(0).toString().String())
-	return intToValue(int64(r.collator().CompareString(this, that)))
+	obj := r.builtin_newIntlCollator([]Value{call.Argument(1), call.Argument(2)}, r.getIntlCollatorPrototype())
+	c := obj.self.(*intlCollatorObject)
+	return intToValue(int64(c.compare(call.This.toString().String(), call.Argument(0).toString().String())))
 }
 
 func (r *Runtime) stringproto_match(call FunctionCall) Value {
@@ -995,6 +996,20 @@ func (r *Runtime) stringproto_substring(call FunctionCall) Value {
 	return s.Substring(int(intStart), int(intEnd))
 }
 
+func (r *Runtime) stringproto_toLocaleLowerCase(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
+	requested := r.intlCanonicalizeLocaleList(call.Argument(0))
+	_, tag := r.intlResolveServiceLocale(requested, nil, nil)
+	return newStringValue(cases.Lower(language.Make(tag.language)).String(call.This.toString().String()))
+}
+
+func (r *Runtime) stringproto_toLocaleUpperCase(call FunctionCall) Value {
+	r.checkObjectCoercible(call.This)
+	requested := r.intlCanonicalizeLocaleList(call.Argument(0))
+	_, tag := r.intlResolveServiceLocale(requested, nil, nil)
+	return newStringValue(cases.Upper(language.Make(tag.language)).String(call.This.toString().String()))
+}
+
 func (r *Runtime) stringproto_toLowerCase(call FunctionCall) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
@@ -1246,8 +1261,8 @@ func createStringProtoTemplate() *objectTemplate {
 	t.putStr("split", func(r *Runtime) Value { return r.methodProp(r.stringproto_split, "split", 2) })
 	t.putStr("startsWith", func(r *Runtime) Value { return r.methodProp(r.stringproto_startsWith, "startsWith", 1) })
 	t.putStr("substring", func(r *Runtime) Value { return r.methodProp(r.stringproto_substring, "substring", 2) })
-	t.putStr("toLocaleLowerCase", func(r *Runtime) Value { return r.methodProp(r.stringproto_toLowerCase, "toLocaleLowerCase", 0) })
-	t.putStr("toLocaleUpperCase", func(r *Runtime) Value { return r.methodProp(r.stringproto_toUpperCase, "toLocaleUpperCase", 0) })
+	t.putStr("toLocaleLowerCase", func(r *Runtime) Value { return r.methodProp(r.stringproto_toLocaleLowerCase, "toLocaleLowerCase", 0) })
+	t.putStr("toLocaleUpperCase", func(r *Runtime) Value { return r.methodProp(r.stringproto_toLocaleUpperCase, "toLocaleUpperCase", 0) })
 	t.putStr("toLowerCase", func(r *Runtime) Value { return r.methodProp(r.stringproto_toLowerCase, "toLowerCase", 0) })
 	t.putStr("toString", func(r *Runtime) Value { return r.methodProp(r.stringproto_toString, "toString", 0) })
 	t.putStr("toUpperCase", func(r *Runtime) Value { return r.methodProp(r.stringproto_toUpperCase, "toUpperCase", 0) })

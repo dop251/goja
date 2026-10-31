@@ -20,6 +20,7 @@ func (r *Runtime) getIntl() *Object {
 		o._putProp("ListFormat", r.getIntlListFormat(), true, false, true)
 		o._putProp("RelativeTimeFormat", r.getIntlRelativeTimeFormat(), true, false, true)
 		o._putProp("NumberFormat", r.getIntlNumberFormat(), true, false, true)
+		o._putProp("Collator", r.getIntlCollator(), true, false, true)
 		o._putProp("getCanonicalLocales", r.newNativeFunc(r.intlGetCanonicalLocales, "getCanonicalLocales", 1), true, false, true)
 		o._putProp("supportedValuesOf", r.newNativeFunc(r.intlSupportedValuesOf, "supportedValuesOf", 1), true, false, true)
 		o.defineOwnPropertySym(SymToStringTag, PropertyDescriptor{
