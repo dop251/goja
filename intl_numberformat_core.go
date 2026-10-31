@@ -80,6 +80,9 @@ func intlFormatNumberParts(n float64, opts *intlNumberFormatOptions, loc *intlNu
 	if negative {
 		n = -n
 	}
+	if opts.notation == "compact" {
+		return intlFormatCompactParts(n, negative, opts, loc, sym)
+	}
 	if opts.notation == "scientific" || opts.notation == "engineering" ||
 		(opts.notation == "standard" && n >= 1e21) {
 		return intlFormatExponentialParts(n, negative, opts, loc, sym)
@@ -422,4 +425,113 @@ func intlFormatExponentialParts(n float64, negative bool, opts *intlNumberFormat
 func intlParseMantissa(ip, fp string) float64 {
 	v, _ := strconv.ParseFloat(ip+"."+fp, 64)
 	return v
+}
+
+// intlFormatCompactParts formats a number using CLDR compact notation.
+func intlFormatCompactParts(n float64, negative bool, opts *intlNumberFormatOptions, loc *intlNumberLocale, sym intlNumberSymbols) []intlStringPart {
+	ns := opts.numberingSystem
+	if ns == "" {
+		ns = loc.DefaultNS
+	}
+	digits := intlNumberingDigits(ns)
+	var parts []intlStringPart
+	if negative {
+		if opts.signDisplay != "never" {
+			parts = append(parts, intlStringPart{"minusSign", sym.MinusSign})
+		}
+	} else if opts.signDisplay == "always" || opts.signDisplay == "exceptZero" {
+		parts = append(parts, intlStringPart{"plusSign", sym.PlusSign})
+	}
+	var ip, fp, suffix string
+	if n >= 1000 {
+		divisor := 1000.0
+		for divisor*1000 <= n {
+			divisor *= 1000
+		}
+		ip, fp = intlCompactRound(n / divisor)
+		d := int(math.Floor(math.Log10(n))) + 1
+		key := intlPow10(d - 1)
+		m := loc.CompactShort
+		if opts.compactDisplay == "long" {
+			m = loc.CompactLong
+		}
+		cat := "other"
+		if v, _ := strconv.ParseFloat(ip+"."+fp, 64); v == 1 {
+			cat = "one"
+		}
+		pat := m[strconv.Itoa(key)+"-count-"+cat]
+		if pat == "" {
+			pat = m[strconv.Itoa(key)+"-count-other"]
+		}
+		if pat == "" {
+			pat = m[strconv.Itoa(int(divisor))+"-count-other"]
+		}
+		if i := strings.IndexByte(pat, '0'); i >= 0 {
+			j := i
+			for j < len(pat) && pat[j] == '0' {
+				j++
+			}
+			suffix = intlUnquotePattern(pat[j:])
+		}
+	} else {
+		ip, fp = intlCompactRound(n)
+	}
+	fp = strings.TrimRight(fp, "0")
+	for len(ip) < opts.minInt {
+		ip = "0" + ip
+	}
+	if ip == "" {
+		ip = "0"
+	}
+	parts = appendIntlDigits(parts, ip, "integer", digits)
+	if fp != "" {
+		parts = append(parts, intlStringPart{"decimal", sym.Decimal})
+		parts = appendIntlDigits(parts, fp, "fraction", digits)
+	}
+	if suffix != "" {
+		parts = append(parts, intlStringPart{"compact", suffix})
+	}
+	return parts
+}
+
+// intlCompactRound applies the "morePrecision" rounding used by compact
+// notation: the closer of (0 fraction digits) and (2 significant digits).
+func intlCompactRound(n float64) (string, string) {
+	_, ip0, fp0 := intlDecimalDigits(n)
+	ip0, fp0 = intlRoundDigits(ip0, fp0, 0, "halfExpand")
+	_, ip1, fp1 := intlDecimalDigits(n)
+	ip1, fp1 = intlRoundToSignificant(ip1, fp1, 2, 2, "halfExpand")
+	v0 := intlParseMantissa(ip0, fp0)
+	v1 := intlParseMantissa(ip1, fp1)
+	if math.Abs(v0-n) <= math.Abs(v1-n) {
+		return ip0, fp0
+	}
+	return ip1, fp1
+}
+
+func intlPow10(d int) int {
+	p := 1
+	for i := 0; i < d; i++ {
+		p *= 10
+	}
+	return p
+}
+
+// intlUnquotePattern removes CLDR single-quote escapes from a literal.
+func intlUnquotePattern(p string) string {
+	if !strings.Contains(p, "'") {
+		return p
+	}
+	var sb strings.Builder
+	for i := 0; i < len(p); i++ {
+		if p[i] == '\'' {
+			if i+1 < len(p) && p[i+1] == '\'' {
+				sb.WriteByte('\'')
+				i++
+			}
+			continue
+		}
+		sb.WriteByte(p[i])
+	}
+	return sb.String()
 }

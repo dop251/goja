@@ -37,6 +37,8 @@ type intlNumberLocale struct {
 	Percent            string
 	Currency           string
 	CurrencyAccounting string
+	CompactShort       map[string]string
+	CompactLong        map[string]string
 	Currencies         map[string]intlCurrencyInfo
 }
 

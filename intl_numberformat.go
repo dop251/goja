@@ -197,6 +197,13 @@ func (r *Runtime) builtin_newIntlNumberFormat(args []Value, proto *Object) *Obje
 	} else if opts.style == "percent" && !opts.fractionSpecified {
 		opts.minFrac, opts.maxFrac = 0, 0
 	}
+	if opts.notation == "compact" && opts.minSig == 0 && opts.maxSig == 0 && !opts.fractionSpecified {
+		opts.minSig = 1
+		opts.maxSig = 2
+		opts.minFrac = 0
+		opts.maxFrac = 0
+		opts.useGrouping = "min2"
+	}
 	if opts.minSig == 0 && opts.maxSig != 0 {
 		opts.minSig = opts.maxSig
 	}

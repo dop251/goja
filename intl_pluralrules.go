@@ -262,64 +262,66 @@ func intlPluralOperands(n float64, minInt, minFrac, maxFrac, minSig, maxSig int,
 
 // intlRoundToSignificant rounds a decimal to the given significant digits.
 func intlRoundToSignificant(intPart, fracPart string, minSig, maxSig int, mode string) (string, string) {
-	digits := strings.TrimLeft(intPart, "0") + fracPart
-	if digits == "" {
-		digits = "0"
-	}
-	// Position of the first significant digit.
-	lead := 0
-	for lead < len(digits)-1 && digits[lead] == '0' {
-		lead++
-	}
-	digits = digits[lead:]
 	keep := maxSig
-	if keep <= 0 || keep > len(digits) {
-		keep = len(digits)
+	if keep < 1 {
+		keep = 1
+	}
+	all := intPart + fracPart
+	pointPos := len(intPart)
+	start := 0
+	for start < len(all) && all[start] == '0' {
+		start++
+	}
+	if start == len(all) {
+		return "0", ""
+	}
+	exp := pointPos - start
+	digits := all[start:]
+	if len(digits) <= keep {
+		digits += strings.Repeat("0", keep-len(digits))
 	}
 	rest := digits[keep:]
 	up := false
-	switch mode {
-	case "trunc":
-	case "expand":
-		up = intlHasNonZero(rest)
-	case "ceil":
-		up = intlHasNonZero(rest)
-	case "floor":
-	default:
-		if len(rest) > 0 {
-			first := rest[0]
-			up = first > '5' || (first == '5' && (intlHasNonZero(rest[1:]) || mode == "halfExpand" || mode == "halfEven" && intlLastDigitOdd(digits[:keep])))
+	if len(rest) > 0 {
+		switch mode {
+		case "trunc", "floor":
+		case "expand", "ceil":
+			up = intlHasNonZero(rest)
+		case "halfEven":
+			up = rest[0] > '5' || (rest[0] == '5' && (intlHasNonZero(rest[1:]) || intlLastDigitOdd(digits[:keep])))
+		case "halfTrunc", "halfFloor":
+			up = rest[0] > '5'
+		default:
+			up = rest[0] >= '5'
 		}
 	}
+	rounded := digits[:keep]
 	if up {
-		digits = intlIncrementDigits(digits[:keep])
-		if len(digits) > keep {
-			lead--
-			if lead < 0 {
-				lead = 0
-				// value grew by one digit
-				intPart = digits
-				digits = ""
-			}
+		inc := intlIncrementDigits(rounded)
+		if len(inc) > keep {
+			rounded = inc[:keep]
+			exp++
 		} else {
-			digits = digits[:keep]
+			rounded = inc
 		}
-	} else {
-		digits = digits[:keep]
 	}
-	// Reassemble based on the original integer part length.
-	intLen := len(strings.TrimLeft(intPart, "0"))
-	if intLen == 0 {
-		intLen = 1
+	var ip, fp string
+	switch {
+	case exp <= 0:
+		ip = "0"
+		fp = strings.Repeat("0", -exp) + rounded
+	case exp >= len(rounded):
+		ip = rounded + strings.Repeat("0", exp-len(rounded))
+		fp = ""
+	default:
+		ip = rounded[:exp]
+		fp = rounded[exp:]
 	}
-	total := intLen - lead + len(digits)
-	if total <= 0 {
-		return "0", strings.Repeat("0", -total) + digits
+	ip = strings.TrimLeft(ip, "0")
+	if ip == "" {
+		ip = "0"
 	}
-	if total >= len(digits) {
-		return digits + strings.Repeat("0", total-len(digits)), ""
-	}
-	return digits[:total], digits[total:]
+	return ip, fp
 }
 
 func (r *Runtime) intlPluralRulesProtoResolvedOptions(call FunctionCall) Value {
