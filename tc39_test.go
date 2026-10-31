@@ -159,7 +159,6 @@ var (
 		"regexp-modifiers",
 		"legacy-regexp",
 		"tail-call-optimization",
-		"Temporal",
 		"import-assertions",
 		"dynamic-import",
 		"import.meta",

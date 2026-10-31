@@ -366,6 +366,7 @@ func createGlobalObjectTemplate() *objectTemplate {
 	t.putStr("WeakMap", func(r *Runtime) Value { return valueProp(r.getWeakMap(), true, false, true) })
 	t.putStr("Map", func(r *Runtime) Value { return valueProp(r.getMap(), true, false, true) })
 	t.putStr("Set", func(r *Runtime) Value { return valueProp(r.getSet(), true, false, true) })
+	t.putStr("Temporal", func(r *Runtime) Value { return valueProp(r.getTemporal(), true, false, true) })
 	t.putStr("Promise", func(r *Runtime) Value { return valueProp(r.getPromise(), true, false, true) })
 	t.putStr("Iterator", func(r *Runtime) Value { return valueProp(r.getIteratorCtor(), true, false, true) })
 
