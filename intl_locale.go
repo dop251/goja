@@ -452,7 +452,11 @@ func (r *Runtime) intlLocaleProtoGetTextInfo(call FunctionCall) Value {
 
 func (r *Runtime) intlLocaleProtoGetWeekInfo(call FunctionCall) Value {
 	l := r.intlLocaleThis(call)
-	region := l.tag.region
+	mt := l.tag
+	if mt.region == "" {
+		mt = intlMaximize(mt)
+	}
+	region := mt.region
 	if region == "" {
 		region = "001"
 	}

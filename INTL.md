@@ -17,6 +17,11 @@ goja now ships an `Intl` namespace backed by generated CLDR 49 data
   iterables, `formatToParts`)
 - `Intl.RelativeTimeFormat` (long/short/narrow, `numeric: auto`,
   `formatToParts`, per-locale plural selection)
+- `Intl.Collator` (sort/search, sensitivity, numeric, caseFirst,
+  ignorePunctuation, collation resolution) and `String.prototype.localeCompare`
+- locale-aware `toLocaleLowerCase`/`toLocaleUpperCase`
+- `Intl.DateTimeFormat` (work in progress: dateStyle/timeStyle, component
+  options, skeletons from CLDR availableFormats, time zones, formatToParts)
 - `Intl.NumberFormat` (decimal/percent/currency/unit styles, grouping,
   significant digits, `signDisplay`, `currencySign: accounting`,
   scientific/engineering notation, `formatToParts`, numbering systems,
@@ -24,7 +29,7 @@ goja now ships an `Intl` namespace backed by generated CLDR 49 data
 
 ## Not yet implemented
 
-`Intl.DateTimeFormat`, `Intl.Collator`, `Intl.Segmenter`,
+`Intl.Segmenter`,
 `Intl.DisplayNames`, `Intl.DurationFormat`, and the locale methods on
 `String`, `Number`, `BigInt`, `Date` and `Array` prototypes.
 `intl402/Temporal` additionally requires the Temporal implementation.
@@ -36,7 +41,8 @@ the 76 supported locales; other locales fall back to `en`.
 
 ## Tests
 
-Mycel's Test262 run for `intl402/`: **539 passing** (from 0 before this
-change), including 150/152 `intl402/Locale`, 126 `intl402/NumberFormat`,
-67 `intl402/ListFormat`, 54 `intl402/RelativeTimeFormat` and 48
+Mycel's Test262 run for `intl402/`: **~730 passing** (from 0 before this
+work), including 150/152 `intl402/Locale`, 126 `intl402/NumberFormat`,
+119/248 `intl402/DateTimeFormat`, 67 `intl402/ListFormat`,
+59/64 `intl402/Collator`, 54 `intl402/RelativeTimeFormat` and 48
 `intl402/PluralRules`.

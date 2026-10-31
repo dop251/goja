@@ -92,6 +92,9 @@ func intlBuildRelevantExtension(tag *intlTag, keys []string, options *Object) st
 		if !ok {
 			continue
 		}
+		if !intlRelevantExtensionValueValid(k, v) {
+			continue
+		}
 		if sb.Len() > 0 {
 			sb.WriteString("-")
 		}
@@ -102,6 +105,20 @@ func intlBuildRelevantExtension(tag *intlTag, keys []string, options *Object) st
 		}
 	}
 	return sb.String()
+}
+
+func intlRelevantExtensionValueValid(k, v string) bool {
+	switch k {
+	case "ca":
+		return intlContains(intlCalendarValues, v)
+	case "nu":
+		return intlContains(intlNumberingSystemValues, v)
+	case "hc":
+		return intlContains(intlHourCycleValues, v)
+	case "co":
+		return intlContains(intlCollationValues, v)
+	}
+	return true
 }
 
 // intlSupportedLocalesOf implements the shared supportedLocalesOf behaviour.

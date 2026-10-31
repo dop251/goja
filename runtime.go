@@ -80,6 +80,8 @@ type global struct {
 	IntlNumberFormatPrototype       *Object
 	IntlCollator                    *Object
 	IntlCollatorPrototype           *Object
+	IntlDateTimeFormat              *Object
+	IntlDateTimeFormatPrototype     *Object
 
 	AsyncFunction *Object
 
