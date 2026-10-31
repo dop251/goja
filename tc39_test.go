@@ -541,6 +541,11 @@ func (ctx *tc39TestCtx) runTC39File(name string, t testing.TB) {
 			}
 			for _, bl := range featuresBlackList {
 				if feature == bl {
+					if feature == "Temporal" && os.Getenv("GOJA_TEMPORAL_TESTS") == "1" {
+						// WIP Temporal implementation; not part of the
+						// default conformance run yet.
+						continue
+					}
 					t.Skip("Blacklisted feature")
 				}
 			}
