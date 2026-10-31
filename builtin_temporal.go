@@ -506,6 +506,16 @@ func (r *Runtime) temporalDurationRound(call FunctionCall) Value {
 	if !hasSmallest && !hasLargest && largest == "" {
 		panic(r.newError(r.getRangeError(), "smallestUnit or largestUnit is required"))
 	}
+	if hasSmallest {
+		if temporalUnitIndex(smallest) >= 4 {
+			if err := validateTimeRoundingIncrement(smallest, increment); err != nil {
+				panic(r.newError(r.getRangeError(), err.Error()))
+			}
+		}
+		if largest != "" && temporalUnitIndex(smallest) < temporalUnitIndex(largest) {
+			panic(r.newError(r.getRangeError(), "smallestUnit is larger than largestUnit"))
+		}
+	}
 	if rel != nil && (d.hasCalendarUnits() ||
 		(hasSmallest && temporalUnitIndex(smallest) <= 3) ||
 		(largest != "" && temporalUnitIndex(largest) <= 3)) {
@@ -601,11 +611,6 @@ func (r *Runtime) temporalDurationRound(call FunctionCall) Value {
 // anchored at the start of relativeTo's day. This handles calendar units and
 // time-of-day fractions uniformly.
 func (r *Runtime) roundDurationRelativeToPlainDate(d *temporalDurationObject, rel *temporalPlainDateObject, largest, smallest string, increment int64, mode temporalRoundingMode, hasSmallest bool) Value {
-	if hasSmallest && smallest == "month" && increment > 1 {
-		if e := temporalUnitIndex(largest); largest == "" || e <= 0 {
-			panic(r.newError(r.getRangeError(), "Cannot round months while balancing to years"))
-		}
-	}
 	fields := d.fields()
 	date := addISOMonths(rel.date, int64(fields[0])*12+int64(fields[1]))
 	dayNanos := big.NewInt(86400e9)
@@ -651,6 +656,14 @@ func (r *Runtime) roundDurationRelativeToPlainDate(d *temporalDurationObject, re
 		}
 		if hasSmallest && temporalUnitIndex(smallest) < temporalUnitIndex(largest) {
 			largest = smallest
+		}
+	}
+	if hasSmallest {
+		if smallest == "month" && increment > 1 && temporalUnitIndex(largest) <= 0 {
+			panic(r.newError(r.getRangeError(), "Cannot round months while balancing to years"))
+		}
+		if smallest == "week" && increment > 1 && temporalUnitIndex(largest) < 2 {
+			panic(r.newError(r.getRangeError(), "Cannot round weeks while balancing to months"))
 		}
 	}
 	s := temporalDiffSettings{largest: largest, smallest: "nanosecond", increment: 1, mode: temporalRoundTrunc}
@@ -843,7 +856,7 @@ func (r *Runtime) temporalDurationTotal(call FunctionCall) Value {
 
 // durationTotalRelative computes Duration.total(unit) in the presence of a
 // relativeTo date.
-func (r *Runtime) durationTotalRelative(d *temporalDurationObject, rel *temporalPlainDateObject, unit string) float64 {
+func (r *Runtime) durationTotalRelativeRat(d *temporalDurationObject, rel *temporalPlainDateObject, unit string) *big.Rat {
 	fields := d.fields()
 	dateEnd := rel.date
 	dateEnd = addISOMonths(dateEnd, int64(fields[0])*12+int64(fields[1]))
@@ -940,8 +953,22 @@ func (r *Runtime) durationTotalRelative(d *temporalDurationObject, rel *temporal
 			result.Neg(result)
 		}
 	}
-	f, _ := result.Float64()
+	return result
+}
+
+func (r *Runtime) durationTotalRelative(d *temporalDurationObject, rel *temporalPlainDateObject, unit string) float64 {
+	f, _ := r.durationTotalRelativeRat(d, rel, unit).Float64()
 	return f
+}
+
+func temporalDurationFieldsEqual(a, b *temporalDurationObject) bool {
+	fa, fb := a.fields(), b.fields()
+	for i := range fa {
+		if fa[i] != fb[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func timeRatHours(f [10]float64) float64 {
@@ -1036,14 +1063,19 @@ func (r *Runtime) temporalDurationValueOf(call FunctionCall) Value {
 func (r *Runtime) temporalDurationCompare(call FunctionCall) Value {
 	a := r.temporalDurationFromValue(call.Argument(0))
 	b := r.temporalDurationFromValue(call.Argument(1))
+	optsObj := r.temporalOptionsObject(call.Argument(2))
 	rel := r.temporalDurationRelativeTo(call.Argument(2))
 	if rel == nil && (a.hasCalendarUnits() || b.hasCalendarUnits()) {
+		if temporalDurationFieldsEqual(a, b) {
+			return intToValue(0)
+		}
 		panic(r.newError(r.getRangeError(), "relativeTo is required for calendar units"))
 	}
 	var ta, tb *big.Rat
 	if rel != nil {
-		ta = new(big.Rat).SetFloat64(r.durationTotalRelative(a, rel, "day"))
-		tb = new(big.Rat).SetFloat64(r.durationTotalRelative(b, rel, "day"))
+		_ = optsObj
+		ta = r.durationTotalRelativeRat(a, rel, "day")
+		tb = r.durationTotalRelativeRat(b, rel, "day")
 	} else {
 		ta = durationTimeNanos(a)
 		tb = durationTimeNanos(b)

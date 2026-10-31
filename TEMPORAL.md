@@ -59,7 +59,7 @@ once the namespace is complete.
 - [x] Duration: constructor, `from`, getters, `with`, `negated`, `abs`, `add`,
       `subtract`, `compare`, `total`, `round`, `toString`, `toJSON`,
       `toLocaleString`, including `relativeTo` for `PlainDate`,
-      `PlainDateTime` and `ZonedDateTime` — **462 / 533 tests pass**
+      `PlainDateTime` and `ZonedDateTime` — **470 / 533 tests pass**
 - [x] PlainDate: constructor, `from`, getters, `with`, `withCalendar`, `add`,
       `subtract`, `until`, `since`, `equals`, `compare`, `toString`,
       `toJSON`, `toPlainDateTime`, `toZonedDateTime`, `toPlainYearMonth`,
