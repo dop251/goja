@@ -12,6 +12,7 @@ type intlRelativeTimeFormatObject struct {
 	tag     *intlTag
 	style   string
 	numeric string
+	ns      string
 }
 
 var intlRTFUnits = map[string]bool{
@@ -73,6 +74,7 @@ func (r *Runtime) builtin_newIntlRelativeTimeFormat(args []Value, proto *Object)
 	options := r.intlGetOptionsObject(optionsArg)
 	style := "long"
 	numeric := "always"
+	numberingSystem := ""
 	if options != nil {
 		r.intlGetOption(options, "localeMatcher", "string", []string{"best fit", "lookup"}, _undefined)
 		if v := r.intlGetOption(options, "numberingSystem", "string", nil, _undefined); !IsUndefined(v) {
@@ -80,6 +82,7 @@ func (r *Runtime) builtin_newIntlRelativeTimeFormat(args []Value, proto *Object)
 			if !intlIsUnicodeExtensionValue(ns) || !intlValidNumberingSystem(ns) {
 				panic(r.intlRangeError("Invalid numberingSystem"))
 			}
+			numberingSystem = ns
 		}
 		if v := r.intlGetOption(options, "style", "string", []string{"long", "short", "narrow"}, _undefined); !IsUndefined(v) {
 			style = v.String()
@@ -90,7 +93,7 @@ func (r *Runtime) builtin_newIntlRelativeTimeFormat(args []Value, proto *Object)
 	}
 	locale, tag := r.intlResolveServiceLocale(requested, []string{"nu"}, options)
 	o := &Object{runtime: r}
-	obj := &intlRelativeTimeFormatObject{locale: locale, tag: tag, style: style, numeric: numeric}
+	obj := &intlRelativeTimeFormatObject{locale: locale, tag: tag, style: style, numeric: numeric, ns: numberingSystem}
 	obj.class = classObject
 	obj.val = o
 	obj.extensible = true
@@ -137,7 +140,7 @@ func (rtf *intlRelativeTimeFormatObject) fieldPattern(n float64, unit string) (s
 	}
 	cat := rtf.pluralCategory(n)
 	var p string
-	if n < 0 {
+	if n < 0 || (n == 0 && math.Signbit(n)) {
 		p = f.Past[cat]
 		if p == "" {
 			p = f.Past["other"]
@@ -152,7 +155,7 @@ func (rtf *intlRelativeTimeFormatObject) fieldPattern(n float64, unit string) (s
 }
 
 func (rtf *intlRelativeTimeFormatObject) pluralCategory(n float64) string {
-	if n < 0 {
+	if n < 0 || (n == 0 && math.Signbit(n)) {
 		n = -n
 	}
 	pr := &intlPluralRulesObject{
@@ -222,6 +225,9 @@ func (rtf *intlRelativeTimeFormatObject) dataKey() string {
 }
 
 func (rtf *intlRelativeTimeFormatObject) numberingSystem() string {
+	if rtf.ns != "" {
+		return rtf.ns
+	}
 	if t, ok := intlParseTag(rtf.locale); ok {
 		if ns, ok := t.uKw["nu"]; ok && ns != "" {
 			return ns
@@ -247,6 +253,13 @@ func (r *Runtime) intlRTFProtoResolvedOptions(call FunctionCall) Value {
 }
 
 func (r *Runtime) intlRTFSupportedLocalesOf(call FunctionCall) Value {
+	optsArg := call.Argument(1)
+	if IsNull(optsArg) {
+		panic(r.NewTypeError("Options must be an object"))
+	}
+	if opts := r.intlGetOptionsObject(optsArg); opts != nil {
+		r.intlGetOption(opts, "localeMatcher", "string", []string{"best fit", "lookup"}, _undefined)
+	}
 	return r.intlSupportedLocalesOf(call, intlHasLocaleData)
 }
 
