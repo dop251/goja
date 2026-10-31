@@ -166,7 +166,9 @@ func (b *unicodeStringBuilder) Grow(n int) {
 		panic(rangeError("Invalid string length"))
 	}
 	if len(b.buf) == 0 {
-		n++
+		// Reserve room for the BOM. With n == math.MaxInt the increment
+		// wraps around to a negative length.
+		n = toStringLen(n + 1)
 	}
 	if cap(b.buf)-len(b.buf) < n {
 		newCap := safeMul(2, cap(b.buf)) + n
