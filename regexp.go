@@ -26,9 +26,44 @@ type regexp2Wrapper struct {
 type regexpPattern struct {
 	src string
 
-	global, ignoreCase, multiline, dotAll, sticky, unicode bool
+	global, ignoreCase, multiline, dotAll, sticky, unicode, hasIndices, unicodeSets bool
 
 	regexp2Wrapper *regexp2Wrapper
+}
+
+// legacyRegexpStatics holds the Annex B RegExp constructor statics.
+type legacyRegexpStatics struct {
+	input        String
+	lastMatch    String
+	lastParen    String
+	leftContext  String
+	rightContext String
+	parens       [9]String
+}
+
+func (r *Runtime) getRegexpStatics() *legacyRegexpStatics {
+	if r.regexpStatics == nil {
+		r.regexpStatics = &legacyRegexpStatics{}
+	}
+	return r.regexpStatics
+}
+
+func (r *Runtime) updateRegexpStatics(target String, result regexpResult) {
+	st := r.getRegexpStatics()
+	st.input = target
+	st.lastMatch = target.Substring(result.indexes[0], result.indexes[1])
+	st.leftContext = target.Substring(0, result.indexes[0])
+	st.rightContext = target.Substring(result.indexes[1], target.Length())
+	st.lastParen = stringEmpty
+	for i := 1; i < len(result.indexes)>>1 && i <= 9; i++ {
+		off := i << 1
+		if result.indexes[off] >= 0 {
+			st.parens[i-1] = target.Substring(result.indexes[off], result.indexes[off+1])
+			st.lastParen = st.parens[i-1]
+		} else {
+			st.parens[i-1] = stringEmpty
+		}
+	}
 }
 
 type regexpResult struct {
@@ -81,6 +116,7 @@ func (p *regexpPattern) clone() *regexpPattern {
 		dotAll:     p.dotAll,
 		sticky:     p.sticky,
 		unicode:    p.unicode,
+		hasIndices: p.hasIndices,
 	}
 	if p.regexp2Wrapper != nil {
 		ret.regexp2Wrapper = p.regexp2Wrapper.clone()
@@ -403,10 +439,17 @@ func (r *Runtime) createRegexpGroupsObj(valueArray []Value, groupNames []string)
 			name := groupNames[index]
 			if name == "" {
 				continue
-			} else if groups == nil {
+			}
+			if groups == nil {
 				groups = r.newBaseObject(nil, classObject)
 			}
-			groups.setOwnStr(unistring.NewFromString(name), valueArray[index], false)
+			key := unistring.NewFromString(name)
+			existing := groups.getStr(key, nil)
+			if existing == nil {
+				groups.setOwnStr(key, valueArray[index], false)
+			} else if IsUndefined(existing) && valueArray[index] != _undefined {
+				groups.setOwnStr(key, valueArray[index], false)
+			}
 		}
 	}
 	if groups != nil {
@@ -431,6 +474,7 @@ func createRegexpGroupsMap(result regexpResult) (groups map[unistring.String]int
 }
 
 func (r *regexpObject) execResultToArray(target String, result regexpResult) Value {
+	r.val.runtime.updateRegexpStatics(target, result)
 	captureCount := len(result.indexes) >> 1
 	valueArray := make([]Value, captureCount)
 	matchIndex := result.indexes[0]
@@ -463,6 +507,50 @@ func (r *regexpObject) execResultToArray(target String, result regexpResult) Val
 		Configurable: FLAG_TRUE,
 		Enumerable:   FLAG_TRUE,
 	}, false)
+
+	if r.pattern.hasIndices {
+		indices := make([]Value, captureCount)
+		for index := 0; index < captureCount; index++ {
+			if index == 0 || valueArray[index] != _undefined {
+				offset := index << 1
+				indices[index] = r.val.runtime.newArrayValues([]Value{
+					intToValue(int64(result.indexes[offset])),
+					intToValue(int64(result.indexes[offset+1])),
+				})
+			} else {
+				indices[index] = _undefined
+			}
+		}
+		indicesArray := r.val.runtime.newArrayValues(indices)
+		var indicesGroups Value = _undefined
+		if groups != nil {
+			indicesGroupsObj := r.val.runtime.newBaseObject(nil, classObject)
+			for index := 1; index < len(indices); index++ {
+				if index < len(result.groups) && result.groups[index] != "" {
+					key := unistring.NewFromString(result.groups[index])
+					existing := indicesGroupsObj.getStr(key, nil)
+					if existing == nil {
+						indicesGroupsObj.setOwnStr(key, indices[index], false)
+					} else if IsUndefined(existing) && indices[index] != _undefined {
+						indicesGroupsObj.setOwnStr(key, indices[index], false)
+					}
+				}
+			}
+			indicesGroups = indicesGroupsObj.val
+		}
+		indicesArray.self.defineOwnPropertyStr("groups", PropertyDescriptor{
+			Value:        indicesGroups,
+			Writable:     FLAG_TRUE,
+			Configurable: FLAG_TRUE,
+			Enumerable:   FLAG_TRUE,
+		}, false)
+		match.self.defineOwnPropertyStr("indices", PropertyDescriptor{
+			Value:        indicesArray,
+			Writable:     FLAG_TRUE,
+			Configurable: FLAG_TRUE,
+			Enumerable:   FLAG_TRUE,
+		}, false)
+	}
 
 	return match
 }

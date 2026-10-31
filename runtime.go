@@ -195,6 +195,8 @@ type Runtime struct {
 
 	symbolRegistry map[unistring.String]*Symbol
 
+	regexpStatics *legacyRegexpStatics
+
 	fieldsInfoCache  map[reflect.Type]*reflectFieldsInfo
 	methodsInfoCache map[reflect.Type]*reflectMethodsInfo
 

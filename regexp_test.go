@@ -1253,3 +1253,61 @@ func BenchmarkRegexpSingleExec(b *testing.B) {
 	})
 
 }
+
+func TestRegexpHasIndices(t *testing.T) {
+	const SCRIPT = `
+	var r = /a(b)(?<c>c)?/d;
+	r.hasIndices && r.flags === "d" && r.toString() === "/a(b)(?<c>c)?/d";
+	var m = r.exec("ab");
+	m.indices.length === 3 && m.indices[0][0] === 0 && m.indices[0][1] === 2 &&
+	m.indices[1][0] === 1 && m.indices[1][1] === 2 && m.indices[2] === undefined &&
+	m.indices.groups.c === undefined && m.groups.c === undefined;
+	var m2 = /(?<x>a)|(?<x>b)/d.exec("b");
+	m2.groups.x === "b" && m2.indices.groups.x[0] === 0 && m2.indices.groups.x[1] === 1;
+	var m3 = /(?<y>a)|(?<y>b)/d.exec("a");
+	m3.groups.y === "a" && m3.indices.groups.y[0] === 0 && m3.indices.groups.y[1] === 1;
+	/a/d.indices === undefined;
+	/a/.hasIndices === false && /a/d.flags === "d";
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestRegexpLegacyStatics(t *testing.T) {
+	const SCRIPT = `
+	var desc = Object.getOwnPropertyDescriptor(RegExp, "$1");
+	typeof desc.get === "function" && desc.set === undefined && !desc.enumerable && desc.configurable;
+	var inputDesc = Object.getOwnPropertyDescriptor(RegExp, "input");
+	typeof inputDesc.get === "function" && typeof inputDesc.set === "function";
+	var threw = false;
+	try { desc.get.call(/ /); } catch (e) { threw = e instanceof TypeError; }
+	threw;
+	var threwSub = false;
+	class MyRegExp extends RegExp {}
+	try { MyRegExp.$1; } catch (e) { threwSub = e instanceof TypeError; }
+	threwSub;
+	/(a)(b)/.exec("ab");
+	RegExp.$1 === "a" && RegExp.$2 === "b" && RegExp.lastMatch === "ab" &&
+	RegExp.lastParen === "b" && RegExp.leftContext === "" && RegExp.rightContext === "";
+	`
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestRegexpUnicodeEarlyErrors(t *testing.T) {
+	const SCRIPT = `
+	["(?ii:a)", "(?i-i:a)", "(?-:a)", "(?u:a)", "(?I:a)", "(?-imsi:a)"].forEach(function (p) {
+		try { new RegExp(p); throw new Error("Expected SyntaxError: " + p); } catch (e) {
+			if (!(e instanceof SyntaxError)) throw e;
+		}
+	});
+	["\\A", "\\-", "]", "}", "{", "\\c_", "\\x0", "\\u123", "\\p", "\\k"].forEach(function (p) {
+		try { new RegExp(p, "u"); throw new Error("Expected SyntaxError: " + p); } catch (e) {
+			if (!(e instanceof SyntaxError)) throw e;
+		}
+	});
+	new RegExp("[\\-]", "u");
+	new RegExp("(?i:a)");
+	new RegExp("(?im-s:a)");
+	true;
+	`
+	testScript(SCRIPT, valueTrue, t)
+}

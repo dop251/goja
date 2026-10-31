@@ -2,6 +2,7 @@ package goja
 
 import (
 	"fmt"
+	"github.com/dop251/goja/unistring"
 	"strings"
 	"unicode"
 	"unicode/utf16"
@@ -181,8 +182,277 @@ func compileRegexpFromValueString(patternStr String, flags string) (*regexpPatte
 	return compileRegexp(escapeInvalidUtf16(patternStr), flags)
 }
 
+// validateRegexpModifiers rejects invalid inline modifier groups such as
+// (?ii:a), (?i-i:a), (?-:a) and (?u:a).
+func validateRegexpModifiers(src string) error {
+	runes := []rune(src)
+	inClass := false
+	for i := 0; i < len(runes); i++ {
+		c := runes[i]
+		if c == '\\' {
+			i++
+			continue
+		}
+		if inClass {
+			if c == ']' {
+				inClass = false
+			}
+			continue
+		}
+		if c == '[' {
+			inClass = true
+			continue
+		}
+		if c != '(' || i+1 >= len(runes) || runes[i+1] != '?' || i+2 >= len(runes) {
+			continue
+		}
+		switch runes[i+2] {
+		case ':', '=', '!', '<':
+			continue
+		}
+		addSeen := make(map[rune]bool)
+		removeSeen := make(map[rune]bool)
+		removing := false
+		j := i + 2
+		valid := true
+		for ; j < len(runes) && runes[j] != ':'; j++ {
+			r := runes[j]
+			if r == '-' {
+				if removing {
+					valid = false
+				}
+				removing = true
+				continue
+			}
+			if r != 'i' && r != 'm' && r != 's' {
+				valid = false
+				break
+			}
+			set := addSeen
+			if removing {
+				set = removeSeen
+			}
+			if set[r] {
+				valid = false
+			}
+			set[r] = true
+		}
+		if j >= len(runes) || runes[j] != ':' {
+			valid = false
+		}
+		if valid {
+			if len(addSeen) == 0 && len(removeSeen) == 0 {
+				valid = false
+			}
+			for r := range addSeen {
+				if removeSeen[r] {
+					valid = false
+				}
+			}
+		}
+		if !valid {
+			return fmt.Errorf("Invalid regular expression: invalid modifier group")
+		}
+	}
+	return nil
+}
+
+// validateRegexpUnicodeSyntax performs the extra early errors required in
+// Unicode mode: invalid identity escapes, restricted brackets, invalid
+// backreferences and malformed quantifiers.
+func validateRegexpUnicodeSyntax(src string) error {
+	runes := []rune(src)
+	isHex := func(r rune) bool {
+		return (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
+	}
+	isASCIILetter := func(r rune) bool {
+		return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+	}
+	isSyntaxChar := func(r rune) bool {
+		switch r {
+		case '^', '$', '\\', '.', '*', '+', '?', '(', ')', '[', ']', '{', '}', '|':
+			return true
+		}
+		return false
+	}
+
+	captures := 0
+	inClass := false
+	for i := 0; i < len(runes); i++ {
+		c := runes[i]
+		if c == '\\' {
+			i++
+			continue
+		}
+		if inClass {
+			if c == ']' {
+				inClass = false
+			}
+			continue
+		}
+		if c == '[' {
+			inClass = true
+			continue
+		}
+		if c == '(' {
+			if i+1 < len(runes) && runes[i+1] == '?' {
+				if i+3 < len(runes) && runes[i+2] == '<' && runes[i+3] != '=' && runes[i+3] != '!' {
+					captures++
+				}
+			} else {
+				captures++
+			}
+		}
+	}
+
+	inClass = false
+	for i := 0; i < len(runes); i++ {
+		c := runes[i]
+		if c == '\\' {
+			if i+1 >= len(runes) {
+				return fmt.Errorf("Invalid regular expression: trailing backslash")
+			}
+			e := runes[i+1]
+			if e == 'p' || e == 'P' {
+				if i+2 >= len(runes) || runes[i+2] != '{' {
+					return fmt.Errorf("Invalid regular expression: invalid property escape")
+				}
+				j := i + 3
+				for j < len(runes) && runes[j] != '}' {
+					j++
+				}
+				if j >= len(runes) {
+					return fmt.Errorf("Invalid regular expression: invalid property escape")
+				}
+				i = j
+				continue
+			}
+			if e == 'u' && i+2 < len(runes) && runes[i+2] == '{' {
+				j := i + 3
+				n := 0
+				for j < len(runes) && runes[j] != '}' {
+					if !isHex(runes[j]) {
+						return fmt.Errorf("Invalid regular expression: invalid unicode escape")
+					}
+					n++
+					j++
+				}
+				if j >= len(runes) || n == 0 {
+					return fmt.Errorf("Invalid regular expression: invalid unicode escape")
+				}
+				i = j
+				continue
+			}
+			if e >= '1' && e <= '9' {
+				n := 0
+				j := i + 1
+				for j < len(runes) && runes[j] >= '0' && runes[j] <= '9' {
+					n = n*10 + int(runes[j]-'0')
+					j++
+				}
+				if n > captures {
+					return fmt.Errorf("Invalid regular expression: invalid backreference")
+				}
+				i = j - 1
+				continue
+			}
+			switch e {
+			case 'b':
+				i++
+				continue
+			case 'B':
+				if !inClass {
+					i++
+					continue
+				}
+			case 'd', 'D', 's', 'S', 'w', 'W', 'f', 'n', 'r', 't', 'v':
+				i++
+				continue
+			case '0':
+				if i+2 < len(runes) && runes[i+2] >= '0' && runes[i+2] <= '9' {
+					return fmt.Errorf("Invalid regular expression: invalid decimal escape")
+				}
+				i++
+				continue
+			case 'c':
+				if i+2 >= len(runes) || !isASCIILetter(runes[i+2]) {
+					return fmt.Errorf("Invalid regular expression: invalid control escape")
+				}
+				i += 2
+				continue
+			case 'x':
+				if i+3 >= len(runes) || !isHex(runes[i+2]) || !isHex(runes[i+3]) {
+					return fmt.Errorf("Invalid regular expression: invalid hex escape")
+				}
+				i += 3
+				continue
+			case 'u':
+				if i+5 >= len(runes) || !isHex(runes[i+2]) || !isHex(runes[i+3]) ||
+					!isHex(runes[i+4]) || !isHex(runes[i+5]) {
+					return fmt.Errorf("Invalid regular expression: invalid unicode escape")
+				}
+				i += 5
+				continue
+			case 'k':
+				if i+2 >= len(runes) || runes[i+2] != '<' {
+					return fmt.Errorf("Invalid regular expression: invalid named backreference")
+				}
+				j := i + 3
+				for j < len(runes) && runes[j] != '>' {
+					j++
+				}
+				if j >= len(runes) {
+					return fmt.Errorf("Invalid regular expression: invalid named backreference")
+				}
+				i = j
+				continue
+			}
+			if isSyntaxChar(e) || e == '/' || (inClass && e == '-') {
+				i++
+				continue
+			}
+			return fmt.Errorf("Invalid regular expression: invalid identity escape")
+		}
+		if inClass {
+			if c == ']' {
+				inClass = false
+			}
+			continue
+		}
+		if c == '[' {
+			inClass = true
+			continue
+		}
+		if c == ']' || c == '}' {
+			return fmt.Errorf("Invalid regular expression: unmatched bracket")
+		}
+		if c == '{' {
+			j := i + 1
+			digits := 0
+			for j < len(runes) && runes[j] >= '0' && runes[j] <= '9' {
+				j++
+				digits++
+			}
+			if digits == 0 {
+				return fmt.Errorf("Invalid regular expression: lone quantifier bracket")
+			}
+			if j < len(runes) && runes[j] == ',' {
+				j++
+				for j < len(runes) && runes[j] >= '0' && runes[j] <= '9' {
+					j++
+				}
+			}
+			if j >= len(runes) || runes[j] != '}' {
+				return fmt.Errorf("Invalid regular expression: lone quantifier bracket")
+			}
+			i = j
+		}
+	}
+	return nil
+}
+
 func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
-	var global, ignoreCase, multiline, dotAll, sticky, unicode bool
+	var global, ignoreCase, multiline, dotAll, sticky, unicode, hasIndices bool
 	var wrapper2 *regexp2Wrapper
 
 	if flags != "" {
@@ -191,6 +461,12 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 		}
 		for _, chr := range flags {
 			switch chr {
+			case 'd':
+				if hasIndices {
+					invalidFlags()
+					return
+				}
+				hasIndices = true
 			case 'g':
 				if global {
 					invalidFlags()
@@ -224,6 +500,7 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 			case 'u':
 				if unicode {
 					invalidFlags()
+					return
 				}
 				unicode = true
 			default:
@@ -233,7 +510,13 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 		}
 	}
 
+	if err = validateRegexpModifiers(patternStr); err != nil {
+		return
+	}
 	if unicode {
+		if err = validateRegexpUnicodeSyntax(patternStr); err != nil {
+			return
+		}
 		patternStr = convertRegexpToUnicode(patternStr)
 	} else {
 		patternStr = convertRegexpToUtf16(patternStr)
@@ -254,6 +537,7 @@ func compileRegexp(patternStr, flags string) (p *regexpPattern, err error) {
 		dotAll:         dotAll,
 		sticky:         sticky,
 		unicode:        unicode,
+		hasIndices:     hasIndices,
 	}
 	return
 }
@@ -393,6 +677,9 @@ func writeRegExpHexEscape(sb *StringBuilder, c rune) {
 
 func (r *Runtime) regexpproto_compile(call FunctionCall) Value {
 	if this, ok := r.toObject(call.This).self.(*regexpObject); ok {
+		if this.prototype != r.global.RegExpPrototype {
+			panic(r.NewTypeError("RegExp.prototype.compile called on incompatible receiver"))
+		}
 		var (
 			pattern *regexpPattern
 			source  String
@@ -467,6 +754,9 @@ func (r *Runtime) regexpproto_toString(call FunctionCall) Value {
 			sb.WriteString(this.source)
 		}
 		sb.WriteRune('/')
+		if this.pattern.hasIndices {
+			sb.WriteRune('d')
+		}
 		if this.pattern.global {
 			sb.WriteRune('g')
 		}
@@ -558,6 +848,24 @@ func (r *Runtime) regexpproto_getSource(call FunctionCall) Value {
 	}
 }
 
+func (r *Runtime) regexpproto_getHasIndices(call FunctionCall) Value {
+	if this, ok := r.toObject(call.This).self.(*regexpObject); ok {
+		return r.ToValue(this.pattern.hasIndices)
+	} else if call.This == r.global.RegExpPrototype {
+		return _undefined
+	}
+	panic(r.NewTypeError("Method RegExp.prototype.hasIndices getter called on incompatible receiver"))
+}
+
+func (r *Runtime) regexpproto_getUnicodeSets(call FunctionCall) Value {
+	if this, ok := r.toObject(call.This).self.(*regexpObject); ok {
+		return r.ToValue(this.pattern.unicodeSets)
+	} else if call.This == r.global.RegExpPrototype {
+		return _undefined
+	}
+	panic(r.NewTypeError("Method RegExp.prototype.unicodeSets getter called on incompatible receiver"))
+}
+
 func (r *Runtime) regexpproto_getGlobal(call FunctionCall) Value {
 	if this, ok := r.toObject(call.This).self.(*regexpObject); ok {
 		if this.pattern.global {
@@ -643,10 +951,16 @@ func (r *Runtime) regexpproto_getSticky(call FunctionCall) Value {
 }
 
 func (r *Runtime) regexpproto_getFlags(call FunctionCall) Value {
-	var global, ignoreCase, multiline, dotAll, sticky, unicode bool
+	var global, ignoreCase, multiline, dotAll, sticky, unicode, hasIndices bool
 
 	thisObj := r.toObject(call.This)
 	size := 0
+	if v := thisObj.self.getStr("hasIndices", nil); v != nil {
+		hasIndices = v.ToBoolean()
+		if hasIndices {
+			size++
+		}
+	}
 	if v := thisObj.self.getStr("global", nil); v != nil {
 		global = v.ToBoolean()
 		if global {
@@ -671,21 +985,24 @@ func (r *Runtime) regexpproto_getFlags(call FunctionCall) Value {
 			size++
 		}
 	}
-	if v := thisObj.self.getStr("sticky", nil); v != nil {
-		sticky = v.ToBoolean()
-		if sticky {
-			size++
-		}
-	}
 	if v := thisObj.self.getStr("unicode", nil); v != nil {
 		unicode = v.ToBoolean()
 		if unicode {
 			size++
 		}
 	}
+	if v := thisObj.self.getStr("sticky", nil); v != nil {
+		sticky = v.ToBoolean()
+		if sticky {
+			size++
+		}
+	}
 
 	var sb strings.Builder
 	sb.Grow(size)
+	if hasIndices {
+		sb.WriteByte('d')
+	}
 	if global {
 		sb.WriteByte('g')
 	}
@@ -1332,6 +1649,52 @@ func (r *Runtime) getRegExpStringIteratorPrototype() *Object {
 	return o
 }
 
+// initLegacyRegexpStatics installs the Annex B RegExp constructor accessors.
+func (r *Runtime) initLegacyRegexpStatics(ctor objectImpl) {
+	getter := func(name string, get func(*legacyRegexpStatics) String) *Object {
+		return r.newNativeFunc(func(call FunctionCall) Value {
+			if call.This != r.global.RegExp {
+				panic(r.NewTypeError("RegExp static accessor called on incompatible receiver"))
+			}
+			return get(r.getRegexpStatics())
+		}, unistring.NewFromString("get "+name), 0)
+	}
+	setInput := r.newNativeFunc(func(call FunctionCall) Value {
+		if call.This != r.global.RegExp {
+			panic(r.NewTypeError("RegExp static accessor called on incompatible receiver"))
+		}
+		r.getRegexpStatics().input = call.Argument(0).toString()
+		return _undefined
+	}, "set input", 1)
+	addGetter := func(name string, get func(*legacyRegexpStatics) String) {
+		ctor.setOwnStr(unistring.NewFromString(name), &valueProperty{
+			getterFunc:   getter(name, get),
+			accessor:     true,
+			configurable: true,
+		}, false)
+	}
+	for i := 0; i < 9; i++ {
+		idx := i
+		addGetter(fmt.Sprintf("$%d", i+1), func(st *legacyRegexpStatics) String { return st.parens[idx] })
+	}
+	addGetter("lastMatch", func(st *legacyRegexpStatics) String { return st.lastMatch })
+	addGetter("$&", func(st *legacyRegexpStatics) String { return st.lastMatch })
+	addGetter("lastParen", func(st *legacyRegexpStatics) String { return st.lastParen })
+	addGetter("$+", func(st *legacyRegexpStatics) String { return st.lastParen })
+	addGetter("leftContext", func(st *legacyRegexpStatics) String { return st.leftContext })
+	addGetter("$`", func(st *legacyRegexpStatics) String { return st.leftContext })
+	addGetter("rightContext", func(st *legacyRegexpStatics) String { return st.rightContext })
+	addGetter("$'", func(st *legacyRegexpStatics) String { return st.rightContext })
+	for _, name := range []string{"input", "$_"} {
+		ctor.setOwnStr(unistring.NewFromString(name), &valueProperty{
+			getterFunc:   getter(name, func(st *legacyRegexpStatics) String { return st.input }),
+			setterFunc:   setInput,
+			accessor:     true,
+			configurable: true,
+		}, false)
+	}
+}
+
 func (r *Runtime) getRegExp() *Object {
 	ret := r.global.RegExp
 	if ret == nil {
@@ -1342,6 +1705,7 @@ func (r *Runtime) getRegExp() *Object {
 			r.wrapNativeConstruct(r.builtin_newRegExp, ret, proto), proto, "RegExp", intToValue(2))
 		rx := ret.self
 		rx._putProp("escape", r.newNativeFunc(r.regexp_escape, "escape", 1), true, false, true)
+		r.initLegacyRegexpStatics(rx)
 		r.putSpeciesReturnThis(rx)
 	}
 	return ret
@@ -1363,6 +1727,11 @@ func (r *Runtime) getRegExpPrototype() *Object {
 		o.setOwnStr("source", &valueProperty{
 			configurable: true,
 			getterFunc:   r.newNativeFunc(r.regexpproto_getSource, "get source", 0),
+			accessor:     true,
+		}, false)
+		o.setOwnStr("hasIndices", &valueProperty{
+			configurable: true,
+			getterFunc:   r.newNativeFunc(r.regexpproto_getHasIndices, "get hasIndices", 0),
 			accessor:     true,
 		}, false)
 		o.setOwnStr("global", &valueProperty{
@@ -1390,6 +1759,11 @@ func (r *Runtime) getRegExpPrototype() *Object {
 			getterFunc:   r.newNativeFunc(r.regexpproto_getUnicode, "get unicode", 0),
 			accessor:     true,
 		}, false)
+		o.setOwnStr("unicodeSets", &valueProperty{
+			configurable: true,
+			getterFunc:   r.newNativeFunc(r.regexpproto_getUnicodeSets, "get unicodeSets", 0),
+			accessor:     true,
+		}, false)
 		o.setOwnStr("sticky", &valueProperty{
 			configurable: true,
 			getterFunc:   r.newNativeFunc(r.regexpproto_getSticky, "get sticky", 0),
@@ -1406,7 +1780,7 @@ func (r *Runtime) getRegExpPrototype() *Object {
 		o._putSym(SymSearch, valueProp(r.newNativeFunc(r.regexpproto_stdSearch, "[Symbol.search]", 1), true, false, true))
 		o._putSym(SymSplit, valueProp(r.newNativeFunc(r.regexpproto_stdSplitter, "[Symbol.split]", 2), true, false, true))
 		o._putSym(SymReplace, valueProp(r.newNativeFunc(r.regexpproto_stdReplacer, "[Symbol.replace]", 2), true, false, true))
-		o.guard("exec", "global", "multiline", "ignoreCase", "unicode", "sticky")
+		o.guard("exec", "global", "multiline", "ignoreCase", "unicode", "sticky", "hasIndices")
 	}
 	return ret
 }
