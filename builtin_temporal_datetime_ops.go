@@ -19,6 +19,9 @@ func (r *Runtime) temporalOptionsObject(v Value) *Object {
 	if !ok {
 		panic(r.NewTypeError("options must be an object"))
 	}
+	if o == nil {
+		return nil
+	}
 	return o
 }
 
@@ -387,25 +390,7 @@ func (r *Runtime) temporalGetStringPrecision(options Value, between func()) temp
 		}
 		return p
 	}
-	if v := obj.self.getStr("fractionalSecondDigits", nil); v != nil && !IsUndefined(v) {
-		switch v.(type) {
-		case valueInt, valueFloat:
-			f := v.ToNumber().ToFloat()
-			if math.IsNaN(f) {
-				panic(r.newError(r.getRangeError(), "Invalid fractionalSecondDigits"))
-			}
-			f = math.Floor(f)
-			if f < 0 || f > 9 {
-				panic(r.newError(r.getRangeError(), "Invalid fractionalSecondDigits"))
-			}
-			p.digits = int(f)
-		default:
-			s, _ := temporalToStringOption(r, v)
-			if s != "auto" {
-				panic(r.newError(r.getRangeError(), "Invalid fractionalSecondDigits"))
-			}
-		}
-	}
+	r.temporalReadFractionalSecondDigits(obj, &p)
 	p.mode = r.parseTemporalRoundingMode(obj.self.getStr("roundingMode", nil), temporalRoundTrunc)
 	rawUnit := ""
 	hasUnit := false
@@ -417,27 +402,55 @@ func (r *Runtime) temporalGetStringPrecision(options Value, between func()) temp
 		between()
 	}
 	if hasUnit {
-		u, ok := normalizeTemporalUnit(rawUnit)
-		if !ok {
-			panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
-		}
-		switch u {
-		case "minute":
-			p.unit, p.digits = "minute", 0
-		case "second":
-			p.unit, p.digits = "second", 0
-		case "millisecond":
-			p.unit, p.digits = "millisecond", 3
-		case "microsecond":
-			p.unit, p.digits = "microsecond", 6
-		case "nanosecond":
-			p.unit, p.digits = "nanosecond", 9
-		default:
-			panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
-		}
-		p.hasUnit = true
+		r.temporalApplySmallestUnit(rawUnit, &p)
 	}
 	return p
+}
+
+func (r *Runtime) temporalReadFractionalSecondDigits(obj *Object, p *temporalStringPrecision) {
+	v := obj.self.getStr("fractionalSecondDigits", nil)
+	if v == nil || IsUndefined(v) {
+		return
+	}
+	switch v.(type) {
+	case valueInt, valueFloat:
+		f := v.ToNumber().ToFloat()
+		if math.IsNaN(f) {
+			panic(r.newError(r.getRangeError(), "Invalid fractionalSecondDigits"))
+		}
+		f = math.Floor(f)
+		if f < 0 || f > 9 {
+			panic(r.newError(r.getRangeError(), "Invalid fractionalSecondDigits"))
+		}
+		p.digits = int(f)
+	default:
+		s, _ := temporalToStringOption(r, v)
+		if s != "auto" {
+			panic(r.newError(r.getRangeError(), "Invalid fractionalSecondDigits"))
+		}
+	}
+}
+
+func (r *Runtime) temporalApplySmallestUnit(raw string, p *temporalStringPrecision) {
+	u, ok := normalizeTemporalUnit(raw)
+	if !ok {
+		panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
+	}
+	switch u {
+	case "minute":
+		p.unit, p.digits = "minute", 0
+	case "second":
+		p.unit, p.digits = "second", 0
+	case "millisecond":
+		p.unit, p.digits = "millisecond", 3
+	case "microsecond":
+		p.unit, p.digits = "microsecond", 6
+	case "nanosecond":
+		p.unit, p.digits = "nanosecond", 9
+	default:
+		panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
+	}
+	p.hasUnit = true
 }
 
 // formatISOTimeFields formats a time to the requested number of fractional
@@ -674,4 +687,183 @@ func isoMonthFromMonthCode(s string) (int64, bool) {
 		return 0, false
 	}
 	return n, true
+}
+
+// zonedFieldsResult is the result of reading a ZonedDateTime field bag.
+type zonedFieldsResult struct {
+	temporalDateTimeFieldsResult
+	tzValue     Value
+	hasTZ       bool
+	hasCalendar bool
+	offset      *big.Int
+	offsetText  string
+	hasOffset   bool
+}
+
+// temporalReadZonedDateTimeFields reads the shared ZonedDateTime field list in
+// the observable order. timeZoneFirst mirrors the order used by `with`.
+func (r *Runtime) temporalReadZonedDateTimeFields(obj *Object, base temporalDateTimeFieldsResult, timeZoneFirst bool) zonedFieldsResult {
+	out := zonedFieldsResult{temporalDateTimeFieldsResult: base}
+	if v := obj.self.getStr("calendar", nil); v != nil && !IsUndefined(v) {
+		out.provided = true
+		out.hasCalendar = true
+		out.calendar = r.temporalCalendarFromValue(v)
+	}
+	readTZ := func() {
+		if v := obj.self.getStr("timeZone", nil); v != nil && !IsUndefined(v) {
+			out.tzValue = v
+			out.hasTZ = true
+		}
+	}
+	if timeZoneFirst {
+		readTZ()
+	}
+	fields := []struct {
+		name  string
+		date  bool
+		index int
+	}{
+		{"day", true, 2},
+		{"hour", false, 0},
+		{"microsecond", false, 4},
+		{"millisecond", false, 3},
+		{"minute", false, 1},
+		{"month", true, 1},
+		{"monthCode", true, 3},
+		{"nanosecond", false, 5},
+	}
+	apply := func(name string, date bool, index int, fv Value) {
+		out.provided = true
+		if name == "monthCode" {
+			s := r.temporalRequireString(fv)
+			if !wellFormedMonthCode(s) {
+				panic(r.newError(r.getRangeError(), "Invalid monthCode"))
+			}
+			out.monthCode = s
+			out.hasMonthCd = true
+			return
+		}
+		var v int64
+		if date && (index == 1 || index == 2) {
+			v = r.temporalPositiveIntegerValue(fv)
+		} else {
+			v = r.temporalTimeFieldValue(fv)
+		}
+		if date {
+			switch index {
+			case 1:
+				if !out.monthSet && !out.hasMonthCd {
+					out.date.month = v
+					out.monthSet = true
+					out.haveMonth = true
+				}
+			case 2:
+				out.date.day = v
+				out.haveDay = true
+			}
+		} else {
+			switch index {
+			case 0:
+				out.time.hour = v
+			case 1:
+				out.time.minute = v
+			case 2:
+				out.time.second = v
+			case 3:
+				out.time.millisecond = v
+			case 4:
+				out.time.microsecond = v
+			case 5:
+				out.time.nanosecond = v
+			}
+		}
+	}
+	for _, f := range fields {
+		fv := obj.self.getStr(unistring.NewFromString(f.name), nil)
+		if fv == nil || IsUndefined(fv) {
+			continue
+		}
+		apply(f.name, f.date, f.index, fv)
+	}
+	if v := obj.self.getStr("offset", nil); v != nil && !IsUndefined(v) {
+		out.provided = true
+		str := r.temporalRequireString(v)
+		off, ok := parseTemporalOffsetString(str)
+		if !ok {
+			panic(r.newError(r.getRangeError(), "Invalid offset"))
+		}
+		out.offset = off
+		out.offsetText = str
+		out.hasOffset = true
+	}
+	if v := obj.self.getStr("second", nil); v != nil && !IsUndefined(v) {
+		apply("second", false, 2, v)
+	}
+	if !timeZoneFirst {
+		readTZ()
+	}
+	if v := obj.self.getStr("year", nil); v != nil && !IsUndefined(v) {
+		out.provided = true
+		out.date.year = r.temporalTimeFieldValue(v)
+		out.haveYear = true
+	}
+	return out
+}
+
+func (r *Runtime) temporalGetDisambiguationOption(obj *Object) string {
+	if obj == nil {
+		return "compatible"
+	}
+	v := obj.self.getStr("disambiguation", nil)
+	if v == nil || IsUndefined(v) {
+		return "compatible"
+	}
+	str, _ := temporalToStringOption(r, v)
+	switch str {
+	case "compatible", "earlier", "later", "reject":
+		return str
+	}
+	panic(r.newError(r.getRangeError(), "Invalid disambiguation option"))
+}
+
+func (r *Runtime) temporalGetOffsetOption(obj *Object, def string) string {
+	if obj == nil {
+		return def
+	}
+	v := obj.self.getStr("offset", nil)
+	if v == nil || IsUndefined(v) {
+		return def
+	}
+	str, _ := temporalToStringOption(r, v)
+	switch str {
+	case "use", "prefer", "ignore", "reject":
+		return str
+	}
+	panic(r.newError(r.getRangeError(), "Invalid offset option"))
+}
+
+// zonedResolve resolves a local wall-clock time and optional offset to an
+// instant, applying the disambiguation and offset options.
+func (r *Runtime) zonedResolve(zone *temporalZone, local *big.Int, offset *big.Int, hasOffset bool, disambiguation, offsetOpt string) *big.Int {
+	if hasOffset && offsetOpt != "ignore" {
+		exact := new(big.Int).Sub(local, offset)
+		if offsetOpt == "use" {
+			return exact
+		}
+		if zone.offsetAt(exact).Cmp(offset) == 0 {
+			return exact
+		}
+		if offsetOpt == "reject" {
+			panic(r.newError(r.getRangeError(), "Offset does not match time zone"))
+		}
+		// prefer: fall back to the wall-clock interpretation.
+	}
+	if offsetOpt != "ignore" && !r.validInstant(local) {
+		panic(r.newError(r.getRangeError(), "Wall-clock time is out of range"))
+	}
+	inst := zone.instantFromLocalDisambiguation(local, disambiguation)
+	if inst == nil {
+		panic(r.newError(r.getRangeError(), "Wall-clock time does not exist in time zone"))
+	}
+	return inst
 }

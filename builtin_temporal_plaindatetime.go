@@ -145,7 +145,7 @@ func (r *Runtime) getTemporalPlainDateTimePrototype() *Object {
 		o._putProp("withCalendar", r.newNativeFunc(r.temporalPlainDateTimeWithCalendar, "withCalendar", 1), true, false, true)
 		o._putProp("withPlainTime", r.newNativeFunc(r.temporalPlainDateTimeWithPlainTime, "withPlainTime", 0), true, false, true)
 		o._putProp("getISOFields", r.newNativeFunc(r.temporalPlainDateTimeGetISOFields, "getISOFields", 0), true, false, true)
-		o._putProp("toZonedDateTime", r.newNativeFunc(r.temporalPlainDateNotImplemented, "toZonedDateTime", 1), true, false, true)
+		o._putProp("toZonedDateTime", r.newNativeFunc(r.temporalPlainDateTimeToZonedDateTime, "toZonedDateTime", 1), true, false, true)
 		o._putSym(SymToStringTag, &valueProperty{
 			value: asciiString("Temporal.PlainDateTime"), writable: false, enumerable: false, configurable: true,
 		})
@@ -202,6 +202,11 @@ func (r *Runtime) temporalPlainDateTimeFromValue(v Value, options Value) *tempor
 		if pd, ok := o.self.(*temporalPlainDateObject); ok {
 			_ = r.temporalOverflowOption(options)
 			return r.plainDateTimeFieldsObject(pd.date, isoTime{}, pd.calendar)
+		}
+		if z, ok := o.self.(*temporalZonedDateTimeObject); ok {
+			_ = r.temporalOverflowOption(options)
+			d, tm, _ := z.zone.localDateTime(z.epochNs)
+			return r.plainDateTimeFieldsObject(d, tm, z.calendar)
 		}
 	}
 	if s, ok := v.(String); ok {
@@ -644,6 +649,35 @@ func (r *Runtime) temporalPlainDateTimeWithPlainTime(call FunctionCall) Value {
 		panic(r.newError(r.getRangeError(), "Resulting date-time is out of range"))
 	}
 	return r.newTemporalPlainDateTimeObject(d.date, tm, d.calendar, r.getTemporalPlainDateTimePrototype())
+}
+
+func (r *Runtime) temporalPlainDateTimeToZonedDateTime(call FunctionCall) Value {
+	d := r.toTemporalPlainDateTime(call.This)
+	arg := call.Argument(0)
+	var zone *temporalZone
+	if o, ok := arg.(*Object); ok {
+		if z, ok := o.self.(*temporalZonedDateTimeObject); ok {
+			zone = z.zone
+		} else {
+			v := o.self.getStr("timeZone", nil)
+			if v == nil || IsUndefined(v) {
+				panic(r.NewTypeError("timeZone is required"))
+			}
+			zone = r.parseTemporalZone(v)
+		}
+	} else {
+		zone = r.parseTemporalZone(arg)
+	}
+	optsObj := r.temporalOptionsObject(call.Argument(1))
+	disambiguation := r.temporalGetDisambiguationOption(optsObj)
+	_ = r.temporalOverflowOption(call.Argument(1))
+	local := new(big.Int).Mul(big.NewInt(d.date.days()), temporalBigDayNs)
+	local.Add(local, big.NewInt(d.time.nanos()))
+	ns := r.zonedResolve(zone, local, nil, false, disambiguation, "reject")
+	if ns == nil || !r.validInstant(ns) {
+		panic(r.newError(r.getRangeError(), "ZonedDateTime is out of range"))
+	}
+	return r.newTemporalZonedDateTimeObject(ns, zone, d.calendar, r.getTemporalZonedDateTimePrototype())
 }
 
 func (r *Runtime) temporalPlainDateTimeGetISOFields(call FunctionCall) Value {

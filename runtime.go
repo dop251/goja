@@ -99,6 +99,8 @@ type global struct {
 	TemporalPlainDateTimePrototype *Object
 	TemporalInstant                *Object
 	TemporalInstantPrototype       *Object
+	TemporalZonedDateTime          *Object
+	TemporalZonedDateTimePrototype *Object
 
 	Error          *Object
 	AggregateError *Object

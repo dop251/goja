@@ -145,6 +145,11 @@ func (r *Runtime) temporalPlainTimeFromValue(v Value, options Value) *temporalPl
 			_ = r.temporalOverflowOption(options)
 			return r.plainTimeFieldsObject(dt.time.hour, dt.time.minute, dt.time.second, dt.time.millisecond, dt.time.microsecond, dt.time.nanosecond)
 		}
+		if z, ok := o.self.(*temporalZonedDateTimeObject); ok {
+			_ = r.temporalOverflowOption(options)
+			_, tm, _ := z.zone.localDateTime(z.epochNs)
+			return r.plainTimeFieldsObject(tm.hour, tm.minute, tm.second, tm.millisecond, tm.microsecond, tm.nanosecond)
+		}
 	}
 	if s, ok := v.(String); ok {
 		h, mi, sec, ms, us, ns, ok := parseTemporalPlainTimeString(s.String())

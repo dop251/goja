@@ -22,8 +22,9 @@ func (r *Runtime) getTemporal() *Object {
 		o._putProp("PlainTime", r.getTemporalPlainTime(), true, false, true)
 		o._putProp("PlainDateTime", r.getTemporalPlainDateTime(), true, false, true)
 		o._putProp("Instant", r.getTemporalInstant(), true, false, true)
+		o._putProp("ZonedDateTime", r.getTemporalZonedDateTime(), true, false, true)
 		for _, name := range []string{
-			"ZonedDateTime", "PlainYearMonth", "PlainMonthDay"} {
+			"PlainYearMonth", "PlainMonthDay"} {
 			o._putProp(unistring.NewFromString(name), r.newTemporalStub(name), true, false, true)
 		}
 		now := r.NewObject()

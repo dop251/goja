@@ -124,6 +124,9 @@ func (r *Runtime) temporalInstantFromValue(v Value) *temporalInstantObject {
 		if t, ok := o.self.(*temporalInstantObject); ok {
 			return t
 		}
+		if z, ok := o.self.(*temporalZonedDateTimeObject); ok {
+			return r.newTemporalInstantObject(z.epochNs, r.getTemporalInstantPrototype()).self.(*temporalInstantObject)
+		}
 	}
 	switch v.(type) {
 	case String, *Object:
@@ -415,7 +418,9 @@ func (r *Runtime) temporalInstantValueOf(call FunctionCall) Value {
 }
 
 func (r *Runtime) temporalInstantToZonedDateTimeISO(call FunctionCall) Value {
-	panic(r.NewTypeError("Temporal.ZonedDateTime is not implemented yet"))
+	t := r.toTemporalInstant(call.This)
+	zone := r.parseTemporalZone(call.Argument(0))
+	return r.newTemporalZonedDateTimeObject(t.epochNs, zone, "iso8601", r.getTemporalZonedDateTimePrototype())
 }
 
 // parseTemporalOffsetString parses a UTC offset such as +01:00, -0130 or

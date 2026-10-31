@@ -245,7 +245,11 @@ func calendarFromISOString(s string) (string, bool) {
 		return "iso8601", true
 	}
 	if strings.Contains(s, "[") {
-		return "", false
+		base, _, ok := splitTemporalAnnotations(s)
+		if !ok {
+			return "", false
+		}
+		s = base
 	}
 	if _, _, _, ok := parseTemporalPlainDateTimeString(s); ok {
 		return "iso8601", true
@@ -386,7 +390,7 @@ func (r *Runtime) getTemporalPlainDatePrototype() *Object {
 		o._putProp("valueOf", r.newNativeFunc(r.temporalPlainDateValueOf, "valueOf", 0), true, false, true)
 		o._putProp("getISOFields", r.newNativeFunc(r.temporalPlainDateGetISOFields, "getISOFields", 0), true, false, true)
 		o._putProp("toPlainDateTime", r.newNativeFunc(r.temporalPlainDateToPlainDateTime, "toPlainDateTime", 0), true, false, true)
-		o._putProp("toZonedDateTime", r.newNativeFunc(r.temporalPlainDateNotImplemented, "toZonedDateTime", 1), true, false, true)
+		o._putProp("toZonedDateTime", r.newNativeFunc(r.temporalPlainDateToZonedDateTime, "toZonedDateTime", 1), true, false, true)
 		o._putProp("toPlainYearMonth", r.newNativeFunc(r.temporalPlainDateNotImplemented, "toPlainYearMonth", 0), true, false, true)
 		o._putProp("toPlainMonthDay", r.newNativeFunc(r.temporalPlainDateNotImplemented, "toPlainMonthDay", 0), true, false, true)
 		o._putSym(SymToStringTag, &valueProperty{
@@ -422,6 +426,13 @@ func (r *Runtime) temporalPlainDateFromValue(v Value, options Value) *temporalPl
 	if o, ok := v.(*Object); ok {
 		if d, ok := o.self.(*temporalPlainDateObject); ok {
 			return d
+		}
+		if z, ok := o.self.(*temporalZonedDateTimeObject); ok {
+			d, _, _ := z.zone.localDateTime(z.epochNs)
+			return r.plainDateFieldsObject(d, z.calendar)
+		}
+		if dt, ok := o.self.(*temporalPlainDateTimeObject); ok {
+			return r.plainDateFieldsObject(dt.date, dt.calendar)
 		}
 	}
 	if s, ok := v.(String); ok {
@@ -510,6 +521,9 @@ func (r *Runtime) temporalOverflowOption(options Value) string {
 	obj, ok := options.(*Object)
 	if !ok {
 		panic(r.NewTypeError("options must be an object"))
+	}
+	if obj == nil {
+		return "constrain"
 	}
 	v := obj.self.getStr("overflow", nil)
 	if v == nil || IsUndefined(v) {
@@ -784,7 +798,7 @@ func isDigits(s string) bool {
 }
 
 func isTimeZoneAnnotation(ann string) bool {
-	if ann == "UTC" || ann == "Z" {
+	if asciiEqualFold(ann, "UTC") || asciiEqualFold(ann, "GMT") || ann == "Z" || ann == "z" {
 		return true
 	}
 	if strings.ContainsAny(ann, "/") {
@@ -1226,6 +1240,38 @@ func addISOMonths(d isoDate, months int64) isoDate {
 		day = max
 	}
 	return isoDate{year: y, month: m, day: day}
+}
+
+func (r *Runtime) temporalPlainDateToZonedDateTime(call FunctionCall) Value {
+	d := r.toTemporalPlainDate(call.This)
+	arg := call.Argument(0)
+	var zone *temporalZone
+	tm := isoTime{}
+	if o, ok := arg.(*Object); ok {
+		if z, ok := o.self.(*temporalZonedDateTimeObject); ok {
+			zone = z.zone
+		} else {
+			v := o.self.getStr("timeZone", nil)
+			if v == nil || IsUndefined(v) {
+				panic(r.NewTypeError("timeZone is required"))
+			}
+			zone = r.parseTemporalZone(v)
+			if pt := o.self.getStr("plainTime", nil); pt != nil && !IsUndefined(pt) {
+				t := r.temporalPlainTimeFromValue(pt, _undefined)
+				tm = isoTime{hour: t.hour, minute: t.minute, second: t.second,
+					millisecond: t.millisecond, microsecond: t.microsecond, nanosecond: t.nanosecond}
+			}
+		}
+	} else {
+		zone = r.parseTemporalZone(arg)
+	}
+	local := new(big.Int).Mul(big.NewInt(d.date.days()), temporalBigDayNs)
+	local.Add(local, big.NewInt(tm.nanos()))
+	ns := zone.instantFromLocal(local)
+	if ns == nil || !r.validInstant(ns) {
+		panic(r.newError(r.getRangeError(), "ZonedDateTime is out of range"))
+	}
+	return r.newTemporalZonedDateTimeObject(ns, zone, d.calendar, r.getTemporalZonedDateTimePrototype())
 }
 
 func (r *Runtime) temporalPlainDateToPlainDateTime(call FunctionCall) Value {

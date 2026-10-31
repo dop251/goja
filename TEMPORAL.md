@@ -62,31 +62,35 @@ once the namespace is complete.
       `PlainDateTime` — **437 / 533 tests pass**
 - [x] PlainDate: constructor, `from`, getters, `with`, `withCalendar`, `add`,
       `subtract`, `until`, `since`, `equals`, `compare`, `toString`,
-      `toJSON`, `toPlainDateTime`, `getISOFields` — **557 / 648 tests pass**
+      `toJSON`, `toPlainDateTime`, `toZonedDateTime`, `getISOFields` —
+      **610 / 648 tests pass**
 - [ ] PlainDate cross-type methods (`toZonedDateTime`, `toPlainYearMonth`,
       `toPlainMonthDay`) — need the remaining types
 - [x] PlainTime: constructor, `from`, getters, `with`, `add`, `subtract`,
       `until`, `since`, `round`, `equals`, `compare`, `toString`, `toJSON`,
-      `getISOFields` — **482 / 493 tests pass** (remaining failures need
-      `ZonedDateTime` / `PlainMonthDay` conversion)
+      `getISOFields` — **492 / 493 tests pass** (the last failure needs
+      `PlainMonthDay` conversion)
 - [x] PlainDateTime: constructor, `from`, getters, `with`, `withCalendar`,
       `withPlainTime`, `add`, `subtract`, `until`, `since`, `round`, `equals`,
       `compare`, `toString`, `toJSON`, `toPlainDate`, `toPlainTime`,
-      `getISOFields` — **725 / 769 tests pass** (remaining failures are the
-      `toZonedDateTime` method and cross-type conversions that need
-      `ZonedDateTime` / `PlainMonthDay`)
+      `getISOFields` — **758 / 769 tests pass** (remaining failures are
+      cross-type conversions that need `PlainYearMonth` / `PlainMonthDay`)
 - [x] Instant: constructor, `from`, `fromEpochMilliseconds`,
       `fromEpochNanoseconds`, `epochMilliseconds`, `epochNanoseconds`, `add`,
       `subtract`, `until`, `since`, `round`, `equals`, `compare`, `toString`,
-      `toJSON`, `toLocaleString` — **449 / 465 tests pass** (`toZonedDateTimeISO`
-      and `ZonedDateTime` conversion need time zone support)
+      `toJSON`, `toLocaleString`, `toZonedDateTimeISO` — **465 / 465 tests
+      pass**
+- [x] ZonedDateTime (IANA time zones through Go's `time` package, fixed
+      offsets, DST-aware wall-clock arithmetic, `getTimeZoneTransition`) —
+      **886 / 899 tests pass** (the remainder needs `PlainYearMonth` /
+      `PlainMonthDay` and a few boundary cases)
 - [ ] PlainYearMonth / PlainMonthDay
 - [ ] TimeZone / ZonedDateTime / Now
 
 ### Development placeholders
 
 Until the remaining types are implemented, `Temporal` exposes placeholder
-constructors for `ZonedDateTime`, `PlainYearMonth`, and `PlainMonthDay`. The placeholders throw when constructed
+constructors for `PlainYearMonth` and `PlainMonthDay`. The placeholders throw when constructed
 or called; they exist so test262 helper code that does
 `x instanceof Temporal.PlainDateTime` keeps working while Duration and
 PlainDate are tested in isolation. They must be replaced by the real
@@ -94,8 +98,8 @@ implementations before this is submitted upstream.
 
 The current remaining failures in Duration and PlainDate are mostly:
 
-- `relativeTo` values that are `ZonedDateTime`
-- `Instant.toZonedDateTimeISO()`
+- exact `Duration.total` / `Duration.round` with a `ZonedDateTime`
+  `relativeTo`
 - `PlainDate.toPlainDateTime()` / `toZonedDateTime()` (cross-type)
 - `PlainTime.toPlainDateTime()` (cross-type)
 - the last few calendar rounding edge cases and option-ordering tests
