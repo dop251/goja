@@ -88,19 +88,23 @@ type global struct {
 	Map     *Object
 	Set     *Object
 
-	Temporal                       *Object
-	TemporalDuration               *Object
-	TemporalDurationPrototype      *Object
-	TemporalPlainDate              *Object
-	TemporalPlainDatePrototype     *Object
-	TemporalPlainTime              *Object
-	TemporalPlainTimePrototype     *Object
-	TemporalPlainDateTime          *Object
-	TemporalPlainDateTimePrototype *Object
-	TemporalInstant                *Object
-	TemporalInstantPrototype       *Object
-	TemporalZonedDateTime          *Object
-	TemporalZonedDateTimePrototype *Object
+	Temporal                        *Object
+	TemporalDuration                *Object
+	TemporalDurationPrototype       *Object
+	TemporalPlainDate               *Object
+	TemporalPlainDatePrototype      *Object
+	TemporalPlainTime               *Object
+	TemporalPlainTimePrototype      *Object
+	TemporalPlainDateTime           *Object
+	TemporalPlainDateTimePrototype  *Object
+	TemporalInstant                 *Object
+	TemporalInstantPrototype        *Object
+	TemporalZonedDateTime           *Object
+	TemporalZonedDateTimePrototype  *Object
+	TemporalPlainYearMonth          *Object
+	TemporalPlainYearMonthPrototype *Object
+	TemporalPlainMonthDay           *Object
+	TemporalPlainMonthDayPrototype  *Object
 
 	Error          *Object
 	AggregateError *Object

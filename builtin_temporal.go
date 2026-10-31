@@ -23,18 +23,9 @@ func (r *Runtime) getTemporal() *Object {
 		o._putProp("PlainDateTime", r.getTemporalPlainDateTime(), true, false, true)
 		o._putProp("Instant", r.getTemporalInstant(), true, false, true)
 		o._putProp("ZonedDateTime", r.getTemporalZonedDateTime(), true, false, true)
-		for _, name := range []string{
-			"PlainYearMonth", "PlainMonthDay"} {
-			o._putProp(unistring.NewFromString(name), r.newTemporalStub(name), true, false, true)
-		}
-		now := r.NewObject()
-		for _, name := range []string{"instant", "plainDateTimeISO", "plainDateISO",
-			"plainTimeISO", "zonedDateTimeISO", "timeZoneId"} {
-			now.Set(name, r.newNativeFunc(func(call FunctionCall) Value {
-				panic(r.NewTypeError("Temporal.Now is not implemented yet"))
-			}, unistring.NewFromString(name), 0))
-		}
-		o._putProp("Now", now, true, false, true)
+		o._putProp("PlainYearMonth", r.getTemporalPlainYearMonth(), true, false, true)
+		o._putProp("PlainMonthDay", r.getTemporalPlainMonthDay(), true, false, true)
+		o._putProp("Now", r.getTemporalNow(), true, false, true)
 		o._putSym(SymToStringTag, &valueProperty{
 			value:        asciiString("Temporal"),
 			writable:     false,
@@ -610,6 +601,11 @@ func (r *Runtime) temporalDurationRound(call FunctionCall) Value {
 // anchored at the start of relativeTo's day. This handles calendar units and
 // time-of-day fractions uniformly.
 func (r *Runtime) roundDurationRelativeToPlainDate(d *temporalDurationObject, rel *temporalPlainDateObject, largest, smallest string, increment int64, mode temporalRoundingMode, hasSmallest bool) Value {
+	if hasSmallest && smallest == "month" && increment > 1 {
+		if e := temporalUnitIndex(largest); largest == "" || e <= 0 {
+			panic(r.newError(r.getRangeError(), "Cannot round months while balancing to years"))
+		}
+	}
 	fields := d.fields()
 	date := addISOMonths(rel.date, int64(fields[0])*12+int64(fields[1]))
 	dayNanos := big.NewInt(86400e9)
@@ -851,81 +847,101 @@ func (r *Runtime) durationTotalRelative(d *temporalDurationObject, rel *temporal
 	fields := d.fields()
 	dateEnd := rel.date
 	dateEnd = addISOMonths(dateEnd, int64(fields[0])*12+int64(fields[1]))
-	dateEnd = isoDate{year: dateEnd.year, month: dateEnd.month, day: dateEnd.day}
 	if fields[2] != 0 {
 		dateEnd = addISODays(dateEnd, int64(fields[2])*7)
 	}
 	dateEnd = addISODays(dateEnd, int64(fields[3]))
-	// Time part in days (fractional).
-	timeRat := new(big.Rat)
-	addTime := func(v float64, mul float64) {
+
+	// Time part as an exact number of days.
+	timeSecs := new(big.Rat)
+	addTime := func(v float64, mul int64) {
 		if v != 0 {
-			timeRat.Add(timeRat, new(big.Rat).SetFloat64(v*mul))
+			timeSecs.Add(timeSecs, new(big.Rat).Mul(new(big.Rat).SetFloat64(v), big.NewRat(mul, 1)))
 		}
 	}
 	addTime(fields[4], 3600)
 	addTime(fields[5], 60)
 	addTime(fields[6], 1)
-	addTime(fields[7], 1.0/1e3)
-	addTime(fields[8], 1.0/1e6)
-	addTime(fields[9], 1.0/1e9)
-	timeDays, _ := new(big.Rat).Quo(timeRat, big.NewRat(86400, 1)).Float64()
+	addFrac := func(v float64, denom int64) {
+		if v != 0 {
+			timeSecs.Add(timeSecs, new(big.Rat).Quo(new(big.Rat).SetFloat64(v), big.NewRat(denom, 1)))
+		}
+	}
+	addFrac(fields[7], 1e3)
+	addFrac(fields[8], 1e6)
+	addFrac(fields[9], 1e9)
+	timeDays := new(big.Rat).Quo(timeSecs, big.NewRat(86400, 1))
 
-	wholeDays := float64(dateEnd.days() - rel.date.days())
+	// Fold the whole days of the time part into the end date; keep the
+	// sub-day fraction for the calendar-unit remainder.
+	timeFloor := new(big.Int).Quo(timeDays.Num(), timeDays.Denom())
+	if !timeDays.IsInt() && timeDays.Sign() < 0 {
+		timeFloor.Sub(timeFloor, big1)
+	}
+	dateEnd = addISODays(dateEnd, timeFloor.Int64())
+	timeFrac := new(big.Rat).Sub(timeDays, new(big.Rat).SetInt(timeFloor))
+
+	wholeDays := new(big.Rat).SetInt64(dateEnd.days() - rel.date.days())
+	totalDays := new(big.Rat).Add(wholeDays, timeFrac)
+
+	var result *big.Rat
 	switch unit {
 	case "day":
-		return wholeDays + timeDays
+		result = totalDays
 	case "week":
-		return (wholeDays + timeDays) / 7
+		result = new(big.Rat).Quo(totalDays, big.NewRat(7, 1))
 	case "hour":
-		return (wholeDays+timeDays)*24 + timeRatHours(fields)
+		result = new(big.Rat).Mul(totalDays, big.NewRat(24, 1))
 	case "minute":
-		return (wholeDays+timeDays)*1440 + timeRatMinutes(fields)
+		result = new(big.Rat).Mul(totalDays, big.NewRat(1440, 1))
 	case "second":
-		return (wholeDays+timeDays)*86400 + timeRatSeconds(fields)
+		result = new(big.Rat).Mul(totalDays, big.NewRat(86400, 1))
 	case "millisecond":
-		return (wholeDays+timeDays)*86400*1e3 + timeRatSeconds(fields)*1e3
+		result = new(big.Rat).Mul(totalDays, big.NewRat(86400*1e3, 1))
 	case "microsecond":
-		return (wholeDays+timeDays)*86400*1e6 + timeRatSeconds(fields)*1e6
+		result = new(big.Rat).Mul(totalDays, big.NewRat(86400*1e6, 1))
 	case "nanosecond":
-		return (wholeDays+timeDays)*86400*1e9 + timeRatSeconds(fields)*1e9
+		result = new(big.Rat).Mul(totalDays, big.NewRat(86400*1e9, 1))
+	default:
+		// Calendar units: whole months/years plus a fractional remainder
+		// based on the length of the following unit.
+		start, end := rel.date, dateEnd
+		neg := false
+		if start.days() > end.days() {
+			start, end = end, start
+			neg = true
+		}
+		totalMonths := (end.year-start.year)*12 + (end.month - start.month)
+		if end.day < start.day {
+			totalMonths--
+		}
+		if totalMonths < 0 {
+			totalMonths = 0
+		}
+		mid := addISOMonths(start, totalMonths)
+		rem := new(big.Rat).SetInt64(end.days() - mid.days())
+		rem.Add(rem, timeFrac)
+		if unit == "month" {
+			next := addISOMonths(start, totalMonths+1)
+			denom := next.days() - mid.days()
+			result = new(big.Rat).SetInt64(totalMonths)
+			result.Add(result, new(big.Rat).Quo(rem, big.NewRat(denom, 1)))
+		} else {
+			years := totalMonths / 12
+			midY := addISOMonths(start, years*12)
+			nextY := addISOMonths(midY, 12)
+			denom := nextY.days() - midY.days()
+			remY := new(big.Rat).SetInt64(end.days() - midY.days())
+			remY.Add(remY, timeFrac)
+			result = new(big.Rat).SetInt64(years)
+			result.Add(result, new(big.Rat).Quo(remY, big.NewRat(denom, 1)))
+		}
+		if neg {
+			result.Neg(result)
+		}
 	}
-
-	// Calendar units: whole months/years between rel and dateEnd, plus a
-	// fractional remainder based on the next unit's length.
-	start, end := rel.date, dateEnd
-	neg := false
-	if start.days() > end.days() {
-		start, end = end, start
-		neg = true
-	}
-	totalMonths := (end.year-start.year)*12 + (end.month - start.month)
-	if end.day < start.day {
-		totalMonths--
-	}
-	if totalMonths < 0 {
-		totalMonths = 0
-	}
-	mid := addISOMonths(start, totalMonths)
-	rem := float64(end.days() - mid.days())
-	var result float64
-	if unit == "month" {
-		next := addISOMonths(start, totalMonths+1)
-		denom := float64(next.days() - mid.days())
-		result = float64(totalMonths) + rem/denom
-	} else { // year
-		years := totalMonths / 12
-		midY := addISOMonths(start, years*12)
-		nextY := addISOMonths(midY, 12)
-		denom := float64(nextY.days() - midY.days())
-		rem := float64(end.days() - midY.days())
-		result = float64(years) + rem/denom
-	}
-	result += timeDays / 365
-	if neg {
-		result = -result
-	}
-	return result
+	f, _ := result.Float64()
+	return f
 }
 
 func timeRatHours(f [10]float64) float64 {

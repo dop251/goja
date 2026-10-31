@@ -161,15 +161,50 @@ func temporalTimeFieldsFromNanos(ns *big.Int, largestUnitIndex int, out *[10]flo
 // at largestUnit, relative to start.
 func (r *Runtime) temporalDateFieldsFromDays(start isoDate, days int64, largest string) [10]float64 {
 	fields := [10]float64{}
-	startObj := r.plainDateFieldsObject(start, "iso8601")
-	endObj := r.plainDateFieldsObject(addISODays(start, days), "iso8601")
-	opts := r.NewObject()
-	opts.Set("largestUnit", r.ToValue(largest))
-	dur := r.temporalPlainDateDifference(startObj, endObj, opts, false).(*Object)
-	fields[0] = float64(dur.Get("years").ToInteger())
-	fields[1] = float64(dur.Get("months").ToInteger())
-	fields[2] = float64(dur.Get("weeks").ToInteger())
-	fields[3] = float64(dur.Get("days").ToInteger())
+	if days == 0 {
+		return fields
+	}
+	sign := int64(1)
+	if days < 0 {
+		sign = -1
+		days = -days
+	}
+	switch largest {
+	case "day":
+		fields[3] = float64(sign * days)
+	case "week":
+		fields[2] = float64(sign * (days / 7))
+		fields[3] = float64(sign * (days % 7))
+	default:
+		end := addISODays(start, sign*days)
+		if sign > 0 {
+			total := (end.year-start.year)*12 + (end.month - start.month)
+			for total > 0 && addISOMonths(start, total).days() > end.days() {
+				total--
+			}
+			mid := addISOMonths(start, total)
+			rem := end.days() - mid.days()
+			y := total / 12
+			m := total % 12
+			if largest == "month" {
+				y, m = 0, total
+			}
+			fields[0], fields[1], fields[3] = float64(y), float64(m), float64(rem)
+		} else {
+			total := (start.year-end.year)*12 + (start.month - end.month)
+			for total > 0 && addISOMonths(start, -total).days() < end.days() {
+				total--
+			}
+			mid := addISOMonths(start, -total)
+			rem := end.days() - mid.days()
+			y := total / 12
+			m := total % 12
+			if largest == "month" {
+				y, m = 0, total
+			}
+			fields[0], fields[1], fields[3] = float64(-y), float64(-m), float64(rem)
+		}
+	}
 	return fields
 }
 
@@ -221,6 +256,9 @@ func (r *Runtime) temporalRoundDateTimeSpan(sd isoDate, st isoTime, ed isoDate, 
 	startNanos := isoDateTimeNanos(sd, st)
 	endNanos := isoDateTimeNanos(ed, et)
 	diff := new(big.Int).Sub(endNanos, startNanos)
+	if diff.Sign() == 0 {
+		return [10]float64{}
+	}
 
 	unit := s.smallest
 	inc := s.increment
@@ -303,6 +341,12 @@ func (r *Runtime) temporalRoundDateTimeSpan(sd isoDate, st isoTime, ed isoDate, 
 		panic(r.newError(r.getRangeError(), "Resulting date-time is out of range"))
 	}
 	fields := r.temporalDateFieldsFromDays(sd, targetDate.days()-sd.days(), s.largest)
+	if s.smallest == "week" && temporalUnitIndex(s.largest) < 2 {
+		if fields[3] != 0 {
+			fields[2] = float64(int64(fields[3]) / 7)
+			fields[3] = 0
+		}
+	}
 	return fields
 }
 

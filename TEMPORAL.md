@@ -55,52 +55,43 @@ once the namespace is complete.
 
 ## Status
 
-- [x] core (ISO arithmetic, float64-backed duration fields, exact `big.Rat` totals)
+- [x] core (ISO arithmetic, exact `big.Rat`/`big.Int` totals)
 - [x] Duration: constructor, `from`, getters, `with`, `negated`, `abs`, `add`,
       `subtract`, `compare`, `total`, `round`, `toString`, `toJSON`,
-      `toLocaleString`, including `relativeTo` for `PlainDate` and
-      `PlainDateTime` — **437 / 533 tests pass**
+      `toLocaleString`, including `relativeTo` for `PlainDate`,
+      `PlainDateTime` and `ZonedDateTime` — **462 / 533 tests pass**
 - [x] PlainDate: constructor, `from`, getters, `with`, `withCalendar`, `add`,
       `subtract`, `until`, `since`, `equals`, `compare`, `toString`,
-      `toJSON`, `toPlainDateTime`, `toZonedDateTime`, `getISOFields` —
-      **610 / 648 tests pass**
-- [ ] PlainDate cross-type methods (`toZonedDateTime`, `toPlainYearMonth`,
-      `toPlainMonthDay`) — need the remaining types
+      `toJSON`, `toPlainDateTime`, `toZonedDateTime`, `toPlainYearMonth`,
+      `toPlainMonthDay`, `getISOFields` — **648 / 648 tests pass**
 - [x] PlainTime: constructor, `from`, getters, `with`, `add`, `subtract`,
       `until`, `since`, `round`, `equals`, `compare`, `toString`, `toJSON`,
-      `getISOFields` — **492 / 493 tests pass** (the last failure needs
-      `PlainMonthDay` conversion)
+      `getISOFields`, `toPlainDateTime` — **493 / 493 tests pass**
 - [x] PlainDateTime: constructor, `from`, getters, `with`, `withCalendar`,
       `withPlainTime`, `add`, `subtract`, `until`, `since`, `round`, `equals`,
       `compare`, `toString`, `toJSON`, `toPlainDate`, `toPlainTime`,
-      `getISOFields` — **758 / 769 tests pass** (remaining failures are
-      cross-type conversions that need `PlainYearMonth` / `PlainMonthDay`)
+      `toZonedDateTime`, `toPlainYearMonth`, `toPlainMonthDay`,
+      `getISOFields` — **769 / 769 tests pass**
 - [x] Instant: constructor, `from`, `fromEpochMilliseconds`,
       `fromEpochNanoseconds`, `epochMilliseconds`, `epochNanoseconds`, `add`,
       `subtract`, `until`, `since`, `round`, `equals`, `compare`, `toString`,
       `toJSON`, `toLocaleString`, `toZonedDateTimeISO` — **465 / 465 tests
       pass**
-- [x] ZonedDateTime (IANA time zones through Go's `time` package, fixed
-      offsets, DST-aware wall-clock arithmetic, `getTimeZoneTransition`) —
-      **886 / 899 tests pass** (the remainder needs `PlainYearMonth` /
-      `PlainMonthDay` and a few boundary cases)
-- [ ] PlainYearMonth / PlainMonthDay
-- [ ] TimeZone / ZonedDateTime / Now
+- [x] ZonedDateTime: IANA and fixed-offset time zones, DST-aware wall-clock
+      arithmetic, `getTimeZoneTransition`, and the full date/time surface —
+      **894 / 899 tests pass** (remaining failures are a few ISO-limit edge
+      cases)
+- [x] PlainYearMonth: constructor, `from`, getters, `with`, `add`, `subtract`,
+      `until`, `since`, `equals`, `compare`, `toString`, `toJSON`,
+      `toPlainDate`, `getISOFields` — **507 / 507 tests pass**
+- [x] PlainMonthDay: constructor, `from`, getters, `with`, `equals`,
+      `toString`, `toJSON`, `toPlainDate`, `getISOFields` — **199 / 199 tests
+      pass**
+- [x] `Temporal.Now` (system clock, optional time zone)
+- [ ] exact calendar-unit `Duration.total`/`compare` for a few remaining
+      relative-to cases
+- [ ] non-ISO calendars / Intl integration
 
-### Development placeholders
-
-Until the remaining types are implemented, `Temporal` exposes placeholder
-constructors for `PlainYearMonth` and `PlainMonthDay`. The placeholders throw when constructed
-or called; they exist so test262 helper code that does
-`x instanceof Temporal.PlainDateTime` keeps working while Duration and
-PlainDate are tested in isolation. They must be replaced by the real
-implementations before this is submitted upstream.
-
-The current remaining failures in Duration and PlainDate are mostly:
-
-- exact `Duration.total` / `Duration.round` with a `ZonedDateTime`
-  `relativeTo`
-- `PlainDate.toPlainDateTime()` / `toZonedDateTime()` (cross-type)
-- `PlainTime.toPlainDateTime()` (cross-type)
-- the last few calendar rounding edge cases and option-ordering tests
-- annotations/strings that require the remaining types
+The remaining Duration failures are concentrated in `total`/`compare` for
+durations that mix calendar and time units, plus `relativeTo` strings that
+carry time zone offsets.

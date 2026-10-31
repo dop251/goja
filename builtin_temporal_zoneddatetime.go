@@ -464,7 +464,8 @@ func (r *Runtime) temporalZonedDateTimeWith(call FunctionCall) Value {
 	partial := r.toObject(call.Argument(0))
 	switch partial.self.(type) {
 	case *temporalPlainDateObject, *temporalPlainTimeObject, *temporalPlainDateTimeObject,
-		*temporalInstantObject, *temporalZonedDateTimeObject, *temporalDurationObject:
+		*temporalInstantObject, *temporalZonedDateTimeObject, *temporalDurationObject,
+		*temporalPlainYearMonthObject, *temporalPlainMonthDayObject:
 		panic(r.NewTypeError("with() argument must be a plain object"))
 	}
 	d, tm, _ := z.zone.localDateTime(z.epochNs)

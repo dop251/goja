@@ -141,6 +141,8 @@ func (r *Runtime) getTemporalPlainDateTimePrototype() *Object {
 		o._putProp("toLocaleString", r.newNativeFunc(r.temporalPlainDateTimeToLocaleString, "toLocaleString", 0), true, false, true)
 		o._putProp("valueOf", r.newNativeFunc(r.temporalPlainDateTimeValueOf, "valueOf", 0), true, false, true)
 		o._putProp("toPlainDate", r.newNativeFunc(r.temporalPlainDateTimeToPlainDate, "toPlainDate", 0), true, false, true)
+		o._putProp("toPlainYearMonth", r.newNativeFunc(r.temporalPlainDateTimeToPlainYearMonth, "toPlainYearMonth", 0), true, false, true)
+		o._putProp("toPlainMonthDay", r.newNativeFunc(r.temporalPlainDateTimeToPlainMonthDay, "toPlainMonthDay", 0), true, false, true)
 		o._putProp("toPlainTime", r.newNativeFunc(r.temporalPlainDateTimeToPlainTime, "toPlainTime", 0), true, false, true)
 		o._putProp("withCalendar", r.newNativeFunc(r.temporalPlainDateTimeWithCalendar, "withCalendar", 1), true, false, true)
 		o._putProp("withPlainTime", r.newNativeFunc(r.temporalPlainDateTimeWithPlainTime, "withPlainTime", 0), true, false, true)
@@ -369,6 +371,12 @@ func parseTemporalPlainDateTimeString(s string) (isoDate, isoTime, string, bool)
 func (r *Runtime) temporalPlainDateTimeWith(call FunctionCall) Value {
 	d := r.toTemporalPlainDateTime(call.This)
 	partial := r.toObject(call.Argument(0))
+	switch partial.self.(type) {
+	case *temporalPlainDateObject, *temporalPlainTimeObject, *temporalPlainDateTimeObject,
+		*temporalInstantObject, *temporalZonedDateTimeObject, *temporalDurationObject,
+		*temporalPlainYearMonthObject, *temporalPlainMonthDayObject:
+		panic(r.NewTypeError("with() argument must be a plain object"))
+	}
 	base := temporalDateTimeFieldsResult{
 		date: d.date, time: d.time, calendar: d.calendar,
 		haveYear: true, haveMonth: true, haveDay: true,
@@ -617,6 +625,16 @@ func (r *Runtime) temporalPlainDateTimeToPlainDate(call FunctionCall) Value {
 	return r.newTemporalPlainDateObject(d.date, d.calendar, r.getTemporalPlainDatePrototype())
 }
 
+func (r *Runtime) temporalPlainDateTimeToPlainYearMonth(call FunctionCall) Value {
+	d := r.toTemporalPlainDateTime(call.This)
+	return r.newTemporalPlainYearMonthObject(d.date.year, d.date.month, 1, d.calendar, r.getTemporalPlainYearMonthPrototype())
+}
+
+func (r *Runtime) temporalPlainDateTimeToPlainMonthDay(call FunctionCall) Value {
+	d := r.toTemporalPlainDateTime(call.This)
+	return r.newTemporalPlainMonthDayObject(d.date.month, d.date.day, d.date.year, d.calendar, r.getTemporalPlainMonthDayPrototype())
+}
+
 func (r *Runtime) temporalPlainDateTimeToPlainTime(call FunctionCall) Value {
 	d := r.toTemporalPlainDateTime(call.This)
 	return r.newTemporalPlainTimeObject(d.time.hour, d.time.minute, d.time.second, d.time.millisecond, d.time.microsecond, d.time.nanosecond, r.getTemporalPlainTimePrototype())
@@ -670,7 +688,6 @@ func (r *Runtime) temporalPlainDateTimeToZonedDateTime(call FunctionCall) Value 
 	}
 	optsObj := r.temporalOptionsObject(call.Argument(1))
 	disambiguation := r.temporalGetDisambiguationOption(optsObj)
-	_ = r.temporalOverflowOption(call.Argument(1))
 	local := new(big.Int).Mul(big.NewInt(d.date.days()), temporalBigDayNs)
 	local.Add(local, big.NewInt(d.time.nanos()))
 	ns := r.zonedResolve(zone, local, nil, false, disambiguation, "reject")

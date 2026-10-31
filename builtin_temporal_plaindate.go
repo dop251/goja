@@ -203,8 +203,21 @@ func (r *Runtime) temporalCalendarFromValue(v Value) string {
 		}
 		panic(r.newError(r.getRangeError(), "Unsupported calendar: "+s))
 	case *Object:
-		if d, ok := x.self.(*temporalPlainDateObject); ok {
-			return d.calendar
+		switch o := x.self.(type) {
+		case *temporalPlainDateObject:
+			return o.calendar
+		case *temporalPlainTimeObject:
+			return "iso8601"
+		case *temporalPlainDateTimeObject:
+			return o.calendar
+		case *temporalInstantObject:
+			return "iso8601"
+		case *temporalZonedDateTimeObject:
+			return o.calendar
+		case *temporalPlainYearMonthObject:
+			return o.calendar
+		case *temporalPlainMonthDayObject:
+			return o.calendar
 		}
 		panic(r.NewTypeError("A calendar must be a string or Temporal object"))
 	default:
@@ -391,8 +404,8 @@ func (r *Runtime) getTemporalPlainDatePrototype() *Object {
 		o._putProp("getISOFields", r.newNativeFunc(r.temporalPlainDateGetISOFields, "getISOFields", 0), true, false, true)
 		o._putProp("toPlainDateTime", r.newNativeFunc(r.temporalPlainDateToPlainDateTime, "toPlainDateTime", 0), true, false, true)
 		o._putProp("toZonedDateTime", r.newNativeFunc(r.temporalPlainDateToZonedDateTime, "toZonedDateTime", 1), true, false, true)
-		o._putProp("toPlainYearMonth", r.newNativeFunc(r.temporalPlainDateNotImplemented, "toPlainYearMonth", 0), true, false, true)
-		o._putProp("toPlainMonthDay", r.newNativeFunc(r.temporalPlainDateNotImplemented, "toPlainMonthDay", 0), true, false, true)
+		o._putProp("toPlainYearMonth", r.newNativeFunc(r.temporalPlainDateToPlainYearMonth, "toPlainYearMonth", 0), true, false, true)
+		o._putProp("toPlainMonthDay", r.newNativeFunc(r.temporalPlainDateToPlainMonthDay, "toPlainMonthDay", 0), true, false, true)
 		o._putSym(SymToStringTag, &valueProperty{
 			value: asciiString("Temporal.PlainDate"), writable: false, enumerable: false, configurable: true,
 		})
@@ -425,18 +438,26 @@ func (r *Runtime) temporalPlainDateFrom(call FunctionCall) Value {
 func (r *Runtime) temporalPlainDateFromValue(v Value, options Value) *temporalPlainDateObject {
 	if o, ok := v.(*Object); ok {
 		if d, ok := o.self.(*temporalPlainDateObject); ok {
+			_ = r.temporalOverflowOption(options)
 			return d
 		}
 		if z, ok := o.self.(*temporalZonedDateTimeObject); ok {
+			_ = r.temporalOverflowOption(options)
 			d, _, _ := z.zone.localDateTime(z.epochNs)
 			return r.plainDateFieldsObject(d, z.calendar)
 		}
 		if dt, ok := o.self.(*temporalPlainDateTimeObject); ok {
+			_ = r.temporalOverflowOption(options)
 			return r.plainDateFieldsObject(dt.date, dt.calendar)
 		}
 	}
 	if s, ok := v.(String); ok {
 		d, cal, ok := parseTemporalPlainDateString(s.String())
+		if !ok {
+			if dt, _, dtCalendar, dtOK := parseTemporalPlainDateTimeString(s.String()); dtOK {
+				d, cal, ok = dt, dtCalendar, true
+			}
+		}
 		if !ok {
 			panic(r.newError(r.getRangeError(), "Invalid ISO date string: "+s.String()))
 		}
@@ -461,51 +482,50 @@ func (r *Runtime) temporalPlainDateFromValue(v Value, options Value) *temporalPl
 		calendar = "iso8601"
 	}
 	if dv := obj.self.getStr("day", nil); dv != nil && !IsUndefined(dv) {
-		day = r.temporalIntegerFromValue(dv)
+		day = r.temporalPositiveIntegerValue(dv)
 		haveDay = true
 	}
 	if mv := obj.self.getStr("month", nil); mv != nil && !IsUndefined(mv) {
-		month = r.temporalIntegerFromValue(mv)
+		month = r.temporalPositiveIntegerValue(mv)
 		haveMonth = true
 	}
+	hasMonthCode := false
 	if mcv := obj.self.getStr("monthCode", nil); mcv != nil && !IsUndefined(mcv) {
-		s, ok := temporalToStringOption(r, mcv)
-		if !ok || len(s) != 3 || s[0] != 'M' {
-			panic(r.newError(r.getRangeError(), "Invalid monthCode"))
-		}
-		n, err := strconv.Atoi(s[1:])
-		if err != nil || n < 1 || n > 12 {
+		s := r.temporalRequireString(mcv)
+		if !wellFormedMonthCode(s) {
 			panic(r.newError(r.getRangeError(), "Invalid monthCode"))
 		}
 		monthCode = s
-		if haveMonth && month != int64(n) {
-			panic(r.newError(r.getRangeError(), "month and monthCode do not match"))
-		}
-		month = int64(n)
-		haveMonth = true
+		hasMonthCode = true
 	}
 	if yv := obj.self.getStr("year", nil); yv != nil && !IsUndefined(yv) {
 		year = r.temporalIntegerFromValue(yv)
 		haveYear = true
 	}
-	if !haveYear || !haveMonth || !haveDay {
+	overflow := r.temporalOverflowOption(options)
+	if !haveYear || (!haveMonth && !hasMonthCode) || !haveDay {
 		panic(r.NewTypeError("year, month and day are required"))
 	}
-	_ = monthCode
-	overflow := r.temporalOverflowOption(options)
+	if hasMonthCode {
+		n, ok := isoMonthFromMonthCode(monthCode)
+		if !ok {
+			panic(r.newError(r.getRangeError(), "Invalid monthCode"))
+		}
+		if haveMonth && month != n {
+			panic(r.newError(r.getRangeError(), "month and monthCode do not match"))
+		}
+		month = n
+	}
 	d := isoDate{year: year, month: month, day: day}
 	if overflow == "constrain" {
-		if d.month < 1 {
-			d.month = 1
+		if d.month < 1 || d.day < 1 {
+			panic(r.newError(r.getRangeError(), "Invalid ISO date"))
 		}
 		if d.month > 12 {
 			d.month = 12
 		}
 		if max := isoDaysInMonth(d.year, d.month); d.day > max {
 			d.day = max
-		}
-		if d.day < 1 {
-			d.day = 1
 		}
 	}
 	if !d.isValid() {
@@ -576,6 +596,7 @@ func parseTemporalPlainDateString(s string) (isoDate, string, bool) {
 
 	tzAnnotations := 0
 	calendarAnnotations := 0
+	calendarCritical := false
 	for _, ann := range annotations {
 		if ann == "" {
 			return d, "", false
@@ -595,7 +616,8 @@ func parseTemporalPlainDateString(s string) (isoDate, string, bool) {
 					if !asciiEqualFold(val, "iso8601") {
 						return d, "", false
 					}
-				} else if critical {
+					calendarCritical = critical
+				} else if critical || calendarCritical {
 					return d, "", false
 				}
 				continue
@@ -613,6 +635,9 @@ func parseTemporalPlainDateString(s string) (isoDate, string, bool) {
 		}
 	}
 
+	if norm, ok := normalizeBasicDate(s); ok {
+		s = norm
+	}
 	i := 0
 	sign := int64(1)
 	if i < len(s) && (s[i] == '+' || s[i] == '-') {
@@ -818,49 +843,62 @@ func hasOwnMonth(n *Object) bool {
 func (r *Runtime) temporalPlainDateWith(call FunctionCall) Value {
 	d := r.toTemporalPlainDate(call.This)
 	partial := r.toObject(call.Argument(0))
-	date := d.date
-	calendar := d.calendar
-	found := false
+	switch partial.self.(type) {
+	case *temporalPlainDateObject, *temporalPlainTimeObject, *temporalPlainDateTimeObject,
+		*temporalInstantObject, *temporalZonedDateTimeObject, *temporalDurationObject,
+		*temporalPlainYearMonthObject, *temporalPlainMonthDayObject:
+		panic(r.NewTypeError("with() argument must be a plain object"))
+	}
 	if cv := partial.self.getStr("calendar", nil); cv != nil && !IsUndefined(cv) {
-		calendar = r.temporalCalendarFromValue(cv)
-		found = true
+		panic(r.NewTypeError("calendar is not allowed in with()"))
 	}
+	if tv := partial.self.getStr("timeZone", nil); tv != nil && !IsUndefined(tv) {
+		panic(r.NewTypeError("timeZone is not allowed in with()"))
+	}
+	date := d.date
+	found := false
+	monthProvided := false
+	var monthCode string
+	hasMonthCode := false
 	if dv := partial.self.getStr("day", nil); dv != nil && !IsUndefined(dv) {
-		date.day = r.temporalIntegerFromValue(dv)
+		date.day = r.temporalPositiveIntegerValue(dv)
 		found = true
 	}
-	// era/eraYear and time fields are ignored for the ISO calendar.
 	if mv := partial.self.getStr("month", nil); mv != nil && !IsUndefined(mv) {
-		date.month = r.temporalIntegerFromValue(mv)
+		date.month = r.temporalPositiveIntegerValue(mv)
+		monthProvided = true
 		found = true
 	}
 	if mcv := partial.self.getStr("monthCode", nil); mcv != nil && !IsUndefined(mcv) {
-		s, _ := temporalToStringOption(r, mcv)
-		if len(s) != 3 || s[0] != 'M' {
+		monthCode = r.temporalRequireString(mcv)
+		if !wellFormedMonthCode(monthCode) {
 			panic(r.newError(r.getRangeError(), "Invalid monthCode"))
 		}
-		n, err := strconv.Atoi(s[1:])
-		if err != nil || n < 1 || n > 12 {
-			panic(r.newError(r.getRangeError(), "Invalid monthCode"))
-		}
-		if found && date.month != 0 && hasOwnMonth(partial) && date.month != int64(n) {
-			panic(r.newError(r.getRangeError(), "month and monthCode do not match"))
-		}
-		date.month = int64(n)
+		hasMonthCode = true
 		found = true
 	}
 	if yv := partial.self.getStr("year", nil); yv != nil && !IsUndefined(yv) {
 		date.year = r.temporalIntegerFromValue(yv)
 		found = true
 	}
+	overflow := r.temporalOverflowOption(call.Argument(1))
 	if !found {
 		panic(r.NewTypeError("PlainDate.with requires at least one property"))
 	}
-	if date.month < 1 || date.day < 1 {
-		panic(r.newError(r.getRangeError(), "Invalid ISO date"))
+	if hasMonthCode {
+		n, ok := isoMonthFromMonthCode(monthCode)
+		if !ok {
+			panic(r.newError(r.getRangeError(), "Invalid monthCode"))
+		}
+		if monthProvided && date.month != n {
+			panic(r.newError(r.getRangeError(), "month and monthCode do not match"))
+		}
+		date.month = n
 	}
-	overflow := r.temporalOverflowOption(call.Argument(1))
 	if overflow == "constrain" {
+		if date.month < 1 || date.day < 1 {
+			panic(r.newError(r.getRangeError(), "Invalid ISO date"))
+		}
 		if date.month > 12 {
 			date.month = 12
 		}
@@ -871,7 +909,7 @@ func (r *Runtime) temporalPlainDateWith(call FunctionCall) Value {
 	if !date.isValid() {
 		panic(r.newError(r.getRangeError(), "Invalid ISO date"))
 	}
-	return r.newTemporalPlainDateObject(date, calendar, r.getTemporalPlainDatePrototype())
+	return r.newTemporalPlainDateObject(date, d.calendar, r.getTemporalPlainDatePrototype())
 }
 
 func (r *Runtime) temporalPlainDateWithCalendar(call FunctionCall) Value {
@@ -962,192 +1000,17 @@ func (r *Runtime) temporalPlainDateSince(call FunctionCall) Value {
 	return r.temporalPlainDateDifference(d, other, call.Argument(1), true)
 }
 
-func (r *Runtime) temporalPlainDateDifference(a, b *temporalPlainDateObject, options Value, negate bool) Value {
-	largest := "day"
-	largestSet := false
-	smallest := ""
-	roundingIncrement := int64(1)
-	mode := temporalRoundTrunc
-	if options != nil && !IsUndefined(options) {
-		obj, ok := options.(*Object)
-		if !ok {
-			panic(r.NewTypeError("options must be an object"))
-		}
-		// Spec order: largestUnit, roundingIncrement, roundingMode, smallestUnit.
-		if v := obj.self.getStr("largestUnit", nil); v != nil && !IsUndefined(v) {
-			s, _ := temporalToStringOption(r, v)
-			if s == "auto" {
-				largest = "day"
-				largestSet = false
-			} else {
-				var ok bool
-				largest, ok = normalizeTemporalUnit(s)
-				if !ok || temporalUnitIndex(largest) > 3 {
-					panic(r.newError(r.getRangeError(), "Invalid largestUnit"))
-				}
-				largestSet = true
-			}
-		}
-		if v := obj.self.getStr("roundingIncrement", nil); v != nil && !IsUndefined(v) {
-			roundingIncrement = r.temporalIntegerFromValue(v)
-			if roundingIncrement < 1 || roundingIncrement > 1e9 {
-				panic(r.newError(r.getRangeError(), "Invalid roundingIncrement"))
-			}
-		}
-		mode = r.parseTemporalRoundingMode(obj.self.getStr("roundingMode", nil), temporalRoundTrunc)
-		if v := obj.self.getStr("smallestUnit", nil); v != nil && !IsUndefined(v) {
-			s, _ := temporalToStringOption(r, v)
-			var ok bool
-			smallest, ok = normalizeTemporalUnit(s)
-			if !ok || temporalUnitIndex(smallest) > 3 {
-				panic(r.newError(r.getRangeError(), "Invalid smallestUnit"))
-			}
-		}
-		if smallest != "" && temporalUnitIndex(smallest) < temporalUnitIndex(largest) {
-			if !largestSet {
-				largest = smallest
-			} else {
-				panic(r.newError(r.getRangeError(), "smallestUnit is larger than largestUnit"))
-			}
+func (r *Runtime) temporalPlainDateDifference(a, b *temporalPlainDateObject, options Value, since bool) Value {
+	s := r.temporalGetDifferenceSettings(options, "day", "day", 0, 3)
+	if since {
+		s.mode = negateRoundingMode(s.mode)
+	}
+	fields := r.temporalDiffISODateTime(a.date, isoTime{}, b.date, isoTime{}, s)
+	if since {
+		for i := range fields {
+			fields[i] = -fields[i]
 		}
 	}
-
-	diff := b.date.days() - a.date.days()
-	if negate {
-		diff = -diff
-	}
-	start, end := a.date, b.date
-	if start.days() > end.days() {
-		start, end = end, start
-	}
-	negative := diff < 0
-	if negative {
-		// start/end are already in chronological order; the result sign is
-		// applied at the end.
-	}
-
-	var years, months, weeks, days int64
-	if negative {
-		later, earlier := start, end // start/end are chronological; later is end
-		later, earlier = end, start
-		switch temporalUnitIndex(largest) {
-		case 0:
-			n := later.year - earlier.year
-			for n > 0 && addISOMonths(later, -n*12).days() < earlier.days() {
-				n--
-			}
-			cur := addISOMonths(later, -n*12)
-			m := int64(0)
-			for m < 11 && addISOMonths(cur, -(m+1)).days() >= earlier.days() {
-				m++
-			}
-			cur = addISOMonths(cur, -m)
-			years = -n
-			months = -m
-			days = earlier.days() - cur.days()
-		case 1:
-			n := (later.year-earlier.year)*12 + (later.month - earlier.month)
-			for n > 0 && addISOMonths(later, -n).days() < earlier.days() {
-				n--
-			}
-			cur := addISOMonths(later, -n)
-			months = -n
-			days = earlier.days() - cur.days()
-		case 2:
-			totalDays := earlier.days() - later.days()
-			weeks = totalDays / 7
-			days = totalDays % 7
-		default:
-			days = diff
-		}
-	} else {
-		switch temporalUnitIndex(largest) {
-		case 0, 1:
-			total := (end.year-start.year)*12 + (end.month - start.month)
-			if end.day < start.day {
-				total--
-			}
-			if total < 0 {
-				total = 0
-			}
-			if temporalUnitIndex(largest) == 0 {
-				years = total / 12
-				months = total % 12
-			} else {
-				months = total
-			}
-			mid := start
-			tm := mid.year*12 + (mid.month - 1) + years*12 + months
-			mid.year = floorDiv(tm, 12)
-			mid.month = tm - mid.year*12 + 1
-			if max := isoDaysInMonth(mid.year, mid.month); mid.day > max {
-				mid.day = max
-			}
-			days = end.days() - mid.days()
-		case 2:
-			totalDays := end.days() - start.days()
-			weeks = totalDays / 7
-			days = totalDays % 7
-		default:
-			days = end.days() - start.days()
-		}
-	}
-
-	// Rounding operates on magnitudes; the sign is restored at the end.
-	if negative {
-		years, months, weeks, days = -years, -months, -weeks, -days
-	}
-	if smallest == "" && roundingIncrement > 1 {
-		smallest = "day"
-	}
-	if smallest != "" {
-		switch smallest {
-		case "day":
-			days = roundDateIncrement(days, roundingIncrement, mode, negative)
-		case "week":
-			totalDays := weeks*7 + days
-			totalDays = roundDateIncrement(totalDays, 7*roundingIncrement, mode, negative)
-			weeks = totalDays / 7
-			days = 0
-		case "month":
-			totalMonths := years*12 + months
-			mid := addISOMonths(start, totalMonths)
-			next := addISOMonths(start, totalMonths+1)
-			denom := next.days() - mid.days()
-			if shouldRoundUp(days, denom, mode, negative) {
-				totalMonths++
-			}
-			totalMonths = roundDateIncrement(totalMonths, roundingIncrement, mode, negative)
-			if largest == "year" {
-				years = totalMonths / 12
-				months = totalMonths % 12
-			} else {
-				years = 0
-				months = totalMonths
-			}
-			days = 0
-		case "year":
-			mid := addISOMonths(start, years*12)
-			next := addISOMonths(mid, 12)
-			denom := next.days() - mid.days()
-			remDays := end.days() - mid.days()
-			if shouldRoundUp(remDays, denom, mode, negative) {
-				years++
-			}
-			years = roundDateIncrement(years, roundingIncrement, mode, negative)
-			months = 0
-			days = 0
-		}
-	}
-
-	if negative {
-		years, months, weeks, days = -years, -months, -weeks, -days
-	}
-	fields := [10]float64{}
-	fields[0] = float64(years)
-	fields[1] = float64(months)
-	fields[2] = float64(weeks)
-	fields[3] = float64(days)
 	r.validateTemporalDuration(fields)
 	return r.newTemporalDurationObject(fields, r.getTemporalDurationPrototype())
 }
@@ -1242,6 +1105,16 @@ func addISOMonths(d isoDate, months int64) isoDate {
 	return isoDate{year: y, month: m, day: day}
 }
 
+func (r *Runtime) temporalPlainDateToPlainYearMonth(call FunctionCall) Value {
+	d := r.toTemporalPlainDate(call.This)
+	return r.newTemporalPlainYearMonthObject(d.date.year, d.date.month, 1, d.calendar, r.getTemporalPlainYearMonthPrototype())
+}
+
+func (r *Runtime) temporalPlainDateToPlainMonthDay(call FunctionCall) Value {
+	d := r.toTemporalPlainDate(call.This)
+	return r.newTemporalPlainMonthDayObject(d.date.month, d.date.day, 1972, d.calendar, r.getTemporalPlainMonthDayPrototype())
+}
+
 func (r *Runtime) temporalPlainDateToZonedDateTime(call FunctionCall) Value {
 	d := r.toTemporalPlainDate(call.This)
 	arg := call.Argument(0)
@@ -1314,18 +1187,19 @@ func (r *Runtime) temporalPlainDateCompare(call FunctionCall) Value {
 	return intToValue(0)
 }
 
-func formatISODate(d isoDate) string {
-	var b strings.Builder
+func formatISOYear(year int64) string {
 	switch {
-	case d.year >= 0 && d.year <= 9999:
-		b.WriteString(fmt.Sprintf("%04d", d.year))
-	case d.year > 9999:
-		b.WriteString(fmt.Sprintf("+%06d", d.year))
+	case year >= 0 && year <= 9999:
+		return fmt.Sprintf("%04d", year)
+	case year > 9999:
+		return fmt.Sprintf("+%06d", year)
 	default:
-		b.WriteString(fmt.Sprintf("-%06d", -d.year))
+		return fmt.Sprintf("-%06d", -year)
 	}
-	b.WriteString(fmt.Sprintf("-%02d-%02d", d.month, d.day))
-	return b.String()
+}
+
+func formatISODate(d isoDate) string {
+	return formatISOYear(d.year) + fmt.Sprintf("-%02d-%02d", d.month, d.day)
 }
 
 func (r *Runtime) temporalPlainDateToString(call FunctionCall) Value {

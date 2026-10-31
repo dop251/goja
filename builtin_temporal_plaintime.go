@@ -520,8 +520,18 @@ func isOffsetStart(s string, i int) bool {
 func (r *Runtime) temporalPlainTimeWith(call FunctionCall) Value {
 	t := r.toTemporalPlainTime(call.This)
 	partial := r.toObject(call.Argument(0))
-	_ = partial.self.getStr("calendar", nil)
-	_ = partial.self.getStr("timeZone", nil)
+	switch partial.self.(type) {
+	case *temporalPlainDateObject, *temporalPlainTimeObject, *temporalPlainDateTimeObject,
+		*temporalInstantObject, *temporalZonedDateTimeObject, *temporalDurationObject,
+		*temporalPlainYearMonthObject, *temporalPlainMonthDayObject:
+		panic(r.NewTypeError("with() argument must be a plain object"))
+	}
+	if cv := partial.self.getStr("calendar", nil); cv != nil && !IsUndefined(cv) {
+		panic(r.NewTypeError("calendar is not allowed in with()"))
+	}
+	if tv := partial.self.getStr("timeZone", nil); tv != nil && !IsUndefined(tv) {
+		panic(r.NewTypeError("timeZone is not allowed in with()"))
+	}
 	fields := [6]int64{t.hour, t.minute, t.second, t.millisecond, t.microsecond, t.nanosecond}
 	found := false
 	for _, f := range temporalTimeFields {
