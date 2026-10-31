@@ -360,6 +360,7 @@ func createGlobalObjectTemplate() *objectTemplate {
 
 	t.putStr("Math", func(r *Runtime) Value { return valueProp(r.getMath(), true, false, true) })
 	t.putStr("JSON", func(r *Runtime) Value { return valueProp(r.getJSON(), true, false, true) })
+	t.putStr("Intl", func(r *Runtime) Value { return valueProp(r.getIntl(), true, false, true) })
 	addTypedArrays(t)
 	t.putStr("Symbol", func(r *Runtime) Value { return valueProp(r.getSymbol(), true, false, true) })
 	t.putStr("WeakSet", func(r *Runtime) Value { return valueProp(r.getWeakSet(), true, false, true) })

@@ -65,6 +65,21 @@ type global struct {
 	Promise  *Object
 	Math     *Object
 	JSON     *Object
+	Intl     *Object
+
+	IntlLocale          *Object
+	IntlLocalePrototype *Object
+
+	IntlPluralRules                 *Object
+	IntlPluralRulesPrototype        *Object
+	IntlListFormat                  *Object
+	IntlListFormatPrototype         *Object
+	IntlRelativeTimeFormat          *Object
+	IntlRelativeTimeFormatPrototype *Object
+	IntlNumberFormat                *Object
+	IntlNumberFormatPrototype       *Object
+	IntlCollator                    *Object
+	IntlCollatorPrototype           *Object
 
 	AsyncFunction *Object
 

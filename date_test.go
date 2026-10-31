@@ -623,7 +623,7 @@ var localOffset = new Date('2000-01-01').getTimezoneOffset()*1000*60;
 // Sanity check which is even more of a hack: in the timezones where
 // these tests are likely to be run, the offset is nonzero because
 // dates which don't include Z are in the local timezone.
-if (this.Intl &&
+if (this.Intl && Intl.DateTimeFormat &&
     ["America/Los_Angeles", "Europe/Berlin", "Europe/Madrid"].indexOf(
         Intl.DateTimeFormat().resolvedOptions().timeZone) != -1) {
   assertTrue(localOffset != 0);
