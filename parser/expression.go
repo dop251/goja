@@ -23,6 +23,17 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 	literal, parsedLiteral := self.literal, self.parsedLiteral
 	idx := self.idx
 	switch self.token {
+	case token.KEYWORD:
+		if literal == "import" {
+			self.next()
+			if self.token != token.LEFT_PARENTHESIS {
+				self.error(idx, "Unexpected reserved word")
+			}
+			self.next()
+			argument := self.parseExpression()
+			self.expect(token.RIGHT_PARENTHESIS)
+			return &ast.ImportExpr{Idx: idx, Argument: argument}
+		}
 	case token.IDENTIFIER:
 		self.next()
 		return &ast.Identifier{
@@ -722,6 +733,9 @@ func (self *_parser) parseNewExpression() ast.Expression {
 		self.errorUnexpectedToken(token.IDENTIFIER)
 	}
 	callee := self.parseLeftHandSideExpression()
+	if imp, ok := callee.(*ast.ImportExpr); ok {
+		self.error(imp.Idx, "Unexpected reserved word")
+	}
 	if bad, ok := callee.(*ast.BadExpression); ok {
 		bad.From = idx
 		return bad

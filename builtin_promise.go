@@ -652,6 +652,24 @@ func (r *Runtime) wrapPromiseReaction(fObj *Object) func(interface{}) error {
 //	        })
 //	    }()
 //	}
+//
+// DynamicImportHandler resolves an import() specifier.
+type DynamicImportHandler func(specifier string) *Promise
+
+// SetDynamicImportHandler registers the host hook used by import() expressions.
+func (r *Runtime) SetDynamicImportHandler(h DynamicImportHandler) {
+	r.dynamicImportHandler = h
+}
+
+func (r *Runtime) dynamicImportValue(specifier Value) Value {
+	if r.dynamicImportHandler == nil {
+		p, _, reject := r.NewPromise()
+		_ = reject(r.NewTypeError("import() is not supported"))
+		return p.val
+	}
+	return r.dynamicImportHandler(specifier.toString().String()).val
+}
+
 func (r *Runtime) NewPromise() (promise *Promise, resolve, reject func(reason interface{}) error) {
 	p := r.newPromise(r.getPromisePrototype())
 	resolveF, rejectF := p.createResolvingFunctions()

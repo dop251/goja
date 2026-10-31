@@ -185,6 +185,8 @@ type RandSource func() float64
 type Now func() time.Time
 
 type Runtime struct {
+	dynamicImportHandler DynamicImportHandler
+
 	global          global
 	globalObject    *Object
 	stringSingleton *stringObject

@@ -2883,6 +2883,13 @@ func (_newArrayFromIter) exec(vm *vm) {
 	vm.pc++
 }
 
+type dynamicImport struct{}
+
+func (d *dynamicImport) exec(vm *vm) {
+	vm.stack[vm.sp-1] = vm.r.dynamicImportValue(vm.stack[vm.sp-1])
+	vm.pc++
+}
+
 type newRegexp struct {
 	pattern *regexpPattern
 	src     String
