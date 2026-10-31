@@ -2883,6 +2883,13 @@ func (_newArrayFromIter) exec(vm *vm) {
 	vm.pc++
 }
 
+type importMeta struct{}
+
+func (i *importMeta) exec(vm *vm) {
+	vm.push(vm.r.getImportMetaObject())
+	vm.pc++
+}
+
 type dynamicImport struct{}
 
 func (d *dynamicImport) exec(vm *vm) {

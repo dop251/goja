@@ -26,6 +26,14 @@ func (self *_parser) parsePrimaryExpression() ast.Expression {
 	case token.KEYWORD:
 		if literal == "import" {
 			self.next()
+			if self.token == token.PERIOD {
+				self.next()
+				if self.literal != "meta" {
+					self.error(idx, "Unexpected reserved word")
+				}
+				self.next()
+				return &ast.ImportMeta{Idx: idx}
+			}
 			if self.token != token.LEFT_PARENTHESIS {
 				self.error(idx, "Unexpected reserved word")
 			}

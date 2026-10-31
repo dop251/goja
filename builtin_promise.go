@@ -661,6 +661,15 @@ func (r *Runtime) SetDynamicImportHandler(h DynamicImportHandler) {
 	r.dynamicImportHandler = h
 }
 
+func (r *Runtime) getImportMetaObject() Value {
+	if r.importMeta == nil {
+		o := r.NewObject()
+		o.Set("url", asciiString(""))
+		r.importMeta = o
+	}
+	return r.importMeta
+}
+
 func (r *Runtime) dynamicImportValue(specifier Value) Value {
 	if r.dynamicImportHandler == nil {
 		p, _, reject := r.NewPromise()

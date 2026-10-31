@@ -233,6 +233,8 @@ func (c *compiler) compileExpression(v ast.Expression) compiledExpr {
 		return c.compileArrayLiteral(v)
 	case *ast.ImportExpr:
 		return c.compileImportCall(v)
+	case *ast.ImportMeta:
+		return c.compileImportMeta(v)
 	case *ast.RegExpLiteral:
 		return c.compileRegexpLiteral(v)
 	case *ast.BinaryExpression:
@@ -3002,6 +3004,23 @@ func (e *compiledImportCall) emitGetter(putOnStack bool) {
 	if !putOnStack {
 		e.c.emit(pop)
 	}
+}
+
+type compiledImportMeta struct {
+	baseCompiledExpr
+}
+
+func (e *compiledImportMeta) emitGetter(putOnStack bool) {
+	e.c.emit(&importMeta{})
+	if !putOnStack {
+		e.c.emit(pop)
+	}
+}
+
+func (c *compiler) compileImportMeta(v *ast.ImportMeta) compiledExpr {
+	r := &compiledImportMeta{}
+	r.init(c, v.Idx0())
+	return r
 }
 
 func (c *compiler) compileImportCall(v *ast.ImportExpr) compiledExpr {
