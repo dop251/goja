@@ -1,48 +1,67 @@
-# Intl implementation status
+# Intl
 
-goja now ships an `Intl` namespace backed by generated CLDR 49 data
-(`intl_cldr_*.go`, Unicode 16.0).
+goja implements the ECMAScript Internationalization API on top of generated
+CLDR 49 (Unicode 16) data. All data files are generated from
+[cldr-json](https://github.com/unicode-org/cldr-json) and marked
+`DO NOT EDIT`; regenerate them rather than editing by hand.
 
 ## Implemented
 
-- `Intl` object, `Intl.getCanonicalLocales`, `Intl.supportedValuesOf`
-- `Intl.Locale` with the full UTS 35 canonicalisation pipeline (language
-  aliases, territory aliases that depend on likely subtags, variant aliases,
-  `u`/`t` extension canonicalisation, grandfathered tags), `maximize` /
-  `minimize`, and the `getCalendars`, `getCollations`, `getHourCycles`,
-  `getNumberingSystems`, `getTextInfo`, `getTimeZones`, `getWeekInfo` APIs
+- `Intl` object: `getCanonicalLocales`, `supportedValuesOf`.
+- `Intl.Locale`: full UTS 35 tag parser/canonicalizer (language, script,
+  territory and variant aliases, territory replacement via likely subtags,
+  `u`/`t` extension canonicalization, grandfathered tags), `maximize` /
+  `minimize`, and `getCalendars`, `getCollations`, `getHourCycles`,
+  `getNumberingSystems`, `getTextInfo`, `getTimeZones`, `getWeekInfo`.
 - `Intl.PluralRules` (cardinal and ordinal, `select`, `selectRange`,
-  significant digits, rounding options)
-- `Intl.ListFormat` (conjunction/disjunction/unit, long/short/narrow,
-  iterables, `formatToParts`)
-- `Intl.RelativeTimeFormat` (long/short/narrow, `numeric: auto`,
-  `formatToParts`, per-locale plural selection)
-- `Intl.Collator` (sort/search, sensitivity, numeric, caseFirst,
-  ignorePunctuation, collation resolution) and `String.prototype.localeCompare`
-- locale-aware `toLocaleLowerCase`/`toLocaleUpperCase`
-- `Intl.DateTimeFormat` (work in progress: dateStyle/timeStyle, component
-  options, skeletons from CLDR availableFormats, time zones, formatToParts)
+  rounding options).
 - `Intl.NumberFormat` (decimal/percent/currency/unit styles, grouping,
-  significant digits, `signDisplay`, `currencySign: accounting`,
-  scientific/engineering notation, `formatToParts`, numbering systems,
-  currency symbols/names from CLDR)
+  significant digits, `signDisplay`, accounting currency, scientific and
+  engineering notation, non-Latin numbering systems, `formatToParts`).
+- `Intl.DateTimeFormat` (dateStyle/timeStyle and component options, CLDR
+  skeleton matching, time zones, `formatToParts`, `resolvedOptions`).
+- `Intl.Collator` (sort/search, sensitivity, numeric, caseFirst,
+  ignorePunctuation, collation resolution).
+- `Intl.ListFormat`, `Intl.RelativeTimeFormat`, `Intl.DisplayNames`,
+  `Intl.Segmenter`, `Intl.DurationFormat`.
+- Locale-aware methods: `String.prototype.localeCompare`,
+  `toLocaleLowerCase`/`toLocaleUpperCase`, and `toLocaleString` on
+  `Number`, `BigInt`, `Date`, `Array` and typed arrays.
 
-## Not yet implemented
+## Data coverage
 
-`Intl.Segmenter`,
-`Intl.DisplayNames`, `Intl.DurationFormat`, and the locale methods on
-`String`, `Number`, `BigInt`, `Date` and `Array` prototypes.
-`intl402/Temporal` additionally requires the Temporal implementation.
+Numbers, list patterns, relative-time fields, date patterns/names and
+currency names cover 76 locales; display names cover 20 locales (English
+fallback). Unknown locales fall back to `en`.
 
-## Data
+## Test status (test262 `intl402` via Mycel)
 
-`intl_cldr_locales.go` carries the number, list and relative-time data for
-the 76 supported locales; other locales fall back to `en`.
+| Area | Passing |
+| --- | --- |
+| Locale | 150 / 152 |
+| NumberFormat | 131 / 252 |
+| DateTimeFormat | 123 / 247 |
+| Segmenter | 72 / 77 |
+| ListFormat | 67 / 80 |
+| Collator | 60 / 64 |
+| DisplayNames | 55 / 56 |
+| RelativeTimeFormat | 54 / 79 |
+| DurationFormat | 53 / 111 |
+| PluralRules | 49 / 51 |
+| Intl | 56 / 66 |
+| Number/BigInt/Date/String/Array/TypedArray | 34 / 41 |
 
-## Tests
+Before this implementation goja had no `Intl` at all (0 passing).
 
-Mycel's Test262 run for `intl402/`: **~730 passing** (from 0 before this
-work), including 150/152 `intl402/Locale`, 126 `intl402/NumberFormat`,
-119/248 `intl402/DateTimeFormat`, 67 `intl402/ListFormat`,
-59/64 `intl402/Collator`, 54 `intl402/RelativeTimeFormat` and 48
-`intl402/PluralRules`.
+## Known gaps
+
+- Compact notation is not implemented in `Intl.NumberFormat` (the CLDR
+  compact patterns are not part of the generated data yet).
+- `Intl.DateTimeFormat` does not yet model non-Gregorian calendars beyond
+  resolving the option, and `formatRange` does not collapse shared parts.
+- `Intl.RelativeTimeFormat` and `Intl.DurationFormat` still miss some
+  style/display edge cases.
+- `intl402/Temporal` requires the Temporal implementation and is not part
+  of this work.
+- Locale data is generated for a fixed set of locales; adding more is a
+  matter of extending the generator inputs.
