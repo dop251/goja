@@ -339,6 +339,24 @@ func TestStringSplit(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestStringReplaceAllEmptySearchUnicode(t *testing.T) {
+	const SCRIPT = `
+assert.sameValue('aé'.replaceAll('', '-'), '-a-é-');
+assert.sameValue('\uD83D\uDE00'.replaceAll('', '-'), '-\uD83D-\uDE00-');
+assert.sameValue('é'.repeat(40).replaceAll('', '-'), '-' + 'é-'.repeat(40));
+assert.sameValue('aé'.replaceAll('', function(m, pos) { return pos; }), '0a1é2');
+var concat = 'é'.repeat(20) + 'x'.repeat(20);
+assert.sameValue(concat.replaceAll('', '-'), '-' + 'é-'.repeat(20) + 'x-'.repeat(20));
+
+assert.sameValue('aé'.indexOf('', 2), 2);
+assert.sameValue('aé'.indexOf('', 5), 2);
+assert.sameValue('aé'.includes('', 2), true);
+assert.sameValue('aé'.indexOf('é', 2), -1);
+assert.sameValue('aéaé'.replaceAll('é', '-'), 'a-a-');
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestStringFromCodePoint(t *testing.T) {
 	const SCRIPT = `
 var one = (function() { var x = -0; x++; return x; })();
