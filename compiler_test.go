@@ -3616,6 +3616,48 @@ func TestFuncNameAssign(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestFuncNameAssignParenthesized(t *testing.T) {
+	const SCRIPT = `
+	var f, c, a, l1, l2, l3, d1, d2;
+	(f) = function() {};
+	assert.sameValue(f.name, "", "function");
+	((c)) = class {};
+	assert.sameValue(c.name, "", "class");
+	(a) = () => {};
+	assert.sameValue(a.name, "", "arrow function");
+
+	(l1) ??= function() {};
+	assert.sameValue(l1.name, "", "??=");
+	(l2) ||= function() {};
+	assert.sameValue(l2.name, "", "||=");
+	l3 = 1;
+	(l3) &&= function() {};
+	assert.sameValue(l3.name, "", "&&=");
+
+	[(d1) = function() {}] = [];
+	assert.sameValue(d1.name, "", "array destructuring");
+	({x: (d2) = function() {}} = {});
+	assert.sameValue(d2.name, "", "object destructuring");
+
+	(function() {
+		var f;
+		(f) = function() {};
+		assert.sameValue(f.name, "", "local variable");
+		[(f) = function() {}] = [];
+		assert.sameValue(f.name, "", "local variable, destructuring");
+	})();
+
+	var g, h, k;
+	g = (function() {});
+	assert.sameValue(g.name, "g", "parenthesized function");
+	[h = function() {}] = [];
+	assert.sameValue(h.name, "h", "array destructuring without parentheses");
+	({x: k = function() {}} = {});
+	assert.sameValue(k.name, "k", "object destructuring without parentheses");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestLexicalDeclGlobal(t *testing.T) {
 	const SCRIPT = `
 	if (true) {
