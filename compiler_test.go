@@ -1109,6 +1109,54 @@ func TestIfMultipleLabels(t *testing.T) {
 	testScript(SCRIPT, _undefined, t)
 }
 
+func TestLabelledFunctionDeclaration(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue(g(), 1, "hoisted");
+	l: function g() {
+		return 1;
+	}
+
+	a: b: function h() {
+		return 2;
+	}
+	assert.sameValue(h(), 2, "multiple labels");
+
+	function f() {
+		return inner();
+		l: function inner() {
+			return 3;
+		}
+	}
+	assert.sameValue(f(), 3, "function body");
+
+	{
+		assert.sameValue(blk(), 4, "block");
+		l: function blk() {
+			return 4;
+		}
+	}
+
+	assert.sameValue(eval("1; l: function e() {}"), 1, "completion value");
+
+	assert.throws(SyntaxError, function() {
+		eval("'use strict'; l: function f() {}");
+	}, "strict mode");
+	assert.throws(SyntaxError, function() {
+		eval("l: function* f() {}");
+	}, "generator");
+	assert.throws(SyntaxError, function() {
+		eval("l: async function f() {}");
+	}, "async function");
+	assert.throws(SyntaxError, function() {
+		eval("if (true) l: function f() {}");
+	}, "if statement body");
+	assert.throws(SyntaxError, function() {
+		eval("while (false) l: function f() {}");
+	}, "loop body");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestBreakOutOfTry(t *testing.T) {
 	const SCRIPT = `
 	function A() {

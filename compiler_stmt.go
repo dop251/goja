@@ -946,10 +946,27 @@ func (c *compiler) scanStatements(list []ast.Statement) (lastProducingIdx int, b
 	return
 }
 
+// isHoistedFunctionDecl returns true if st is a function declaration in a statement list, which is hoisted and
+// compiled by compileFunctions(). In non-strict code this includes labelled function declarations (B.3.1).
+// Other labelled declarations are compiled as statements, which results in a SyntaxError.
+func (c *compiler) isHoistedFunctionDecl(st ast.Statement) bool {
+	switch st := st.(type) {
+	case *ast.FunctionDeclaration:
+		return true
+	case *ast.LabelledStatement:
+		if !c.scope.strict {
+			if decl, ok := c.extractLabelled(st).(*ast.FunctionDeclaration); ok {
+				return !decl.Function.Async && !decl.Function.Generator
+			}
+		}
+	}
+	return false
+}
+
 func (c *compiler) compileStatementsNeedResult(list []ast.Statement, lastProducingIdx int) {
 	if lastProducingIdx >= 0 {
 		for _, st := range list[:lastProducingIdx] {
-			if _, ok := st.(*ast.FunctionDeclaration); ok {
+			if c.isHoistedFunctionDecl(st) {
 				continue
 			}
 			c.compileStatement(st, false)
@@ -963,7 +980,7 @@ func (c *compiler) compileStatementsNeedResult(list []ast.Statement, lastProduci
 		}
 	}()
 	for _, st := range list[lastProducingIdx+1:] {
-		if _, ok := st.(*ast.FunctionDeclaration); ok {
+		if c.isHoistedFunctionDecl(st) {
 			continue
 		}
 		c.compileStatement(st, false)
@@ -985,7 +1002,7 @@ func (c *compiler) compileStatements(list []ast.Statement, needResult bool) {
 		return
 	}
 	for _, st := range list {
-		if _, ok := st.(*ast.FunctionDeclaration); ok {
+		if c.isHoistedFunctionDecl(st) {
 			continue
 		}
 		c.compileStatement(st, false)
