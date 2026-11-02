@@ -1893,6 +1893,7 @@ func addTypedArrays(t *objectTemplate) {
 	t.putStr("Int16Array", func(r *Runtime) Value { return valueProp(r.getInt16Array(), true, false, true) })
 	t.putStr("Uint32Array", func(r *Runtime) Value { return valueProp(r.getUint32Array(), true, false, true) })
 	t.putStr("Int32Array", func(r *Runtime) Value { return valueProp(r.getInt32Array(), true, false, true) })
+	t.putStr("Float16Array", func(r *Runtime) Value { return valueProp(r.getFloat16Array(), true, false, true) })
 	t.putStr("Float32Array", func(r *Runtime) Value { return valueProp(r.getFloat32Array(), true, false, true) })
 	t.putStr("Float64Array", func(r *Runtime) Value { return valueProp(r.getFloat64Array(), true, false, true) })
 	t.putStr("BigInt64Array", func(r *Runtime) Value { return valueProp(r.getBigInt64Array(), true, false, true) })
@@ -2163,6 +2164,7 @@ func createDataViewProtoTemplate() *objectTemplate {
 
 	t.putStr("constructor", func(r *Runtime) Value { return valueProp(r.getDataView(), true, false, true) })
 
+	t.putStr("getFloat16", func(r *Runtime) Value { return r.methodProp(r.dataViewProto_getFloat16, "getFloat16", 1) })
 	t.putStr("getFloat32", func(r *Runtime) Value { return r.methodProp(r.dataViewProto_getFloat32, "getFloat32", 1) })
 	t.putStr("getFloat64", func(r *Runtime) Value { return r.methodProp(r.dataViewProto_getFloat64, "getFloat64", 1) })
 	t.putStr("getInt8", func(r *Runtime) Value { return r.methodProp(r.dataViewProto_getInt8, "getInt8", 1) })
@@ -2173,6 +2175,7 @@ func createDataViewProtoTemplate() *objectTemplate {
 	t.putStr("getUint32", func(r *Runtime) Value { return r.methodProp(r.dataViewProto_getUint32, "getUint32", 1) })
 	t.putStr("getBigInt64", func(r *Runtime) Value { return r.methodProp(r.dataViewProto_getBigInt64, "getBigInt64", 1) })
 	t.putStr("getBigUint64", func(r *Runtime) Value { return r.methodProp(r.dataViewProto_getBigUint64, "getBigUint64", 1) })
+	t.putStr("setFloat16", func(r *Runtime) Value { return r.methodProp(r.dataViewProto_setFloat16, "setFloat16", 2) })
 	t.putStr("setFloat32", func(r *Runtime) Value { return r.methodProp(r.dataViewProto_setFloat32, "setFloat32", 2) })
 	t.putStr("setFloat64", func(r *Runtime) Value { return r.methodProp(r.dataViewProto_setFloat64, "setFloat64", 2) })
 	t.putStr("setInt8", func(r *Runtime) Value { return r.methodProp(r.dataViewProto_setInt8, "setInt8", 2) })

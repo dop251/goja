@@ -78,6 +78,7 @@ type global struct {
 	Int16Array        *Object
 	Uint32Array       *Object
 	Int32Array        *Object
+	Float16Array      *Object
 	Float32Array      *Object
 	Float64Array      *Object
 	BigInt64Array     *Object

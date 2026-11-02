@@ -173,7 +173,6 @@ var (
 		"regexp-duplicate-named-groups",
 		"regexp-v-flag",
 		"explicit-resource-management",
-		"Float16Array",
 		"Array.fromAsync",
 
 		"source-phase-imports",
