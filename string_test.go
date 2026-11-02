@@ -388,6 +388,14 @@ func TestStringMaxLen(t *testing.T) {
 	});
 
 	assert.throws(RangeError, () => {
+		'\u2605'.repeat(1e300); // count clamped to math.MaxInt
+	});
+
+	assert.throws(RangeError, () => {
+		'\u2605'.repeat(2**63);
+	});
+
+	assert.throws(RangeError, () => {
 		'a'.repeat(2**53-1);
 	});
 
