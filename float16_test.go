@@ -30,25 +30,25 @@ func TestFloat64ToFloat16Bits(t *testing.T) {
 		{1 + 0x1p-11 + 0x1p-40, 0x3c01},
 	}
 	for _, tt := range tests {
-		if got := float64ToFloat16Bits(tt.in); got != tt.want {
-			t.Errorf("float64ToFloat16Bits(%v) = %#04x, want %#04x", tt.in, got, tt.want)
+		if got := Float64ToFloat16(tt.in); got != tt.want {
+			t.Errorf("Float64ToFloat16(%v) = %#04x, want %#04x", tt.in, got, tt.want)
 		}
 	}
-	if got := float64ToFloat16Bits(math.NaN()); got&0x7c00 != 0x7c00 || got&0x3ff == 0 {
-		t.Errorf("float64ToFloat16Bits(NaN) = %#04x, want a NaN", got)
+	if got := Float64ToFloat16(math.NaN()); got&0x7c00 != 0x7c00 || got&0x3ff == 0 {
+		t.Errorf("Float64ToFloat16(NaN) = %#04x, want a NaN", got)
 	}
 }
 
 func TestFloat16BitsRoundTrip(t *testing.T) {
 	for b := 0; b <= 0xffff; b++ {
-		f := float16BitsToFloat64(uint16(b))
+		f := Float16ToFloat64(uint16(b))
 		if math.IsNaN(f) {
 			if b&0x7c00 != 0x7c00 || b&0x3ff == 0 {
 				t.Fatalf("%#04x decoded to NaN", b)
 			}
 			continue
 		}
-		if got := float64ToFloat16Bits(f); got != uint16(b) {
+		if got := Float64ToFloat16(f); got != uint16(b) {
 			t.Fatalf("%#04x decoded to %v, which encodes to %#04x", b, f, got)
 		}
 	}

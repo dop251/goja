@@ -72,6 +72,7 @@ type uint16Array []byte
 type int16Array []byte
 type uint32Array []byte
 type int32Array []byte
+type float16Array []byte
 type float32Array []byte
 type float64Array []byte
 type bigInt64Array []byte
@@ -231,6 +232,25 @@ func toInt32Exact(v Value) (int32, bool) {
 		}
 	}
 	return 0, false
+}
+
+// toFloat16Exact returns the value of v (which must be a Number) if it is exactly representable as
+// a float16. NaN is not representable (and never strictly equals anything), so
+// false is returned.
+func toFloat16Exact(v Value) (float64, bool) {
+	var f float64
+	switch v := v.(type) {
+	case valueInt:
+		f = float64(v)
+	case valueFloat:
+		f = float64(v)
+	default:
+		return 0, false
+	}
+	if Float16ToFloat64(Float64ToFloat16(f)) != f {
+		return 0, false
+	}
+	return f, true
 }
 
 // toFloat32Exact converts v (which must be a Number) to float32 if the value is exactly
@@ -669,6 +689,91 @@ var typeInt32Array = reflect.TypeOf(([]int32)(nil))
 
 func (a *int32Array) exportType() reflect.Type {
 	return typeInt32Array
+}
+
+func (a *float16Array) ptr(idx int) *uint16 {
+	p := unsafe.SliceData(*a)
+	return (*uint16)(unsafe.Add(unsafe.Pointer(p), idx*2))
+}
+
+func (a *float16Array) value(idx int) float64 {
+	return Float16ToFloat64(*(a.ptr(idx)))
+}
+
+func (a *float16Array) get(idx int) Value {
+	return floatToValue(a.value(idx))
+}
+
+func (a *float16Array) set(idx int, value Value) {
+	*(a.ptr(idx)) = toFloat16Bits(value)
+}
+
+func (a *float16Array) less(i, j int) bool {
+	return typedFloatLess(a.value(i), a.value(j))
+}
+
+func (a *float16Array) swap(i, j int) {
+	pi, pj := a.ptr(i), a.ptr(j)
+	*pi, *pj = *pj, *pi
+}
+
+// indexOf compares elements by value rather than by bits, so that 0 and -0 are equal.
+func (a *float16Array) indexOf(v Value, start, length int) int {
+	f, ok := toFloat16Exact(v)
+	if !ok {
+		return -1
+	}
+	for i := start; i < start+length; i++ {
+		if a.value(i) == f {
+			return i - start
+		}
+	}
+	return -1
+}
+
+func (a *float16Array) lastIndexOf(v Value, start, length int) int {
+	f, ok := toFloat16Exact(v)
+	if !ok {
+		return -1
+	}
+	for i := start + length - 1; i >= start; i-- {
+		if a.value(i) == f {
+			return i - start
+		}
+	}
+	return -1
+}
+
+func (a *float16Array) includes(v Value, start, length int) bool {
+	switch v.(type) {
+	case valueInt, valueFloat:
+	default:
+		return false
+	}
+	if math.IsNaN(v.ToFloat()) {
+		for i := start; i < start+length; i++ {
+			if math.IsNaN(a.value(i)) {
+				return true
+			}
+		}
+		return false
+	}
+	return a.indexOf(v, start, length) >= 0
+}
+
+func (a *float16Array) fill(v Value, start, length int) {
+	fillSlice(unsafe.Slice(a.ptr(start), length), toFloat16Bits(v))
+}
+
+// export returns the raw IEEE 754 binary16 bits of the elements, as Go has no float16 type.
+func (a *float16Array) export(offset int, length int) interface{} {
+	return unsafe.Slice(a.ptr(offset), length)
+}
+
+var typeFloat16Array = reflect.TypeOf(([]uint16)(nil))
+
+func (a *float16Array) exportType() reflect.Type {
+	return typeFloat16Array
 }
 
 func (a *float32Array) ptr(idx int) *float32 {
@@ -1305,6 +1410,10 @@ func (r *Runtime) newInt32ArrayObject(buf *arrayBufferObject, offset, length int
 	return r._newTypedArrayObject(buf, offset, length, 4, r.global.Int32Array, (*int32Array)(&buf.data), proto)
 }
 
+func (r *Runtime) newFloat16ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
+	return r._newTypedArrayObject(buf, offset, length, 2, r.global.Float16Array, (*float16Array)(&buf.data), proto)
+}
+
 func (r *Runtime) newFloat32ArrayObject(buf *arrayBufferObject, offset, length int, proto *Object) *typedArrayObject {
 	return r._newTypedArrayObject(buf, offset, length, 4, r.global.Float32Array, (*float32Array)(&buf.data), proto)
 }
@@ -1346,6 +1455,14 @@ func (o *arrayBufferObject) ensureNotDetached(throw bool) bool {
 		return false
 	}
 	return true
+}
+
+func (o *arrayBufferObject) getFloat16(idx int, byteOrder byteOrder) float64 {
+	return Float16ToFloat64(o.getUint16(idx, byteOrder))
+}
+
+func (o *arrayBufferObject) setFloat16(idx int, val uint16, byteOrder byteOrder) {
+	o.setUint16(idx, val, byteOrder)
 }
 
 func (o *arrayBufferObject) getFloat32(idx int, byteOrder byteOrder) float32 {

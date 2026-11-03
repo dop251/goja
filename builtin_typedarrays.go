@@ -280,6 +280,13 @@ func (r *Runtime) dataViewProto_getByteOffset(call FunctionCall) Value {
 	panic(r.NewTypeError("Method get DataView.prototype.byteOffset called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 }
 
+func (r *Runtime) dataViewProto_getFloat16(call FunctionCall) Value {
+	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
+		return floatToValue(dv.viewedArrayBuf.getFloat16(dv.getIdxAndByteOrder(r.toIndex(call.Argument(0)), call.Argument(1), 2)))
+	}
+	panic(r.NewTypeError("Method DataView.prototype.getFloat16 called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
+}
+
 func (r *Runtime) dataViewProto_getFloat32(call FunctionCall) Value {
 	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
 		return floatToValue(float64(dv.viewedArrayBuf.getFloat32(dv.getIdxAndByteOrder(r.toIndex(call.Argument(0)), call.Argument(1), 4))))
@@ -350,6 +357,17 @@ func (r *Runtime) dataViewProto_getBigUint64(call FunctionCall) Value {
 		return (*valueBigInt)(dv.viewedArrayBuf.getBigUint64(dv.getIdxAndByteOrder(r.toIndex(call.Argument(0).ToNumber()), call.Argument(1), 8)))
 	}
 	panic(r.NewTypeError("Method DataView.prototype.getBigUint64 called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
+}
+
+func (r *Runtime) dataViewProto_setFloat16(call FunctionCall) Value {
+	if dv, ok := r.toObject(call.This).self.(*dataViewObject); ok {
+		idxVal := r.toIndex(call.Argument(0))
+		val := toFloat16Bits(call.Argument(1))
+		idx, bo := dv.getIdxAndByteOrder(idxVal, call.Argument(2), 2)
+		dv.viewedArrayBuf.setFloat16(idx, val, bo)
+		return _undefined
+	}
+	panic(r.NewTypeError("Method DataView.prototype.setFloat16 called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 }
 
 func (r *Runtime) dataViewProto_setFloat32(call FunctionCall) Value {
@@ -1602,6 +1620,10 @@ func (r *Runtime) newInt32Array(args []Value, newTarget, proto *Object) *Object 
 	return r._newTypedArray(args, newTarget, r.newInt32ArrayObject, proto)
 }
 
+func (r *Runtime) newFloat16Array(args []Value, newTarget, proto *Object) *Object {
+	return r._newTypedArray(args, newTarget, r.newFloat16ArrayObject, proto)
+}
+
 func (r *Runtime) newFloat32Array(args []Value, newTarget, proto *Object) *Object {
 	return r._newTypedArray(args, newTarget, r.newFloat32ArrayObject, proto)
 }
@@ -2090,6 +2112,16 @@ func (r *Runtime) getInt32Array() *Object {
 		ret = &Object{runtime: r}
 		r.global.Int32Array = ret
 		r.createTypedArrayCtor(ret, r.newInt32Array, "Int32Array", 4)
+	}
+	return ret
+}
+
+func (r *Runtime) getFloat16Array() *Object {
+	ret := r.global.Float16Array
+	if ret == nil {
+		ret = &Object{runtime: r}
+		r.global.Float16Array = ret
+		r.createTypedArrayCtor(ret, r.newFloat16Array, "Float16Array", 2)
 	}
 	return ret
 }

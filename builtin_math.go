@@ -73,6 +73,10 @@ func (r *Runtime) math_floor(call FunctionCall) Value {
 	return floatToValue(math.Floor(call.Argument(0).ToFloat()))
 }
 
+func (r *Runtime) math_f16round(call FunctionCall) Value {
+	return floatToValue(Float16ToFloat64(Float64ToFloat16(call.Argument(0).ToFloat())))
+}
+
 func (r *Runtime) math_fround(call FunctionCall) Value {
 	return floatToValue(float64(float32(call.Argument(0).ToFloat())))
 }

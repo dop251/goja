@@ -1241,6 +1241,10 @@ func toUint(v Value) uint {
 	return 0
 }
 
+func toFloat16Bits(v Value) uint16 {
+	return Float64ToFloat16(v.ToFloat())
+}
+
 func toFloat32(v Value) float32 {
 	return float32(v.ToFloat())
 }
