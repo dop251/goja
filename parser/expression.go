@@ -1357,8 +1357,13 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 		idx := self.idx
 		self.next()
 		ok := false
+		parenthesizedLeft := false
 		switch l := left.(type) {
-		case *ast.Identifier, *ast.DotExpression, *ast.PrivateDotExpression, *ast.BracketExpression:
+		case *ast.Identifier:
+			// If the expression starts with a parenthesis, the identifier is in parentheses, e.g. (a) = ...
+			parenthesizedLeft = parenthesis
+			ok = true
+		case *ast.DotExpression, *ast.PrivateDotExpression, *ast.BracketExpression:
 			ok = true
 		case *ast.ArrayLiteral:
 			if !parenthesis && operator == token.ASSIGN {
@@ -1373,9 +1378,10 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 		}
 		if ok {
 			return &ast.AssignExpression{
-				Left:     left,
-				Operator: operator,
-				Right:    self.parseAssignmentExpression(),
+				Left:              left,
+				Operator:          operator,
+				Right:             self.parseAssignmentExpression(),
+				ParenthesizedLeft: parenthesizedLeft,
 			}
 		}
 		self.error(left.Idx0(), "Invalid left-hand side in assignment")

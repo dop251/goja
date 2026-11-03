@@ -94,9 +94,6 @@ var (
 
 		// FIXME bugs
 
-		// Left-hand side as a CoverParenthesizedExpression
-		"test/language/expressions/assignment/fn-name-lhs-cover.js": true,
-
 		// quantifier integer limit in regexp
 		"test/built-ins/RegExp/quantifier-integer-limit.js": true,
 
