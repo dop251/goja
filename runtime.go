@@ -78,6 +78,7 @@ type global struct {
 	Int16Array        *Object
 	Uint32Array       *Object
 	Int32Array        *Object
+	Float16Array      *Object
 	Float32Array      *Object
 	Float64Array      *Object
 	BigInt64Array     *Object
@@ -1238,6 +1239,10 @@ func toUint(v Value) uint {
 		}
 	}
 	return 0
+}
+
+func toFloat16Bits(v Value) uint16 {
+	return Float64ToFloat16(v.ToFloat())
 }
 
 func toFloat32(v Value) float32 {
