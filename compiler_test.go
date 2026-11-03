@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"errors"
 	"os"
 	"sync"
 	"testing"
@@ -6490,6 +6491,27 @@ func TestWrongThisForwardRef(t *testing.T) {
 	f.call(expectedThis, 1, 2);
 `
 	testScript(SCRIPT, _undefined, t)
+}
+
+func TestParseSyntaxErrorPosition(t *testing.T) {
+	_, err := Compile("test.js", "var a = 1;\nvar b = ;", false)
+	var se *CompilerSyntaxError
+	ok := errors.As(err, &se)
+	if !ok {
+		t.Fatalf("expected syntax error, got %v", err)
+	}
+	if se.File == nil {
+		t.Fatal("File is not set")
+	}
+	if pos := se.File.Position(se.Offset); pos.Filename != "test.js" || pos.Line != 2 || pos.Column != 9 {
+		t.Errorf("unexpected position: %v", pos)
+	}
+	if se.Message != "Unexpected token ;" {
+		t.Errorf("unexpected message: %q", se.Message)
+	}
+	if msg := se.Error(); msg != "SyntaxError: Unexpected token ; at test.js:2:9" {
+		t.Errorf("unexpected error: %q", msg)
+	}
 }
 
 /*
