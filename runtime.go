@@ -1398,12 +1398,17 @@ func MustCompile(name, src string, strict bool) *Program {
 func Parse(name, src string, options ...parser.Option) (prg *js_ast.Program, err error) {
 	prg, err1 := parser.ParseFile(nil, name, src, 0, options...)
 	if err1 != nil {
-		// FIXME offset
-		err = &CompilerSyntaxError{
+		e := &CompilerSyntaxError{
 			CompilerError: CompilerError{
 				Message: err1.Error(),
 			},
 		}
+		if list, ok := err1.(parser.ErrorList); ok && len(list) > 0 && prg != nil {
+			e.Message = list[0].Message
+			e.File = prg.File
+			e.Offset = list[0].Offset
+		}
+		err = e
 	}
 	return
 }

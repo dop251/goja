@@ -2963,6 +2963,26 @@ func TestStrictDestructuringAssignArguments(t *testing.T) {
 	}
 }
 
+func TestParseSyntaxErrorPosition(t *testing.T) {
+	_, err := Compile("test.js", "var a = 1;\nvar b = ;", false)
+	se, ok := err.(*CompilerSyntaxError)
+	if !ok {
+		t.Fatalf("expected syntax error, got %v", err)
+	}
+	if se.File == nil {
+		t.Fatal("File is not set")
+	}
+	if pos := se.File.Position(se.Offset); pos.Filename != "test.js" || pos.Line != 2 || pos.Column != 9 {
+		t.Errorf("unexpected position: %v", pos)
+	}
+	if se.Message != "Unexpected token ;" {
+		t.Errorf("unexpected message: %q", se.Message)
+	}
+	if msg := se.Error(); msg != "SyntaxError: Unexpected token ; at test.js:2:9" {
+		t.Errorf("unexpected error: %q", msg)
+	}
+}
+
 func TestStrictStringOctalEscapes(t *testing.T) {
 	for _, lit := range []string{`'\1'`, `'\7'`, `'\00'`, `'\08'`, `'\8'`, `'\9'`, `'a\\\1'`} {
 		_, err := Compile("", "'use strict'; "+lit, false)

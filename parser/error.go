@@ -52,6 +52,7 @@ const (
 type Error struct {
 	Position file.Position
 	Message  string
+	Offset   int // The byte offset of the error in the source
 }
 
 // FIXME Should this be "SyntaxError"?
@@ -87,7 +88,9 @@ func (self *_parser) error(place interface{}, msg string, msgValues ...interface
 	position := self.position(idx)
 	msg = fmt.Sprintf(msg, msgValues...)
 	self.errors.Add(position, msg)
-	return self.errors[len(self.errors)-1]
+	err := self.errors[len(self.errors)-1]
+	err.Offset = int(idx) - self.base
+	return err
 }
 
 func (self *_parser) errorUnexpected(idx file.Idx, chr rune) error {
@@ -126,7 +129,7 @@ type ErrorList []*Error
 
 // Add adds an Error with given position and message to an ErrorList.
 func (self *ErrorList) Add(position file.Position, msg string) {
-	*self = append(*self, &Error{position, msg})
+	*self = append(*self, &Error{Position: position, Message: msg})
 }
 
 // Reset resets an ErrorList to no errors.
