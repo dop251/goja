@@ -1548,11 +1548,11 @@ func (r *Runtime) array_from(call FunctionCall) Value {
 		}
 		for k := int64(0); k < l; k++ {
 			idx := valueInt(k)
-			item := arrayLike.self.getIdx(idx, nil)
+			// getIdx() gives nil for a missing property, but a mapping function must be called
+			// with undefined (23.1.2.1.1 step 8.b.iii); a native one would dereference the nil.
+			item := nilSafe(arrayLike.self.getIdx(idx, nil))
 			if mapFn != nil {
 				item = mapFn(FunctionCall{This: t, Arguments: []Value{item, idx}})
-			} else {
-				item = nilSafe(item)
 			}
 			createDataPropertyOrThrow(arr, idx, item)
 		}

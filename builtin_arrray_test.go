@@ -198,6 +198,37 @@ func TestArrayFromArrayLikeMaxLength(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestArrayFromArrayLikeMissingElementWithNativeMapFn(t *testing.T) {
+	const SCRIPT = `
+	function map(fn) {
+		return JSON.stringify(Array.from({length: 2}, fn));
+	}
+
+	assert.sameValue(map(String), '["undefined","undefined"]', "String");
+	assert.sameValue(map(Number), "[null,null]", "Number");
+	assert.sameValue(map(Boolean), "[false,false]", "Boolean");
+	assert.sameValue(map(Object), "[{},{}]", "Object");
+	assert.sameValue(map(Symbol), "[null,null]", "Symbol");
+	assert.sameValue(map(parseInt), "[null,null]", "parseInt");
+	assert.sameValue(map(encodeURIComponent), '["undefined","undefined"]', "encodeURIComponent");
+	assert.sameValue(map(isNaN), "[true,true]", "isNaN");
+	assert.sameValue(map(Math.abs), "[null,null]", "Math.abs");
+	assert.throws(TypeError, () => Array.from({length: 2}, BigInt), "BigInt");
+
+	var n = 0;
+	var args = [];
+	assert.sameValue(JSON.stringify(Array.from({length: 2}, function (v, i) { n++; args.push(v); return i; })), "[0,1]");
+	assert.sameValue(n, 2, "mapFn call count");
+	assert.sameValue(args[0], undefined, "argument is undefined");
+
+	assert.sameValue(JSON.stringify(Array.from({length: 1, 0: 5}, String)), '["5"]', "present element");
+	assert.sameValue(JSON.stringify(Array.from([, 1], String)), '["undefined","1"]', "holey array literal");
+	assert.sameValue(JSON.stringify(Array.from(new Set([, 1]), String)), '["undefined","1"]', "iterator source");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestArrayOf(t *testing.T) {
 	const SCRIPT = `
 	function T1() {
