@@ -330,7 +330,7 @@ func (c *compiler) compileLabeledForStatement(v *ast.ForStatement, needResult bo
 		c.compileExpression(v.Update).emitGetter(false)
 	}
 	if enterIterBlock != nil {
-		if c.scope.needStash || c.scope.isDynamic() {
+		if c.scope.hasStash() {
 			c.p.code[start-1] = copyStash{}
 			c.p.code[loopBlock.cont] = copyStash{}
 		} else {

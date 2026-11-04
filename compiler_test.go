@@ -4596,6 +4596,23 @@ func TestRestArgsInStashFwdRef(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestFuncParamRestStrictEval(t *testing.T) {
+	const SCRIPT = `
+	"use strict";
+	function f(a = 1, ...rest) {
+		eval("true");
+		let o = {};
+		o.value = a;
+		for (let k in rest) {
+			o.value += rest[k];
+		}
+		return o.value;
+	}
+	f(5, 6, 7);
+	`
+	testScript(SCRIPT, valueInt(18), t)
+}
+
 func TestFuncParamRestPattern(t *testing.T) {
 	const SCRIPT = `
 	function f(arg1, ...{0: rest1, 1: rest2}) {
@@ -6476,6 +6493,20 @@ func TestWrongThisExtraArg(t *testing.T) {
 	a.f({"SomeKey": "here"}) // pass extra arg
 `
 	testScript(SCRIPT, _undefined, t)
+}
+
+func TestDerivedCtorEvalDefaultRestParams(t *testing.T) {
+	const SCRIPT = `
+	class A extends Object {
+		constructor(a = 1, ...rest) {
+			eval("true");
+			super();
+			this.value = a + rest.length;
+		}
+	}
+	new A(5, 6, 7).value;
+	`
+	testScript(SCRIPT, valueInt(7), t)
 }
 
 func TestWrongThisForwardRef(t *testing.T) {
