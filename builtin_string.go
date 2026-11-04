@@ -37,10 +37,10 @@ func toString(arg Value) String {
 
 func (r *Runtime) builtin_String(call FunctionCall) Value {
 	if len(call.Arguments) > 0 {
-		return toString(call.Arguments[0])
-	} else {
-		return stringEmpty
+		return toString(call.Argument(0))
 	}
+
+	return stringEmpty
 }
 
 func (r *Runtime) _newString(s String, proto *Object) *Object {

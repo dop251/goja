@@ -2567,7 +2567,7 @@ func AssertFunction(v Value) (Callable, bool) {
 			return func(this Value, args ...Value) (ret Value, err error) {
 				err = obj.runtime.runWrapped(func() {
 					ret = f(FunctionCall{
-						This:      this,
+						This:      nilSafe(this),
 						Arguments: args,
 					})
 				})
@@ -3196,7 +3196,7 @@ func (r *Runtime) trackPromiseRejection(p *Promise, operation PromiseRejectionOp
 }
 
 func (r *Runtime) callJobCallback(job *jobCallback, this Value, args ...Value) Value {
-	return job.callback(FunctionCall{This: this, Arguments: args})
+	return job.callback(FunctionCall{This: nilSafe(this), Arguments: args})
 }
 
 func (r *Runtime) invoke(v Value, p unistring.String, args ...Value) Value {

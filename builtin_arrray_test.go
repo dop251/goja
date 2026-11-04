@@ -426,3 +426,17 @@ func TestStdArrayWithNilProto(t *testing.T) {
 	`
 	testScript(SCRIPT, intToValue(2), t)
 }
+
+func TestArrayFindIndexWithHoles(t *testing.T) {
+	const SCRIPT = `
+	[,].findIndex(String);
+	`
+	testScript(SCRIPT, intToValue(0), t)
+}
+
+func TestArrayFromWithHoles(t *testing.T) {
+	const SCRIPT = `
+	assert(compareArray(Array.from({ length: 1 }, String), ["undefined"]));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

@@ -3960,6 +3960,13 @@ func TestToInt32LargeFloat(t *testing.T) {
 	}
 }
 
+func TestPromiseReactionNilThis(t *testing.T) {
+	const SCRIPT = `
+	void Promise.resolve().finally(Array.prototype.findLast);
+	`
+	testScript(SCRIPT, _undefined, t)
+}
+
 func BenchmarkToInt32Float(b *testing.B) {
 	b.Run("fast", func(b *testing.B) {
 		f := float64(1)

@@ -296,7 +296,7 @@ func (f *classFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
 }
 
 func (f *classFuncObject) vmCall(vm *vm, n int) {
-	f.Call(FunctionCall{})
+	f.Call(FunctionCall{This: _undefined})
 }
 
 func (f *classFuncObject) exportType() reflect.Type {
