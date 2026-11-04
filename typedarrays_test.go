@@ -5,8 +5,10 @@ import (
 	stdbase64 "encoding/base64"
 	stdhex "encoding/hex"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
+	"unsafe"
 )
 
 func TestUint16ArrayObject(t *testing.T) {
@@ -1098,5 +1100,30 @@ func BenchmarkUint8ArraySetFrom(b *testing.B) {
 				})
 			}
 		})
+	}
+}
+
+func TestTypedArrayExportEmptyViewAtBufferEnd(t *testing.T) {
+	vm := New()
+	buf := vm.NewArrayBuffer(make([]byte, 64))
+	vm.Set("buf", buf)
+	end := uintptr(unsafe.Pointer(unsafe.SliceData(buf.Bytes()))) + 64
+	for _, src := range []string{
+		"new Uint8Array(buf, 64, 0)",
+		"new Uint8Array(buf).subarray(64)",
+		"new Int32Array(buf, 64, 0)",
+		"new Float64Array(buf).subarray(8)",
+	} {
+		v, err := vm.RunString(src)
+		if err != nil {
+			t.Fatal(src, err)
+		}
+		exported := reflect.ValueOf(v.Export())
+		if exported.Kind() != reflect.Slice || exported.Len() != 0 {
+			t.Fatalf("%s: unexpected export %v", src, exported)
+		}
+		if exported.Pointer() == end {
+			t.Errorf("%s: exported slice points one past the end of the buffer", src)
+		}
 	}
 }

@@ -1343,6 +1343,12 @@ func (a *typedArrayObject) exportToArrayOrSlice(dst reflect.Value, typ reflect.T
 }
 
 func (a *typedArrayObject) export(_ *objectExportCtx) interface{} {
+	if a.length == 0 {
+		// An empty view can start at the end of its buffer, where a.typedArray.export would produce a slice
+		// whose data pointer is one past the end of the allocation. The garbage collector rejects such
+		// pointers ("found bad pointer in Go heap") once the memory after the buffer is unallocated.
+		return reflect.MakeSlice(a.typedArray.exportType(), 0, 0).Interface()
+	}
 	return a.typedArray.export(a.offset, a.length)
 }
 
