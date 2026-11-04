@@ -485,6 +485,9 @@ func (r *Runtime) objectproto_toString(call FunctionCall) Value {
 
 func (r *Runtime) objectproto_toLocaleString(call FunctionCall) Value {
 	toString := toMethod(r.getVStr(call.This, "toString"))
+	if toString == nil {
+		panic(r.NewTypeError("undefined is not a function"))
+	}
 	return toString(FunctionCall{This: call.This})
 }
 
@@ -630,8 +633,8 @@ func (r *Runtime) object_fromEntries(call FunctionCall) Value {
 		i1 := valueInt(1)
 
 		itemObj := r.toObject(nextValue)
-		k := itemObj.self.getIdx(i0, nil)
-		v := itemObj.self.getIdx(i1, nil)
+		k := nilSafe(itemObj.self.getIdx(i0, nil))
+		v := nilSafe(itemObj.self.getIdx(i1, nil))
 		key := toPropertyKey(k)
 
 		createDataPropertyOrThrow(result, key, v)

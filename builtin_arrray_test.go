@@ -416,3 +416,13 @@ func TestArrayIncludesNegativeZero(t *testing.T) {
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func TestStdArrayWithNilProto(t *testing.T) {
+	const SCRIPT = `
+	const a = [1, 2, 3];
+	Object.setPrototypeOf(a, null);
+	Array.prototype.shift.call(a); // should not panic
+	a.length;
+	`
+	testScript(SCRIPT, intToValue(2), t)
+}

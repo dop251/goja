@@ -1421,6 +1421,13 @@ func TestSortComparatorReturnValueNegZero(t *testing.T) {
 	testScript(SCRIPT, _undefined, t)
 }
 
+func TestObjectToLocaleStringNoToString(t *testing.T) {
+	const SCRIPT = `
+	assert.throws(TypeError, () => Object.prototype.toLocaleString.call(Object.create(null)));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestNilApplyArg(t *testing.T) {
 	const SCRIPT = `
 	(function x(a, b) {
@@ -2700,6 +2707,9 @@ func TestStrToInt32(t *testing.T) {
 	if n, ok := strToInt32("-01"); ok {
 		t.Fatal("-01", n, ok)
 	}
+	if n, ok := strToInt32("-"); ok {
+		t.Fatal("-", n, ok)
+	}
 }
 
 func TestDestructSymbol(t *testing.T) {
@@ -3784,6 +3794,21 @@ func TestDeleteEvalBindings(t *testing.T) {
 			"true|true|true|true;"+
 			"false,2;"+
 			"undefined,true,true"), t)
+}
+
+func TestStrToIntLoneDash(t *testing.T) {
+	const SCRIPT = `
+	""["-"];
+	`
+	testScript(SCRIPT, _undefined, t)
+}
+
+func TestObjectFromEmptyArray(t *testing.T) {
+	const SCRIPT = `
+	const o = Object.fromEntries([[]]);
+	o.hasOwnProperty("undefined") && o.undefined === undefined;
+	`
+	testScript(SCRIPT, valueTrue, t)
 }
 
 /*

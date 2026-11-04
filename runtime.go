@@ -3280,6 +3280,9 @@ func strToInt32(s unistring.String) (int32, bool) {
 		s = s[1:]
 	}
 	l := len(s)
+	if l == 0 {
+		return -1, false
+	}
 	if s[0] == '0' {
 		if l == 1 {
 			return 0, !neg
@@ -3337,6 +3340,9 @@ func strToInt64(s unistring.String) (int64, bool) {
 		s = s[1:]
 	}
 	l := len(s)
+	if l == 0 {
+		return -1, false
+	}
 	if s[0] == '0' {
 		if l == 1 {
 			return 0, !neg

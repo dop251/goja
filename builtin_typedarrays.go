@@ -1062,6 +1062,9 @@ func (r *Runtime) typedArrayProto_set(call FunctionCall) Value {
 					src.viewedArrayBuf.data[src.offset*src.elemSize:(src.offset+srcLen)*src.elemSize])
 			} else {
 				checkTypedArrayMixBigInt(src.defaultCtor, ta.defaultCtor)
+				if srcLen == 0 {
+					return _undefined
+				}
 				curSrc := uintptr(unsafe.Pointer(&src.viewedArrayBuf.data[src.offset*src.elemSize]))
 				endSrc := curSrc + uintptr(srcLen*src.elemSize)
 				curDst := uintptr(unsafe.Pointer(&ta.viewedArrayBuf.data[(ta.offset+targetOffset)*ta.elemSize]))

@@ -576,6 +576,14 @@ func TestTypedArrayExport(t *testing.T) {
 
 }
 
+func TestTypedArraySetWithEmptySrc(t *testing.T) {
+	const SCRIPT = `
+	new Uint8Array(0).set(new Int8Array(0));
+	new Uint8Array(0).set(new Uint8Array(0));
+	`
+	testScript(SCRIPT, _undefined, t)
+}
+
 func TestUint8ArrayFromHex(t *testing.T) {
 	vm := New()
 
