@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"errors"
 	"os"
 	"sync"
 	"testing"
@@ -1107,6 +1108,54 @@ func TestIfMultipleLabels(t *testing.T) {
 	}
 	`
 	testScript(SCRIPT, _undefined, t)
+}
+
+func TestLabelledFunctionDeclaration(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue(g(), 1, "hoisted");
+	l: function g() {
+		return 1;
+	}
+
+	a: b: function h() {
+		return 2;
+	}
+	assert.sameValue(h(), 2, "multiple labels");
+
+	function f() {
+		return inner();
+		l: function inner() {
+			return 3;
+		}
+	}
+	assert.sameValue(f(), 3, "function body");
+
+	{
+		assert.sameValue(blk(), 4, "block");
+		l: function blk() {
+			return 4;
+		}
+	}
+
+	assert.sameValue(eval("1; l: function e() {}"), 1, "completion value");
+
+	assert.throws(SyntaxError, function() {
+		eval("'use strict'; l: function f() {}");
+	}, "strict mode");
+	assert.throws(SyntaxError, function() {
+		eval("l: function* f() {}");
+	}, "generator");
+	assert.throws(SyntaxError, function() {
+		eval("l: async function f() {}");
+	}, "async function");
+	assert.throws(SyntaxError, function() {
+		eval("if (true) l: function f() {}");
+	}, "if statement body");
+	assert.throws(SyntaxError, function() {
+		eval("while (false) l: function f() {}");
+	}, "loop body");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestBreakOutOfTry(t *testing.T) {
@@ -2366,6 +2415,41 @@ func TestForInLetWithInitializer(t *testing.T) {
 	}
 }
 
+func TestForInVarWithInitializer(t *testing.T) {
+	const SCRIPT = `
+	function f() {
+		var effects = 0;
+		var iterations = 0;
+		var stored;
+		for (var a = (++effects, -1) in stored = a, {x: 0, y: 1}) {
+			iterations++;
+		}
+		return [effects, iterations, stored, a];
+	}
+	assert(compareArray(f(), [1, 2, -1, "y"]), "function var");
+
+	for (var b = 1 in {});
+	assert.sameValue(b, 1, "global var");
+
+	for (var fn = function() {} in {});
+	assert.sameValue(fn.name, "fn", "function name");
+
+	assert.throws(SyntaxError, function() {
+		eval("'use strict'; for (var c = 0 in {});");
+	}, "strict mode");
+	assert.throws(SyntaxError, function() {
+		eval("for (var [c] = 0 in {});");
+	}, "array pattern");
+	assert.throws(SyntaxError, function() {
+		eval("for (var {c} = 0 in {});");
+	}, "object pattern");
+	assert.throws(SyntaxError, function() {
+		eval("for (var c = 0 of []);");
+	}, "for-of");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestForInLoop(t *testing.T) {
 	const SCRIPT = `
 	function Proto() {}
@@ -2906,6 +2990,18 @@ func TestStrictStringOctalEscapes(t *testing.T) {
 	'\0' + 'a\0b' + '\\1';
 	`
 	testScript(SCRIPT, asciiString("\x00a\x00b\\1"), t)
+}
+
+func TestStringLiteralMaxCodePointEscape(t *testing.T) {
+	const SCRIPT = `
+	const s = String.fromCodePoint(0x10FFFF);
+	assert.sameValue('\u{10FFFF}', s, "string");
+	assert.sameValue('a\u{10FFFF}b', "a" + s + "b", "string with other characters");
+	assert.sameValue(` + "`\\u{10FFFF}`" + `, s, "template");
+	assert.sameValue(eval("'\\u{10FFFF}'"), s, "eval");
+	assert.sameValue({'\u{10FFFF}': 1}[s], 1, "property key");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestReturnUndefined(t *testing.T) {
@@ -3519,6 +3615,48 @@ func TestFuncNameAssign(t *testing.T) {
 	`
 
 	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestFuncNameAssignParenthesized(t *testing.T) {
+	const SCRIPT = `
+	var f, c, a, l1, l2, l3, d1, d2;
+	(f) = function() {};
+	assert.sameValue(f.name, "", "function");
+	((c)) = class {};
+	assert.sameValue(c.name, "", "class");
+	(a) = () => {};
+	assert.sameValue(a.name, "", "arrow function");
+
+	(l1) ??= function() {};
+	assert.sameValue(l1.name, "", "??=");
+	(l2) ||= function() {};
+	assert.sameValue(l2.name, "", "||=");
+	l3 = 1;
+	(l3) &&= function() {};
+	assert.sameValue(l3.name, "", "&&=");
+
+	[(d1) = function() {}] = [];
+	assert.sameValue(d1.name, "", "array destructuring");
+	({x: (d2) = function() {}} = {});
+	assert.sameValue(d2.name, "", "object destructuring");
+
+	(function() {
+		var f;
+		(f) = function() {};
+		assert.sameValue(f.name, "", "local variable");
+		[(f) = function() {}] = [];
+		assert.sameValue(f.name, "", "local variable, destructuring");
+	})();
+
+	var g, h, k;
+	g = (function() {});
+	assert.sameValue(g.name, "g", "parenthesized function");
+	[h = function() {}] = [];
+	assert.sameValue(h.name, "h", "array destructuring without parentheses");
+	({x: k = function() {}} = {});
+	assert.sameValue(k.name, "k", "object destructuring without parentheses");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
 func TestLexicalDeclGlobal(t *testing.T) {
@@ -4456,6 +4594,23 @@ func TestRestArgsInStashFwdRef(t *testing.T) {
 	f(1,2);
 	`
 	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestFuncParamRestStrictEval(t *testing.T) {
+	const SCRIPT = `
+	"use strict";
+	function f(a = 1, ...rest) {
+		eval("true");
+		let o = {};
+		o.value = a;
+		for (let k in rest) {
+			o.value += rest[k];
+		}
+		return o.value;
+	}
+	f(5, 6, 7);
+	`
+	testScript(SCRIPT, valueInt(18), t)
 }
 
 func TestFuncParamRestPattern(t *testing.T) {
@@ -6340,6 +6495,20 @@ func TestWrongThisExtraArg(t *testing.T) {
 	testScript(SCRIPT, _undefined, t)
 }
 
+func TestDerivedCtorEvalDefaultRestParams(t *testing.T) {
+	const SCRIPT = `
+	class A extends Object {
+		constructor(a = 1, ...rest) {
+			eval("true");
+			super();
+			this.value = a + rest.length;
+		}
+	}
+	new A(5, 6, 7).value;
+	`
+	testScript(SCRIPT, valueInt(7), t)
+}
+
 func TestWrongThisForwardRef(t *testing.T) {
 	const SCRIPT = `
 	const expectedThis = {};
@@ -6353,6 +6522,27 @@ func TestWrongThisForwardRef(t *testing.T) {
 	f.call(expectedThis, 1, 2);
 `
 	testScript(SCRIPT, _undefined, t)
+}
+
+func TestParseSyntaxErrorPosition(t *testing.T) {
+	_, err := Compile("test.js", "var a = 1;\nvar b = ;", false)
+	var se *CompilerSyntaxError
+	ok := errors.As(err, &se)
+	if !ok {
+		t.Fatalf("expected syntax error, got %v", err)
+	}
+	if se.File == nil {
+		t.Fatal("File is not set")
+	}
+	if pos := se.File.Position(se.Offset); pos.Filename != "test.js" || pos.Line != 2 || pos.Column != 9 {
+		t.Errorf("unexpected position: %v", pos)
+	}
+	if se.Message != "Unexpected token ;" {
+		t.Errorf("unexpected message: %q", se.Message)
+	}
+	if msg := se.Error(); msg != "SyntaxError: Unexpected token ; at test.js:2:9" {
+		t.Errorf("unexpected error: %q", msg)
+	}
 }
 
 /*

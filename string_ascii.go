@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"errors"
 	"hash/maphash"
 	"io"
 	"math"
@@ -98,13 +99,13 @@ func stringToInt(ss string) (int64, error) {
 	if ss == "-0" {
 		return 0, strconv.ErrSyntax
 	}
-	if len(ss) > 2 {
-		switch ss[:2] {
-		case "0x", "0X":
+	if len(ss) > 2 && ss[0] == '0' {
+		switch ss[1] {
+		case 'x', 'X':
 			return strconv.ParseInt(ss[2:], 16, 64)
-		case "0b", "0B":
+		case 'b', 'B':
 			return strconv.ParseInt(ss[2:], 2, 64)
-		case "0o", "0O":
+		case 'o', 'O':
 			return strconv.ParseInt(ss[2:], 8, 64)
 		}
 	}
@@ -116,10 +117,7 @@ func (s asciiString) _toInt(trimmed string) (int64, error) {
 }
 
 func isRangeErr(err error) bool {
-	if err, ok := err.(*strconv.NumError); ok {
-		return err.Err == strconv.ErrRange
-	}
-	return false
+	return errors.Is(err, strconv.ErrRange)
 }
 
 func (s asciiString) _toFloat(trimmed string) (float64, error) {

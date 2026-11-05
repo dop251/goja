@@ -2,6 +2,24 @@ package goja
 
 import "testing"
 
+func TestStringTrimPreservesUTF16(t *testing.T) {
+	const SCRIPT = `
+var values = ['\uD800', '\uDC00', 'a\uD800b\uDC00c', '\uD83D\uDE00', '\uFFFD'];
+values.push('a'.repeat(40) + '\uD800' + 'b'.repeat(40));
+for (var value of values) {
+    assert.sameValue(value.trim(), value, "unchanged trim");
+    assert.sameValue((' \t' + value + '\uFEFF\n').trim(), value, "trim");
+    assert.sameValue(('\u2000' + value + ' ').trimStart(), value + ' ', "trimStart");
+    assert.sameValue((' ' + value + '\u3000').trimEnd(), ' ' + value, "trimEnd");
+    assert.sameValue((' ' + value).trimLeft(), value, "trimLeft");
+    assert.sameValue((value + ' ').trimRight(), value, "trimRight");
+}
+assert.sameValue('\u2000\uFEFF\n'.trim(), '', "all whitespace");
+assert.sameValue(' \u0085\u200B '.trim(), '\u0085\u200B', "non-whitespace");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestSubstr(t *testing.T) {
 	const SCRIPT = `
 assert.sameValue('abc'.substr(0, false), '', 'start: 0, length: false');
@@ -318,6 +336,24 @@ func TestStringSplit(t *testing.T) {
 		test.apply(null, c);
 	}
 	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestStringReplaceAllEmptySearchUnicode(t *testing.T) {
+	const SCRIPT = `
+assert.sameValue('aé'.replaceAll('', '-'), '-a-é-');
+assert.sameValue('\uD83D\uDE00'.replaceAll('', '-'), '-\uD83D-\uDE00-');
+assert.sameValue('é'.repeat(40).replaceAll('', '-'), '-' + 'é-'.repeat(40));
+assert.sameValue('aé'.replaceAll('', function(m, pos) { return pos; }), '0a1é2');
+var concat = 'é'.repeat(20) + 'x'.repeat(20);
+assert.sameValue(concat.replaceAll('', '-'), '-' + 'é-'.repeat(20) + 'x-'.repeat(20));
+
+assert.sameValue('aé'.indexOf('', 2), 2);
+assert.sameValue('aé'.indexOf('', 5), 2);
+assert.sameValue('aé'.includes('', 2), true);
+assert.sameValue('aé'.indexOf('é', 2), -1);
+assert.sameValue('aéaé'.replaceAll('é', '-'), 'a-a-');
+`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 

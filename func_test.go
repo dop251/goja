@@ -904,3 +904,117 @@ func TestGeneratorReturn8(t *testing.T) {
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func TestGeneratorThrowThroughNew(t *testing.T) {
+	const SCRIPT = `
+	function* g() {
+	  try { yield 1; }
+	  finally {
+		try { new (function(){ throw 1 })(); }
+		finally { yield 2; }
+	  }
+	}
+	var it = g();
+	assert.sameValue(it.next().value, 1);
+	var result = it.return(2);
+	assert.sameValue(result.value, 2);
+	assert.sameValue(result.done, false);
+	var caught;
+	try { it.next(); } catch (e) { caught = e; }
+	assert.sameValue(caught, 1);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestGeneratorThrowAfterReturnFromConstructor(t *testing.T) {
+	const SCRIPT = `
+	class TestError extends Error {
+	}
+
+	function* g() {
+	  try {
+		try {
+		  yield 1;
+		} finally {
+		  yield 2;
+		}
+	  } finally {
+	  }
+	}
+	
+	const it = g();
+	it.next();
+	it.return();
+	
+	assert.throws(TestError, () => new (function () { it.throw(new TestError()); })());
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestGeneratorThrowAfterReturnInFinally(t *testing.T) {
+	const SCRIPT = `
+	var outerRan = false;
+
+	function* g() {
+	  try {
+		try {
+		  yield 1;
+		} finally {
+		  yield 2;
+		}
+	  } finally {
+		outerRan = true;
+	  }
+	}
+
+	const it = g();
+	assert.sameValue(it.next().value, 1);
+
+	const result = it.return();
+	assert.sameValue(result.value, 2);
+	assert.sameValue(result.done, false);
+
+	var caught;
+	try {
+	  [1].filter(function () { it.throw(3); });
+	} catch (e) {
+	  caught = e;
+	}
+	assert.sameValue(caught, 3);
+	assert.sameValue(outerRan, true);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestGeneratorThrowCaughtDuringReturn(t *testing.T) {
+	const SCRIPT = `
+	var log = [];
+
+	function* g() {
+	  try {
+		try {
+		  yield 1;
+		} finally {
+		  try {
+			yield 2;
+		  } catch (e) {
+			log.push("caught:" + e);
+			yield 3;
+		  }
+		}
+	  } finally {
+		log.push("outer");
+	  }
+	}
+
+	const it = g();
+	assert.sameValue(it.next().value, 1);
+	assert.sameValue(it.return("r").value, 2);
+	assert.sameValue(it.throw("x").value, 3);
+	const result = it.next();
+	assert.sameValue(result.value, "r");
+	assert.sameValue(result.done, true);
+	assert.sameValue(log.join(","), "caught:x,outer");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

@@ -416,3 +416,27 @@ func TestArrayIncludesNegativeZero(t *testing.T) {
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func TestStdArrayWithNilProto(t *testing.T) {
+	const SCRIPT = `
+	const a = [1, 2, 3];
+	Object.setPrototypeOf(a, null);
+	Array.prototype.shift.call(a); // should not panic
+	a.length;
+	`
+	testScript(SCRIPT, intToValue(2), t)
+}
+
+func TestArrayFindIndexWithHoles(t *testing.T) {
+	const SCRIPT = `
+	[,].findIndex(String);
+	`
+	testScript(SCRIPT, intToValue(0), t)
+}
+
+func TestArrayFromWithHoles(t *testing.T) {
+	const SCRIPT = `
+	assert(compareArray(Array.from({ length: 1 }, String), ["undefined"]));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

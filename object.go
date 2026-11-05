@@ -262,6 +262,11 @@ func (o *primitiveValueObject) exportType() reflect.Type {
 	return o.pValue.ExportType()
 }
 
+// FunctionCall represents a call to a JavaScript function.
+//
+// This must never be nil; use _undefined (or Undefined()) when there is no
+// receiver. Arguments may contain nil values, which are treated as undefined
+// (e.g. by FunctionCall.Argument).
 type FunctionCall struct {
 	This      Value
 	Arguments []Value
@@ -275,14 +280,14 @@ type ConstructorCall struct {
 
 func (f FunctionCall) Argument(idx int) Value {
 	if idx < len(f.Arguments) {
-		return f.Arguments[idx]
+		return nilSafe(f.Arguments[idx])
 	}
 	return _undefined
 }
 
 func (f ConstructorCall) Argument(idx int) Value {
 	if idx < len(f.Arguments) {
-		return f.Arguments[idx]
+		return nilSafe(f.Arguments[idx])
 	}
 	return _undefined
 }

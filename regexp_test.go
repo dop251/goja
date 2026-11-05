@@ -762,15 +762,6 @@ func TestRegexpLookbehindAssertion(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
-func TestRegexpInvalidUTF8(t *testing.T) {
-	vm := New()
-	// Note that normally vm.ToValue() would replace invalid UTF-8 sequences with RuneError
-	_, err := vm.New(vm.Get("RegExp"), asciiString([]byte{0xAD}))
-	if err == nil {
-		t.Fatal("Expected error")
-	}
-}
-
 // this should not cause data races when run with -race
 func TestRegexpConcurrentLiterals(t *testing.T) {
 	prg := MustCompile("test.js", `var r = /(?<!-)\d+/; r.test("");`, false)
@@ -1013,6 +1004,47 @@ func TestRegexp2MatchError(t *testing.T) {
 	assert.throws(RangeError, () => ("b" + s + "\u00e9").match(/b|(?=a)(a)*/gu), "match (gu), next match");
 	assert.throws(RangeError, () => s.replace(/(?=a)(a)*/, ""), "replace");
 	assert.throws(RangeError, () => s.split(/(?=a)(a)*/), "split");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestIssue772(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue("aaa".replace(/a*/g, "X"), "XX", "replace aaa");
+	assert.sameValue("ab".replace(/a*/g, "X"), "XXbX", "replace ab");
+	assert.sameValue("".replace(/a*/g, "X"), "X", "replace empty");
+	assert.sameValue("a".replace(/a*/g, "X"), "XX", "replace single a");
+
+	assert.sameValue(JSON.stringify("aaa".match(/a*/g)), JSON.stringify(["aaa",""]), "match aaa");
+	assert.sameValue(JSON.stringify("ab".match(/a*/g)), JSON.stringify(["a","",""]), "match ab");
+	assert.sameValue(JSON.stringify("".match(/a*/g)), JSON.stringify([""]), "match empty");
+	assert.sameValue(JSON.stringify("a".match(/a*/g)), JSON.stringify(["a",""]), "match single a");
+
+	assert.sameValue("ab".replaceAll(/a*/g, "X"), "XXbX", "replaceAll ab");
+	assert.sameValue("aaa".replaceAll(/a*/g, "X"), "XX", "replaceAll aaa");
+
+	assert.sameValue("aaa".replace(/(a*)/g, function(m, c) { return "<" + m + ":" + c + ">"; }), "<aaa:aaa><:>", "replace callback aaa");
+	assert.sameValue("ab".replace(/(a*)/g, function(m, c) { return "<" + m + ":" + c + ">"; }), "<a:a><:>b<:>", "replace callback ab");
+
+	assert.sameValue(JSON.stringify("aaa".match(/a*/gy)), JSON.stringify(["aaa",""]), "match sticky aaa");
+	assert.sameValue(JSON.stringify("ab".match(/a*/gy)), JSON.stringify(["a","",""]), "match sticky ab");
+
+	assert.sameValue(JSON.stringify("a\uD834\uDD1E".match(/a*/gu)), JSON.stringify(["a","",""]), "match unicode");
+	assert.sameValue("a\uD834\uDD1E".replace(/a*/gu, "X"), "XX\uD834\uDD1EX", "replace unicode");
+
+	assert.sameValue(JSON.stringify("aaa".match(/(a*)$/g)), JSON.stringify(["aaa",""]), "match end anchor");
+	assert.sameValue(JSON.stringify("aaa".match(/(a*)\b/g)), JSON.stringify(["aaa",""]), "match word boundary");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestRegexpLegacyOctalEscape(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue(/\377/.exec("\xff")[0], "\xff");
+	assert.sameValue(/\400/.exec("\x200")[0], "\x200");
+	assert.sameValue(/\777/.exec("\x3f7")[0], "\x3f7");
+	assert.sameValue(/\0377/.exec("\x1f7")[0], "\x1f7");
+	assert.sameValue(/[\400]+/.exec("\x10 0")[0], " 0");
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }

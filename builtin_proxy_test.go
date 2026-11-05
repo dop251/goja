@@ -1580,3 +1580,11 @@ func TestProxy_HasAndGetTrap(t *testing.T) {
 		t.Fatalf("expected 2 has and 1 get trap calls for 'data', got %d and %d", hasCalls, getCalls)
 	}
 }
+
+func TestProxyOwnKeysNil(t *testing.T) {
+	const SCRIPT = `
+	const p = new Proxy({}, { ownKeys: () => { const a = ['x']; a.length = 2; return a; } });
+	assert.throws(TypeError, () => Object.keys(p));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

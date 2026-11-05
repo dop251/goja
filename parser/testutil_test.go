@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"testing"
 )
@@ -20,7 +21,7 @@ func tt(t *testing.T, f func()) {
 			for {
 				frame, more := frames.Next()
 				// The line number here must match the line where f() is called (see below)
-				if frame.Line == 40 && filepath.Base(frame.File) == "testutil_test.go" {
+				if frame.Line == 41 && filepath.Base(frame.File) == "testutil_test.go" {
 					break
 				}
 
@@ -41,9 +42,7 @@ func tt(t *testing.T, f func()) {
 }
 
 func is(a, b interface{}) {
-	as := fmt.Sprintf("%v", a)
-	bs := fmt.Sprintf("%v", b)
-	if as != bs {
+	if !reflect.DeepEqual(a, b) {
 		panic(fmt.Errorf("%+v(%T) != %+v(%T)", a, a, b, b))
 	}
 }

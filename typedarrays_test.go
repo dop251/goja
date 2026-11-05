@@ -5,8 +5,10 @@ import (
 	stdbase64 "encoding/base64"
 	stdhex "encoding/hex"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
+	"unsafe"
 )
 
 func TestUint16ArrayObject(t *testing.T) {
@@ -576,6 +578,14 @@ func TestTypedArrayExport(t *testing.T) {
 
 }
 
+func TestTypedArraySetWithEmptySrc(t *testing.T) {
+	const SCRIPT = `
+	new Uint8Array(0).set(new Int8Array(0));
+	new Uint8Array(0).set(new Uint8Array(0));
+	`
+	testScript(SCRIPT, _undefined, t)
+}
+
 func TestUint8ArrayFromHex(t *testing.T) {
 	vm := New()
 
@@ -1001,6 +1011,84 @@ func hexInput(decodedLen int) String {
 
 func base64Input(decodedLen int) String {
 	return asciiString(stdbase64.StdEncoding.EncodeToString([]byte(strings.Repeat("a", decodedLen))))
+}
+
+func TestTypedArrayExportEmptyViewAtBufferEnd(t *testing.T) {
+	tests := []struct {
+		ctor     string
+		elemSize int
+	}{
+		{"Uint8Array", 1},
+		{"Uint8ClampedArray", 1},
+		{"Int8Array", 1},
+		{"Uint16Array", 2},
+		{"Int16Array", 2},
+		{"Uint32Array", 4},
+		{"Int32Array", 4},
+		{"Float16Array", 2},
+		{"Float32Array", 4},
+		{"Float64Array", 8},
+		{"BigInt64Array", 8},
+		{"BigUint64Array", 8},
+	}
+	vm := New()
+	buf := vm.NewArrayBuffer(make([]byte, 64))
+	vm.Set("buf", buf)
+	end := uintptr(unsafe.Pointer(unsafe.SliceData(buf.Bytes()))) + 64
+	for _, tc := range tests {
+		t.Run(tc.ctor, func(t *testing.T) {
+			for _, src := range []string{
+				fmt.Sprintf("new %s(buf, 64, 0)", tc.ctor),
+				fmt.Sprintf("new %s(buf).subarray(%d)", tc.ctor, 64/tc.elemSize),
+			} {
+				v, err := vm.RunString(src)
+				if err != nil {
+					t.Fatal(src, err)
+				}
+				exported := reflect.ValueOf(v.Export())
+				if exported.Kind() != reflect.Slice || exported.Len() != 0 {
+					t.Fatalf("%s: unexpected export %v", src, exported)
+				}
+				if exported.Pointer() == end {
+					t.Errorf("%s: exported slice points one past the end of the buffer", src)
+				}
+			}
+		})
+	}
+}
+
+func TestTypedArrayExportLastElement(t *testing.T) {
+	tests := []struct {
+		ctor     string
+		elemSize int
+	}{
+		{"Uint8Array", 1},
+		{"Uint8ClampedArray", 1},
+		{"Int8Array", 1},
+		{"Uint16Array", 2},
+		{"Int16Array", 2},
+		{"Uint32Array", 4},
+		{"Int32Array", 4},
+		{"Float16Array", 2},
+		{"Float32Array", 4},
+		{"Float64Array", 8},
+		{"BigInt64Array", 8},
+		{"BigUint64Array", 8},
+	}
+	vm := New()
+	for _, tc := range tests {
+		t.Run(tc.ctor, func(t *testing.T) {
+			vm.Set("buf", vm.NewArrayBuffer(make([]byte, 64)))
+			v, err := vm.RunString(fmt.Sprintf("new %s(buf, buf.byteLength - %d, 1)", tc.ctor, tc.elemSize))
+			if err != nil {
+				t.Fatal(err)
+			}
+			exported := reflect.ValueOf(v.Export())
+			if exported.Len() != 1 {
+				t.Fatalf("expected a slice of length 1, got %d", exported.Len())
+			}
+		})
+	}
 }
 
 func BenchmarkUint8ArrayTo(b *testing.B) {

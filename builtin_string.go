@@ -9,11 +9,12 @@ import (
 
 	"github.com/dop251/goja/unistring"
 
-	"github.com/dop251/goja/parser"
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
 	"golang.org/x/text/unicode/norm"
 )
+
+const WhitespaceChars = " \f\n\r\t\v\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
 
 func (r *Runtime) collator() *collate.Collator {
 	collator := r._collator
@@ -36,10 +37,10 @@ func toString(arg Value) String {
 
 func (r *Runtime) builtin_String(call FunctionCall) Value {
 	if len(call.Arguments) > 0 {
-		return toString(call.Arguments[0])
-	} else {
-		return stringEmpty
+		return toString(call.Argument(0))
 	}
+
+	return stringEmpty
 }
 
 func (r *Runtime) _newString(s String, proto *Object) *Object {
@@ -1046,27 +1047,46 @@ func (r *Runtime) stringproto_toWellFormed(call FunctionCall) Value {
 }
 
 func (r *Runtime) stringproto_trim(call FunctionCall) Value {
-	r.checkObjectCoercible(call.This)
-	s := call.This.toString()
-
-	// TODO handle invalid UTF-16
-	return newStringValue(strings.Trim(s.String(), parser.WhitespaceChars))
+	return r.trimString(call, true, true)
 }
 
 func (r *Runtime) stringproto_trimEnd(call FunctionCall) Value {
-	r.checkObjectCoercible(call.This)
-	s := call.This.toString()
-
-	// TODO handle invalid UTF-16
-	return newStringValue(strings.TrimRight(s.String(), parser.WhitespaceChars))
+	return r.trimString(call, false, true)
 }
 
 func (r *Runtime) stringproto_trimStart(call FunctionCall) Value {
+	return r.trimString(call, true, false)
+}
+
+func (r *Runtime) trimString(call FunctionCall, left, right bool) Value {
 	r.checkObjectCoercible(call.This)
 	s := call.This.toString()
+	a, u := devirtualizeString(s)
+	if u == nil {
+		if left {
+			a = asciiString(strings.TrimLeft(string(a), WhitespaceChars))
+		}
+		if right {
+			a = asciiString(strings.TrimRight(string(a), WhitespaceChars))
+		}
+		return a
+	}
 
-	// TODO handle invalid UTF-16
-	return newStringValue(strings.TrimLeft(s.String(), parser.WhitespaceChars))
+	start, end := 0, u.Length()
+	if left {
+		for start < end && strings.ContainsRune(WhitespaceChars, rune(u[start+1])) {
+			start++
+		}
+	}
+	if right {
+		for end > start && strings.ContainsRune(WhitespaceChars, rune(u[end])) {
+			end--
+		}
+	}
+	if start == 0 && end == u.Length() {
+		return s
+	}
+	return u.Substring(start, end)
 }
 
 func (r *Runtime) stringproto_substr(call FunctionCall) Value {
