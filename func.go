@@ -704,7 +704,7 @@ func (ar *asyncRunner) onFulfilled(call FunctionCall) Value {
 	}()
 	arg := call.Argument(0)
 	res, resType, ex := ar.gen.next(arg)
-	ar.step(res, resType == resultNormal, ex)
+	_ = ar.step(res, resType == resultNormal, ex)
 	return _undefined
 }
 
@@ -715,32 +715,47 @@ func (ar *asyncRunner) onRejected(call FunctionCall) Value {
 	}()
 	reason := call.Argument(0)
 	res, resType, ex := ar.gen.nextThrow(reason)
-	ar.step(res, resType == resultNormal, ex)
+	_ = ar.step(res, resType == resultNormal, ex)
 	return _undefined
 }
 
-func (ar *asyncRunner) step(res Value, done bool, ex *Exception) {
+func (ar *asyncRunner) step(res Value, done bool, ex *Exception) *Exception {
 	r := ar.f.runtime
-	if done || ex != nil {
-		if ex == nil {
-			ar.promiseCap.resolve(res)
-		} else {
-			ar.promiseCap.reject(ex.val)
+	for {
+		if done || ex != nil {
+			if ex == nil {
+				ar.promiseCap.resolve(res)
+			} else {
+				ar.promiseCap.reject(ex.val)
+			}
+			return ex
 		}
-		return
-	}
 
-	// await
-	promise := r.promiseResolve(r.getPromise(), res)
-	promise.self.(*Promise).addReactions(&promiseReaction{
-		typ:         promiseReactionFulfill,
-		handler:     &jobCallback{callback: ar.onFulfilled},
-		asyncRunner: ar,
-	}, &promiseReaction{
-		typ:         promiseReactionReject,
-		handler:     &jobCallback{callback: ar.onRejected},
-		asyncRunner: ar,
-	})
+		// await
+		var promise *Object
+		ex = r.vm.try(func() {
+			promise = r.promiseResolve(r.getPromise(), res)
+		})
+		if ex != nil {
+			// Await() propagates an abrupt completion from PromiseResolve() as a throw at the
+			// await expression, so resume the generator with the exception. It may be caught
+			// (or run finally blocks) inside the async function.
+			var resType resultType
+			res, resType, ex = ar.gen.nextThrow(ex.val)
+			done = resType == resultNormal
+			continue
+		}
+		promise.self.(*Promise).addReactions(&promiseReaction{
+			typ:         promiseReactionFulfill,
+			handler:     &jobCallback{callback: ar.onFulfilled},
+			asyncRunner: ar,
+		}, &promiseReaction{
+			typ:         promiseReactionReject,
+			handler:     &jobCallback{callback: ar.onRejected},
+			asyncRunner: ar,
+		})
+		return nil
+	}
 }
 
 func (ar *asyncRunner) start(nArgs int) {
@@ -754,7 +769,7 @@ func (ar *asyncRunner) start(nArgs int) {
 	defer ar.gen.leaveNext(ctx)
 	ar.vmCall(r.vm, nArgs)
 	res, resType, ex := ar.gen.step()
-	ar.step(res, resType == resultNormal, ex)
+	ex = ar.step(res, resType == resultNormal, ex)
 	if ex != nil {
 		r.vm.sp = sp - nArgs - 2
 	}

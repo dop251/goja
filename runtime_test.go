@@ -2088,6 +2088,122 @@ func TestExceptionWhileAwaitingDoesNotLeakFrames(t *testing.T) {
 	assertNoLeakedFrames(t, r)
 }
 
+func TestExceptionWhileAwaitingRejectsPromise(t *testing.T) {
+	const SCRIPT = `
+		const p = Promise.resolve();
+		const err = new Error("boom");
+		Object.defineProperty(p, "constructor", { get() { throw err; } });
+		async function f() { await p; }
+		let caught;
+		f().catch(e => caught = e);
+		undefined;
+	`
+	r := New()
+	r.testScript(SCRIPT, _undefined, t)
+	if caught := r.Get("caught"); caught != r.Get("err") {
+		t.Fatal(caught)
+	}
+}
+
+// An exception thrown by PromiseResolve() during an await is a throw completion at the await expression,
+// so it must be catchable by the async function itself.
+func TestExceptionWhileAwaitingIsCaught(t *testing.T) {
+	const SCRIPT = `
+		const p = Promise.resolve();
+		const err = new Error("boom");
+		Object.defineProperty(p, "constructor", { get() { throw err; } });
+		let caught, finallyRan = false;
+		async function f() {
+			try {
+				await p;
+				return "normal";
+			} catch (e) {
+				caught = e;
+				return "caught";
+			} finally {
+				finallyRan = true;
+			}
+		}
+		let value;
+		f().then(v => value = v);
+		undefined;
+	`
+	r := New()
+	r.testScript(SCRIPT, _undefined, t)
+	if caught := r.Get("caught"); caught != r.Get("err") {
+		t.Fatalf("caught %v, expected err", caught)
+	}
+	if !r.Get("finallyRan").ToBoolean() {
+		t.Fatal("finally block was not executed")
+	}
+	if value := r.Get("value"); value == nil || value.String() != "caught" {
+		t.Fatalf("result: %v, expected \"caught\"", value)
+	}
+	assertNoLeakedFrames(t, r)
+}
+
+func TestExceptionWhileAwaitingRunsFinally(t *testing.T) {
+	const SCRIPT = `
+		const p = Promise.resolve();
+		const err = new Error("boom");
+		Object.defineProperty(p, "constructor", { get() { throw err; } });
+		let finallyRan = false, rejected;
+		async function f() {
+			try {
+				await p;
+			} finally {
+				finallyRan = true;
+			}
+		}
+		f().catch(e => rejected = e);
+		undefined;
+	`
+	r := New()
+	r.testScript(SCRIPT, _undefined, t)
+	if !r.Get("finallyRan").ToBoolean() {
+		t.Fatal("finally block was not executed")
+	}
+	if rejected := r.Get("rejected"); rejected != r.Get("err") {
+		t.Fatalf("rejected %v, expected err", rejected)
+	}
+}
+
+func TestExceptionWhileAwaitingCanBeCaughtAndAwaitedAgain(t *testing.T) {
+	const SCRIPT = `
+		const p1 = Promise.resolve();
+		const p2 = Promise.resolve();
+		const err1 = new Error("boom1");
+		const err2 = new Error("boom2");
+		Object.defineProperty(p1, "constructor", { get() { throw err1; } });
+		Object.defineProperty(p2, "constructor", { get() { throw err2; } });
+		let caught1, caught2;
+		async function f() {
+			try {
+				await p1;
+			} catch (e1) {
+				caught1 = e1;
+				try {
+					await p2;
+				} catch (e2) {
+					caught2 = e2;
+					return "ok";
+				}
+			}
+		}
+		let value;
+		f().then(v => value = v);
+		undefined;
+	`
+	r := New()
+	r.testScript(SCRIPT, _undefined, t)
+	if caught1, caught2 := r.Get("caught1"), r.Get("caught2"); caught1 != r.Get("err1") || caught2 != r.Get("err2") {
+		t.Fatalf("caught %v, %v, expected err1, err2", caught1, caught2)
+	}
+	if value := r.Get("value"); value == nil || value.String() != "ok" {
+		t.Fatalf("result: %v, expected \"ok\"", value)
+	}
+}
+
 func TestRunLoopPreempt(t *testing.T) {
 	vm := New()
 	v, err := vm.RunString("(function() {for (;;) {}})")
