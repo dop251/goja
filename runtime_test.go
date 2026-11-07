@@ -1930,6 +1930,164 @@ func TestInterruptWithPromises(t *testing.T) {
 	}
 }
 
+// When an async function or a generator is aborted (an Interrupt, a StackOverflowError, ...) while it is running,
+// the frames pushed on entry must not be left on the call stack / try stack. If they are, the runtime never
+// considers itself "left" again (len(vm.callStack) != 0), so the job queue is never drained: every later await
+// continuation and promise reaction silently stops running.
+
+func assertNoLeakedFrames(t *testing.T, r *Runtime) {
+	t.Helper()
+	if l := len(r.vm.callStack); l != 0 {
+		t.Errorf("call stack is not empty: %d frame(s) left", l)
+	}
+	if l := len(r.vm.tryStack); l != 0 {
+		t.Errorf("try stack is not empty: %d frame(s) left", l)
+	}
+	r.SetMaxCallStackSize(1024)
+	_, err := r.RunString(`
+		var reacted = false, resumed = false;
+		Promise.resolve().then(() => { reacted = true });
+		(async function() { await null; resumed = true; })();
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Get("reacted").ToBoolean() {
+		t.Error("promise reaction did not run")
+	}
+	if !r.Get("resumed").ToBoolean() {
+		t.Error("await continuation did not run")
+	}
+}
+
+func TestInterruptInAsyncOrGeneratorDoesNotLeakFrames(t *testing.T) {
+	const haltingIterable = `
+		function haltingIterable() {
+			return {
+				[Symbol.iterator]() { return this; },
+				next() { return { value: 1, done: false }; },
+				return() { halt(); return {}; },
+			};
+		}
+	`
+	tests := []struct {
+		name  string
+		setup string // must define a global function trigger(); halt() interrupts the runtime
+	}{
+		{"async function before first await", `
+			async function trigger() { halt(); }`},
+		{"nested async function", `
+			async function inner() { halt(); }
+			async function trigger() { await inner(); }`},
+		{"async function after await", `
+			async function trigger() { await null; halt(); }`},
+		{"async function after rejected await", `
+			async function trigger() { try { await Promise.reject(1); } catch (e) { halt(); } }`},
+		{"async function resolving a thenable result", `
+			async function trigger() { return { get then() { halt(); } }; }`},
+		{"generator parameter initialiser", `
+			function* g(a = halt()) {}
+			function trigger() { g(); }`},
+		{"generator next", `
+			function* g() { halt(); yield 1; }
+			function trigger() { g().next(); }`},
+		{"generator throw closing an iterator", haltingIterable + `
+			function* g() { for (const x of haltingIterable()) yield x; }
+			var it = g();
+			it.next();
+			function trigger() { it.throw(1); }`},
+		{"generator return running finally", `
+			function* g() { try { yield 1; } finally { halt(); } }
+			var it = g();
+			it.next();
+			function trigger() { it.return(); }`},
+		{"generator return closing an iterator inside try-finally", haltingIterable + `
+			function* g() { try { for (const x of haltingIterable()) yield x; } finally {} }
+			var it = g();
+			it.next();
+			function trigger() { it.return(); }`},
+	}
+	entries := []struct {
+		name string
+		call func(r *Runtime) error
+	}{
+		{"callable", func(r *Runtime) error {
+			trigger, ok := AssertFunction(r.Get("trigger"))
+			if !ok {
+				return errors.New("trigger is not a function")
+			}
+			_, err := trigger(nil)
+			return err
+		}},
+		{"RunString", func(r *Runtime) error {
+			_, err := r.RunString(`trigger()`)
+			return err
+		}},
+	}
+	for _, tc := range tests {
+		for _, entry := range entries {
+			t.Run(tc.name+"/"+entry.name, func(t *testing.T) {
+				r := New()
+				r.Set("halt", func() { r.Interrupt("halt") })
+				if _, err := r.RunString(tc.setup); err != nil {
+					t.Fatal(err)
+				}
+				err := entry.call(r)
+				var iErr *InterruptedError
+				if !errors.As(err, &iErr) {
+					t.Fatalf("expected *InterruptedError, got %T: %v", err, err)
+				}
+				r.ClearInterrupt()
+				assertNoLeakedFrames(t, r)
+			})
+		}
+	}
+}
+
+func TestStackOverflowInAsyncOrGeneratorDoesNotLeakFrames(t *testing.T) {
+	scripts := map[string]string{
+		"async function":                  `async function f() {} function walk() { f(); walk(); }`,
+		"generator":                       `function* f() {} function walk() { f(); walk(); }`,
+		"generator with parameter values": `function* f(a = 1) {} function walk() { f(); walk(); }`,
+	}
+	for name, script := range scripts {
+		t.Run(name, func(t *testing.T) {
+			// The overflow hits a different push depending on the limit; scan a range so that the pushes made by
+			// asyncRunner.start() / generatorObject.init() are hit too.
+			for size := 1; size <= 32; size++ {
+				r := New()
+				r.SetMaxCallStackSize(size)
+				if _, err := r.RunString(script); err != nil {
+					t.Fatal(err)
+				}
+				_, err := r.RunString(`walk()`)
+				var soErr *StackOverflowError
+				if !errors.As(err, &soErr) {
+					t.Fatalf("max call stack size %d: expected *StackOverflowError, got %T: %v", size, err, err)
+				}
+				if l := len(r.vm.callStack); l != 0 {
+					t.Fatalf("max call stack size %d: call stack is not empty: %d frame(s) left", size, l)
+				}
+				assertNoLeakedFrames(t, r)
+			}
+		})
+	}
+}
+
+// A regular exception thrown from Go code while an async function's result is being settled (here: reading the
+// constructor of the awaited promise) must not leave frames behind either. Per spec it should reject the promise
+// returned by f(); this test only checks that the runtime stays usable.
+func TestExceptionWhileAwaitingDoesNotLeakFrames(t *testing.T) {
+	r := New()
+	_, _ = r.RunString(`
+		const p = Promise.resolve();
+		Object.defineProperty(p, "constructor", { get() { throw new Error("boom"); } });
+		async function f() { await p; }
+		try { f(); } catch (e) {}
+	`)
+	assertNoLeakedFrames(t, r)
+}
+
 func TestRunLoopPreempt(t *testing.T) {
 	vm := New()
 	v, err := vm.RunString("(function() {for (;;) {}})")
