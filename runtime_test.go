@@ -3800,6 +3800,46 @@ func TestObjectRedefinePropertyNonConfigurable(t *testing.T) {
 	testScriptWithTestLibX(SCRIPT, _undefined, t)
 }
 
+func TestRedefineWritableAsGetterOnly(t *testing.T) {
+	const SCRIPT = `
+	"use strict";
+	var o = { p: 1 };
+	Object.defineProperty(o, "p", { get() { return 1; } });
+	assert(!Reflect.set(o, "p", 2));
+	assert.throws(TypeError, () => {o.p = 2});
+	`
+	testScriptWithTestLibX(SCRIPT, _undefined, t)
+}
+
+func TestRedefineAccessorAsDataProperty(t *testing.T) {
+	const SCRIPT = `
+	"use strict";
+	var o = {};
+	Object.defineProperty(o, "p", { get() { return 42; }, configurable: true });
+	Object.defineProperty(o, "p", { writable: true });
+	assert.sameValue(Object.getOwnPropertyDescriptor(o, "p").value, undefined);
+	assert.sameValue(Object.getOwnPropertyDescriptor(o, "p").writable, true);
+	assert.sameValue(Object.getOwnPropertyDescriptor(o, "p").get, undefined);
+	assert.sameValue(Object.getOwnPropertyDescriptor(o, "p").set, undefined);
+	assert.sameValue(o.p, undefined);
+	o.p = 5;
+	assert.sameValue(o.p, 5);
+
+	var p = {};
+	Object.defineProperty(p, "q", { get() { return 1; }, configurable: true });
+	Object.defineProperty(p, "q", { writable: false });
+	assert.sameValue(Object.getOwnPropertyDescriptor(p, "q").value, undefined);
+	assert.sameValue(p.q, undefined);
+
+	var q = {};
+	Object.defineProperty(q, "r", { set(v) {}, configurable: true });
+	Object.defineProperty(q, "r", { value: 2 });
+	assert.sameValue(Object.getOwnPropertyDescriptor(q, "r").writable, false);
+	assert.sameValue(q.r, 2);
+	`
+	testScriptWithTestLibX(SCRIPT, _undefined, t)
+}
+
 func TestWithUnscopables(t *testing.T) {
 	const SCRIPT = `
 	var unscopablesCalled = 0;
