@@ -4784,6 +4784,25 @@ func TestArrowUseStrict(t *testing.T) {
 	}
 }
 
+func TestArrowArgumentsOnly(t *testing.T) {
+	// arguments of the enclosing function used only in an arrow function
+	const SCRIPT = `
+	function f() {
+		return (() => [...arguments])().join();
+	}
+	function g() {
+		return (() => arguments.length)();
+	}
+	function h() {
+		const m = () => Math.max(...arguments);
+		return m();
+	}
+	f(1, 2) + ";" + g(1, 2, 3) + ";" + h(1, 5, 2);
+	`
+
+	testScript(SCRIPT, asciiString("1,2;3;5"), t)
+}
+
 func TestArrowBoxedThis(t *testing.T) {
 	const SCRIPT = `
 	var context;

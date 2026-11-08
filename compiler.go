@@ -501,6 +501,9 @@ func (s *scope) lookupName(name unistring.String) (binding *binding, noDynamics 
 			}
 			curScope.argsNeeded = true
 			binding, _ = curScope.bindName(name)
+			if toStash && !binding.inStash { // as when referenced from an arrow function
+				binding.moveToStash()
+			}
 			return
 		}
 		if curScope.isFunction() {
