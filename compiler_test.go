@@ -4815,6 +4815,38 @@ func TestArgumentsInStrictEval(t *testing.T) {
 	testScript(SCRIPT, intToValue(3), t)
 }
 
+func TestArgumentsParameterWithEval(t *testing.T) {
+	const SCRIPT = `
+	function f(arguments) {
+		eval("");
+		return arguments;
+	}
+	function g(arguments) {
+		eval("");
+		return (() => arguments)();
+	}
+	function h(arguments = 42) {
+		eval("");
+		return arguments;
+	}
+	function i({arguments}) {
+		eval("");
+		return arguments;
+	}
+	function j() {
+		eval("");
+		return arguments.length;
+	}
+	f(1) === 1 &&
+		g(2) === 2 &&
+		h() === 42 &&
+		i({arguments: 3}) === 3 &&
+		j(1, 2, 3) === 3;
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestArrowBoxedThis(t *testing.T) {
 	const SCRIPT = `
 	var context;

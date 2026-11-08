@@ -1561,7 +1561,7 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 			e.c.throwSyntaxError(e.offset, "'arguments' is not allowed in class field initializer or static initialization block")
 		}
 		b, created := s.bindNameLexical("arguments", false, 0)
-		if created || b.isVar {
+		if !b.isArg && (created || b.isVar) {
 			if !s.argsInStash {
 				s.moveArgsToStash()
 			}
