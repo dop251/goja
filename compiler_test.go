@@ -2027,6 +2027,20 @@ func TestArgumentsPutStrict(t *testing.T) {
 	testScript(SCRIPT, intToValue(5), t)
 }
 
+func TestArgumentsExtraToStash(t *testing.T) {
+	const SCRIPT = `
+	function F(x) {
+		if (false) var y = 1;
+		var r = typeof y;
+		return function() { return x + y + r; };
+	}
+
+	F(1, 2, 3)()
+	`
+
+	testScript(SCRIPT, asciiString("NaNundefined"), t)
+}
+
 func TestArgumentsExtra(t *testing.T) {
 	const SCRIPT = `
 	function F(x, y) {

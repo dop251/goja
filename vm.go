@@ -3983,7 +3983,9 @@ func (e *enterFunc) exec(vm *vm) {
 	ea := 0
 	if e.argsToStash {
 		offset := vm.args - int(e.numArgs)
-		copy(stash.values, vm.stack[sp-vm.args:sp])
+		// only the declared arguments: the stash values after them are the
+		// variables of the function, which the extra arguments would set
+		copy(stash.values[:e.numArgs], vm.stack[sp-vm.args:sp])
 		if offset > 0 {
 			vm.stash.extraArgs = make([]Value, offset)
 			copy(stash.extraArgs, vm.stack[sp-offset:])
