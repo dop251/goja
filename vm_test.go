@@ -155,6 +155,15 @@ func TestThisStackRefMoved(t *testing.T) {
 	}
 }
 
+func TestUnaryMinusToNumeric(t *testing.T) {
+	const SCRIPT = `
+	let n = 0;
+	assert.sameValue(-{ toString() { n++; return "b"; } }, NaN);
+	assert.sameValue(n, 1);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func BenchmarkVmNOP2(b *testing.B) {
 	prg := []func(*vm){
 		//loadVal(0).exec,

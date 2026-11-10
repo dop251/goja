@@ -1745,7 +1745,7 @@ func (_neg) exec(vm *vm) {
 			result = -n
 		}
 	default:
-		f := operand.ToFloat()
+		f := n.ToFloat()
 		if !math.IsNaN(f) {
 			f = -f
 		}
