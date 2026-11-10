@@ -6330,6 +6330,27 @@ func TestAsyncFunc(t *testing.T) {
 	testAsyncFunc(SCRIPT, valueTrue, t)
 }
 
+// TestLogicalAssignSuspended tests logical assignments to variables on the
+// stack that suspend while their reference is held (d ||= await x, as in a
+// function inside one with a direct eval), whose stack is moved when the
+// function resumes.
+func TestLogicalAssignSuspended(t *testing.T) {
+	const SCRIPT = `
+	function outer() {
+		eval("");
+		async function f(a, b, c, d) { d ||= await Promise.resolve(5); return d; }
+		async function g(d) { let k = 1; try { d ??= k + await Promise.resolve(6); } catch (e) {} return d; }
+		function* gen(d) { d ||= yield 1; return d; }
+		return [f, g, gen];
+	}
+	const [f, g, gen] = outer();
+	const it = gen();
+	it.next();
+	return [await f(), await g(), await f(1, 2, 3, 4), it.next(9).value].join(" ");
+	`
+	testAsyncFunc(SCRIPT, asciiString("5 7 4 9"), t)
+}
+
 func TestObjectLiteralComputedMethodKeys(t *testing.T) {
 	_, err := Compile("", `
 		({

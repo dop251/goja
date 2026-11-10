@@ -91,6 +91,34 @@ func (vm *vm) suspend(ectx *execCtx, tryStackLen, iterStackLen, refStackLen uint
 	if len(vm.refStack) > int(refStackLen) {
 		ectx.refStack = append(ectx.refStack[:0], vm.refStack[refStackLen:]...)
 		vm.refStack = vm.refStack[:refStackLen]
+		vm.rebaseStackRefs(ectx.refStack, -(vm.sb - 1))
+	}
+}
+
+// rebaseStackRefs adds delta to the indexes of the references to the stack
+// in refs, which are those of a suspended function (as of d ||= await x,
+// which keeps the reference to d while it awaits), whose stack is moved when
+// it is suspended and resumed.
+func (vm *vm) rebaseStackRefs(refs []ref, delta int) {
+	stack := (*[]Value)(&vm.stack)
+	for _, r := range refs {
+		var v **[]Value
+		var idx *int
+		switch r := r.(type) {
+		case *stashRef:
+			v, idx = &r.v, &r.idx
+		case *stashRefLex:
+			v, idx = &r.v, &r.idx
+		case *stashRefConst:
+			v, idx = &r.v, &r.idx
+		case *thisRef:
+			v, idx = &r.v, &r.idx
+		default:
+			continue
+		}
+		if *v == stack {
+			*idx += delta
+		}
 	}
 }
 
@@ -110,6 +138,7 @@ func (vm *vm) resume(ctx *execCtx) {
 	}
 	vm.tryStack = append(vm.tryStack, ctx.tryStack...)
 	vm.iterStack = append(vm.iterStack, ctx.iterStack...)
+	vm.rebaseStackRefs(ctx.refStack, sp)
 	vm.refStack = append(vm.refStack, ctx.refStack...)
 }
 
