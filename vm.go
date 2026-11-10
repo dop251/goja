@@ -150,9 +150,98 @@ func (r *stashRef) refname() unistring.String {
 	return r.n
 }
 
+type stackRef struct {
+	vm     *vm
+	n      unistring.String
+	offset int
+}
+
+func (r *stackRef) get() Value {
+	return nilSafe(r.vm.stack[r.vm.sb+r.offset])
+}
+
+func (r *stackRef) set(v Value) {
+	r.vm.stack[r.vm.sb+r.offset] = v
+}
+
+func (r *stackRef) init(v Value) {
+	r.set(v)
+}
+
+func (r *stackRef) refname() unistring.String {
+	return r.n
+}
+
+type stackRefLex struct {
+	stackRef
+}
+
+func (r *stackRefLex) get() Value {
+	v := r.vm.stack[r.vm.sb+r.offset]
+	if v == nil {
+		panic(errAccessBeforeInit)
+	}
+	return v
+}
+
+func (r *stackRefLex) set(v Value) {
+	p := &r.vm.stack[r.vm.sb+r.offset]
+	if *p == nil {
+		panic(errAccessBeforeInit)
+	}
+	*p = v
+}
+
+func (r *stackRefLex) init(v Value) {
+	r.vm.stack[r.vm.sb+r.offset] = v
+}
+
+type stackRefConst struct {
+	stackRefLex
+	strictConst bool
+}
+
+func (r *stackRefConst) set(v Value) {
+	if r.strictConst {
+		panic(errAssignToConst)
+	}
+}
+
 type thisRef struct {
 	v   *[]Value
 	idx int
+}
+
+// thisStackRef refers to the 'this' value at the base of the current stack frame. It is resolved through vm.sb rather
+// than an absolute stack index, so that the reference remains valid if the frame is moved when the vm is suspended and
+// resumed.
+type thisStackRef struct {
+	vm *vm
+}
+
+func (r *thisStackRef) get() Value {
+	v := r.vm.stack[r.vm.sb]
+	if v == nil {
+		panic(referenceError("Must call super constructor in derived class before accessing 'this'"))
+	}
+
+	return v
+}
+
+func (r *thisStackRef) set(v Value) {
+	ptr := &r.vm.stack[r.vm.sb]
+	if *ptr != nil {
+		panic(referenceError("Super constructor may only be called once"))
+	}
+	*ptr = v
+}
+
+func (r *thisStackRef) init(v Value) {
+	r.set(v)
+}
+
+func (r *thisStackRef) refname() unistring.String {
+	return thisBindingName
 }
 
 func (r *thisRef) get() Value {
@@ -3381,6 +3470,39 @@ func newStashRef(typ varType, name unistring.String, v *[]Value, idx int) ref {
 	panic("unsupported var type")
 }
 
+// newStackRef creates a reference for a value on the stack. Offset is relative to sb, so that the reference remains
+// valid when vm is suspended and resumed.
+func (vm *vm) newStackRef(typ varType, name unistring.String, offset int) ref {
+	switch typ {
+	case varTypeVar:
+		return &stackRef{
+			n:      name,
+			vm:     vm,
+			offset: offset,
+		}
+	case varTypeLet:
+		return &stackRefLex{
+			stackRef: stackRef{
+				n:      name,
+				vm:     vm,
+				offset: offset,
+			},
+		}
+	case varTypeConst, varTypeStrictConst:
+		return &stackRefConst{
+			stackRefLex: stackRefLex{
+				stackRef: stackRef{
+					n:      name,
+					vm:     vm,
+					offset: offset,
+				},
+			},
+			strictConst: typ == varTypeStrictConst,
+		}
+	}
+	panic("unsupported var type")
+}
+
 func (r *resolveMixed) exec(vm *vm) {
 	level := int(r.idx >> 24)
 	idx := r.idx & 0x00FFFFFF
@@ -3433,12 +3555,12 @@ func (r *resolveMixedStack) exec(vm *vm) {
 	}
 
 	if r.idx > 0 {
-		idx = vm.sb + vm.args + r.idx
+		idx = vm.args + r.idx
 	} else {
-		idx = vm.sb - r.idx
+		idx = -r.idx
 	}
 
-	ref = newStashRef(r.typ, r.name, (*[]Value)(&vm.stack), idx)
+	ref = vm.newStackRef(r.typ, r.name, idx)
 
 end:
 	vm.refStack = append(vm.refStack, ref)
@@ -3457,7 +3579,7 @@ func (r *resolveMixedStack1) exec(vm *vm) {
 		stash = stash.outer
 	}
 
-	ref = newStashRef(r.typ, r.name, (*[]Value)(&vm.stack), vm.sb+r.idx)
+	ref = vm.newStackRef(r.typ, r.name, r.idx)
 
 end:
 	vm.refStack = append(vm.refStack, ref)
@@ -5732,7 +5854,7 @@ func (t throwConst) exec(vm *vm) {
 type resolveThisStack struct{}
 
 func (r resolveThisStack) exec(vm *vm) {
-	vm.refStack = append(vm.refStack, &thisRef{v: (*[]Value)(&vm.stack), idx: vm.sb})
+	vm.refStack = append(vm.refStack, &thisStackRef{vm: vm})
 	vm.pc++
 }
 
