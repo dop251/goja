@@ -1002,7 +1002,7 @@ func TestParser(t *testing.T) {
 }
 
 func TestParseDestruct(t *testing.T) {
-	parser := newParser("", `({a: (a.b), ...spread,} = {})`)
+	parser := newParser("", `({a: (a.b), ...spread} = {})`)
 	prg, err := parser.parse()
 	if err != nil {
 		t.Fatal(err)
@@ -1573,4 +1573,57 @@ func TestParseNestingDepth(t *testing.T) {
 	if _, err := ParseFile(nil, "", src, 0); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestObjectRestTrailingComma(t *testing.T) {
+	tt(t, func() {
+		test := func(source string, chk interface{}) *ast.Program {
+			_, program, err := testParse(source)
+			e1 := firstErr(err)
+			if e1 == nil {
+				is(nil, chk)
+			} else {
+				is(e1.Error(), chk)
+			}
+			return program
+		}
+
+		// Trailing comma after rest property in object binding patterns must be rejected.
+		test(`var {...a,} = {x: 1};`, "(anonymous): Line 1:10 Comma is not allowed here")
+		test(`let {...a,} = {x: 1};`, "(anonymous): Line 1:10 Comma is not allowed here")
+		test(`const {...a,} = {x: 1};`, "(anonymous): Line 1:12 Comma is not allowed here")
+		test(`var {b, ...a,} = {x: 1};`, "(anonymous): Line 1:13 Comma is not allowed here")
+		test(`function f({...b,}) {}`, "(anonymous): Line 1:17 Comma is not allowed here")
+		test(`function f({a, ...b,}) {}`, "(anonymous): Line 1:20 Comma is not allowed here")
+		test(`try {} catch ({...c,}) {}`, "(anonymous): Line 1:20 Comma is not allowed here")
+
+		// Trailing comma after rest property in object assignment patterns must be rejected.
+		test(`({...a,} = {x: 1});`, "(anonymous): Line 1:7 Comma is not allowed here")
+		test(`({b, ...a,} = {x: 1});`, "(anonymous): Line 1:10 Comma is not allowed here")
+		test(`({...a.b,} = {x: 1});`, "(anonymous): Line 1:9 Comma is not allowed here")
+
+		// Nested patterns
+		test(`var {x: {...a,}} = {x: {x: 1}};`, "(anonymous): Line 1:14 Comma is not allowed here")
+		test(`var [{...a,}] = [{x: 1}];`, "(anonymous): Line 1:11 Comma is not allowed here")
+		test(`([{...a,}] = [{x: 1}]);`, "(anonymous): Line 1:8 Comma is not allowed here")
+
+		// Rest property without trailing comma remains valid.
+		test(`var {...a} = {x: 1};`, nil)
+		test(`var {b, ...a} = {x: 1};`, nil)
+		test(`function f({...b}) {}`, nil)
+		test(`function f({a, ...b}) {}`, nil)
+		test(`({...a} = {x: 1});`, nil)
+		test(`({b, ...a} = {x: 1});`, nil)
+		test(`({...a.b} = {x: 1});`, nil)
+
+		// Comments containing commas between rest element and closing bracket/brace must be ignored.
+		test(`var {...a /* , */} = {x: 1};`, nil)
+		test(`var [...a /* , */] = [1];`, nil)
+		test(`var {...a // ,`+"\n"+`} = {x: 1};`, nil)
+		test(`var {...a /* comment */,} = {x: 1};`, "(anonymous): Line 1:24 Comma is not allowed here")
+
+		// Object literal spread with trailing comma remains valid.
+		test(`var obj = {...a,};`, nil)
+		test(`var obj = {x: 1, ...a,};`, nil)
+	})
 }
