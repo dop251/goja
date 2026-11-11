@@ -307,6 +307,22 @@ func TestDateParse(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestDateSetMillisecondsBeforeEpoch(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue(new Date(-4).setUTCMilliseconds(2), -998, "setUTCMilliseconds() before the epoch");
+	assert.sameValue(new Date(-1).setUTCMilliseconds(0), -1000, "setUTCMilliseconds() before the epoch");
+	assert.sameValue(new Date(-765).setUTCMilliseconds(1000000), 999000, "setUTCMilliseconds() before the epoch");
+	assert.sameValue(new Date(-4).setUTCMilliseconds(-2), -1002, "setUTCMilliseconds() before the epoch");
+	assert.sameValue(new Date(4).setUTCMilliseconds(-2), -2, "setUTCMilliseconds()");
+	assert.sameValue(new Date(-4).setMilliseconds(2), -998, "setMilliseconds() before the epoch");
+	assert.sameValue(new Date(-1).setMilliseconds(0), -1000, "setMilliseconds() before the epoch");
+	assert.sameValue(new Date(-765).setMilliseconds(1000000), 999000, "setMilliseconds() before the epoch");
+	assert.sameValue(new Date(4).setMilliseconds(-2), -2, "setMilliseconds()");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestDateMaxValues(t *testing.T) {
 	const SCRIPT = `
 	assert.sameValue((new Date(0)).setUTCMilliseconds(8.64e15), 8.64e15);

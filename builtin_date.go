@@ -482,6 +482,18 @@ func (r *Runtime) dateproto_setTime(call FunctionCall) Value {
 	panic(r.NewTypeError("Method Date.prototype.setTime is called on incompatible receiver"))
 }
 
+// _secOf returns the second a time value in milliseconds belongs to.
+// Go's integer division truncates towards zero, so a time value before the
+// epoch would be placed in the second after it: -4 ms is in the second
+// before the epoch, not in the one that follows it.
+func _secOf(tv int64) int64 {
+	sec := tv / 1e3
+	if tv < 0 && tv%1e3 != 0 {
+		sec--
+	}
+	return sec
+}
+
 // _norm returns nhi, nlo such that
 //
 //	hi * base + lo == nhi * base + nlo
@@ -700,7 +712,7 @@ func (r *Runtime) dateproto_setMilliseconds(call FunctionCall) Value {
 			return _NaN
 		}
 		msec := n.ToInteger()
-		sec := tv / 1e3
+		sec := _secOf(tv)
 		var ok bool
 		sec, msec, ok = _norm(sec, msec, 1e3)
 		if !ok {
@@ -725,7 +737,7 @@ func (r *Runtime) dateproto_setUTCMilliseconds(call FunctionCall) Value {
 			return _NaN
 		}
 		msec := n.ToInteger()
-		sec := tv / 1e3
+		sec := _secOf(tv)
 		var ok bool
 		sec, msec, ok = _norm(sec, msec, 1e3)
 		if !ok {
