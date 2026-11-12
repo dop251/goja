@@ -186,6 +186,14 @@ func (f *funcObject) _addProto(n unistring.String) Value {
 	return nil
 }
 
+// The "prototype" property is created lazily, but per spec it is created right after "length" and "name".
+// Materialise it before any other own property is added or deleted, so that it keeps its place in the key order.
+func (f *funcObject) _addProtoBeforeChange() {
+	if _, exists := f.values["prototype"]; !exists {
+		f.addPrototype()
+	}
+}
+
 func (f *funcObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
 	return f.hasAndGetOwnStr(name, f.getOwnPropStr(name), receiver)
 }
@@ -203,7 +211,7 @@ func (f *funcObject) getOwnPropStr(name unistring.String) Value {
 }
 
 func (f *funcObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
-	f._addProto(name)
+	f._addProtoBeforeChange()
 	return f.baseObject.setOwnStr(name, val, throw)
 }
 
@@ -212,12 +220,12 @@ func (f *funcObject) setForeignStr(name unistring.String, val, receiver Value, t
 }
 
 func (f *funcObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
-	f._addProto(name)
+	f._addProtoBeforeChange()
 	return f.baseObject.defineOwnPropertyStr(name, descr, throw)
 }
 
 func (f *funcObject) deleteStr(name unistring.String, throw bool) bool {
-	f._addProto(name)
+	f._addProtoBeforeChange()
 	return f.baseObject.deleteStr(name, throw)
 }
 
@@ -239,12 +247,14 @@ func (f *funcObject) hasOwnPropertyStr(name unistring.String) bool {
 }
 
 func (f *funcObject) stringKeys(all bool, accum []Value) []Value {
+	accum = f.baseFuncObject.stringKeys(all, accum)
 	if all {
 		if _, exists := f.values["prototype"]; !exists {
+			// No own property has been added or deleted yet (see _addProtoBeforeChange), so "prototype" goes last.
 			accum = append(accum, asciiString("prototype"))
 		}
 	}
-	return f.baseFuncObject.stringKeys(all, accum)
+	return accum
 }
 
 func (f *funcObject) iterateStringKeys() iterNextFunc {
