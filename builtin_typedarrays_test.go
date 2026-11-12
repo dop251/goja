@@ -600,3 +600,31 @@ func TestTypedArraySearchNegativeZero(t *testing.T) {
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func TestTypedArrayFilterDetachedUndefined(t *testing.T) {
+	const SCRIPT = `
+var f = new Float64Array(2);
+var out = String(f.filter(function(_, i) {
+  if (i === 0) f.buffer.transfer();
+  return true;
+}));
+if (out !== "0,NaN") {
+  throw new Error("Float64Array filter after detach: " + out);
+}
+
+var b = new BigInt64Array(2);
+var threw = false;
+try {
+  b.filter(function(_, i) {
+    if (i === 0) b.buffer.transfer();
+    return true;
+  });
+} catch (e) {
+  threw = e instanceof TypeError;
+}
+if (!threw) {
+  throw new Error("BigInt64Array filter after detach should throw TypeError");
+}
+`
+	testScript(SCRIPT, _undefined, t)
+}

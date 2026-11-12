@@ -617,40 +617,26 @@ func (r *Runtime) typedArrayProto_filter(call FunctionCall) Value {
 			This:      call.Argument(1),
 			Arguments: []Value{nil, nil, call.This},
 		}
-		buf := make([]byte, 0, ta.length*ta.elemSize)
-		captured := 0
-		rawVal := make([]byte, ta.elemSize)
+		kept := make([]Value, 0, ta.length)
 		for k := 0; k < ta.length; k++ {
+			var val Value
 			if ta.isValidIntegerIndex(k) {
-				fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
-				i := (ta.offset + k) * ta.elemSize
-				copy(rawVal, ta.viewedArrayBuf.data[i:])
+				val = ta.typedArray.get(ta.offset + k)
 			} else {
-				fc.Arguments[0] = _undefined
-				for i := range rawVal {
-					rawVal[i] = 0
-				}
+				val = _undefined
 			}
+			fc.Arguments[0] = val
 			fc.Arguments[1] = intToValue(int64(k))
 			if callbackFn(fc).ToBoolean() {
-				buf = append(buf, rawVal...)
-				captured++
+				kept = append(kept, val)
 			}
 		}
 		c := r.speciesConstructorObj(o, ta.defaultCtor)
-		ab := r._newArrayBuffer(r.getArrayBufferPrototype(), nil)
-		ab.data = buf
-		kept := r.toConstructor(ta.defaultCtor)([]Value{ab.val}, ta.defaultCtor)
-		if c == ta.defaultCtor {
-			return kept
-		} else {
-			ret := r.typedArrayCreate(c, intToValue(int64(captured)))
-			keptTa := kept.self.(*typedArrayObject)
-			for i := 0; i < captured; i++ {
-				ret.typedArray.set(ret.offset+i, keptTa.typedArray.get(keptTa.offset+i))
-			}
-			return ret.val
+		ret := r.typedArrayCreate(c, intToValue(int64(len(kept))))
+		for i, val := range kept {
+			ret.typedArray.set(ret.offset+i, val)
 		}
+		return ret.val
 	}
 	panic(r.NewTypeError("Method TypedArray.prototype.filter called on incompatible receiver %s", r.objectproto_toString(FunctionCall{This: call.This})))
 }
