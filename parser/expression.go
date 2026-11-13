@@ -1477,7 +1477,7 @@ func (self *_parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral)
 
 func (self *_parser) reinterpretArrayAssignPatternAsBinding(pattern *ast.ArrayPattern) *ast.ArrayPattern {
 	for i, item := range pattern.Elements {
-		pattern.Elements[i] = self.reinterpretAsDestructBindingTarget(item)
+		pattern.Elements[i] = self.reinterpretAsBindingElement(item)
 	}
 	if pattern.Rest != nil {
 		pattern.Rest = self.reinterpretAsDestructBindingTarget(pattern.Rest)

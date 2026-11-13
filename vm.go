@@ -2095,11 +2095,16 @@ type _setElem1 struct{}
 var setElem1 _setElem1
 
 func (_setElem1) exec(vm *vm) {
-	obj := vm.stack[vm.sp-3].ToObject(vm.r)
+	obj := vm.r.toObject(vm.stack[vm.sp-3])
 	propName := vm.stack[vm.sp-2]
 	val := vm.stack[vm.sp-1]
 
-	obj.setOwn(propName, val, true)
+	obj.defineOwnProperty(propName, PropertyDescriptor{
+		Value:        val,
+		Writable:     FLAG_TRUE,
+		Configurable: FLAG_TRUE,
+		Enumerable:   FLAG_TRUE,
+	}, true)
 
 	vm.sp -= 2
 	vm.pc++
@@ -2110,15 +2115,19 @@ type _setElem1Named struct{}
 var setElem1Named _setElem1Named
 
 func (_setElem1Named) exec(vm *vm) {
-	receiver := vm.stack[vm.sp-3]
-	base := receiver.ToObject(vm.r)
+	obj := vm.r.toObject(vm.stack[vm.sp-3])
 	propName := vm.stack[vm.sp-2]
 	val := vm.stack[vm.sp-1]
 	vm.r.toObject(val).self.defineOwnPropertyStr("name", PropertyDescriptor{
 		Value:        funcName("", propName),
 		Configurable: FLAG_TRUE,
 	}, true)
-	base.set(propName, val, receiver, true)
+	obj.defineOwnProperty(propName, PropertyDescriptor{
+		Value:        val,
+		Writable:     FLAG_TRUE,
+		Configurable: FLAG_TRUE,
+		Enumerable:   FLAG_TRUE,
+	}, true)
 
 	vm.sp -= 2
 	vm.pc++

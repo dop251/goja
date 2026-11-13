@@ -281,6 +281,14 @@ func (self *_parser) parseArrowFunctionBody(async bool) (ast.ConciseBody, []*ast
 	if self.token == token.LEFT_BRACE {
 		return self.parseFunctionBlock(async, async, false)
 	}
+	// A concise body is parsed in the enclosing scope, so it must not inherit the
+	// formal parameters context of an enclosing function (e.g. `async function f(p = async (q) => await q) {}`).
+	if self.scope.inFuncParams {
+		self.scope.inFuncParams = false
+		defer func() {
+			self.scope.inFuncParams = true
+		}()
+	}
 	if async != self.scope.inAsync || async != self.scope.allowAwait {
 		inAsync := self.scope.inAsync
 		allowAwait := self.scope.allowAwait
