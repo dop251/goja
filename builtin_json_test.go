@@ -79,6 +79,20 @@ func TestJSONParseReviver(t *testing.T) {
 	testScript(SCRIPT, intToValue(10), t)
 }
 
+func TestJSONParseReviverSource(t *testing.T) {
+	const SCRIPT = `
+	var sources = [];
+	var o = JSON.parse('{"big": 12345678901234567890, "list": [1.0, "\\u0041"], "dup": 1, "dup": 2}', function(key, value, { source }) {
+		sources.push(key + "=" + source);
+		return key === "big" ? source : value;
+	});
+	o.big === "12345678901234567890" &&
+	sources.join() === 'big=12345678901234567890,0=1.0,1="\\u0041",list=undefined,dup=2,=undefined';
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestJSONStringifyIndentAfterEmpty(t *testing.T) {
 	const SCRIPT = `
 	JSON.stringify({a: [], b: 1}, null, 2) === '{\n  "a": [],\n  "b": 1\n}' &&

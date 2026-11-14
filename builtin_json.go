@@ -18,9 +18,13 @@ import (
 const hex = "0123456789abcdef"
 
 func (r *Runtime) builtinJSON_parse(call FunctionCall) Value {
-	d := json.NewDecoder(strings.NewReader(call.Argument(0).toString().String()))
+	text := call.Argument(0).toString().String()
+	d := &jsonDecoder{Decoder: json.NewDecoder(strings.NewReader(text)), text: text}
+	if o, ok := call.Argument(1).(*Object); ok {
+		_, d.records = o.self.assertCallable()
+	}
 
-	value, err := r.builtinJSON_decodeValue(d)
+	value, rec, err := r.builtinJSON_decodeValue(d)
 	if errors.Is(err, io.EOF) {
 		panic(r.newErrorf(r.getSyntaxError(), "Unexpected end of JSON input (%v)", err.Error()))
 	}
@@ -41,13 +45,43 @@ func (r *Runtime) builtinJSON_parse(call FunctionCall) Value {
 	if reviver != nil {
 		root := r.NewObject()
 		createDataPropertyOrThrow(root, stringEmpty, value)
-		return r.builtinJSON_reviveWalk(reviver, root, stringEmpty)
+		return r.builtinJSON_reviveWalk(reviver, root, stringEmpty, rec)
 	}
 
 	return value
 }
 
-func (r *Runtime) builtinJSON_decodeToken(d *json.Decoder, tok json.Token) (Value, error) {
+// jsonParseRecord is the JSON Parse Record of a parsed value: the source text of a primitive, or
+// the records of the elements of an array or the entries of an object.
+type jsonParseRecord struct {
+	value    Value
+	source   string
+	elements []jsonParseRecord
+	entries  map[unistring.String]jsonParseRecord
+}
+
+// jsonDecoder keeps the source text of the last token when records is set, so that JSON.parse can
+// build the parse records needed by a reviver.
+type jsonDecoder struct {
+	*json.Decoder
+	text    string
+	end     int64
+	source  string
+	records bool
+}
+
+func (d *jsonDecoder) Token() (json.Token, error) {
+	tok, err := d.Decoder.Token()
+	if d.records && err == nil {
+		end := d.InputOffset()
+		d.source = strings.TrimLeft(d.text[d.end:end], " \t\n\r,:")
+		d.end = end
+	}
+	return tok, err
+}
+
+func (r *Runtime) builtinJSON_decodeToken(d *jsonDecoder, tok json.Token) (Value, jsonParseRecord, error) {
+	var value Value
 	switch tok := tok.(type) {
 	case json.Delim:
 		switch tok {
@@ -57,49 +91,64 @@ func (r *Runtime) builtinJSON_decodeToken(d *json.Decoder, tok json.Token) (Valu
 			return r.builtinJSON_decodeArray(d)
 		}
 	case nil:
-		return _null, nil
+		value = _null
 	case string:
-		return newStringValue(tok), nil
+		value = newStringValue(tok)
 	case float64:
-		return floatToValue(tok), nil
+		value = floatToValue(tok)
 	case bool:
 		if tok {
-			return valueTrue, nil
+			value = valueTrue
+		} else {
+			value = valueFalse
 		}
-		return valueFalse, nil
 	}
-	return nil, fmt.Errorf("Unexpected token (%T): %v", tok, tok)
+	if value == nil {
+		return nil, jsonParseRecord{}, fmt.Errorf("Unexpected token (%T): %v", tok, tok)
+	}
+	if d.records {
+		return value, jsonParseRecord{value: value, source: d.source}, nil
+	}
+	return value, jsonParseRecord{}, nil
 }
 
-func (r *Runtime) builtinJSON_decodeValue(d *json.Decoder) (Value, error) {
+func (r *Runtime) builtinJSON_decodeValue(d *jsonDecoder) (Value, jsonParseRecord, error) {
 	tok, err := d.Token()
 	if err != nil {
-		return nil, err
+		return nil, jsonParseRecord{}, err
 	}
 	return r.builtinJSON_decodeToken(d, tok)
 }
 
-func (r *Runtime) builtinJSON_decodeObject(d *json.Decoder) (*Object, error) {
+func (r *Runtime) builtinJSON_decodeObject(d *jsonDecoder) (*Object, jsonParseRecord, error) {
 	object := r.NewObject()
+	var rec jsonParseRecord
+	if d.records {
+		rec = jsonParseRecord{value: object, entries: make(map[unistring.String]jsonParseRecord)}
+	}
 	for {
 		key, end, err := r.builtinJSON_decodeObjectKey(d)
 		if err != nil {
-			return nil, err
+			return nil, jsonParseRecord{}, err
 		}
 		if end {
 			break
 		}
-		value, err := r.builtinJSON_decodeValue(d)
+		value, valueRec, err := r.builtinJSON_decodeValue(d)
 		if err != nil {
-			return nil, err
+			return nil, jsonParseRecord{}, err
 		}
 
-		object.self._putProp(unistring.NewFromString(key), value, true, true, true)
+		name := unistring.NewFromString(key)
+		object.self._putProp(name, value, true, true, true)
+		if d.records {
+			rec.entries[name] = valueRec
+		}
 	}
-	return object, nil
+	return object, rec, nil
 }
 
-func (r *Runtime) builtinJSON_decodeObjectKey(d *json.Decoder) (string, bool, error) {
+func (r *Runtime) builtinJSON_decodeObjectKey(d *jsonDecoder) (string, bool, error) {
 	tok, err := d.Token()
 	if err != nil {
 		return "", false, err
@@ -116,36 +165,57 @@ func (r *Runtime) builtinJSON_decodeObjectKey(d *json.Decoder) (string, bool, er
 	return "", false, fmt.Errorf("Unexpected token (%T): %v", tok, tok)
 }
 
-func (r *Runtime) builtinJSON_decodeArray(d *json.Decoder) (*Object, error) {
+func (r *Runtime) builtinJSON_decodeArray(d *jsonDecoder) (*Object, jsonParseRecord, error) {
 	var arrayValue []Value
+	var elements []jsonParseRecord
 	for {
 		tok, err := d.Token()
 		if err != nil {
-			return nil, err
+			return nil, jsonParseRecord{}, err
 		}
 		if delim, ok := tok.(json.Delim); ok {
 			if delim == ']' {
 				break
 			}
 		}
-		value, err := r.builtinJSON_decodeToken(d, tok)
+		value, valueRec, err := r.builtinJSON_decodeToken(d, tok)
 		if err != nil {
-			return nil, err
+			return nil, jsonParseRecord{}, err
 		}
 		arrayValue = append(arrayValue, value)
+		if d.records {
+			elements = append(elements, valueRec)
+		}
 	}
-	return r.newArrayValues(arrayValue), nil
+	array := r.newArrayValues(arrayValue)
+	if d.records {
+		return array, jsonParseRecord{value: array, elements: elements}, nil
+	}
+	return array, jsonParseRecord{}, nil
 }
 
-func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holder *Object, name Value) Value {
+func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holder *Object, name Value, rec jsonParseRecord) Value {
 	value := nilSafe(holder.get(name, nil))
+
+	// The parse record only applies while the value is still the one that was parsed.
+	if rec.value != nil && !value.SameAs(rec.value) {
+		rec = jsonParseRecord{}
+	}
+	context := r.NewObject()
+	if _, ok := value.(*Object); !ok && rec.value != nil {
+		context.self._putProp("source", newStringValue(rec.source), true, true, true)
+	}
 
 	if object, ok := value.(*Object); ok {
 		if isArray(object) {
 			length := toLength(object.self.getStr("length", nil))
 			for index := int64(0); index < length; index++ {
 				name := asciiString(strconv.FormatInt(index, 10))
-				value := r.builtinJSON_reviveWalk(reviver, object, name)
+				var elem jsonParseRecord
+				if index < int64(len(rec.elements)) {
+					elem = rec.elements[index]
+				}
+				value := r.builtinJSON_reviveWalk(reviver, object, name, elem)
 				if value == _undefined {
 					object.delete(name, false)
 				} else {
@@ -154,7 +224,7 @@ func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holde
 			}
 		} else {
 			for _, name := range object.self.stringKeys(false, nil) {
-				value := r.builtinJSON_reviveWalk(reviver, object, name)
+				value := r.builtinJSON_reviveWalk(reviver, object, name, rec.entries[name.string()])
 				if value == _undefined {
 					object.self.deleteStr(name.string(), false)
 				} else {
@@ -165,7 +235,7 @@ func (r *Runtime) builtinJSON_reviveWalk(reviver func(FunctionCall) Value, holde
 	}
 	return reviver(FunctionCall{
 		This:      holder,
-		Arguments: []Value{name, value},
+		Arguments: []Value{name, value, context},
 	})
 }
 
