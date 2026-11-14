@@ -17,6 +17,7 @@ const (
 	timeLayout_en_GB     = "15:04:05"
 
 	maxTime   = 8.64e15
+	msPerDay  = 8.64e7
 	timeUnset = math.MinInt64
 )
 
