@@ -802,7 +802,10 @@ func (c *compiler) checkVarConflict(name unistring.String, offset int) {
 		if b, exists := sc.boundNames[name]; exists && !b.isVar && !(b.isArg && sc != c.scope) {
 			c.throwSyntaxErrorf(offset, "Identifier '%s' has already been declared", name)
 		}
-		if sc.isFunction() {
+		// A function with a non-simple parameter list has a separate scope for the
+		// variables declared in its body. Parameters live in the outer function scope
+		// and a var declaration in the body may redeclare any of them.
+		if sc.isFunction() || sc.variable {
 			break
 		}
 	}
