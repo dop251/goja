@@ -79,6 +79,22 @@ func TestJSONParseReviver(t *testing.T) {
 	testScript(SCRIPT, intToValue(10), t)
 }
 
+func TestJSONParseNumberOverflow(t *testing.T) {
+	const SCRIPT = `
+	JSON.parse('1e400') === Infinity &&
+	JSON.parse('-1e400') === -Infinity &&
+	JSON.parse('[1e309, -1e309]').join() === 'Infinity,-Infinity' &&
+	JSON.parse('{"a": 123e999}').a === Infinity &&
+	JSON.parse('1e-400') === 0 &&
+	Object.is(JSON.parse('-0'), -0) &&
+	Object.is(JSON.parse('-1e-400'), -0) &&
+	JSON.parse('123456789012345678901234567890') === 123456789012345678901234567890 &&
+	JSON.parse('[0.1, 1E2, -5e-1]').join() === '0.1,100,-0.5'
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestJSONStringifyIndentAfterEmpty(t *testing.T) {
 	const SCRIPT = `
 	JSON.stringify({a: [], b: 1}, null, 2) === '{\n  "a": [],\n  "b": 1\n}' &&
