@@ -6723,3 +6723,27 @@ func TestAwaitInAsyncArrowInParameters(t *testing.T) {
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func TestConciseArrowBodyDoesNotInheritFunctionContext(t *testing.T) {
+	const SCRIPT = `
+	// An async concise body may use await even when the arrow itself is nested
+	// in the formal parameters of an enclosing function.
+	async function f1(p = async () => await 1) {}
+	async function f2(p = async (q) => await q) {}
+	async function f3(p = class { x = async () => await 1 }) {}
+
+	// Conversely, a non-async concise body must not inherit yield from an
+	// enclosing generator, whether it is in the parameters or the body.
+	assert.throws(SyntaxError, () => eval("function* g(a = () => yield 1) {}"));
+	assert.throws(SyntaxError, () => eval("function* g() { var h = () => yield 1; }"));
+	assert.throws(SyntaxError, () => eval("function* g(p = class { x = () => yield 1 }) {}"));
+
+	// Nested function contexts are still parsed correctly.
+	function* g1(p = { *m(q) { yield q; } }) {}
+	function* g2(p = class { *m(q) { yield q; } }) {}
+
+	// A later parameter default is still part of the outer parameter list.
+	assert.throws(SyntaxError, () => eval("async function f(p = async () => await 1, z = await 2) {}"));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
