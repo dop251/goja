@@ -6654,3 +6654,96 @@ func BenchmarkCompile(b *testing.B) {
 		}
 	}
 }
+
+func TestObjectLiteralComputedKeyDefinesOwnProperty(t *testing.T) {
+	const SCRIPT = `
+	function key() { return "a"; }
+	const o = { get a() { return 1; }, [key()]: 2 };
+	assert.sameValue(o.a, 2, "data property replaces the getter");
+	let desc = Object.getOwnPropertyDescriptor(o, "a");
+	assert(desc.writable && desc.enumerable && desc.configurable, "descriptor");
+
+	let n = 0;
+	const o1 = { set b(v) { n++; }, [key() + "b"]: function() {} };
+	assert.sameValue(n, 0, "setter must not be called");
+	assert.sameValue(typeof o1.ab, "function");
+	assert.sameValue(o1.ab.name, "ab");
+
+	const k = "__proto__";
+	const o2 = { [k]: [] };
+	assert.sameValue(Object.getPrototypeOf(o2), Object.prototype, "__proto__ is not set");
+	assert(Object.prototype.hasOwnProperty.call(o2, "__proto__"), "own __proto__ property");
+
+	Object.defineProperty(Object.prototype, "zz", { set(v) { throw new Error("inherited setter called"); }, configurable: true });
+	try {
+		const z = "zz";
+		const o3 = { [z]: 1, [z + "f"]: () => 1 };
+		assert.sameValue(o3.zz, 1);
+	} finally {
+		delete Object.prototype.zz;
+	}
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestNestedBindingPatternDefaults(t *testing.T) {
+	const SCRIPT = `
+	let { b: [v1 = 1] = [] } = {};
+	assert.sameValue(v1, 1);
+
+	var { p: [q = 5, ...r] = [] } = {};
+	assert.sameValue(q, 5);
+	assert.sameValue(r.length, 0);
+
+	const f = ({ a = 1 } = {}, [x = a] = []) => x;
+	assert.sameValue(f(), 1);
+	assert.sameValue(f({ a: 2 }), 2);
+	assert.sameValue(f({}, [3]), 3);
+
+	const g = ([a = 1, [b = 2] = [], { c = 3 } = {}] = []) => [a, b, c].join();
+	assert.sameValue(g(), "1,2,3");
+
+	assert.throws(SyntaxError, () => eval("let { b: [x.y = 1] = [] } = {}"));
+	assert.throws(SyntaxError, () => eval("([a.b = 1] = []) => 1"));
+	assert.throws(SyntaxError, () => eval("let { b: [v += 1] = [] } = {}"));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestAwaitInAsyncArrowInParameters(t *testing.T) {
+	const SCRIPT = `
+	async function f(p = async (q) => await q) {}
+	async function f1(p = async q => await q) {}
+	function f2(p = async (q) => await q) {}
+	async function f3(p = async () => await 1) {}
+
+	assert.throws(SyntaxError, () => eval("async function f(p = await 1) {}"));
+	assert.throws(SyntaxError, () => eval("async function f(p = async () => 1, z = await 2) {}"));
+	assert.throws(SyntaxError, () => eval("async function f(p = () => await 1) {}"));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestConciseArrowBodyDoesNotInheritFunctionContext(t *testing.T) {
+	const SCRIPT = `
+	// An async concise body may use await even when the arrow itself is nested
+	// in the formal parameters of an enclosing function.
+	async function f1(p = async () => await 1) {}
+	async function f2(p = async (q) => await q) {}
+	async function f3(p = class { x = async () => await 1 }) {}
+
+	// Conversely, a non-async concise body must not inherit yield from an
+	// enclosing generator, whether it is in the parameters or the body.
+	assert.throws(SyntaxError, () => eval("function* g(a = () => yield 1) {}"));
+	assert.throws(SyntaxError, () => eval("function* g() { var h = () => yield 1; }"));
+	assert.throws(SyntaxError, () => eval("function* g(p = class { x = () => yield 1 }) {}"));
+
+	// Nested function contexts are still parsed correctly.
+	function* g1(p = { *m(q) { yield q; } }) {}
+	function* g2(p = class { *m(q) { yield q; } }) {}
+
+	// A later parameter default is still part of the outer parameter list.
+	assert.throws(SyntaxError, () => eval("async function f(p = async () => await 1, z = await 2) {}"));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

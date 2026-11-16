@@ -2863,9 +2863,9 @@ func (e *compiledObjectLiteral) emitGetter(putOnStack bool) {
 				switch prop.Kind {
 				case ast.PropertyKindValue:
 					if ne != nil {
-						e.c.emit(setElem1Named)
+						e.c.emit(definePropNamed)
 					} else {
-						e.c.emit(setElem1)
+						e.c.emit(defineProp{})
 					}
 				case ast.PropertyKindMethod:
 					e.c.emit(&defineMethod{enumerable: true})

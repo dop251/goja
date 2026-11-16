@@ -281,19 +281,21 @@ func (self *_parser) parseArrowFunctionBody(async bool) (ast.ConciseBody, []*ast
 	if self.token == token.LEFT_BRACE {
 		return self.parseFunctionBlock(async, async, false)
 	}
-	if async != self.scope.inAsync || async != self.scope.allowAwait {
-		inAsync := self.scope.inAsync
-		allowAwait := self.scope.allowAwait
-		self.scope.inAsync = async
-		self.scope.allowAwait = async
-		allowYield := self.scope.allowYield
-		self.scope.allowYield = false
-		defer func() {
-			self.scope.inAsync = inAsync
-			self.scope.allowAwait = allowAwait
-			self.scope.allowYield = allowYield
-		}()
-	}
+
+	inAsync := self.scope.inAsync
+	allowAwait := self.scope.allowAwait
+	allowYield := self.scope.allowYield
+	inFuncParams := self.scope.inFuncParams
+	self.scope.inAsync = async
+	self.scope.allowAwait = async
+	self.scope.allowYield = false
+	self.scope.inFuncParams = false
+	defer func() {
+		self.scope.inAsync = inAsync
+		self.scope.allowAwait = allowAwait
+		self.scope.allowYield = allowYield
+		self.scope.inFuncParams = inFuncParams
+	}()
 
 	return &ast.ExpressionBody{
 		Expression: self.parseAssignmentExpression(),
