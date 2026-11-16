@@ -325,6 +325,8 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUnicode(s unicodeString, start, lim
 		_, second := utf16.EncodeRune(runes[mappedStart])
 		savedRune, runes[mappedStart] = runes[mappedStart], second
 		defer func() { runes[mappedStart] = savedRune }()
+		// the match is reported at the start of the pair, so a sticky match must start there
+		start = posMap[mappedStart]
 	}
 	if limit < 0 {
 		limit = len(s) + 1
@@ -480,7 +482,13 @@ func (r *regexpObject) execRegexp(target String) (match bool, result regexpResul
 	if index >= 0 && index <= int64(target.Length()) {
 		result = r.pattern.findSubmatchIndex(target, int(index))
 	}
-	match = len(result.indexes) > 0 && (!r.pattern.sticky || int64(result.indexes[0]) == index)
+	start := index
+	if r.pattern.sticky && r.pattern.unicode && index > 0 && index < int64(target.Length()) &&
+		isUTF16FirstSurrogate(target.CharAt(int(index-1))) && isUTF16SecondSurrogate(target.CharAt(int(index))) {
+		// lastIndex points into a surrogate pair, the match is reported at the start of the pair
+		start = index - 1
+	}
+	match = len(result.indexes) > 0 && (!r.pattern.sticky || int64(result.indexes[0]) == start)
 
 	if r.pattern.global || r.pattern.sticky {
 		var newLastIndex int64
