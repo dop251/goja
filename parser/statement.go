@@ -763,6 +763,11 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 				forOf = true
 			}
 			if forIn || forOf {
+				if self.isParenthesized(expr) {
+					self.error(idx, "Invalid left-hand side in for-in or for-of")
+					self.nextStatement()
+					return &ast.BadStatement{From: idx, To: self.idx}
+				}
 				switch e := expr.(type) {
 				case *ast.Identifier, *ast.DotExpression, *ast.PrivateDotExpression, *ast.BracketExpression, *ast.Binding:
 					// These are all acceptable
