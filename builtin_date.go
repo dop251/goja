@@ -488,7 +488,7 @@ func (r *Runtime) dateproto_setTime(call FunctionCall) Value {
 // before the epoch, not in the one that follows it.
 func _secOf(tv int64) int64 {
 	sec := tv / 1e3
-	if tv < 0 && tv%1e3 != 0 {
+	if tv%1e3 < 0 {
 		sec--
 	}
 	return sec
