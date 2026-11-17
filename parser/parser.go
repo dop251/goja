@@ -100,6 +100,10 @@ type _parser struct {
 
 	errors ErrorList
 
+	// Parenthesized expressions that are not valid destructuring assignment targets,
+	// e.g. (a = 1) in [(a = 1)] = [] or ([a]) in [([a])] = [].
+	parenthesized map[ast.Expression]struct{}
+
 	depth int
 
 	recover struct {

@@ -538,6 +538,16 @@ func TestParserErr(t *testing.T) {
 		test(`(0 ?? 0 || true)`, "(anonymous): Line 1:9 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 		test(`(a || b ?? c)`, "(anonymous): Line 1:9 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 		test(`2 ?? 2 && 3 + 3`, "(anonymous): Line 1:3 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
+		test(`[(a = 1)] = []`, "(anonymous): Line 1:3 Invalid destructuring assignment target")
+		test(`[([a])] = []`, "(anonymous): Line 1:3 Invalid destructuring assignment target")
+		test(`[({a})] = []`, "(anonymous): Line 1:3 Invalid destructuring assignment target")
+		test(`[...([a])] = []`, "(anonymous): Line 1:6 Invalid destructuring assignment target")
+		test(`({x: (a.b = 1)} = {})`, "(anonymous): Line 1:7 Invalid destructuring assignment target")
+		test(`({x: ({a})} = {})`, "(anonymous): Line 1:7 Invalid destructuring assignment target")
+		test(`for ([(a = 1)] of []);`, "(anonymous): Line 1:8 Invalid destructuring assignment target")
+		test(`[(a) = 1, ((b)) = 2, (c.d) = 3, (e)] = []`, nil)
+		test(`({x: (a) = 1, y: (b.c)} = {})`, nil)
+		test(`[(a = 1), ([b]), ({c})]`, nil)
 		test(`
 		class C {
             st\u0061tic m() {}
