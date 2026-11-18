@@ -20,6 +20,9 @@ const hex = "0123456789abcdef"
 func (r *Runtime) builtinJSON_parse(call FunctionCall) Value {
 	text := call.Argument(0).toString().String()
 	d := &jsonDecoder{Decoder: json.NewDecoder(strings.NewReader(text)), text: text}
+	// Read numbers as text: decoding them as float64 fails for values that
+	// overflow it (e.g. 1e400), which JSON.parse must turn into Infinity.
+	d.UseNumber()
 	if o, ok := call.Argument(1).(*Object); ok {
 		_, d.records = o.self.assertCallable()
 	}
@@ -94,8 +97,13 @@ func (r *Runtime) builtinJSON_decodeToken(d *jsonDecoder, tok json.Token) (Value
 		value = _null
 	case string:
 		value = newStringValue(tok)
-	case float64:
-		value = floatToValue(tok)
+	case json.Number:
+		f, err := strconv.ParseFloat(string(tok), 64)
+		if err != nil && !errors.Is(err, strconv.ErrRange) {
+			return nil, jsonParseRecord{}, err
+		}
+		// On overflow ParseFloat returns ±Inf along with ErrRange.
+		value = floatToValue(f)
 	case bool:
 		if tok {
 			value = valueTrue

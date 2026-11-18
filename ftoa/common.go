@@ -114,16 +114,18 @@ func d2b(d float64, b []byte) (e, bits int, dblBits []byte) {
 	}
 
 	y := d1
+	var x0 uint32 // the lowest word of the result, x[0] in dtoa.c
 	if y != 0 {
 		dblBits = b[:8]
 		k = lo0bits(y)
 		y >>= k
 		if k != 0 {
-			stuffBits(dblBits, 4, y|z<<(32-k))
+			x0 = y | z<<(32-k)
 			z >>= k
 		} else {
-			stuffBits(dblBits, 4, y)
+			x0 = y
 		}
+		stuffBits(dblBits, 4, x0)
 		stuffBits(dblBits, 0, z)
 		if z != 0 {
 			i = 2
@@ -134,6 +136,7 @@ func d2b(d float64, b []byte) (e, bits int, dblBits []byte) {
 		dblBits = b[:4]
 		k = lo0bits(z)
 		z >>= k
+		x0 = z
 		stuffBits(dblBits, 0, z)
 		k += 32
 		i = 1
@@ -144,7 +147,11 @@ func d2b(d float64, b []byte) (e, bits int, dblBits []byte) {
 		bits = p - k
 	} else {
 		e = de - bias - (p - 1) + 1 + k
-		bits = 32*i - hi0bits(z)
+		if i == 2 {
+			bits = 64 - hi0bits(z)
+		} else {
+			bits = 32 - hi0bits(x0)
+		}
 	}
 	return
 }

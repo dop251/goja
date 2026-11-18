@@ -86,8 +86,28 @@ func TestJSONParseReviverSource(t *testing.T) {
 		sources.push(key + "=" + source);
 		return key === "big" ? source : value;
 	});
+	var inf = JSON.parse('[1e400]', function(key, value, { source }) {
+		return key === "0" ? [value, source] : value;
+	});
 	o.big === "12345678901234567890" &&
-	sources.join() === 'big=12345678901234567890,0=1.0,1="\\u0041",list=undefined,dup=2,=undefined';
+	sources.join() === 'big=12345678901234567890,0=1.0,1="\\u0041",list=undefined,dup=2,=undefined' &&
+	inf[0][0] === Infinity && inf[0][1] === "1e400";
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
+func TestJSONParseNumberOverflow(t *testing.T) {
+	const SCRIPT = `
+	JSON.parse('1e400') === Infinity &&
+	JSON.parse('-1e400') === -Infinity &&
+	JSON.parse('[1e309, -1e309]').join() === 'Infinity,-Infinity' &&
+	JSON.parse('{"a": 123e999}').a === Infinity &&
+	JSON.parse('1e-400') === 0 &&
+	Object.is(JSON.parse('-0'), -0) &&
+	Object.is(JSON.parse('-1e-400'), -0) &&
+	JSON.parse('123456789012345678901234567890') === 123456789012345678901234567890 &&
+	JSON.parse('[0.1, 1E2, -5e-1]').join() === '0.1,100,-0.5'
 	`
 
 	testScript(SCRIPT, valueTrue, t)

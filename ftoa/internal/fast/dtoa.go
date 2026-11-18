@@ -466,6 +466,7 @@ func digitGenCounted(w diyfp, requested_digits int, buffer []byte) (kappa int, b
 	divisor, divisor_exponent := biggestPowerTen(integrals, diyFpKSignificandSize-(-one.e))
 	kappa = divisor_exponent + 1
 	buf = buffer
+	startPos := len(buffer)
 	// Loop invariant: buffer = w / 10^kappa  (integer division)
 	// The invariant holds for the first iteration: kappa has been initialized
 	// with the divisor exponent + 1. And the divisor is the biggest power of ten
@@ -486,7 +487,7 @@ func digitGenCounted(w diyfp, requested_digits int, buffer []byte) (kappa int, b
 
 	if requested_digits == 0 {
 		rest := uint64(integrals)<<-one.e + fractionals
-		res = roundWeedCounted(buf, rest, uint64(divisor)<<-one.e, w_error, &kappa)
+		res = roundWeedCounted(buf[startPos:], rest, uint64(divisor)<<-one.e, w_error, &kappa)
 		return
 	}
 
@@ -512,7 +513,7 @@ func digitGenCounted(w diyfp, requested_digits int, buffer []byte) (kappa int, b
 	if requested_digits != 0 {
 		res = false
 	} else {
-		res = roundWeedCounted(buf, fractionals, one.f, w_error, &kappa)
+		res = roundWeedCounted(buf[startPos:], fractionals, one.f, w_error, &kappa)
 	}
 	return
 }
