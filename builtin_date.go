@@ -528,12 +528,16 @@ func mkTime(year, m, day, hour, min, sec, msec float64, loc *time.Location) (t t
 	tm := float64(hour*3.6e6) + float64(min*6e4) + float64(sec*1e3) + msec
 	tv := float64(days*msPerDay) + tm
 
-	// Only reject values that cannot be represented, the callers apply TimeClip.
-	if !(math.Abs(tv) <= math.MaxInt64) {
+	// The callers apply TimeClip, which also takes the time zone offset into account. Values more
+	// than a day past its range can be rejected here, so the day count below fits in a 32-bit int.
+	if !(math.Abs(tv) <= maxTime+msPerDay) {
 		return time.Time{}, false
 	}
 	d := math.Floor(tv / msPerDay)
-	return time.Date(1970, time.January, 1+int(d), 0, 0, 0, int(tv-float64(d*msPerDay))*1e6, loc), true
+	// The time of day is passed as seconds and nanoseconds, because in nanoseconds it does not fit
+	// in a 32-bit int.
+	ms := int(tv - float64(d*msPerDay))
+	return time.Date(1970, time.January, 1+int(d), 0, 0, ms/1e3, ms%1e3*1e6, loc), true
 }
 
 func _intArg(call FunctionCall, argNum int) (float64, bool) {
