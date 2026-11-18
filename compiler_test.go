@@ -6639,6 +6639,19 @@ func TestBabel(t *testing.T) {
 	}
 }*/
 
+func TestObjectRestTrailingCommaSyntaxError(t *testing.T) {
+	for _, src := range []string{
+		"var {...a,} = {x: 1};",
+		"({...a,} = {x: 1});",
+		"function f({...b,}) {}",
+	} {
+		_, err := Compile("", src, false)
+		if _, ok := err.(*CompilerSyntaxError); !ok {
+			t.Errorf("%s: expected CompilerSyntaxError, got %v", src, err)
+		}
+	}
+}
+
 func BenchmarkCompile(b *testing.B) {
 	data, err := os.ReadFile("testdata/S15.10.2.12_A1_T1.js")
 	if err != nil {

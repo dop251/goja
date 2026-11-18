@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"strings"
-
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
@@ -1446,8 +1444,27 @@ func (self *_parser) checkComma(from, to file.Idx) {
 	if from >= to {
 		return
 	}
-	if pos := strings.IndexByte(self.str[int(from)-self.base:int(to)-self.base], ','); pos >= 0 {
-		self.error(from+file.Idx(pos), "Comma is not allowed here")
+	start := int(from) - self.base
+	end := int(to) - self.base
+	if start < 0 || end > len(self.str) || start >= end {
+		return
+	}
+	p := &_parser{
+		chr:    ' ',
+		str:    self.str[start:end],
+		length: end - start,
+		base:   int(from),
+		file:   self.file,
+	}
+	for {
+		tkn, _, _, _, _, idx := p.scan()
+		if tkn == token.COMMA {
+			self.error(idx, "Comma is not allowed here")
+			return
+		}
+		if tkn == token.EOF {
+			return
+		}
 	}
 }
 
@@ -1547,7 +1564,7 @@ func (self *_parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) 
 				self.error(prop.Idx0(), "Rest element must be last element")
 				return &ast.BadExpression{From: expr.Idx0(), To: expr.Idx1()}
 			}
-			// TODO make sure there is no trailing comma
+			self.checkComma(prop.Expression.Idx1(), expr.RightBrace)
 			rest = self.reinterpretAsBindingRestElement(prop.Expression)
 			value = value[:i]
 			ok = true
@@ -1583,7 +1600,7 @@ func (self *_parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) 
 				self.error(prop.Idx0(), "Rest element must be last element")
 				return &ast.BadExpression{From: l.Idx0(), To: l.Idx1()}
 			}
-			// TODO make sure there is no trailing comma
+			self.checkComma(prop.Expression.Idx1(), l.RightBrace)
 			rest = prop.Expression
 			value = value[:i]
 			ok = true
