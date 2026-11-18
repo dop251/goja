@@ -1437,6 +1437,89 @@ func TestCatchParamVarRedeclaration(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestVarRedeclaresNonSimpleParam(t *testing.T) {
+	const SCRIPT = `
+	function rest(...a) {
+		var a;
+		return a;
+	}
+	assert(compareArray(rest(1, 2), [1, 2]), "rest");
+
+	function restAfterParam(a, ...b) {
+		var a, b;
+		return [a, b];
+	}
+	var res = restAfterParam(1, 2);
+	assert.sameValue(res[0], 1, "param before rest");
+	assert(compareArray(res[1], [2]), "rest after param");
+
+	function arrayPattern([a], b = 2) {
+		var a, b;
+		return [a, b];
+	}
+	assert(compareArray(arrayPattern([1]), [1, 2]), "array pattern");
+
+	function objectPattern({x, y: [z]}) {
+		var x = x + 1;
+		var z;
+		return [x, z];
+	}
+	assert(compareArray(objectPattern({x: 1, y: [3]}), [2, 3]), "object pattern");
+
+	function inBlock([a]) {
+		{
+			var a;
+		}
+		for (var a = a + 1; false;) {}
+		return a;
+	}
+	assert.sameValue(inBlock([1]), 2, "in block and for");
+
+	var arrow = (...a) => {
+		var a;
+		return a.length;
+	};
+	assert.sameValue(arrow(1, 2, 3), 3, "arrow");
+
+	var o = {
+		m(...a) {
+			var a;
+			return a.length;
+		}
+	};
+	assert.sameValue(o.m(1, 2), 2, "method");
+
+	var fe = function f(a = 1) {
+		var f;
+		return typeof f;
+	};
+	assert.sameValue(fe(), "undefined", "function expression name");
+
+	var fe1 = function f(...r) {
+		var f = 1;
+		return f;
+	};
+	assert.sameValue(fe1(), 1, "function expression name with initializer");
+
+	assert.throws(SyntaxError, function() {
+		new Function("...a", "let a;");
+	}, "let redeclares rest param");
+	assert.throws(SyntaxError, function() {
+		new Function("[a]", "const a = 1;");
+	}, "const redeclares pattern param");
+	assert.throws(SyntaxError, function() {
+		new Function("...a", "class a {}");
+	}, "class redeclares rest param");
+	assert.throws(SyntaxError, function() {
+		new Function("a = 1", "let x; { var x; }");
+	}, "var redeclares let in body");
+	assert.throws(SyntaxError, function() {
+		new Function("a = 1", "{ let x; { var x; } }");
+	}, "var redeclares let in block");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestNew(t *testing.T) {
 	const SCRIPT = `
 	function O() {
