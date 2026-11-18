@@ -208,6 +208,13 @@ func (self *_parser) parseParenthesisedExpression() ast.Expression {
 	}
 	self.expect(token.RIGHT_PARENTHESIS)
 	if len(list) == 1 && len(self.errors) == 0 {
+		switch list[0].(type) {
+		case *ast.AssignExpression, *ast.ArrayLiteral, *ast.ObjectLiteral:
+			if self.parenthesized == nil {
+				self.parenthesized = make(map[ast.Expression]struct{})
+			}
+			self.parenthesized[list[0]] = struct{}{}
+		}
 		return list[0]
 	}
 	if len(list) == 0 {
@@ -1601,10 +1608,15 @@ func (self *_parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) 
 	}
 }
 
+func (self *_parser) isParenthesized(expr ast.Expression) bool {
+	_, exists := self.parenthesized[expr]
+	return exists
+}
+
 func (self *_parser) reinterpretAsAssignmentElement(expr ast.Expression) ast.Expression {
 	switch expr := expr.(type) {
 	case *ast.AssignExpression:
-		if expr.Operator == token.ASSIGN {
+		if expr.Operator == token.ASSIGN && !self.isParenthesized(expr) {
 			expr.Left = self.reinterpretAsDestructAssignTarget(expr.Left)
 			return expr
 		} else {
@@ -1657,9 +1669,13 @@ func (self *_parser) reinterpretAsDestructAssignTarget(item ast.Expression) ast.
 	case nil:
 		return nil
 	case *ast.ArrayLiteral:
-		return self.reinterpretAsArrayAssignmentPattern(item)
+		if !self.isParenthesized(item) {
+			return self.reinterpretAsArrayAssignmentPattern(item)
+		}
 	case *ast.ObjectLiteral:
-		return self.reinterpretAsObjectAssignmentPattern(item)
+		if !self.isParenthesized(item) {
+			return self.reinterpretAsObjectAssignmentPattern(item)
+		}
 	case ast.Pattern, *ast.Identifier, *ast.DotExpression, *ast.PrivateDotExpression, *ast.BracketExpression:
 		return item
 	}
