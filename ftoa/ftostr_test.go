@@ -49,6 +49,12 @@ func TestDtostr(t *testing.T) {
 	testFToStr(-99.99, ModePrecision, 3, "-100", t)
 	testFToStr(-999.9, ModeExponential, 2, "-1.0e+3", t)
 	testFToStr(9.5e-8, ModeExponential, 1, "1e-7", t)
+	// denormals whose significand fits in the low 32 bits, formatted via the bignum path
+	testFToStr(8.71480397e-316, ModeExponential, 43, "8.714803966741655806370112204023324911003846e-316", t)
+	testFToStr(6.680563e-318, ModePrecision, 52, "6.680562977463457684203334355334870790785116277627880e-318", t)
+	testFToStr(1.2885e-320, ModePrecision, 85, "1.288523204353970987212491411800321339128075965218158985621927459961761722960704424865e-320", t)
+	testFToStr(5e-324, ModePrecision, 30, "4.94065645841246544176568792868e-324", t)
+	testFToStr(5.926951896e-315, ModePrecision, 28, "5.926951896027485167797508778e-315", t) // used to hang in pow5mult
 }
 
 func BenchmarkDtostrSmall(b *testing.B) {
