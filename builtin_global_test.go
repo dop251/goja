@@ -31,3 +31,14 @@ assert.sameValue(parseInt("-x"), NaN, "-x");
 `
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func TestParseIntLargeDecimal(t *testing.T) {
+	const SCRIPT = `
+assert.sameValue(parseInt("123456789012345680000"), Number("123456789012345680000"), "20 digits");
+assert.sameValue(parseInt("-123456789012345680000"), Number("-123456789012345680000"), "negative");
+assert.sameValue(parseInt("123456789012345680000abc"), Number("123456789012345680000"), "trailing garbage");
+assert.sameValue(parseInt("9223372036854775808"), 9223372036854775808, "2^63");
+assert.sameValue(parseInt("12345678901234567890123"), Number("12345678901234567890123"), "23 digits");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

@@ -502,6 +502,9 @@ func parseInt(s string, base int) (Value, error) {
 	for ; i < len(s); i++ {
 		if n >= cutoff {
 			// n*base overflows
+			if base == 10 {
+				return parseLargeDecimal(s, sign)
+			}
 			return parseLargeInt(float64(n), s[i:], base, sign)
 		}
 		v := digitVal(s[i])
@@ -513,6 +516,9 @@ func parseInt(s string, base int) (Value, error) {
 		n1 := n + int64(v)
 		if n1 < n || n1 > maxVal {
 			// n+v overflows
+			if base == 10 {
+				return parseLargeDecimal(s, sign)
+			}
 			return parseLargeInt(float64(n)+float64(v), s[i+1:], base, sign)
 		}
 		n = n1
@@ -533,6 +539,20 @@ func parseInt(s string, base int) (Value, error) {
 
 Error:
 	return _NaN, err
+}
+
+// parseLargeDecimal converts the leading run of decimal digits in s to a float64
+// with a single (correct) rounding, instead of accumulating digit by digit.
+func parseLargeDecimal(s string, sign bool) (Value, error) {
+	end := 0
+	for end < len(s) && s[end] >= '0' && s[end] <= '9' {
+		end++
+	}
+	n, _ := strconv.ParseFloat(s[:end], 64)
+	if sign {
+		n = -n
+	}
+	return valueFloat(n), nil
 }
 
 func parseLargeInt(n float64, s string, base int, sign bool) (Value, error) {
