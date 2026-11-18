@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"math"
+	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
@@ -502,10 +503,7 @@ func parseInt(s string, base int) (Value, error) {
 	for ; i < len(s); i++ {
 		if n >= cutoff {
 			// n*base overflows
-			if base == 10 {
-				return parseLargeDecimal(s, sign)
-			}
-			return parseLargeInt(float64(n), s[i:], base, sign)
+			return parseLargeInt(s, base, sign)
 		}
 		v := digitVal(s[i])
 		if v >= base {
@@ -516,10 +514,7 @@ func parseInt(s string, base int) (Value, error) {
 		n1 := n + int64(v)
 		if n1 < n || n1 > maxVal {
 			// n+v overflows
-			if base == 10 {
-				return parseLargeDecimal(s, sign)
-			}
-			return parseLargeInt(float64(n)+float64(v), s[i+1:], base, sign)
+			return parseLargeInt(s, base, sign)
 		}
 		n = n1
 	}
@@ -541,35 +536,21 @@ Error:
 	return _NaN, err
 }
 
-// parseLargeDecimal converts the leading run of decimal digits in s to a float64
-// with a single (correct) rounding, instead of accumulating digit by digit.
-func parseLargeDecimal(s string, sign bool) (Value, error) {
+// parseLargeInt converts the leading run of digits in s (in the given base) to a
+// float64 with a single rounding (nearest, ties to even), instead of accumulating
+// digit by digit.
+func parseLargeInt(s string, base int, sign bool) (Value, error) {
 	end := 0
-	for end < len(s) && s[end] >= '0' && s[end] <= '9' {
+	for end < len(s) && digitVal(s[end]) < base {
 		end++
 	}
-	n, _ := strconv.ParseFloat(s[:end], 64)
+	x, _ := new(big.Int).SetString(s[:end], base)
+	f, _ := new(big.Float).SetInt(x).Float64()
 	if sign {
-		n = -n
-	}
-	return valueFloat(n), nil
-}
-
-func parseLargeInt(n float64, s string, base int, sign bool) (Value, error) {
-	i := 0
-	b := float64(base)
-	for ; i < len(s); i++ {
-		v := digitVal(s[i])
-		if v >= base {
-			break
-		}
-		n = n*b + float64(v)
-	}
-	if sign {
-		n = -n
+		f = -f
 	}
 	// We know it can't be represented as int, so use valueFloat instead of floatToValue
-	return valueFloat(n), nil
+	return valueFloat(f), nil
 }
 
 var (

@@ -42,3 +42,12 @@ assert.sameValue(parseInt("12345678901234567890123"), Number("123456789012345678
 `
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func TestParseIntLargeNonDecimalRadix(t *testing.T) {
+	const SCRIPT = `
+assert.sameValue(parseInt("c760b46463a0c40d05", 16), 3.677870375570712e+21, "radix 16");
+assert.sameValue(parseInt("itaunfap8aa0q", 32), 21809762542452814000, "radix 32");
+assert.sameValue(parseInt("-1701324071575532202006324217", 8), -4.5401505851592977e+24, "radix 8");
+`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
