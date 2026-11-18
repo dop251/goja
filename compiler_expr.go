@@ -1500,6 +1500,14 @@ func (e *compiledFunctionLiteral) compile() (prg *Program, name unistring.String
 		e.c.compileDeclList(e.declarationList, false)
 		e.c.createFunctionBindings(funcs)
 		e.c.compileLexicalDeclarationsFuncBody(body, calleeBinding)
+		if e.typ != funcArrow {
+			// A var named 'arguments' in the body starts with the arguments object, unless
+			// a parameter has that name (FunctionDeclarationInstantiation, steps 22 and 28).
+			if b := varScope.boundNames["arguments"]; b != nil && b.isVar && s.boundNames["arguments"] == nil {
+				s.argsNeeded = true
+				s.bindName("arguments")
+			}
+		}
 		for _, b := range varScope.bindings {
 			if b.isVar {
 				if parentBinding := s.boundNames[b.name]; parentBinding != nil && parentBinding != calleeBinding {

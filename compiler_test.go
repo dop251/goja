@@ -2110,6 +2110,80 @@ func TestArgumentsPutStrict(t *testing.T) {
 	testScript(SCRIPT, intToValue(5), t)
 }
 
+func TestArgumentsVarNonSimpleParams(t *testing.T) {
+	const SCRIPT = `
+	function withDefault(a = 1) {
+		var arguments;
+		return arguments;
+	}
+	var args = withDefault(7, 8);
+	assert.sameValue(typeof args, "object", "default");
+	assert.sameValue(args.length, 2, "default length");
+	assert.sameValue(args[1], 8, "default value");
+
+	function withPattern([a]) {
+		var arguments;
+		return arguments.length;
+	}
+	assert.sameValue(withPattern([1], 2, 3), 3, "pattern");
+
+	function withRest(...r) {
+		var arguments;
+		return arguments.length;
+	}
+	assert.sameValue(withRest(1, 2), 2, "rest");
+
+	function unreachable(a = 1) {
+		if (false) {
+			var arguments;
+		}
+		return typeof arguments;
+	}
+	assert.sameValue(unreachable(), "object", "unreachable var");
+
+	function* gen(a = 1) {
+		var arguments;
+		yield arguments.length;
+	}
+	assert.sameValue(gen(1, 2, 3).next().value, 3, "generator");
+
+	assert.sameValue({ m(a = 1) { var arguments; return arguments.length; } }.m(1, 2), 2, "method");
+
+	function withEval(a = 1) {
+		eval("");
+		var arguments;
+		return typeof arguments;
+	}
+	assert.sameValue(withEval(), "object", "dynamic scope");
+
+	function assigned(a = 1) {
+		var arguments = 5;
+		return arguments;
+	}
+	assert.sameValue(assigned(), 5, "initializer");
+
+	function funcDecl(a = 1) {
+		var arguments;
+		function arguments() {}
+		return typeof arguments;
+	}
+	assert.sameValue(funcDecl(), "function", "function declaration");
+
+	function param(a = 1, arguments) {
+		var arguments;
+		return arguments;
+	}
+	assert.sameValue(param(1, 9), 9, "parameter named arguments");
+
+	var arrow = (a = 1) => {
+		var arguments;
+		return typeof arguments;
+	};
+	assert.sameValue(arrow(), "undefined", "arrow");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestArgumentsExtraToStash(t *testing.T) {
 	const SCRIPT = `
 	function F(x) {
