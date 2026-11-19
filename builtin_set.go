@@ -568,7 +568,6 @@ func (r *Runtime) createSetProto(val *Object) objectImpl {
 	o.setOwnStr("size", &valueProperty{
 		getterFunc:   r.newNativeFunc(r.setProto_getSize, "get size", 0),
 		accessor:     true,
-		writable:     true,
 		configurable: true,
 	}, true)
 

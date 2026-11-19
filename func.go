@@ -904,7 +904,7 @@ func (ar *asyncRunner) onFulfilled(call FunctionCall) Value {
 	}()
 	arg := call.Argument(0)
 	res, resType, ex := ar.gen.next(arg)
-	ar.step(res, resType == resultNormal, ex)
+	_ = ar.step(res, resType == resultNormal, ex)
 	return _undefined
 }
 
@@ -915,32 +915,47 @@ func (ar *asyncRunner) onRejected(call FunctionCall) Value {
 	}()
 	reason := call.Argument(0)
 	res, resType, ex := ar.gen.nextThrow(reason)
-	ar.step(res, resType == resultNormal, ex)
+	_ = ar.step(res, resType == resultNormal, ex)
 	return _undefined
 }
 
-func (ar *asyncRunner) step(res Value, done bool, ex *Exception) {
+func (ar *asyncRunner) step(res Value, done bool, ex *Exception) *Exception {
 	r := ar.f.runtime
-	if done || ex != nil {
-		if ex == nil {
-			ar.promiseCap.resolve(res)
-		} else {
-			ar.promiseCap.reject(ex.val)
+	for {
+		if done || ex != nil {
+			if ex == nil {
+				ar.promiseCap.resolve(res)
+			} else {
+				ar.promiseCap.reject(ex.val)
+			}
+			return ex
 		}
-		return
-	}
 
-	// await
-	promise := r.promiseResolve(r.getPromise(), res)
-	promise.self.(*Promise).addReactions(&promiseReaction{
-		typ:         promiseReactionFulfill,
-		handler:     &jobCallback{callback: ar.onFulfilled},
-		asyncRunner: ar,
-	}, &promiseReaction{
-		typ:         promiseReactionReject,
-		handler:     &jobCallback{callback: ar.onRejected},
-		asyncRunner: ar,
-	})
+		// await
+		var promise *Object
+		ex = r.vm.try(func() {
+			promise = r.promiseResolve(r.getPromise(), res)
+		})
+		if ex != nil {
+			// Await() propagates an abrupt completion from PromiseResolve() as a throw at the
+			// await expression, so resume the generator with the exception. It may be caught
+			// (or run finally blocks) inside the async function.
+			var resType resultType
+			res, resType, ex = ar.gen.nextThrow(ex.val)
+			done = resType == resultNormal
+			continue
+		}
+		promise.self.(*Promise).addReactions(&promiseReaction{
+			typ:         promiseReactionFulfill,
+			handler:     &jobCallback{callback: ar.onFulfilled},
+			asyncRunner: ar,
+		}, &promiseReaction{
+			typ:         promiseReactionReject,
+			handler:     &jobCallback{callback: ar.onRejected},
+			asyncRunner: ar,
+		})
+		return nil
+	}
 }
 
 func (ar *asyncRunner) start(nArgs int) {
@@ -948,15 +963,16 @@ func (ar *asyncRunner) start(nArgs int) {
 	ar.gen.vm = r.vm
 	ar.promiseCap = r.newPromiseCapability(r.getPromise())
 	sp := r.vm.sp
-	ar.gen.enter()
+	ctx := ar.gen.enter()
+	// Deferred so that the frames are also popped if step() is aborted by an uncatchable panic (e.g. an
+	// Interrupt). Otherwise the call stack never becomes empty again and the job queue is never drained.
+	defer ar.gen.leaveNext(ctx)
 	ar.vmCall(r.vm, nArgs)
 	res, resType, ex := ar.gen.step()
-	ar.step(res, resType == resultNormal, ex)
+	ex = ar.step(res, resType == resultNormal, ex)
 	if ex != nil {
 		r.vm.sp = sp - nArgs - 2
 	}
-	r.vm.popTryFrame()
-	r.vm.popCtx()
 }
 
 type generator struct {
@@ -971,11 +987,13 @@ func (g *generator) storeLengths() {
 	g.tryStackLen, g.iterStackLen, g.refStackLen = uint32(len(g.vm.tryStack)), uint32(len(g.vm.iterStack)), uint32(len(g.vm.refStack))
 }
 
-func (g *generator) enter() {
+func (g *generator) enter() (ctx genEnterNextCtx) {
 	g.vm.pushCtx()
+	ctx.callStackLen, ctx.tryStackLen = len(g.vm.callStack), len(g.vm.tryStack)
 	g.vm.pushTryFrame(tryPanicMarker, -1)
 	g.vm.prg, g.vm.sb, g.vm.pc = nil, -1, -2 // so that vm.run() halts after ret
 	g.storeLengths()
+	return
 }
 
 func (g *generator) enterNextFinallyFrame() (canContinue bool) {
@@ -1132,18 +1150,17 @@ func (g *generatorObject) init(vmCall func(*vm, int), nArgs int) {
 	vm := g.val.runtime.vm
 	g.gen.vm = vm
 
-	g.gen.enter()
+	ctx := g.gen.enter()
+	defer g.gen.leaveNext(ctx) // see asyncRunner.start()
 	vmCall(vm, nArgs)
 
 	_, _, ex := g.gen.step()
 
-	vm.popTryFrame()
 	if ex != nil {
 		panic(ex)
 	}
 
 	g.state = genStateSuspendedStart
-	vm.popCtx()
 }
 
 func (g *generatorObject) validate() {
@@ -1370,12 +1387,13 @@ func (g *generatorObject) _return(v Value) Value {
 	g.gen.returning = v
 	g.state = genStateExecuting
 	ctx := g.gen.enterNext()
+	// Deferred before enterNextFinallyFrame() and restoreStacks(): both may close iterators, i.e. run JS that can
+	// be interrupted.
+	defer g.gen.leaveNext(ctx)
 	canContinue := g.gen.enterNextFinallyFrame()
 	if !canContinue {
 		vm := g.gen.vm
 		g.state = genStateCompleted
-
-		vm.popTryFrame()
 
 		ex := vm.restoreStacks(g.gen.iterStackLen, g.gen.refStackLen)
 
@@ -1383,13 +1401,10 @@ func (g *generatorObject) _return(v Value) Value {
 			panic(ex)
 		}
 
-		vm.callStack = vm.callStack[:len(vm.callStack)-1]
 		vm.sp = vm.sb - 1
-		vm.popCtx()
 
 		return g.val.runtime.createIterResultObject(v, true)
 	}
-	defer g.gen.leaveNext(ctx)
 	res, done, ex := g.gen.step()
 
 	return g.step(res, done, ex)

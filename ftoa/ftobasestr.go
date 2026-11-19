@@ -5,7 +5,7 @@ import (
 	"math"
 	"math/big"
 	"strconv"
-	"strings"
+	"unsafe"
 )
 
 const (
@@ -21,12 +21,12 @@ func FToBaseStr(num float64, radix int) string {
 
 	dfloor := math.Floor(num)
 	ldfloor := int64(dfloor)
-	var intDigits string
+	var buffer []byte
 	if dfloor == float64(ldfloor) {
 		if negative {
-			ldfloor = -ldfloor
+			buffer = append(buffer, '-')
 		}
-		intDigits = strconv.FormatInt(ldfloor, radix)
+		buffer = strconv.AppendInt(buffer, ldfloor, radix)
 	} else {
 		floorBits := math.Float64bits(num)
 		exp := int(floorBits>>exp_shiftL) & exp_mask_shifted
@@ -47,17 +47,15 @@ func FToBaseStr(num float64, radix int) string {
 		} else if exp < 0 {
 			x.Rsh(x, uint(-exp))
 		}
-		intDigits = x.Text(radix)
+		buffer = x.Append(buffer, radix)
 	}
 
 	if num == dfloor {
 		// No fraction part
-		return intDigits
+		return unsafe.String(&buffer[0], len(buffer))
 	} else {
 		/* We have a fraction. */
-		var buffer strings.Builder
-		buffer.WriteString(intDigits)
-		buffer.WriteByte('.')
+		buffer = append(buffer, '.')
 		df := num - dfloor
 
 		dBits := math.Float64bits(num)
@@ -145,9 +143,9 @@ func FToBaseStr(num float64, radix int) string {
 				done = true
 			}
 			//                JS_ASSERT(digit < (uint32)base);
-			buffer.WriteByte(digits[digit])
+			buffer = append(buffer, digits[digit])
 		}
 
-		return buffer.String()
+		return unsafe.String(&buffer[0], len(buffer))
 	}
 }

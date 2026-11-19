@@ -1437,6 +1437,89 @@ func TestCatchParamVarRedeclaration(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestVarRedeclaresNonSimpleParam(t *testing.T) {
+	const SCRIPT = `
+	function rest(...a) {
+		var a;
+		return a;
+	}
+	assert(compareArray(rest(1, 2), [1, 2]), "rest");
+
+	function restAfterParam(a, ...b) {
+		var a, b;
+		return [a, b];
+	}
+	var res = restAfterParam(1, 2);
+	assert.sameValue(res[0], 1, "param before rest");
+	assert(compareArray(res[1], [2]), "rest after param");
+
+	function arrayPattern([a], b = 2) {
+		var a, b;
+		return [a, b];
+	}
+	assert(compareArray(arrayPattern([1]), [1, 2]), "array pattern");
+
+	function objectPattern({x, y: [z]}) {
+		var x = x + 1;
+		var z;
+		return [x, z];
+	}
+	assert(compareArray(objectPattern({x: 1, y: [3]}), [2, 3]), "object pattern");
+
+	function inBlock([a]) {
+		{
+			var a;
+		}
+		for (var a = a + 1; false;) {}
+		return a;
+	}
+	assert.sameValue(inBlock([1]), 2, "in block and for");
+
+	var arrow = (...a) => {
+		var a;
+		return a.length;
+	};
+	assert.sameValue(arrow(1, 2, 3), 3, "arrow");
+
+	var o = {
+		m(...a) {
+			var a;
+			return a.length;
+		}
+	};
+	assert.sameValue(o.m(1, 2), 2, "method");
+
+	var fe = function f(a = 1) {
+		var f;
+		return typeof f;
+	};
+	assert.sameValue(fe(), "undefined", "function expression name");
+
+	var fe1 = function f(...r) {
+		var f = 1;
+		return f;
+	};
+	assert.sameValue(fe1(), 1, "function expression name with initializer");
+
+	assert.throws(SyntaxError, function() {
+		new Function("...a", "let a;");
+	}, "let redeclares rest param");
+	assert.throws(SyntaxError, function() {
+		new Function("[a]", "const a = 1;");
+	}, "const redeclares pattern param");
+	assert.throws(SyntaxError, function() {
+		new Function("...a", "class a {}");
+	}, "class redeclares rest param");
+	assert.throws(SyntaxError, function() {
+		new Function("a = 1", "let x; { var x; }");
+	}, "var redeclares let in body");
+	assert.throws(SyntaxError, function() {
+		new Function("a = 1", "{ let x; { var x; } }");
+	}, "var redeclares let in block");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestNew(t *testing.T) {
 	const SCRIPT = `
 	function O() {
@@ -2025,6 +2108,94 @@ func TestArgumentsPutStrict(t *testing.T) {
 	`
 
 	testScript(SCRIPT, intToValue(5), t)
+}
+
+func TestArgumentsVarNonSimpleParams(t *testing.T) {
+	const SCRIPT = `
+	function withDefault(a = 1) {
+		var arguments;
+		return arguments;
+	}
+	var args = withDefault(7, 8);
+	assert.sameValue(typeof args, "object", "default");
+	assert.sameValue(args.length, 2, "default length");
+	assert.sameValue(args[1], 8, "default value");
+
+	function withPattern([a]) {
+		var arguments;
+		return arguments.length;
+	}
+	assert.sameValue(withPattern([1], 2, 3), 3, "pattern");
+
+	function withRest(...r) {
+		var arguments;
+		return arguments.length;
+	}
+	assert.sameValue(withRest(1, 2), 2, "rest");
+
+	function unreachable(a = 1) {
+		if (false) {
+			var arguments;
+		}
+		return typeof arguments;
+	}
+	assert.sameValue(unreachable(), "object", "unreachable var");
+
+	function* gen(a = 1) {
+		var arguments;
+		yield arguments.length;
+	}
+	assert.sameValue(gen(1, 2, 3).next().value, 3, "generator");
+
+	assert.sameValue({ m(a = 1) { var arguments; return arguments.length; } }.m(1, 2), 2, "method");
+
+	function withEval(a = 1) {
+		eval("");
+		var arguments;
+		return typeof arguments;
+	}
+	assert.sameValue(withEval(), "object", "dynamic scope");
+
+	function assigned(a = 1) {
+		var arguments = 5;
+		return arguments;
+	}
+	assert.sameValue(assigned(), 5, "initializer");
+
+	function funcDecl(a = 1) {
+		var arguments;
+		function arguments() {}
+		return typeof arguments;
+	}
+	assert.sameValue(funcDecl(), "function", "function declaration");
+
+	function param(a = 1, arguments) {
+		var arguments;
+		return arguments;
+	}
+	assert.sameValue(param(1, 9), 9, "parameter named arguments");
+
+	var arrow = (a = 1) => {
+		var arguments;
+		return typeof arguments;
+	};
+	assert.sameValue(arrow(), "undefined", "arrow");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestArgumentsExtraToStash(t *testing.T) {
+	const SCRIPT = `
+	function F(x) {
+		if (false) var y = 1;
+		var r = typeof y;
+		return function() { return x + y + r; };
+	}
+
+	F(1, 2, 3)()
+	`
+
+	testScript(SCRIPT, asciiString("NaNundefined"), t)
 }
 
 func TestArgumentsExtra(t *testing.T) {
@@ -4784,6 +4955,69 @@ func TestArrowUseStrict(t *testing.T) {
 	}
 }
 
+func TestArrowArgumentsOnly(t *testing.T) {
+	// arguments of the enclosing function used only in an arrow function
+	const SCRIPT = `
+	function f() {
+		return (() => [...arguments])().join();
+	}
+	function g() {
+		return (() => arguments.length)();
+	}
+	function h() {
+		const m = () => Math.max(...arguments);
+		return m();
+	}
+	f(1, 2) + ";" + g(1, 2, 3) + ";" + h(1, 5, 2);
+	`
+
+	testScript(SCRIPT, asciiString("1,2;3;5"), t)
+}
+
+func TestArgumentsInStrictEval(t *testing.T) {
+	const SCRIPT = `
+	function f() { 
+		'use strict';
+		return eval('arguments.length'); 
+	}
+	f(1, 2, 3);
+	`
+
+	testScript(SCRIPT, intToValue(3), t)
+}
+
+func TestArgumentsParameterWithEval(t *testing.T) {
+	const SCRIPT = `
+	function f(arguments) {
+		eval("");
+		return arguments;
+	}
+	function g(arguments) {
+		eval("");
+		return (() => arguments)();
+	}
+	function h(arguments = 42) {
+		eval("");
+		return arguments;
+	}
+	function i({arguments}) {
+		eval("");
+		return arguments;
+	}
+	function j() {
+		eval("");
+		return arguments.length;
+	}
+	f(1) === 1 &&
+		g(2) === 2 &&
+		h() === 42 &&
+		i({arguments: 3}) === 3 &&
+		j(1, 2, 3) === 3;
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestArrowBoxedThis(t *testing.T) {
 	const SCRIPT = `
 	var context;
@@ -6576,4 +6810,97 @@ func BenchmarkCompile(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+func TestObjectLiteralComputedKeyDefinesOwnProperty(t *testing.T) {
+	const SCRIPT = `
+	function key() { return "a"; }
+	const o = { get a() { return 1; }, [key()]: 2 };
+	assert.sameValue(o.a, 2, "data property replaces the getter");
+	let desc = Object.getOwnPropertyDescriptor(o, "a");
+	assert(desc.writable && desc.enumerable && desc.configurable, "descriptor");
+
+	let n = 0;
+	const o1 = { set b(v) { n++; }, [key() + "b"]: function() {} };
+	assert.sameValue(n, 0, "setter must not be called");
+	assert.sameValue(typeof o1.ab, "function");
+	assert.sameValue(o1.ab.name, "ab");
+
+	const k = "__proto__";
+	const o2 = { [k]: [] };
+	assert.sameValue(Object.getPrototypeOf(o2), Object.prototype, "__proto__ is not set");
+	assert(Object.prototype.hasOwnProperty.call(o2, "__proto__"), "own __proto__ property");
+
+	Object.defineProperty(Object.prototype, "zz", { set(v) { throw new Error("inherited setter called"); }, configurable: true });
+	try {
+		const z = "zz";
+		const o3 = { [z]: 1, [z + "f"]: () => 1 };
+		assert.sameValue(o3.zz, 1);
+	} finally {
+		delete Object.prototype.zz;
+	}
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestNestedBindingPatternDefaults(t *testing.T) {
+	const SCRIPT = `
+	let { b: [v1 = 1] = [] } = {};
+	assert.sameValue(v1, 1);
+
+	var { p: [q = 5, ...r] = [] } = {};
+	assert.sameValue(q, 5);
+	assert.sameValue(r.length, 0);
+
+	const f = ({ a = 1 } = {}, [x = a] = []) => x;
+	assert.sameValue(f(), 1);
+	assert.sameValue(f({ a: 2 }), 2);
+	assert.sameValue(f({}, [3]), 3);
+
+	const g = ([a = 1, [b = 2] = [], { c = 3 } = {}] = []) => [a, b, c].join();
+	assert.sameValue(g(), "1,2,3");
+
+	assert.throws(SyntaxError, () => eval("let { b: [x.y = 1] = [] } = {}"));
+	assert.throws(SyntaxError, () => eval("([a.b = 1] = []) => 1"));
+	assert.throws(SyntaxError, () => eval("let { b: [v += 1] = [] } = {}"));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestAwaitInAsyncArrowInParameters(t *testing.T) {
+	const SCRIPT = `
+	async function f(p = async (q) => await q) {}
+	async function f1(p = async q => await q) {}
+	function f2(p = async (q) => await q) {}
+	async function f3(p = async () => await 1) {}
+
+	assert.throws(SyntaxError, () => eval("async function f(p = await 1) {}"));
+	assert.throws(SyntaxError, () => eval("async function f(p = async () => 1, z = await 2) {}"));
+	assert.throws(SyntaxError, () => eval("async function f(p = () => await 1) {}"));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestConciseArrowBodyDoesNotInheritFunctionContext(t *testing.T) {
+	const SCRIPT = `
+	// An async concise body may use await even when the arrow itself is nested
+	// in the formal parameters of an enclosing function.
+	async function f1(p = async () => await 1) {}
+	async function f2(p = async (q) => await q) {}
+	async function f3(p = class { x = async () => await 1 }) {}
+
+	// Conversely, a non-async concise body must not inherit yield from an
+	// enclosing generator, whether it is in the parameters or the body.
+	assert.throws(SyntaxError, () => eval("function* g(a = () => yield 1) {}"));
+	assert.throws(SyntaxError, () => eval("function* g() { var h = () => yield 1; }"));
+	assert.throws(SyntaxError, () => eval("function* g(p = class { x = () => yield 1 }) {}"));
+
+	// Nested function contexts are still parsed correctly.
+	function* g1(p = { *m(q) { yield q; } }) {}
+	function* g2(p = class { *m(q) { yield q; } }) {}
+
+	// A later parameter default is still part of the outer parameter list.
+	assert.throws(SyntaxError, () => eval("async function f(p = async () => await 1, z = await 2) {}"));
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }

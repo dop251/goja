@@ -42,6 +42,19 @@ func TestDtostr(t *testing.T) {
 	testFToStr(math.Float64frombits(0x000FFFFFFFFFFFFF), ModeStandard, 0, "2.225073858507201e-308", t)  // largest denormal
 	testFToStr(4294967272.0, ModePrecision, 14, "4294967272.0000", t)
 	testFToStr(0.7016570306969449, ModeStandard, 0, "0.7016570306969449", t)
+	// rounding carry must not corrupt the sign prefix of negative numbers
+	testFToStr(-9.5e-8, ModeExponential, 1, "-1e-7", t)
+	testFToStr(-9.5e-8, ModePrecision, 1, "-1e-7", t)
+	testFToStr(-9.999e-9, ModeExponential, 3, "-1.00e-8", t)
+	testFToStr(-99.99, ModePrecision, 3, "-100", t)
+	testFToStr(-999.9, ModeExponential, 2, "-1.0e+3", t)
+	testFToStr(9.5e-8, ModeExponential, 1, "1e-7", t)
+	// denormals whose significand fits in the low 32 bits, formatted via the bignum path
+	testFToStr(8.71480397e-316, ModeExponential, 43, "8.714803966741655806370112204023324911003846e-316", t)
+	testFToStr(6.680563e-318, ModePrecision, 52, "6.680562977463457684203334355334870790785116277627880e-318", t)
+	testFToStr(1.2885e-320, ModePrecision, 85, "1.288523204353970987212491411800321339128075965218158985621927459961761722960704424865e-320", t)
+	testFToStr(5e-324, ModePrecision, 30, "4.94065645841246544176568792868e-324", t)
+	testFToStr(5.926951896e-315, ModePrecision, 28, "5.926951896027485167797508778e-315", t) // used to hang in pow5mult
 }
 
 func BenchmarkDtostrSmall(b *testing.B) {

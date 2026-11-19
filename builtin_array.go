@@ -1654,6 +1654,7 @@ func createArrayProtoTemplate() *objectTemplate {
 	t.putSym(SymIterator, func(r *Runtime) Value { return valueProp(r.getArrayValues(), true, false, true) })
 	t.putSym(SymUnscopables, func(r *Runtime) Value {
 		bl := r.newBaseObject(nil, classObject)
+		bl.setOwnStr("at", valueTrue, true)
 		bl.setOwnStr("copyWithin", valueTrue, true)
 		bl.setOwnStr("entries", valueTrue, true)
 		bl.setOwnStr("fill", valueTrue, true)
@@ -1665,12 +1666,10 @@ func createArrayProtoTemplate() *objectTemplate {
 		bl.setOwnStr("flatMap", valueTrue, true)
 		bl.setOwnStr("includes", valueTrue, true)
 		bl.setOwnStr("keys", valueTrue, true)
-		bl.setOwnStr("values", valueTrue, true)
-		bl.setOwnStr("groupBy", valueTrue, true)
-		bl.setOwnStr("groupByToMap", valueTrue, true)
 		bl.setOwnStr("toReversed", valueTrue, true)
 		bl.setOwnStr("toSorted", valueTrue, true)
 		bl.setOwnStr("toSpliced", valueTrue, true)
+		bl.setOwnStr("values", valueTrue, true)
 
 		return valueProp(bl.val, false, false, true)
 	})

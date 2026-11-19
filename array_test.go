@@ -131,3 +131,20 @@ func BenchmarkArraySetEmpty(b *testing.B) {
 		a.self.setOwnIdx(0, valueTrue, true)
 	}
 }
+
+func TestArrayProtoUnscopables(t *testing.T) {
+	const SCRIPT = `
+	var u = Array.prototype[Symbol.unscopables];
+	assert.sameValue(Object.getPrototypeOf(u), null, "prototype");
+	assert(compareArray(Object.getOwnPropertyNames(u), [
+		"at", "copyWithin", "entries", "fill", "find", "findIndex", "findLast", "findLastIndex",
+		"flat", "flatMap", "includes", "keys", "toReversed", "toSorted", "toSpliced", "values"
+	]), "own property names");
+
+	var at = "outer";
+	with ([]) {
+		assert.sameValue(at, "outer", "at is unscopable");
+	}
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

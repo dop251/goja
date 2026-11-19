@@ -330,7 +330,6 @@ func (r *Runtime) createMapProto(val *Object) objectImpl {
 	o.setOwnStr("size", &valueProperty{
 		getterFunc:   r.newNativeFunc(r.mapProto_getSize, "get size", 0),
 		accessor:     true,
-		writable:     true,
 		configurable: true,
 	}, true)
 	o._putProp("keys", r.newNativeFunc(r.mapProto_keys, "keys", 0), true, false, true)
