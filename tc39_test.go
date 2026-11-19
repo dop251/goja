@@ -133,12 +133,7 @@ var (
 		"test/language/literals/regexp/named-groups/invalid-identity-escape-in-capture-u.js": true,
 
 		// JSON (reviver)
-		"test/built-ins/JSON/rawJSON/bigint-raw-json-can-be-stringified.js":         true,
-		"test/built-ins/JSON/parse/reviver-forward-modifies-object.js":              true,
-		"test/built-ins/JSON/parse/reviver-context-source-primitive-literal.js":     true,
-		"test/built-ins/JSON/parse/reviver-context-source-object-literal.js":        true,
-		"test/built-ins/JSON/parse/reviver-context-source-array-literal.js":         true,
-		"test/built-ins/JSON/parse/reviver-call-args-after-forward-modification.js": true,
+		"test/built-ins/JSON/rawJSON/bigint-raw-json-can-be-stringified.js": true,
 
 		// Language tests (module)
 		"test/language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-export-star-as-from-and-import-star-as-and-export.js": true,
