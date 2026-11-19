@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -1017,4 +1018,101 @@ func TestGeneratorThrowCaughtDuringReturn(t *testing.T) {
 	assert.sameValue(log.join(","), "caught:x,outer");
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestFuncOwnKeysOrder(t *testing.T) {
+	const SCRIPT = `
+	function keys(f) {
+		return Reflect.ownKeys(f).join();
+	}
+	function f1() {}
+	function f2() {}
+	void f2.prototype;
+	function f3() {}
+	f3.foo = 1;
+	function f4() {}
+	Object.defineProperty(f4, "foo", {value: 1});
+	function f5() {}
+	delete f5.name;
+	Object.defineProperty(f5, "name", {value: "x"});
+	function f6() {}
+	f6[0] = 1;
+	f6.foo = 1;
+	function f7() {}
+	f7.foo = 1;
+	delete f7.foo;
+
+	assert.sameValue(keys(f1), "length,name,prototype", "f1");
+	assert.sameValue(keys(f2), "length,name,prototype", "f2");
+	assert.sameValue(keys(f3), "length,name,prototype,foo", "f3");
+	assert.sameValue(keys(f4), "length,name,prototype,foo", "f4");
+	assert.sameValue(keys(f5), "length,prototype,name", "f5");
+	assert.sameValue(keys(f6), "0,length,name,prototype,foo", "f6");
+	assert.sameValue(keys(f7), "length,name,prototype", "f7");
+	assert.sameValue(Object.getOwnPropertyNames(f1).join(), "length,name,prototype", "getOwnPropertyNames");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestFuncIterateStringProperties(t *testing.T) {
+	const SCRIPT = `
+	function f() {}
+	var names = Object.keys(Object.getOwnPropertyDescriptors(f)).join(',');
+	assert.sameValue("length,name,prototype", names);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestFuncPrototypeLazyMaterialisation(t *testing.T) {
+	vm := New()
+	if _, err := vm.RunString(`var f = function() {}`); err != nil {
+		t.Fatal(err)
+	}
+	f := vm.Get("f").(*Object)
+	fo := f.self.(*funcObject)
+
+	assertLazy := func(what string) {
+		t.Helper()
+		if fo.values != nil {
+			t.Fatalf("%s: values map was materialised: %v", what, fo.values)
+		}
+		if fo.propNames != nil {
+			t.Fatalf("%s: propNames was materialised: %v", what, fo.propNames)
+		}
+	}
+
+	assertLazy("creation")
+	for _, src := range []string{
+		`Reflect.ownKeys(f)`,
+		`Object.getOwnPropertyNames(f)`,
+		`Object.keys(f)`,
+		`JSON.stringify(f)`,
+		`void f.missing`,
+	} {
+		if _, err := vm.RunString(src); err != nil {
+			t.Fatal(err)
+		}
+		assertLazy(src)
+	}
+
+	// Adding a property must reserve "prototype" in the key order without
+	// creating the property itself.
+	if _, err := vm.RunString(`f.foo = 1`); err != nil {
+		t.Fatal(err)
+	}
+	if fo.values["prototype"] != nil {
+		t.Fatal("\"prototype\" was materialised by adding another property")
+	}
+	hasPrototype := slices.Contains(fo.propNames, "prototype")
+	if !hasPrototype {
+		t.Fatalf("\"prototype\" was not reserved in propNames: %v", fo.propNames)
+	}
+
+	// Reading it must materialise the value.
+	if _, err := vm.RunString(`void f.prototype`); err != nil {
+		t.Fatal(err)
+	}
+	if fo.values["prototype"] == nil {
+		t.Fatal("\"prototype\" was not materialised on access")
+	}
 }

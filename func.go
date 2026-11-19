@@ -189,6 +189,16 @@ func (f *funcObject) _addProto(n unistring.String) Value {
 	return nil
 }
 
+// _addProtoBeforeChange makes sure the lazy "prototype" property keeps its place
+// in the own-key order before another own property is added, redefined or deleted.
+func (f *funcObject) _addProtoBeforeChange(n unistring.String) {
+	if n == "prototype" {
+		f._addProto(n)
+	} else {
+		f._materializePropNames()
+	}
+}
+
 func (f *funcObject) hasAndGetStr(name unistring.String, receiver Value) (Value, bool) {
 	return f.hasAndGetOwnStr(name, f.getOwnPropStr(name), receiver)
 }
@@ -206,7 +216,7 @@ func (f *funcObject) getOwnPropStr(name unistring.String) Value {
 }
 
 func (f *funcObject) setOwnStr(name unistring.String, val Value, throw bool) bool {
-	f._addProto(name)
+	f._addProtoBeforeChange(name)
 	return f.baseJsFuncObject.setOwnStr(name, val, throw)
 }
 
@@ -215,19 +225,25 @@ func (f *funcObject) setForeignStr(name unistring.String, val, receiver Value, t
 }
 
 func (f *funcObject) defineOwnPropertyStr(name unistring.String, descr PropertyDescriptor, throw bool) bool {
-	f._addProto(name)
+	f._addProtoBeforeChange(name)
 	return f.baseJsFuncObject.defineOwnPropertyStr(name, descr, throw)
 }
 
 func (f *funcObject) deleteStr(name unistring.String, throw bool) bool {
-	f._addProto(name)
+	f._addProtoBeforeChange(name)
 	return f.baseJsFuncObject.deleteStr(name, throw)
 }
 
 func (f *funcObject) addPrototype() Value {
 	proto := f.val.runtime.newBaseObjectVal()
 	proto.self._putProp("constructor", f.val, true, false, true)
-	return f._putProp("prototype", proto, true, false, false)
+	// Whenever propNames is materialised for an ordinary function, "prototype" is
+	// added to it by _materializePropNames(), so its position is already correct.
+	f._materializePropNames()
+	f.baseObject._prepareValues()
+	prop := valueProp(proto, true, false, false)
+	f.values["prototype"] = prop
+	return prop
 }
 
 func (f *funcObject) hasOwnPropertyStr(name unistring.String) bool {
@@ -241,9 +257,20 @@ func (f *funcObject) hasOwnPropertyStr(name unistring.String) bool {
 	return false
 }
 
+func (f *funcObject) _materializePropNames() {
+	if f.baseFuncObject._materializePropNames() {
+		f.propNames = append(f.propNames, "prototype")
+	}
+}
+
 func (f *funcObject) stringKeys(all bool, accum []Value) []Value {
-	f._materializePropNames()
-	return f.baseJsFuncObject.stringKeys(all, accum)
+	accum = f.baseJsFuncObject.stringKeys(all, accum)
+	if all && f.propNames == nil {
+		// No own property has been added or changed yet, so the base implementation
+		// returned only "length" and "name". The lazy "prototype" goes after them.
+		accum = append(accum, asciiString("prototype"))
+	}
+	return accum
 }
 
 func (f *funcObject) iterateStringKeys() iterNextFunc {
@@ -290,7 +317,7 @@ func (f *baseFuncObject) _getShapePropPtr(p unistring.String) *Value {
 	return nil
 }
 
-func (f *baseFuncObject) _materializePropNames() {
+func (f *baseFuncObject) _materializePropNames() bool {
 	if f.propNames == nil {
 		if f.lenProp != nil {
 			f.propNames = append(f.propNames, "length")
@@ -298,7 +325,9 @@ func (f *baseFuncObject) _materializePropNames() {
 		if f.nameProp != nil {
 			f.propNames = append(f.propNames, "name")
 		}
+		return true
 	}
+	return false
 }
 
 func (f *baseFuncObject) _prepareValues() {
@@ -372,26 +401,29 @@ func (f *baseFuncObject) deleteStr(name unistring.String, throw bool) bool {
 }
 
 func (f *baseFuncObject) _deoptimizeProps() {
-	if f.propNames == nil {
-		if f.values == nil {
-			f.values = make(map[unistring.String]Value, 2)
-		}
-		if f.lenProp != nil {
+	emptyPropNames := f.propNames == nil
+	if f.values == nil {
+		f.values = make(map[unistring.String]Value, 2)
+	}
+	if f.lenProp != nil {
+		if emptyPropNames {
 			f.propNames = append(f.propNames, "length")
-			f.values["length"] = &valueProperty{
-				value:        f.lenProp,
-				configurable: true,
-			}
-			f.lenProp = nil
 		}
-		if f.nameProp != nil {
+		f.values["length"] = &valueProperty{
+			value:        f.lenProp,
+			configurable: true,
+		}
+		f.lenProp = nil
+	}
+	if f.nameProp != nil {
+		if emptyPropNames {
 			f.propNames = append(f.propNames, "name")
-			f.values["name"] = &valueProperty{
-				value:        f.nameProp,
-				configurable: true,
-			}
-			f.nameProp = nil
 		}
+		f.values["name"] = &valueProperty{
+			value:        f.nameProp,
+			configurable: true,
+		}
+		f.nameProp = nil
 	}
 }
 
@@ -417,6 +449,14 @@ func (f *baseFuncObject) stringKeys(all bool, keys []Value) []Value {
 	} else {
 		for _, k := range f.propNames {
 			prop := f.getOwnPropStr(k)
+			if prop == nil {
+				// A lazy property whose key is reserved in propNames but whose value
+				// has not been created yet. The only such property is
+				// funcObject.prototype, which is non-enumerable, so it must not be
+				// included here. This relies on it being the only nil-valued entry;
+				// an enumerable lazy property would need its own handling.
+				continue
+			}
 			if prop, ok := prop.(*valueProperty); ok && !prop.enumerable {
 				continue
 			}
