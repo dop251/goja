@@ -175,6 +175,16 @@ func TestRegexpReplaceGlobal(t *testing.T) {
 	testScript(SCRIPT, asciiString("QBZPbage\ny_cynprubyqre"), t)
 }
 
+func TestRegexpStickyUnicodeEmptyMatchAstral(t *testing.T) {
+	const SCRIPT = `
+	assert.sameValue("\u{1F600}".replace(/(?:)/gyu, "X"), "X\u{1F600}X", "replace");
+	assert.sameValue(JSON.stringify("a\u{1F600}b".match(/(?:)/gyu)), '["","","",""]', "match");
+	assert.sameValue("a\u{1F600}b".replace(/\b/gyu, "X"), "XaX\u{1F600}XbX", "replace \\b");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestRegexpNumCaptures(t *testing.T) {
 	const SCRIPT = `
 	"Fubpxjnir Synfu 9.0  e115".replace(/([a-zA-Z]|\s)+/, '')
