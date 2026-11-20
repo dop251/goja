@@ -391,6 +391,44 @@ func TestRegexpAssertion(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestRegexpStickyUnicodeLastIndexInSurrogatePair(t *testing.T) {
+	const SCRIPT = `
+	var str = "a\uD83D\uDE00b";
+
+	// a global match from inside the pair is reported at the start of the pair...
+	var re = /./gu;
+	re.lastIndex = 2;
+	var m = re.exec(str);
+	assert.sameValue(m.index, 1, "#1");
+	assert.sameValue(re.lastIndex, 3, "#2");
+
+	// ...and so is a sticky one
+	re = /./yu;
+	re.lastIndex = 2;
+	m = re.exec(str);
+	assert(m !== null, "#3");
+	assert.sameValue(m[0], "\uD83D\uDE00", "#4");
+	assert.sameValue(m.index, 1, "#5");
+	assert.sameValue(re.lastIndex, 3, "#6");
+
+	re.lastIndex = 2;
+	assert(re.test(str), "#7");
+	assert.sameValue(re.lastIndex, 3, "#8");
+
+	re.lastIndex = 2;
+	assert.sameValue(str.replace(re, "X"), "aXb", "#9");
+	assert.sameValue(re.lastIndex, 3, "#10");
+
+	// a sticky match still has to start there
+	re = /b/yu;
+	re.lastIndex = 2;
+	assert.sameValue(re.exec(str), null, "#11");
+	assert.sameValue(re.lastIndex, 0, "#12");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestRegexpUnicodeAdvanceStringIndex(t *testing.T) {
 	const SCRIPT = `
 	// deoptimise RegExp
@@ -1252,4 +1290,34 @@ func BenchmarkRegexpSingleExec(b *testing.B) {
 		f("(?=)test", "aaaaaaaaaaaaaaaaaaaaaaaaa testing 😀", b)
 	})
 
+}
+
+func TestRegexpUnicodeLastIndexInsideSurrogatePairMatchesCodePoint(t *testing.T) {
+	const SCRIPT = `
+	var str = "😀";
+
+	// lastIndex inside a pair means the code point that holds it
+	var re = /\uDE00/yu;
+	re.lastIndex = 1;
+	assert.sameValue(re.exec(str), null, "#1");
+
+	re = /\u{1F600}/yu;
+	re.lastIndex = 1;
+	var m = re.exec(str);
+	assert(m !== null, "#2");
+	assert.sameValue(m.index, 0, "#3");
+	assert.sameValue(re.lastIndex, 2, "#4");
+
+	re = /\uDE00/gu;
+	re.lastIndex = 1;
+	assert.sameValue(re.exec(str), null, "#5");
+
+	re = /\u{1F600}/gu;
+	re.lastIndex = 1;
+	m = re.exec(str);
+	assert(m !== null, "#6");
+	assert.sameValue(m.index, 0, "#7");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
