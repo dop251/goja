@@ -32,23 +32,6 @@ var (
 
 	skipList = map[string]bool{
 
-		// out-of-date (https://github.com/tc39/test262/issues/3407)
-		"test/language/expressions/prefix-increment/S11.4.4_A6_T3.js":        true,
-		"test/language/expressions/prefix-decrement/S11.4.5_A6_T3.js":        true,
-		"test/language/expressions/postfix-increment/S11.3.1_A6_T3.js":       true,
-		"test/language/expressions/postfix-decrement/S11.3.2_A6_T3.js":       true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.1_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.11_T4.js": true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.10_T4.js": true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.9_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.8_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.7_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.6_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.5_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.4_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.3_T4.js":  true,
-		"test/language/expressions/compound-assignment/S11.13.2_A7.2_T4.js":  true,
-
 		// timezone
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js":  true,
 		"test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js":  true,

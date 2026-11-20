@@ -794,7 +794,7 @@ func (e *compiledSuperBracketExpr) emitUnary(prepare, body func(), postfix, putO
 	if !putOnStack {
 		e.c.emitLoadThis()
 		e.member.emitGetter(true)
-		e.c.emit(loadSuper, dupLast(3), getElemRecv)
+		e.c.emit(loadSuper, getElemRecvKeepKey)
 		body()
 		e.addSrcMap()
 		if e.c.scope.strict {
@@ -806,7 +806,7 @@ func (e *compiledSuperBracketExpr) emitUnary(prepare, body func(), postfix, putO
 		if !postfix {
 			e.c.emitLoadThis()
 			e.member.emitGetter(true)
-			e.c.emit(loadSuper, dupLast(3), getElemRecv)
+			e.c.emit(loadSuper, getElemRecvKeepKey)
 			if prepare != nil {
 				prepare()
 			}
@@ -821,7 +821,7 @@ func (e *compiledSuperBracketExpr) emitUnary(prepare, body func(), postfix, putO
 			e.c.emit(loadUndef)
 			e.c.emitLoadThis()
 			e.member.emitGetter(true)
-			e.c.emit(loadSuper, dupLast(3), getElemRecv)
+			e.c.emit(loadSuper, getElemRecvKeepKey)
 			if prepare != nil {
 				prepare()
 			}
@@ -1043,7 +1043,7 @@ func (e *compiledBracketExpr) emitUnary(prepare, body func(), postfix, putOnStac
 	if !putOnStack {
 		e.left.emitGetter(true)
 		e.member.emitGetter(true)
-		e.c.emit(dupLast(2), getElem)
+		e.c.emit(getElemKeepKey)
 		body()
 		e.addSrcMap()
 		if e.c.scope.strict {
@@ -1055,7 +1055,7 @@ func (e *compiledBracketExpr) emitUnary(prepare, body func(), postfix, putOnStac
 		if !postfix {
 			e.left.emitGetter(true)
 			e.member.emitGetter(true)
-			e.c.emit(dupLast(2), getElem)
+			e.c.emit(getElemKeepKey)
 			if prepare != nil {
 				prepare()
 			}
@@ -1070,7 +1070,7 @@ func (e *compiledBracketExpr) emitUnary(prepare, body func(), postfix, putOnStac
 			e.c.emit(loadUndef)
 			e.left.emitGetter(true)
 			e.member.emitGetter(true)
-			e.c.emit(dupLast(2), getElem)
+			e.c.emit(getElemKeepKey)
 			if prepare != nil {
 				prepare()
 			}
