@@ -1049,6 +1049,29 @@ func TestRegexpLegacyOctalEscape(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestRegexpStickyReplaceLastIndexPastEnd(t *testing.T) {
+	const SCRIPT = `
+	var re = /a/y;
+	re.lastIndex = 5;
+	assert.sameValue("ab".replace(re, "X"), "ab", "replace");
+	assert.sameValue(re.lastIndex, 0, "replace resets lastIndex");
+
+	re = /a/yu;
+	re.lastIndex = 3;
+	assert.sameValue("ab".replace(re, "X"), "ab", "replace (u)");
+	assert.sameValue(re.lastIndex, 0, "replace (u) resets lastIndex");
+
+	re = /(?:)/y;
+	re.lastIndex = 3;
+	assert.sameValue(re[Symbol.replace]("ab", "X"), "ab", "empty pattern past the end");
+	assert.sameValue(re.lastIndex, 0, "empty pattern resets lastIndex");
+	re.lastIndex = 2;
+	assert.sameValue("ab".replace(re, "X"), "abX", "empty pattern at the end still matches");
+	assert.sameValue(re.lastIndex, 2, "empty pattern at the end keeps lastIndex");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func BenchmarkRegexpSplitWithBackRef(b *testing.B) {
 	const SCRIPT = `
 	"aaaaaaaaaaaaaaaaaaaaaaaaa++bbbbbbbbbbbbbbbbbbbbbb+-ccccccccccccccccccccccc".split(/([+-])\1/)
