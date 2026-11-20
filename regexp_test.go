@@ -1291,3 +1291,33 @@ func BenchmarkRegexpSingleExec(b *testing.B) {
 	})
 
 }
+
+func TestRegexpUnicodeLastIndexInsideSurrogatePairMatchesCodePoint(t *testing.T) {
+	const SCRIPT = `
+	var str = "😀";
+
+	// lastIndex inside a pair means the code point that holds it
+	var re = /\uDE00/yu;
+	re.lastIndex = 1;
+	assert.sameValue(re.exec(str), null, "#1");
+
+	re = /\u{1F600}/yu;
+	re.lastIndex = 1;
+	var m = re.exec(str);
+	assert(m !== null, "#2");
+	assert.sameValue(m.index, 0, "#3");
+	assert.sameValue(re.lastIndex, 2, "#4");
+
+	re = /\uDE00/gu;
+	re.lastIndex = 1;
+	assert.sameValue(re.exec(str), null, "#5");
+
+	re = /\u{1F600}/gu;
+	re.lastIndex = 1;
+	m = re.exec(str);
+	assert(m !== null, "#6");
+	assert.sameValue(m.index, 0, "#7");
+	`
+
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

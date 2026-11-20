@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"unicode/utf16"
 
 	"github.com/dlclark/regexp2/v2"
 	"github.com/dop251/goja/unistring"
@@ -156,19 +155,11 @@ func (r *regexp2Wrapper) findSubmatchIndexUnicode(s String, start int, doCache b
 	var runes []rune
 	var posMap []int
 	var mappedStart int
-	var splitPair bool
-	var savedRune rune
 	if cache := r.cache; cache != nil && cache.posMap != nil && cache.target.SameAs(s) {
 		runes, posMap = cache.runes, cache.posMap
-		mappedStart, splitPair = posMapReverseLookup(posMap, start)
+		mappedStart, _ = posMapReverseLookup(posMap, start)
 	} else {
-		posMap, runes, mappedStart, splitPair = buildPosMap(&lenientUtf16Decoder{utf16Reader: s.utf16Reader()}, s.Length(), start)
-	}
-	if splitPair {
-		// temporarily set the rune at mappedStart to the second code point of the pair
-		_, second := utf16.EncodeRune(runes[mappedStart])
-		savedRune, runes[mappedStart] = runes[mappedStart], second
-		defer func() { runes[mappedStart] = savedRune }()
+		posMap, runes, mappedStart, _ = buildPosMap(&lenientUtf16Decoder{utf16Reader: s.utf16Reader()}, s.Length(), start)
 	}
 	var result regexpResult
 	matched := false
@@ -313,7 +304,6 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUnicode(s unicodeString, start, lim
 	var runes []rune
 	var mappedStart int
 	var splitPair bool
-	var savedRune rune
 	if cache := r.cache; cache != nil && cache.posMap != nil && cache.target.SameAs(s) {
 		runes, posMap = cache.runes, cache.posMap
 		mappedStart, splitPair = posMapReverseLookup(posMap, start)
@@ -321,11 +311,7 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUnicode(s unicodeString, start, lim
 		posMap, runes, mappedStart, splitPair = buildPosMap(&lenientUtf16Decoder{utf16Reader: s.utf16Reader()}, s.Length(), start)
 	}
 	if splitPair {
-		// temporarily set the rune at mappedStart to the second code point of the pair
-		_, second := utf16.EncodeRune(runes[mappedStart])
-		savedRune, runes[mappedStart] = runes[mappedStart], second
-		defer func() { runes[mappedStart] = savedRune }()
-		// the match is reported at the start of the pair, so a sticky match must start there
+		// lastIndex is inside a surrogate pair: match from the start of the pair
 		start = posMap[mappedStart]
 	}
 	if limit < 0 {
