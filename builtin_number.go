@@ -33,6 +33,7 @@ func (r *Runtime) numberproto_valueOf(call FunctionCall) Value {
 
 func (r *Runtime) numberproto_toString(call FunctionCall) Value {
 	var numVal Value
+	var goReflectToString func() Value
 	switch t := call.This.(type) {
 	case valueFloat, valueInt:
 		numVal = t
@@ -42,16 +43,16 @@ func (r *Runtime) numberproto_toString(call FunctionCall) Value {
 			numVal = r.toNumber(t.pValue)
 		case *objectGoReflect:
 			if t.class == classNumber {
-				if t.toString != nil {
-					return t.toString()
-				}
+				goReflectToString = t.toString
 				if t.valueOf != nil {
 					numVal = t.valueOf()
+				} else {
+					numVal = call.This
 				}
 			}
 		}
 		if t == r.global.NumberPrototype {
-			return asciiString("0")
+			numVal = _positiveZero
 		}
 	}
 	if numVal == nil {
@@ -66,6 +67,10 @@ func (r *Runtime) numberproto_toString(call FunctionCall) Value {
 
 	if radix < 2 || radix > 36 {
 		panic(r.newError(r.getRangeError(), "toString() radix argument must be between 2 and 36"))
+	}
+
+	if goReflectToString != nil && radix == 10 {
+		return goReflectToString()
 	}
 
 	num := numVal.ToFloat()
