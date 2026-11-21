@@ -2779,6 +2779,47 @@ func (_getElemRecv) exec(vm *vm) {
 	vm.pc++
 }
 
+// getElemKeepKey is used for compound assignments and updates (base[key] += v, base[key]++).
+// Stack: base, key -> base, propertyKey, value.
+// The key is converted with ToPropertyKey once and the result replaces it on the stack, so that
+// the following setElem uses the same property key without converting the original value again.
+type _getElemKeepKey struct{}
+
+var getElemKeepKey _getElemKeepKey
+
+func (_getElemKeepKey) exec(vm *vm) {
+	v := vm.stack[vm.sp-2]
+	obj := v.baseObject(vm.r)
+	if obj == nil {
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", vm.stack[vm.sp-1]))
+		return
+	}
+	propName := toPropertyKey(vm.stack[vm.sp-1])
+	vm.stack[vm.sp-1] = propName
+	vm.push(nilSafe(obj.get(propName, v)))
+	vm.pc++
+}
+
+// getElemRecvKeepKey is the super[key] counterpart of getElemKeepKey.
+// Stack: this, key, superBase -> this, propertyKey, superBase, value.
+type _getElemRecvKeepKey struct{}
+
+var getElemRecvKeepKey _getElemRecvKeepKey
+
+func (_getElemRecvKeepKey) exec(vm *vm) {
+	recv := vm.stack[vm.sp-3]
+	v := vm.stack[vm.sp-1]
+	obj := v.baseObject(vm.r)
+	if obj == nil {
+		vm.throw(vm.r.NewTypeError("Cannot read property '%s' of undefined", vm.stack[vm.sp-2]))
+		return
+	}
+	propName := toPropertyKey(vm.stack[vm.sp-2])
+	vm.stack[vm.sp-2] = propName
+	vm.push(nilSafe(obj.get(propName, recv)))
+	vm.pc++
+}
+
 type _getKey struct{}
 
 var getKey _getKey

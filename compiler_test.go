@@ -3240,6 +3240,67 @@ func TestCompoundAssignRefError(t *testing.T) {
 	testScript(SCRIPT, valueTrue, t)
 }
 
+func TestCompoundAssignBracketToPropertyKeyOnce(t *testing.T) {
+	const SCRIPT = `
+	var count = 0;
+	var key = {
+		toString() {
+			count++;
+			return "p";
+		}
+	};
+	function check(name, expected, actual, op) {
+		count = 0;
+		var o = { p: 2 };
+		var res = op(o);
+		assert.sameValue(count, 1, name + ": ToPropertyKey count");
+		assert.sameValue(o.p, expected, name + ": property value");
+		assert.sameValue(res, actual, name + ": result");
+	}
+	check("+=", 5, 5, o => o[key] += 3);
+	check("-=", -1, -1, o => o[key] -= 3);
+	check("**=", 8, 8, o => o[key] **= 3);
+	check("<<=", 16, 16, o => o[key] <<= 3);
+	check("++x", 3, 3, o => ++o[key]);
+	check("x++", 3, 2, o => o[key]++);
+	check("--x", 1, 1, o => --o[key]);
+	check("x--", 1, 2, o => o[key]--);
+	check("x++ (no result)", 3, undefined, o => { o[key]++; });
+	check("+= (no result)", 5, undefined, o => { o[key] += 3; });
+
+	// the converted key is the one written to
+	var seq = ["a", "b"];
+	var o = { a: 1, b: 10 };
+	o[{ toString() { return seq.shift(); } }] += 5;
+	assert.sameValue(o.a, 6, "o.a");
+	assert.sameValue(o.b, 10, "o.b");
+
+	// a nullish base still throws a TypeError
+	count = 0;
+	assert.throws(TypeError, () => { null[key] += 1; });
+	assert.throws(TypeError, () => { undefined[key]++; });
+
+	class B {
+		get p() { return 100; }
+		set p(v) { this.written = v; }
+	}
+	class C extends B {
+		add() { return super[key] += 1; }
+		inc() { return super[key]++; }
+	}
+	var c = new C();
+	count = 0;
+	assert.sameValue(c.add(), 101, "super +=");
+	assert.sameValue(count, 1, "super += ToPropertyKey count");
+	assert.sameValue(c.written, 101, "super += written");
+	count = 0;
+	assert.sameValue(c.inc(), 100, "super ++");
+	assert.sameValue(count, 1, "super ++ ToPropertyKey count");
+	assert.sameValue(c.written, 101, "super ++ written");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestObjectLiteral__Proto__(t *testing.T) {
 	const SCRIPT = `
 	var o = {
