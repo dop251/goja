@@ -151,6 +151,23 @@ type objectExportCacheItem map[reflect.Type]interface{}
 
 type objectExportCtx struct {
 	cache map[*Object]interface{}
+	// depth is how many objects deep the export has gone, and tooDeep the RangeError made once it went too deep (see enter).
+	depth   int
+	tooDeep *Exception
+}
+
+// enter descends into o, returning a RangeError once the export is nested deeper than the call stack size (see Runtime.SetMaxCallStackSize): exporting recurses in Go, so a value nested deeply enough would otherwise overflow the goroutine stack, which is fatal. Each successful call must be paired with leave().
+func (ctx *objectExportCtx) enter(o *Object) *Exception {
+	if ctx.depth >= o.runtime.vm.maxCallStackSize {
+		ctx.tooDeep = &Exception{val: o.runtime.newError(o.runtime.getRangeError(), "Value is nested too deeply to export")}
+		return ctx.tooDeep
+	}
+	ctx.depth++
+	return nil
+}
+
+func (ctx *objectExportCtx) leave() {
+	ctx.depth--
 }
 
 type objectImpl interface {

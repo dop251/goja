@@ -893,7 +893,10 @@ func (p *proxyObject) iterateKeys() iterNextFunc {
 
 func (p *proxyObject) assertCallable() (call func(FunctionCall) Value, ok bool) {
 	if p.call != nil {
+		vm := p.val.runtime.vm
 		return func(call FunctionCall) Value {
+			vm.enterNative()
+			defer vm.leaveNative()
 			return p.apply(call)
 		}, true
 	}
@@ -916,7 +919,7 @@ func (p *proxyObject) vmCall(vm *vm, n int) {
 
 func (p *proxyObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
 	if p.ctor != nil {
-		return p.construct
+		return p.val.runtime.vm.nativeConstructor(p.construct)
 	}
 	return nil
 }

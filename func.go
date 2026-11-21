@@ -124,6 +124,10 @@ type nativeFuncObject struct {
 
 	f         func(FunctionCall) Value
 	construct func(args []Value, newTarget *Object) *Object
+
+	// nativeF and nativeConstruct are f and construct counted against the call stack limit (see vm.nativeCallDepth), made once they are first handed to native code.
+	nativeF         func(FunctionCall) Value
+	nativeConstruct func(args []Value, newTarget *Object) *Object
 }
 
 // iteratorNextFunction contains a special shortcut which can be used to get the next iterator result without
@@ -570,7 +574,10 @@ func (f *nativeFuncObject) defaultConstruct(ccall func(ConstructorCall) *Object,
 
 func (f *nativeFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
 	if f.f != nil {
-		return f.f, true
+		if f.nativeF == nil {
+			f.nativeF = f.val.runtime.vm.nativeCallable(f.f)
+		}
+		return f.nativeF, true
 	}
 	return nil, false
 }
@@ -597,7 +604,13 @@ func (f *nativeFuncObject) vmCall(vm *vm, n int) {
 }
 
 func (f *nativeFuncObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
-	return f.construct
+	if f.construct == nil {
+		return nil
+	}
+	if f.nativeConstruct == nil {
+		f.nativeConstruct = f.val.runtime.vm.nativeConstructor(f.construct)
+	}
+	return f.nativeConstruct
 }
 
 func (f *boundFuncObject) hasInstance(v Value) bool {
