@@ -619,9 +619,12 @@ func (r *Runtime) typedArrayProto_filter(call FunctionCall) Value {
 		}
 		buf := make([]byte, 0, ta.length*ta.elemSize)
 		captured := 0
+		// Record result positions that must convert undefined after species creation.
+		var missing []int
 		rawVal := make([]byte, ta.elemSize)
 		for k := 0; k < ta.length; k++ {
-			if ta.isValidIntegerIndex(k) {
+			valid := ta.isValidIntegerIndex(k)
+			if valid {
 				fc.Arguments[0] = ta.typedArray.get(ta.offset + k)
 				i := (ta.offset + k) * ta.elemSize
 				copy(rawVal, ta.viewedArrayBuf.data[i:])
@@ -633,6 +636,9 @@ func (r *Runtime) typedArrayProto_filter(call FunctionCall) Value {
 			}
 			fc.Arguments[1] = intToValue(int64(k))
 			if callbackFn(fc).ToBoolean() {
+				if !valid {
+					missing = append(missing, captured)
+				}
 				buf = append(buf, rawVal...)
 				captured++
 			}
@@ -641,13 +647,22 @@ func (r *Runtime) typedArrayProto_filter(call FunctionCall) Value {
 		ab := r._newArrayBuffer(r.getArrayBufferPrototype(), nil)
 		ab.data = buf
 		kept := r.toConstructor(ta.defaultCtor)([]Value{ab.val}, ta.defaultCtor)
+		keptTa := kept.self.(*typedArrayObject)
 		if c == ta.defaultCtor {
+			for _, i := range missing {
+				keptTa.typedArray.set(i, _undefined)
+			}
 			return kept
 		} else {
 			ret := r.typedArrayCreate(c, intToValue(int64(captured)))
-			keptTa := kept.self.(*typedArrayObject)
+			missingIndex := 0
 			for i := 0; i < captured; i++ {
-				ret.typedArray.set(ret.offset+i, keptTa.typedArray.get(keptTa.offset+i))
+				value := keptTa.typedArray.get(keptTa.offset + i)
+				if missingIndex < len(missing) && missing[missingIndex] == i {
+					value = _undefined
+					missingIndex++
+				}
+				ret.typedArray.set(ret.offset+i, value)
 			}
 			return ret.val
 		}
