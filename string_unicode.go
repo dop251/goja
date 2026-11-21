@@ -455,14 +455,8 @@ func (s unicodeString) Equals(other Value) bool {
 	}
 
 	if o, ok := other.(valueInt); ok {
-		ss := s.toTrimmedUTF8()
-		if o1, e := stringToInt(ss); e == nil {
-			return o1 == int64(o)
-		}
-		if f, e := stringToFloat(ss); e == nil {
-			return f == float64(o)
-		}
-		return false
+		f, n, isInt := trimmedToNumber(s.toTrimmedUTF8())
+		return isInt && n == int64(o) || !isInt && f == float64(o)
 	}
 
 	if o, ok := other.(valueFloat); ok {
@@ -470,10 +464,15 @@ func (s unicodeString) Equals(other Value) bool {
 	}
 
 	if o, ok := other.(valueBool); ok {
-		if o1, e := stringToFloat(s.toTrimmedUTF8()); e == nil {
-			return o1 == o.ToFloat()
+		f, n, isInt := trimmedToNumber(s.toTrimmedUTF8())
+		want := int64(0)
+		if o {
+			want = 1
 		}
-		return false
+		if isInt {
+			return n == want
+		}
+		return f == float64(want)
 	}
 
 	if o, ok := other.(*valueBigInt); ok {

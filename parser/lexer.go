@@ -50,12 +50,12 @@ func digitValue(chr rune) int {
 	switch {
 	case '0' <= chr && chr <= '9':
 		return int(chr - '0')
-	case 'a' <= chr && chr <= 'f':
+	case 'a' <= chr && chr <= 'z':
 		return int(chr - 'a' + 10)
-	case 'A' <= chr && chr <= 'F':
+	case 'A' <= chr && chr <= 'Z':
 		return int(chr - 'A' + 10)
 	}
-	return 16 // Larger than any legal digit value
+	return 36 // Larger than any legal digit value
 }
 
 func isDigit(chr rune, base int) bool {
@@ -931,10 +931,8 @@ func roundToFloat64(mant uint64, exp int, sticky bool) float64 {
 	}
 	n := bits.Len64(mant)
 	if n <= 53 {
-		// Exact. sticky is necessarily false here: it is only set once
-		// the accumulator is full, which implies n >= 61.
-		// This should never happen as parsePow2Radix is only called for values that
-		// overflow uint64. Left for completeness.
+		// Exact. sticky is necessarily false here because it is only set after
+		// the accumulator holds more than 53 significant bits.
 		return math.Ldexp(float64(mant), exp)
 	}
 
@@ -951,57 +949,85 @@ func roundToFloat64(mant uint64, exp int, sticky bool) float64 {
 	return math.Ldexp(float64(m), exp+int(shift))
 }
 
-func parsePow2Radix(digits string, bitsPerDigit uint) float64 {
-	var mant uint64
-	var exp int
-	sticky := false
-	bitsUsed := 0
-
-	// Skip leading zeros (including any separators between them) so they don't
-	// consume mantissa capacity. This also guarantees that the first digit
-	// entering the accumulator is significant, so whenever a digit is dropped
-	// (mant full, bitsUsed > 64-bitsPerDigit) mant's bit length is > 53 and
-	// roundToFloat64's sticky argument is honoured.
-	i := 0
-	for i < len(digits) && (digits[i] == '0' || digits[i] == '_') {
-		i++
+// ParseUint parses an unsigned integer in the given base, ignoring '_'
+// characters when allowUnderscores is true. It returns the number of bytes
+// consumed. On ErrSyntax, i is the index of the offending character. On
+// ErrRange, n holds the value of the digits before the one that overflowed and
+// i is its index.
+func ParseUint(s string, base int, allowUnderscores bool) (n uint64, i int, err error) {
+	var cutoff uint64
+	// Cutoff is the smallest number such that cutoff*base > maxUint64.
+	// Use compile-time constants for common cases.
+	switch base {
+	case 10:
+		cutoff = math.MaxUint64/10 + 1
+	case 16:
+		cutoff = math.MaxUint64/16 + 1
+	default:
+		cutoff = math.MaxUint64/uint64(base) + 1
 	}
 
-	for ; i < len(digits); i++ {
-		c := digits[i]
-		if c == '_' {
-			continue
+	for ; i < len(s); i++ {
+		c := s[i]
+		v := digitValue(rune(c))
+		if v >= base {
+			if c == '_' && allowUnderscores {
+				continue
+			}
+			err = strconv.ErrSyntax
+			return
 		}
+		if n >= cutoff {
+			// n*base overflows
+			err = strconv.ErrRange
+			return
+		}
+
+		m := n * uint64(base)
+		n1 := m + uint64(v)
+		if n1 < m {
+			// m+v overflows; n still holds the value of s[:i].
+			err = strconv.ErrRange
+			return
+		}
+		n = n1
+	}
+
+	return
+}
+
+// ParseOverflownPow2Radix returns the float64 nearest to
+// mant*base^len(s) + value(s), where mant is the prefix already parsed by
+// ParseUint and s is the remaining digit run in a power-of-two radix. It
+// reports ErrSyntax if s contains a character which is not a digit of base. If
+// allowUnderscores is true, '_' characters are ignored.
+func ParseOverflownPow2Radix(mant uint64, s string, base int, allowUnderscores bool) (float64, error) {
+	bitsPerDigit := uint(bits.Len(uint(base)) - 1)
+	var exp int
+	var err error
+	sticky := false
+
+	for i := 0; i < len(s); i++ {
+		c := s[i]
 		d := uint64(digitValue(rune(c)))
-		if bitsUsed+int(bitsPerDigit) <= 64 {
-			mant = mant<<bitsPerDigit | d
-			bitsUsed += int(bitsPerDigit)
-			continue
+		if d >= uint64(base) {
+			if c == '_' && allowUnderscores {
+				continue
+			}
+			err = strconv.ErrSyntax
+			break
 		}
 		exp += int(bitsPerDigit)
 		if d != 0 {
 			sticky = true
 		}
 	}
-	return roundToFloat64(mant, exp, sticky)
+	return roundToFloat64(mant, exp, sticky), err
 }
 
 // Assumes pre-scanned and pre-validated literals (e.g. double group separators already rejected)
 // and that kind matches the lexical form of the literal as determined by the scanner.
 func parseNumber(literal string, kind ast.NumberLiteralKind) (value any, err error) {
-	value, err = strconv.ParseInt(literal, 0, 64)
-	if err == nil {
-		return
-	}
-
-	parseIntErr := err
-
-	// Doesn't fit into int64, but may fit into uint64 (e.g. 0x8000000000000000).
-	// Converting it to float64 yields the correctly rounded value of the literal.
-	if u, err := strconv.ParseUint(literal, 0, 64); err == nil {
-		return float64(u), nil
-	}
-
 	base := 10
 	switch kind {
 	case ast.NumberLiteralLegacyOctal:
@@ -1022,6 +1048,14 @@ func parseNumber(literal string, kind ast.NumberLiteralKind) (value any, err err
 		}
 	}
 
+	n, i, err := ParseUint(literal, base, true)
+	if err == nil {
+		if n <= math.MaxInt64 {
+			return int64(n), nil
+		}
+		return float64(n), nil
+	}
+
 	if base == 10 {
 		// ParseFloat cannot handle radix-prefixed literals, so for those (as well as
 		// for legacy octal handled above) go straight to the exact path below.
@@ -1032,20 +1066,12 @@ func parseNumber(literal string, kind ast.NumberLiteralKind) (value any, err err
 			// Infinity, etc.
 			return value, nil
 		}
-	} else if errors.Is(parseIntErr, strconv.ErrRange) {
+	} else if errors.Is(err, strconv.ErrRange) {
 		// The value is too large even for uint64; parse it exactly and round it
 		// to the nearest float64 (round-to-nearest-even) as required for numeric
 		// literals. The Horner scheme in float64 would accumulate rounding errors.
-		var bitsPerDigit uint
-		switch base {
-		case 16:
-			bitsPerDigit = 4
-		case 8:
-			bitsPerDigit = 3
-		case 2:
-			bitsPerDigit = 1
-		}
-		return parsePow2Radix(literal, bitsPerDigit), nil
+		f, _ := ParseOverflownPow2Radix(n, literal[i:], base, true)
+		return f, nil
 	}
 
 	return nil, errors.New("Illegal numeric literal")

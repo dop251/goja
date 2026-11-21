@@ -10,6 +10,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/dop251/goja/parser"
 	"github.com/dop251/goja/unistring"
 )
 
@@ -428,15 +429,11 @@ func digitVal(d byte) int {
 
 // ECMAScript compatible version of strconv.ParseInt
 func parseInt(s string, base int) (Value, error) {
-	var n int64
 	var err error
-	var cutoff, maxVal int64
 	var sign bool
-	i := 0
 
 	if len(s) < 1 {
-		err = strconv.ErrSyntax
-		goto Error
+		return _NaN, strconv.ErrSyntax
 	}
 
 	switch s[0] {
@@ -448,8 +445,7 @@ func parseInt(s string, base int) (Value, error) {
 	}
 
 	if len(s) < 1 {
-		err = strconv.ErrSyntax
-		goto Error
+		return _NaN, strconv.ErrSyntax
 	}
 
 	// Look for hex prefix.
@@ -460,82 +456,60 @@ func parseInt(s string, base int) (Value, error) {
 		}
 	}
 
-	switch {
-	case len(s) < 1:
-		err = strconv.ErrSyntax
-		goto Error
+	if base == 0 {
+		base = 10
+	} else if base < 2 || base > 36 {
+		return _NaN, errors.New("invalid base " + strconv.Itoa(base))
+	}
 
-	case 2 <= base && base <= 36:
-	// valid base; nothing to do
+	end := 0
+	for end < len(s) && digitVal(s[end]) < base {
+		end++
+	}
+	s = s[:end]
+	if len(s) == 0 {
+		return _NaN, strconv.ErrSyntax
+	}
 
-	case base == 0:
-		// Look for hex prefix.
-		switch {
-		case s[0] == '0' && len(s) > 1 && (s[1] == 'x' || s[1] == 'X'):
-			if len(s) < 3 {
-				err = strconv.ErrSyntax
-				goto Error
+	u, i, err := parser.ParseUint(s, base, true)
+
+	var f float64
+
+	if err == nil {
+		if u <= math.MaxInt64 {
+			n := int64(u)
+			if sign {
+				if n == 0 {
+					return _negativeZero, nil
+				}
+				n = -n
 			}
-			base = 16
-			s = s[2:]
-		default:
-			base = 10
+			return intToValue(n), nil
 		}
-
-	default:
-		err = errors.New("invalid base " + strconv.Itoa(base))
-		goto Error
-	}
-
-	// Cutoff is the smallest number such that cutoff*base > maxInt64.
-	// Use compile-time constants for common cases.
-	switch base {
-	case 10:
-		cutoff = math.MaxInt64/10 + 1
-	case 16:
-		cutoff = math.MaxInt64/16 + 1
-	default:
-		cutoff = math.MaxInt64/int64(base) + 1
-	}
-
-	maxVal = math.MaxInt64
-	for ; i < len(s); i++ {
-		if n >= cutoff {
-			// n*base overflows
-			return parseLargeInt(float64(n), s[i:], base, sign)
+		f = float64(u)
+	} else {
+		if base == 10 {
+			f, _ = strconv.ParseFloat(s, 64)
+		} else if base&(base-1) == 0 {
+			f, _ = parser.ParseOverflownPow2Radix(u, s[i:], base, false)
+		} else {
+			f = parseLargeInt(float64(u), s[i:], base)
 		}
-		v := digitVal(s[i])
-		if v >= base {
-			break
-		}
-		n *= int64(base)
-
-		n1 := n + int64(v)
-		if n1 < n || n1 > maxVal {
-			// n+v overflows
-			return parseLargeInt(float64(n)+float64(v), s[i+1:], base, sign)
-		}
-		n = n1
-	}
-
-	if i == 0 {
-		err = strconv.ErrSyntax
-		goto Error
 	}
 
 	if sign {
-		if n == 0 {
+		if f == 0 {
 			return _negativeZero, nil
 		}
-		n = -n
+		f = -f
 	}
-	return intToValue(n), nil
-
-Error:
-	return _NaN, err
+	return floatToValue(f), nil
 }
 
-func parseLargeInt(n float64, s string, base int, sign bool) (Value, error) {
+// parseLargeInt converts the remaining digits of s to a float64, starting from
+// n. It is used for radices for which the spec allows the result to be
+// approximated.
+func parseLargeInt(n float64, s string, base int) float64 {
 	i := 0
 	b := float64(base)
 	for ; i < len(s); i++ {
@@ -545,11 +519,7 @@ func parseLargeInt(n float64, s string, base int, sign bool) (Value, error) {
 		}
 		n = n*b + float64(v)
 	}
-	if sign {
-		n = -n
-	}
-	// We know it can't be represented as int, so use valueFloat instead of floatToValue
-	return valueFloat(n), nil
+	return n
 }
 
 var (

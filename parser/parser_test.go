@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/big"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1208,6 +1209,7 @@ func Test_parseNumberLiteral(t *testing.T) {
 		test("18446744073709551615", 1.8446744073709552e+19)
 		test("184467440_7370955161500000", 1.8446744073709552e+24)
 
+		testKind("0777", ast.NumberLiteralLegacyOctal, int64(511))
 		// legacy octal that doesn't fit into int64 must not be parsed as decimal
 		testKind("07777777777777777777777", ast.NumberLiteralLegacyOctal, 7.378697629483821e+19)
 		testKind("0007777777777777777777777", ast.NumberLiteralLegacyOctal, 7.378697629483821e+19)
@@ -1215,6 +1217,54 @@ func Test_parseNumberLiteral(t *testing.T) {
 		test("0x0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_ffffffffffffffffffffffff", 7.922816251426434e+28)
 		test("0b"+strings.Repeat("0_", 70)+strings.Repeat("1", 65), 3.6893488147419103e+19)
 		test("0o"+strings.Repeat("0_", 22)+strings.Repeat("7", 23), 5.902958103587057e+20)
+	})
+}
+
+func TestParseUint(t *testing.T) {
+	tt(t, func() {
+		test := func(s string, base int, allowUnderscores bool, n uint64, i int, err error) {
+			n1, i1, err1 := ParseUint(s, base, allowUnderscores)
+			is(n1, n)
+			is(i1, i)
+			is(err1, err)
+		}
+
+		test("ff", 16, false, 255, 2, nil)
+		test("1_0", 10, true, 10, 3, nil)
+		test("1_0", 10, false, 1, 1, strconv.ErrSyntax)
+		test("z", 10, false, 0, 0, strconv.ErrSyntax)
+
+		// n*base overflows: n is the value of s[:i].
+		test(strings.Repeat("1", 65), 2, false, 1<<64-1, 64, strconv.ErrRange)
+		// n*base+v overflows: n must still be the value of s[:i].
+		test("11112220022122120101211020120210210211221", 3, false, 6148914691236517205, 40, strconv.ErrRange)
+	})
+}
+
+func TestParseOverflownPow2Radix(t *testing.T) {
+	tt(t, func() {
+		test := func(s string, base int, expect float64) {
+			n, i, err := ParseUint(s, base, true)
+			is(err, strconv.ErrRange)
+			f, err := ParseOverflownPow2Radix(n, s[i:], base, true)
+			is(err, nil)
+			is(f, expect)
+		}
+
+		// All power-of-two radices parseInt treats as exact.
+		test("10000000000000000000000000000000000000000000000000000000000000000", 2, 18446744073709552000.0)
+		test("333333333333333333333333333333333", 4, 73786976294838210000.0)
+		test("377777777777777777777777777", 8, 1.2089258196146292e24)
+		test("c760b46463a0c40d05", 16, 3.677870375570712e21)
+		test("C760B46463A0C40D05", 16, 3.677870375570712e21)
+		test("itaunfap8aa0q", 32, 21809762542452814000.0)
+
+		// Overflow becomes infinity.
+		test(strings.Repeat("f", 300), 16, math.Inf(1))
+
+		// Invalid digits are reported.
+		_, err := ParseOverflownPow2Radix(1<<63, "0z", 16, false)
+		is(err, strconv.ErrSyntax)
 	})
 }
 

@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"unicode/utf16"
@@ -423,8 +424,96 @@ func TestStringEqualsNumericString(t *testing.T) {
 	assert.sameValue("\u00a01" == true, true, "Unicode string and boolean");
 	assert.sameValue("\u00a01" == 1n, true, "Unicode string and BigInt");
 	assert.sameValue("\u00a0abc" == 0, false, "Unicode NaN");
+	assert.sameValue("1" == false, false, "one and false");
+	assert.sameValue("0" == false, true, "zero and false");
+	assert.sameValue("-0" == false, true, "negative zero and false");
+	assert.sameValue("" == false, true, "empty string and false");
+	assert.sameValue("2" == false, false, "two and false");
+	assert.sameValue("-1" == false, false, "negative one and false");
+	assert.sameValue("1.0" == true, true, "float one and true");
+	assert.sameValue("2" == true, false, "two and true");
+	assert.sameValue("\u00a0-1" == false, false, "Unicode negative one and false");
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
+func TestStringEqualsBoolean(t *testing.T) {
+	tests := []struct {
+		s        string
+		b        bool
+		expected bool
+	}{
+		{"0", false, true},
+		{"0.0", false, true},
+		{"-0", false, true},
+		{"", false, true},
+		{"1", false, false},
+		{"2", false, false},
+		{"-1", false, false},
+		{"NaN", false, false},
+		{"Infinity", false, false},
+		{"1", true, true},
+		{"1.0", true, true},
+		{"0x1", true, true},
+		{"0b1", true, true},
+		{"0", true, false},
+		{"2", true, false},
+		{"-1", true, false},
+		{"NaN", true, false},
+		{"Infinity", true, false},
+	}
+	for _, tc := range tests {
+		if got := asciiString(tc.s).Equals(valueBool(tc.b)); got != tc.expected {
+			t.Fatalf("asciiString(%q).Equals(%v) = %v, expected %v", tc.s, tc.b, got, tc.expected)
+		}
+		// Prefix a non-ASCII white space so the string takes the unicode path.
+		us := StringFromUTF16(utf16.Encode([]rune("\u00a0" + tc.s)))
+		if got := us.Equals(valueBool(tc.b)); got != tc.expected {
+			t.Fatalf("unicodeString(%q).Equals(%v) = %v, expected %v", tc.s, tc.b, got, tc.expected)
+		}
+	}
+}
+
+func TestStringToIntegerClips(t *testing.T) {
+	vm := New()
+	tests := []struct {
+		s        string
+		expected int64
+	}{
+		{"0xffffffffffffffffffff", math.MaxInt64},
+		{"-0xffffffffffffffffffff", 0}, // Number("-0x...") is NaN
+		{"9223372036854775807", math.MaxInt64},
+		{"9223372036854775808", math.MaxInt64},
+		{"-9223372036854775808", math.MinInt64},
+		{"-9223372036854775809", math.MinInt64},
+		{"999999999999999999999999", math.MaxInt64},
+		{"-999999999999999999999999", math.MinInt64},
+		{"1e30", math.MaxInt64},
+		{"-1e30", math.MinInt64},
+		{"1e400", math.MaxInt64},
+		{"-1e400", math.MinInt64},
+		{"Infinity", math.MaxInt64},
+		{"-Infinity", math.MinInt64},
+		{"NaN", 0},
+	}
+	for _, tc := range tests {
+		if got := vm.ToValue(tc.s).ToInteger(); got != tc.expected {
+			t.Fatalf("ToInteger(%q) = %d, expected %d", tc.s, got, tc.expected)
+		}
+	}
+}
+
+func TestStringToNumberNegativeZero(t *testing.T) {
+	for _, s := range []string{"-0", "-0.0", "-000", "-0e0", "-000.000e10"} {
+		if f := asciiString(s).ToNumber().ToFloat(); f != 0 || !math.Signbit(f) {
+			t.Fatalf("ToNumber(%q) = %v, expected -0", s, f)
+		}
+	}
+	for _, s := range []string{"0", "0.0", "000", "0e0"} {
+		if f := asciiString(s).ToNumber().ToFloat(); f != 0 || math.Signbit(f) {
+			t.Fatalf("ToNumber(%q) = %v, expected +0", s, f)
+		}
+	}
 }
 
 func TestUnicodeStringToIntegerAndFloat(t *testing.T) {
