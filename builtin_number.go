@@ -51,7 +51,7 @@ func (r *Runtime) numberproto_toString(call FunctionCall) Value {
 			}
 		}
 		if t == r.global.NumberPrototype {
-			return asciiString("0")
+			numVal = _positiveZero
 		}
 	}
 	if numVal == nil {
