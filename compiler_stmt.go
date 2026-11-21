@@ -52,6 +52,8 @@ func (c *compiler) compileStatement(v ast.Statement, needResult bool) {
 	case *ast.WithStatement:
 		c.compileWithStatement(v, needResult)
 	case *ast.DebuggerStatement:
+		c.addSrcMap(v)
+		c.emit(debuggerInstr{})
 	default:
 		c.assert(false, int(v.Idx0())-1, "Unknown statement type: %T", v)
 		panic("unreachable")
@@ -100,6 +102,25 @@ func (c *compiler) updateEnterBlock(enter *enterBlock) {
 		}
 	}
 	enter.stashSize, enter.stackSize = uint32(stashSize), uint32(stackSize)
+
+	if c.debugMode && stashSize > 0 && !scope.dynLookup {
+		enter.names = scope.makeDebugStashNamesMap()
+	}
+
+	// Build debug names map for stack-register variables so the debugger
+	// can enumerate and eval let/const variables that aren't in stash.
+	if c.debugMode && stackSize > 0 && !scope.dynLookup {
+		idx := 0
+		for _, b := range scope.bindings {
+			if !b.inStash {
+				if enter.dbgNames == nil {
+					enter.dbgNames = make(map[unistring.String]int, stackSize)
+				}
+				enter.dbgNames[b.name] = idx
+				idx++
+			}
+		}
+	}
 }
 
 func (c *compiler) compileTryStatement(v *ast.TryStatement, needResult bool) {
