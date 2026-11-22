@@ -1215,11 +1215,18 @@ func (a *typedArrayObject) isValidIntegerIndex(idx int) bool {
 	return false
 }
 
-func (a *typedArrayObject) _putIdx(idx int, v Value) {
+func (a *typedArrayObject) isBigInt() bool {
 	switch a.typedArray.(type) {
 	case *bigInt64Array, *bigUint64Array:
+		return true
+	}
+	return false
+}
+
+func (a *typedArrayObject) _putIdx(idx int, v Value) {
+	if a.isBigInt() {
 		v = toBigInt(v)
-	default:
+	} else {
 		v = v.ToNumber()
 	}
 	if a.isValidIntegerIndex(idx) {

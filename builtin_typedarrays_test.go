@@ -600,3 +600,85 @@ func TestTypedArraySearchNegativeZero(t *testing.T) {
 	`
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
+
+func testTypedArrayDetachScript(t *testing.T, name, script string) {
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("typed array operation accessed a detached buffer: %v", r)
+			}
+		}()
+		testScript(script, _undefined, t)
+	})
+}
+
+func TestTypedArrayDetach(t *testing.T) {
+	testTypedArrayDetachScript(t, "map", `
+		let cur = new ArrayBuffer(64);
+		const d = new Uint8Array(cur, 0, 4), z = new Uint8Array(4);
+		z.constructor = {[Symbol.species]: function(){ return d }};
+		void z.map((_, i) => { if (i === 0) cur.transfer(); return 0x41 + i });
+	`)
+
+	testTypedArrayDetachScript(t, "from array-like getter", `
+		let victim;
+		function C(n){ victim = new Uint8Array(n); return victim; }
+		const src = {length: 1, get 0(){ victim.buffer.transfer(); return 1; }};
+		void Uint8Array.from.call(C, src);
+	`)
+
+	testTypedArrayDetachScript(t, "from array-like map", `
+		let victim;
+		function C(n){ victim = new Uint8Array(n); return victim; }
+		void Uint8Array.from.call(C, {length: 1, 0: 0}, () => {
+			victim.buffer.transfer();
+			return 1;
+		});
+	`)
+
+	testTypedArrayDetachScript(t, "from iterable value conversion", `
+		let victim, transferred;
+		function C(n){ victim = new Uint8Array(n); return victim; }
+		const value = {valueOf(){ transferred = victim.buffer.transfer(); return 0x41; }};
+		void Uint8Array.from.call(C, [value]);
+		if (new Uint8Array(transferred)[0] !== 0) {
+			throw new Error("detached view wrote into the transferred buffer");
+		}
+	`)
+
+	testTypedArrayDetachScript(t, "of value conversion", `
+		let victim, transferred;
+		function C(n){ victim = new Uint8Array(n); return victim; }
+		const value = {valueOf(){ transferred = victim.buffer.transfer(); return 0x41; }};
+		void Uint8Array.of.call(C, value);
+		if (new Uint8Array(transferred)[0] !== 0) {
+			throw new Error("detached view wrote into the transferred buffer");
+		}
+	`)
+}
+
+func TestTypedArrayMixBigInt(t *testing.T) {
+	const SCRIPT = `
+	// The element type must be determined from the actual typed array, not
+	// from the configurable constructor "name" property.
+	Object.defineProperty(Uint16Array, "name", {configurable: true, get(){
+		throw new Error("name getter called");
+	}});
+	Object.defineProperty(BigUint64Array, "name", {configurable: true, get(){
+		throw new Error("name getter called");
+	}});
+
+	assert.throws(TypeError, function() { new Uint8Array(new BigInt64Array(1)); }, "BigInt source, Number target");
+	assert.throws(TypeError, function() { new BigInt64Array(new Uint8Array(1)); }, "Number source, BigInt target");
+	assert.throws(TypeError, function() { new Uint8Array(1).set(new BigInt64Array(1)); }, "BigInt source, Number target (set)");
+	assert.throws(TypeError, function() { new BigInt64Array(1).set(new Uint8Array(1)); }, "Number source, BigInt target (set)");
+
+	assert.sameValue(new Uint8Array(new Uint16Array([1, 2]))[0], 1, "Number source, Number target");
+	assert.sameValue(new BigInt64Array(new BigUint64Array([1n]))[0], 1n, "BigInt source, BigInt target");
+
+	class MyBig extends BigInt64Array {}
+	assert.sameValue(new MyBig(new BigUint64Array([1n]))[0], 1n, "BigInt source, BigInt subclass target");
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}

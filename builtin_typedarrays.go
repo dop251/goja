@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strings"
 	"sync"
 	"unsafe"
 
@@ -585,10 +584,9 @@ func (r *Runtime) typedArrayProto_fill(call FunctionCall) Value {
 		// implementation cannot have side effects (and thus cannot detach the
 		// buffer in the middle of the fill).
 		var value Value
-		switch ta.typedArray.(type) {
-		case *bigInt64Array, *bigUint64Array:
+		if ta.isBigInt() {
 			value = toBigInt(call.Argument(0))
-		default:
+		} else {
 			value = call.Argument(0).ToNumber()
 		}
 		k := toIntStrict(relToIdx(call.Argument(1).ToInteger(), l))
@@ -950,7 +948,7 @@ func (r *Runtime) typedArrayProto_map(call FunctionCall) Value {
 				fc.Arguments[0] = _undefined
 			}
 			fc.Arguments[1] = intToValue(int64(i))
-			dst.typedArray.set(dst.offset+i, callbackFn(fc))
+			dst._putIdx(i, callbackFn(fc))
 		}
 		return dst.val
 	}
@@ -1061,7 +1059,7 @@ func (r *Runtime) typedArrayProto_set(call FunctionCall) Value {
 				copy(ta.viewedArrayBuf.data[(ta.offset+targetOffset)*ta.elemSize:],
 					src.viewedArrayBuf.data[src.offset*src.elemSize:(src.offset+srcLen)*src.elemSize])
 			} else {
-				checkTypedArrayMixBigInt(src.defaultCtor, ta.defaultCtor)
+				checkTypedArrayMixBigInt(src, ta)
 				if srcLen == 0 {
 					return _undefined
 				}
@@ -1291,10 +1289,9 @@ func (r *Runtime) typedArrayProto_with(call FunctionCall) Value {
 	}
 
 	var numericValue Value
-	switch ta.typedArray.(type) {
-	case *bigInt64Array, *bigUint64Array:
+	if ta.isBigInt() {
 		numericValue = toBigInt(call.Argument(1))
-	default:
+	} else {
 		numericValue = call.Argument(1).ToNumber()
 	}
 
@@ -1380,7 +1377,7 @@ func (r *Runtime) typedArray_from(call FunctionCall) Value {
 		ta := r.typedArrayCreate(c, intToValue(int64(len(values))))
 		if mapFc == nil {
 			for idx, val := range values {
-				ta.typedArray.set(idx, val)
+				ta._putIdx(idx, val)
 			}
 		} else {
 			fc := FunctionCall{
@@ -1400,7 +1397,7 @@ func (r *Runtime) typedArray_from(call FunctionCall) Value {
 	ta := r.typedArrayCreate(c, intToValue(int64(length)))
 	if mapFc == nil {
 		for i := 0; i < length; i++ {
-			ta.typedArray.set(i, nilSafe(source.self.getIdx(valueInt(i), nil)))
+			ta._putIdx(i, nilSafe(source.self.getIdx(valueInt(i), nil)))
 		}
 	} else {
 		fc := FunctionCall{
@@ -1410,7 +1407,7 @@ func (r *Runtime) typedArray_from(call FunctionCall) Value {
 		for i := 0; i < length; i++ {
 			idx := valueInt(i)
 			fc.Arguments[0], fc.Arguments[1] = source.self.getIdx(idx, nil), idx
-			ta.typedArray.set(i, mapFc(fc))
+			ta._putIdx(i, mapFc(fc))
 		}
 	}
 	return ta.val
@@ -1419,7 +1416,7 @@ func (r *Runtime) typedArray_from(call FunctionCall) Value {
 func (r *Runtime) typedArray_of(call FunctionCall) Value {
 	ta := r.typedArrayCreate(r.toObject(call.This), intToValue(int64(len(call.Arguments))))
 	for i, val := range call.Arguments {
-		ta.typedArray.set(i, val)
+		ta._putIdx(i, val)
 	}
 	return ta.val
 }
@@ -1467,7 +1464,7 @@ func (r *Runtime) typedArrayFrom(ctor, items *Object, mapFn, thisValue Value, ta
 		ta := r.allocateTypedArray(ctor, len(values), taCtor, proto)
 		if mapFc == nil {
 			for idx, val := range values {
-				ta.typedArray.set(idx, val)
+				ta._putIdx(idx, val)
 			}
 		} else {
 			fc := FunctionCall{
@@ -1477,7 +1474,7 @@ func (r *Runtime) typedArrayFrom(ctor, items *Object, mapFn, thisValue Value, ta
 			for idx, val := range values {
 				fc.Arguments[0], fc.Arguments[1] = val, intToValue(int64(idx))
 				val = mapFc(fc)
-				ta.typedArray.set(idx, val)
+				ta._putIdx(idx, val)
 			}
 		}
 		return ta.val
@@ -1486,7 +1483,7 @@ func (r *Runtime) typedArrayFrom(ctor, items *Object, mapFn, thisValue Value, ta
 	ta := r.allocateTypedArray(ctor, length, taCtor, proto)
 	if mapFc == nil {
 		for i := 0; i < length; i++ {
-			ta.typedArray.set(i, nilSafe(items.self.getIdx(valueInt(i), nil)))
+			ta._putIdx(i, nilSafe(items.self.getIdx(valueInt(i), nil)))
 		}
 	} else {
 		fc := FunctionCall{
@@ -1496,7 +1493,7 @@ func (r *Runtime) typedArrayFrom(ctor, items *Object, mapFn, thisValue Value, ta
 		for i := 0; i < length; i++ {
 			idx := valueInt(i)
 			fc.Arguments[0], fc.Arguments[1] = items.self.getIdx(idx, nil), idx
-			ta.typedArray.set(i, mapFc(fc))
+			ta._putIdx(i, mapFc(fc))
 		}
 	}
 	return ta.val
@@ -1533,12 +1530,9 @@ func (r *Runtime) _newTypedArrayFromArrayBuffer(ab *arrayBufferObject, args []Va
 	return ta.val
 }
 
-func checkTypedArrayMixBigInt(src, dst *Object) {
-	srcType := src.self.getStr("name", nil).String()
-	if strings.HasPrefix(srcType, "Big") {
-		if !strings.HasPrefix(dst.self.getStr("name", nil).String(), "Big") {
-			panic(errMixBigIntType)
-		}
+func checkTypedArrayMixBigInt(src, dst *typedArrayObject) {
+	if src.isBigInt() != dst.isBigInt() {
+		panic(errMixBigIntType)
 	}
 }
 
@@ -1554,7 +1548,7 @@ func (r *Runtime) _newTypedArrayFromTypedArray(src *typedArrayObject, newTarget 
 		dst.length = src.length
 		return dst.val
 	} else {
-		checkTypedArrayMixBigInt(src.defaultCtor, newTarget)
+		checkTypedArrayMixBigInt(src, dst)
 	}
 	dst.length = l
 	for i := 0; i < l; i++ {
