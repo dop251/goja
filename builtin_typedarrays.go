@@ -1044,12 +1044,12 @@ func (r *Runtime) typedArrayProto_reverse(call FunctionCall) Value {
 
 func (r *Runtime) typedArrayProto_set(call FunctionCall) Value {
 	if ta, ok := r.toObject(call.This).self.(*typedArrayObject); ok {
-		srcObj := call.Argument(0).ToObject(r)
 		targetOffset := toIntStrict(call.Argument(1).ToInteger())
 		if targetOffset < 0 {
 			panic(r.newError(r.getRangeError(), "offset should be >= 0"))
 		}
 		ta.viewedArrayBuf.ensureNotDetached(true)
+		srcObj := call.Argument(0).ToObject(r)
 		targetLen := ta.length
 		if src, ok := srcObj.self.(*typedArrayObject); ok {
 			src.viewedArrayBuf.ensureNotDetached(true)
@@ -1112,8 +1112,12 @@ func (r *Runtime) typedArrayProto_set(call FunctionCall) Value {
 			}
 			for i := 0; i < srcLen; i++ {
 				val := nilSafe(srcObj.self.getIdx(valueInt(i), nil))
-				if ta.isValidIntegerIndex(targetOffset + i) {
+				// Primitive conversion cannot detach the target. Objects and invalid
+				// indices need conversion before the final validity check.
+				if _, object := val.(*Object); !object && ta.isValidIntegerIndex(targetOffset+i) {
 					ta.typedArray.set(ta.offset+targetOffset+i, val)
+				} else {
+					ta._putIdx(targetOffset+i, val)
 				}
 			}
 		}
