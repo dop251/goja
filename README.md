@@ -33,15 +33,6 @@ surrogate pairs, for example:
 JSON.parse(`"\\uD800"`).charCodeAt(0).toString(16) // returns "fffd" instead of "d800"
 ```
 
-### Date
-Conversion from calendar date to epoch timestamp uses the standard Go library which uses `int`, rather than `float` as per
-ECMAScript specification. This means if you pass arguments that overflow int to the `Date()` constructor or  if there is
-an integer overflow, the result will be incorrect, for example:
-
-```javascript
-Date.UTC(1970, 0, 1, 80063993375, 29, 1, -288230376151711740) // returns 29256 instead of 29312
-```
-
 FAQ
 ---
 
