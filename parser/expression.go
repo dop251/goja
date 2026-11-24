@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"strings"
-
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/file"
 	"github.com/dop251/goja/token"
@@ -536,23 +534,26 @@ func (self *_parser) parseMethodDefinition(keyStartIdx file.Idx, kind ast.Proper
 func (self *_parser) parseObjectLiteral() *ast.ObjectLiteral {
 	var value []ast.Property
 	idx0 := self.expect(token.LEFT_BRACE)
+	var trailingComma file.Idx
 	for self.token != token.RIGHT_BRACE && self.token != token.EOF {
 		property := self.parseObjectProperty()
 		if property != nil {
 			value = append(value, property)
 		}
 		if self.token != token.RIGHT_BRACE {
-			self.expect(token.COMMA)
+			trailingComma = self.expect(token.COMMA)
 		} else {
+			trailingComma = 0
 			break
 		}
 	}
 	idx1 := self.expect(token.RIGHT_BRACE)
 
 	return &ast.ObjectLiteral{
-		LeftBrace:  idx0,
-		RightBrace: idx1,
-		Value:      value,
+		LeftBrace:     idx0,
+		RightBrace:    idx1,
+		Value:         value,
+		TrailingComma: trailingComma,
 	}
 }
 
@@ -560,10 +561,12 @@ func (self *_parser) parseArrayLiteral() *ast.ArrayLiteral {
 
 	idx0 := self.expect(token.LEFT_BRACKET)
 	var value []ast.Expression
+	var trailingComma file.Idx
 	for self.token != token.RIGHT_BRACKET && self.token != token.EOF {
 		if self.token == token.COMMA {
 			self.next()
 			value = append(value, nil)
+			trailingComma = 0
 			continue
 		}
 		if self.token == token.ELLIPSIS {
@@ -575,15 +578,18 @@ func (self *_parser) parseArrayLiteral() *ast.ArrayLiteral {
 			value = append(value, self.parseAssignmentExpression())
 		}
 		if self.token != token.RIGHT_BRACKET {
-			self.expect(token.COMMA)
+			trailingComma = self.expect(token.COMMA)
+		} else {
+			trailingComma = 0
 		}
 	}
 	idx1 := self.expect(token.RIGHT_BRACKET)
 
 	return &ast.ArrayLiteral{
-		LeftBracket:  idx0,
-		RightBracket: idx1,
-		Value:        value,
+		LeftBracket:   idx0,
+		RightBracket:  idx1,
+		Value:         value,
+		TrailingComma: trailingComma,
 	}
 }
 
@@ -1449,15 +1455,6 @@ func (self *_parser) parseExpression() ast.Expression {
 	return left
 }
 
-func (self *_parser) checkComma(from, to file.Idx) {
-	if from >= to {
-		return
-	}
-	if pos := strings.IndexByte(self.str[int(from)-self.base:int(to)-self.base], ','); pos >= 0 {
-		self.error(from+file.Idx(pos), "Comma is not allowed here")
-	}
-}
-
 func (self *_parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral) ast.Expression {
 	value := left.Value
 	var rest ast.Expression
@@ -1467,7 +1464,9 @@ func (self *_parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral)
 				self.error(item.Idx0(), "Rest element must be last element")
 				return &ast.BadExpression{From: left.Idx0(), To: left.Idx1()}
 			}
-			self.checkComma(spread.Expression.Idx1(), left.RightBracket)
+			if left.TrailingComma != 0 {
+				self.error(left.TrailingComma, "Comma is not allowed here")
+			}
 			rest = self.reinterpretAsDestructAssignTarget(spread.Expression)
 			value = value[:len(value)-1]
 		} else {
@@ -1501,7 +1500,9 @@ func (self *_parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) as
 				self.error(item.Idx0(), "Rest element must be last element")
 				return &ast.BadExpression{From: left.Idx0(), To: left.Idx1()}
 			}
-			self.checkComma(spread.Expression.Idx1(), left.RightBracket)
+			if left.TrailingComma != 0 {
+				self.error(left.TrailingComma, "Comma is not allowed here")
+			}
 			rest = self.reinterpretAsDestructBindingTarget(spread.Expression)
 			value = value[:len(value)-1]
 		} else {
@@ -1554,7 +1555,9 @@ func (self *_parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) 
 				self.error(prop.Idx0(), "Rest element must be last element")
 				return &ast.BadExpression{From: expr.Idx0(), To: expr.Idx1()}
 			}
-			// TODO make sure there is no trailing comma
+			if expr.TrailingComma != 0 {
+				self.error(expr.TrailingComma, "Comma is not allowed here")
+			}
 			rest = self.reinterpretAsBindingRestElement(prop.Expression)
 			value = value[:i]
 			ok = true
@@ -1590,7 +1593,9 @@ func (self *_parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) 
 				self.error(prop.Idx0(), "Rest element must be last element")
 				return &ast.BadExpression{From: l.Idx0(), To: l.Idx1()}
 			}
-			// TODO make sure there is no trailing comma
+			if l.TrailingComma != 0 {
+				self.error(l.TrailingComma, "Comma is not allowed here")
+			}
 			rest = self.reinterpretAsDestructAssignTarget(prop.Expression)
 			value = value[:i]
 			ok = true
