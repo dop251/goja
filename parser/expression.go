@@ -1591,11 +1591,7 @@ func (self *_parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) 
 				return &ast.BadExpression{From: l.Idx0(), To: l.Idx1()}
 			}
 			// TODO make sure there is no trailing comma
-			if self.isParenthesized(prop.Expression) {
-				self.error(prop.Expression.Idx0(), "Invalid destructuring assignment target")
-				return &ast.BadExpression{From: l.Idx0(), To: l.Idx1()}
-			}
-			rest = prop.Expression
+			rest = self.reinterpretAsDestructAssignTarget(prop.Expression)
 			value = value[:i]
 			ok = true
 		}

@@ -3403,9 +3403,9 @@ func (c *compiler) emitObjectPattern(pattern *ast.ObjectPattern, emitAssign func
 		}
 	}
 	if pattern.Rest != nil {
-		emitAssign(c.compileExpression(pattern.Rest), c.compileEmitterExpr(func() {
+		c.emitAssign(pattern.Rest, c.compileEmitterExpr(func() {
 			c.emit(copyRest)
-		}, pattern.Rest.Idx0()))
+		}, pattern.Rest.Idx0()), emitAssign)
 		c.emit(pop)
 	}
 	if !putOnStack {

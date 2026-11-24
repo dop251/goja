@@ -2998,6 +2998,27 @@ func TestDestructSymbol(t *testing.T) {
 	testScriptWithTestLibX(SCRIPT, _undefined, t)
 }
 
+func TestDestructObjectRestNestedPattern(t *testing.T) {
+	const SCRIPT = `
+	var a, b, c, r, src;
+
+	src = {x: 1, y: 2};
+	r = ({...{x: a}} = src);
+	assert.sameValue(a, 1, "nested object pattern");
+	assert.sameValue(r, src, "result");
+
+	src = {[Symbol.iterator]: function*() { yield 7; }};
+	r = ({...[b]} = src);
+	assert.sameValue(b, 7, "nested array pattern");
+	assert.sameValue(r, src, "result");
+
+	for ({...{x: c}} of [{x: 3}]) {
+		assert.sameValue(c, 3, "for-of");
+	}
+	`
+	testScriptWithTestLibX(SCRIPT, _undefined, t)
+}
+
 func TestAccessorFuncName(t *testing.T) {
 	const SCRIPT = `
 	const namedSym = Symbol('test262');

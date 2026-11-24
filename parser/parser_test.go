@@ -555,11 +555,17 @@ func TestParserErr(t *testing.T) {
 		test(`({x: (a) = 1, y: (b.c)} = {})`, nil)
 		test(`[(a = 1), ([b]), ({c})]`, nil)
 
-		// Parenthesized patterns are not valid object rest targets.
+		// Object rest targets are reinterpreted like array rest targets; a
+		// parenthesized pattern is still not a valid target.
+		test(`({...[a]} = {})`, nil)
+		test(`({...{a}} = {})`, nil)
+		test(`({...[]} = {})`, nil)
 		test(`({...([a])} = {})`, "(anonymous): Line 1:7 Invalid destructuring assignment target")
 		test(`({...({a})} = {})`, "(anonymous): Line 1:7 Invalid destructuring assignment target")
 		test(`({...((a = 1))} = {})`, "(anonymous): Line 1:8 Invalid destructuring assignment target")
-		// Nor are they valid property values of an object binding pattern.
+		test(`({...a = 1} = {})`, "(anonymous): Line 1:6 Invalid destructuring assignment target")
+		test(`({...[(x, y)]} = {})`, "(anonymous): Line 1:8 Invalid destructuring assignment target")
+		// Nor are parenthesized patterns valid property values of an object binding pattern.
 		test(`function f({x: (a = 1)}) {}`, "(anonymous): Line 1:17 Invalid destructuring assignment target")
 		test(`var {x: (a = 1)} = {};`, "(anonymous): Line 1:10 Invalid destructuring assignment target")
 		test(`({x: (a = 1)}) => 1`, "(anonymous): Line 1:7 Invalid destructuring assignment target")
