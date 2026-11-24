@@ -204,6 +204,13 @@ func (r *Runtime) thisIteratorObject(call FunctionCall, method string) *Object {
 	panic(r.NewTypeError("Method Iterator.prototype.%s called on incompatible receiver %s", method, call.This.String()))
 }
 
+func (r *Runtime) iteratorProto_dispose(call FunctionCall) Value {
+	if method := getOptionalMethod(r.getVStr(call.This, "return")); method != nil {
+		method(FunctionCall{This: call.This})
+	}
+	return _undefined
+}
+
 // iteratorWithCallback implements the common prologue of the helpers taking a callback: the receiver is closed
 // if the argument is not callable.
 func (r *Runtime) iteratorWithCallback(call FunctionCall, method string) (*iteratorRecord, func(FunctionCall) Value) {

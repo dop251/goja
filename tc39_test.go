@@ -167,6 +167,15 @@ var (
 	featuresBlackListExceptions = map[string][]string{
 		// async generators are not supported yet, but for-await-of is
 		"async-iteration": {"test/language/statements/for-await-of/"},
+		// The built-ins can run without using declarations.
+		"explicit-resource-management": {
+			"test/built-ins/AsyncDisposableStack/",
+			"test/built-ins/DisposableStack/",
+			"test/built-ins/Iterator/prototype/Symbol.dispose/",
+			"test/built-ins/SuppressedError/",
+			"test/built-ins/Symbol/asyncDispose/",
+			"test/built-ins/Symbol/dispose/",
+		},
 	}
 )
 
@@ -212,7 +221,11 @@ func init() {
 
 	skip(
 		// generators and async generators (harness/hidden-constructors.js)
-		"test/built-ins/Async",
+		"test/built-ins/AsyncFromSyncIteratorPrototype/",
+		"test/built-ins/AsyncFunction/",
+		"test/built-ins/AsyncGeneratorFunction/",
+		"test/built-ins/AsyncGeneratorPrototype/",
+		"test/built-ins/AsyncIteratorPrototype/",
 
 		// async generators
 		"test/language/statements/class/elements/wrapped-in-sc-rs-static-async-generator-",
