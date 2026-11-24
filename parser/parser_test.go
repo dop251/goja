@@ -539,6 +539,46 @@ func TestParserErr(t *testing.T) {
 		test(`(0 ?? 0 || true)`, "(anonymous): Line 1:9 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 		test(`(a || b ?? c)`, "(anonymous): Line 1:9 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 		test(`2 ?? 2 && 3 + 3`, "(anonymous): Line 1:3 Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
+		test(`[(a = 1)] = []`, "(anonymous): Line 1:3 Invalid destructuring assignment target")
+		test(`[([a])] = []`, "(anonymous): Line 1:3 Invalid destructuring assignment target")
+		test(`[({a})] = []`, "(anonymous): Line 1:3 Invalid destructuring assignment target")
+		test(`[...([a])] = []`, "(anonymous): Line 1:6 Invalid destructuring assignment target")
+		test(`({x: (a.b = 1)} = {})`, "(anonymous): Line 1:7 Invalid destructuring assignment target")
+		test(`({x: ({a})} = {})`, "(anonymous): Line 1:7 Invalid destructuring assignment target")
+		test(`for ([(a = 1)] of []);`, "(anonymous): Line 1:8 Invalid destructuring assignment target")
+		test(`for (([a]) of []);`, "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
+		test(`for (({a}) of []);`, "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
+		test(`for (([a]) in {});`, "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
+		test(`for (({a}) in {});`, "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
+		test(`for ([a] of []); for ({a} of []); for ((a) in {}); for ((a.b) of []);`, nil)
+		test(`[(a) = 1, ((b)) = 2, (c.d) = 3, (e)] = []`, nil)
+		test(`({x: (a) = 1, y: (b.c)} = {})`, nil)
+		test(`[(a = 1), ([b]), ({c})]`, nil)
+
+		// Parenthesized patterns are not valid object rest targets.
+		test(`({...([a])} = {})`, "(anonymous): Line 1:7 Invalid destructuring assignment target")
+		test(`({...({a})} = {})`, "(anonymous): Line 1:7 Invalid destructuring assignment target")
+		test(`({...((a = 1))} = {})`, "(anonymous): Line 1:8 Invalid destructuring assignment target")
+		// Nor are they valid property values of an object binding pattern.
+		test(`function f({x: (a = 1)}) {}`, "(anonymous): Line 1:17 Invalid destructuring assignment target")
+		test(`var {x: (a = 1)} = {};`, "(anonymous): Line 1:10 Invalid destructuring assignment target")
+		test(`({x: (a = 1)}) => 1`, "(anonymous): Line 1:7 Invalid destructuring assignment target")
+		test(`function f({x: ([a])}) {}`, "(anonymous): Line 1:17 Invalid destructuring assignment target")
+		test(`({x: ({a})}) => 1`, "(anonymous): Line 1:7 Invalid destructuring assignment target")
+		// The marker must survive nested function bodies parsed within the same statement.
+		test(`[(a = 1), b = function(){ var z; }] = []`, "(anonymous): Line 1:3 Invalid destructuring assignment target")
+		// Parenthesized simple targets are still allowed, including in object rest.
+		test(`({...(a)} = {})`, nil)
+		test(`({...(a.b)} = {})`, nil)
+		test(`({...a} = {})`, nil)
+		test(`({...a.b} = {})`, nil)
+		test(`[...(a)] = []`, nil)
+		// The same shapes without parentheses are valid binding patterns.
+		test(`function f({x: a = 1}) {}`, nil)
+		test(`function f({x: [a]}) {}`, nil)
+		test(`function f({x: {a}}) {}`, nil)
+		test(`({x: a = 1}) => 1`, nil)
+		test(`var {x: a = 1} = {};`, nil)
 		test(`
 		class C {
             st\u0061tic m() {}
