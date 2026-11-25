@@ -100,9 +100,25 @@ type _parser struct {
 
 	errors ErrorList
 
-	// Parenthesized expressions that are not valid destructuring assignment targets,
-	// e.g. (a = 1) in [(a = 1)] = [] or ([a]) in [([a])] = [].
+	// Parenthesized expressions. Used to reject parentheses where they are not
+	// allowed (binding patterns, binding rests) and parenthesized patterns or
+	// assignment expressions used as destructuring targets.
 	parenthesized map[ast.Expression]struct{}
+
+	// Set while parsing the contents of a parenthesized expression when the
+	// closing parenthesis is followed by "=>".
+	arrowHead *arrowHead
+
+	// Positions of trailing commas after a spread in call argument lists. Such
+	// a comma is valid in a call, but not when the same list is reinterpreted
+	// as arrow function parameters.
+	callRestComma map[*ast.CallExpression]file.Idx
+
+	// Errors that are only errors if the enclosing parenthesized list turns out
+	// to be an arrow function parameter list (await/yield expressions in formal
+	// parameters).
+	funcParamErrors     *funcParamErrorScope
+	inGenuineFuncParams bool
 
 	depth int
 

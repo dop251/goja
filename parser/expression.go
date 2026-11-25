@@ -170,7 +170,9 @@ func (self *_parser) reinterpretSequenceAsArrowFuncParams(list []ast.Expression)
 	}
 	var rest ast.Expression
 	if firstRestIdx != -1 {
-		rest = self.reinterpretAsBindingRestElement(list[firstRestIdx])
+		if spread, ok := list[firstRestIdx].(*ast.SpreadElement); ok {
+			rest = self.reinterpretAsDestructBindingTarget(spread.Expression)
+		}
 	}
 	return &ast.ParameterList{
 		List: params,
@@ -178,20 +180,103 @@ func (self *_parser) reinterpretSequenceAsArrowFuncParams(list []ast.Expression)
 	}
 }
 
+type arrowHead struct {
+	expr    ast.Expression
+	list    []ast.Expression
+	opening file.Idx
+	closing file.Idx
+}
+
+func isAsyncCallee(call *ast.CallExpression, start file.Idx) bool {
+	id, ok := call.Callee.(*ast.Identifier)
+	return ok && id.Name == "async" && id.Idx == start
+}
+
+type funcParamErrorScope struct {
+	errors           ErrorList
+	awaitPositions   []file.Idx
+	outer            *funcParamErrorScope
+	prevInFuncParams bool
+	prevAllowAwait   bool
+}
+
+// startFuncParamErrors marks the beginning of a possible arrow function
+// parameter list. While it is active, await/yield expressions in formal
+// parameters are reported as deferred errors: they are only real errors if the
+// list actually turns out to be an arrow function's parameter list.
+//
+// Inside a real parameter list (e.g. a nested function's parameters) such
+// errors are always real and are reported immediately.
+func (self *_parser) startFuncParamErrors() *funcParamErrorScope {
+	scope := &funcParamErrorScope{
+		outer:            self.funcParamErrors,
+		prevInFuncParams: self.scope.inFuncParams,
+		prevAllowAwait:   self.scope.allowAwait,
+	}
+	self.funcParamErrors = scope
+	self.scope.inFuncParams = true
+	return scope
+}
+
+func (self *_parser) endFuncParamErrors(scope *funcParamErrorScope, commit, async bool) {
+	if scope == nil {
+		return
+	}
+	self.funcParamErrors = scope.outer
+	self.scope.inFuncParams = scope.prevInFuncParams
+	if commit {
+		// Errors from an actual arrow function's parameters are real regardless
+		// of any enclosing cover context.
+		self.errors = append(self.errors, scope.errors...)
+		if len(scope.awaitPositions) > 0 && (async || scope.prevAllowAwait) {
+			for _, pos := range scope.awaitPositions {
+				self.error(pos, err_UnexpectedToken, token.AWAIT)
+			}
+		} else if scope.outer != nil {
+			scope.outer.awaitPositions = append(scope.outer.awaitPositions, scope.awaitPositions...)
+		}
+	} else if scope.outer != nil {
+		// Propagate to the enclosing cover context; it may yet turn into an
+		// arrow function.
+		scope.outer.errors = append(scope.outer.errors, scope.errors...)
+		scope.outer.awaitPositions = append(scope.outer.awaitPositions, scope.awaitPositions...)
+	}
+}
+
+func (self *_parser) recordAwaitInParams(idx file.Idx) {
+	if self.funcParamErrors != nil && self.scope.inFuncParams {
+		self.funcParamErrors.awaitPositions = append(self.funcParamErrors.awaitPositions, idx)
+	}
+}
+
+func (self *_parser) errorInFuncParams(idx file.Idx, msg string) {
+	if self.funcParamErrors != nil && !self.inGenuineFuncParams {
+		e := &Error{
+			Message: msg,
+			File:    self.file,
+			Offset:  int(idx) - self.base,
+		}
+		self.funcParamErrors.errors.Add(e)
+		return
+	}
+	self.error(idx, msg)
+}
+
 func (self *_parser) parseParenthesisedExpression() ast.Expression {
 	opening := self.idx
 	self.expect(token.LEFT_PARENTHESIS)
+	cand := self.startFuncParamErrors()
 	var list []ast.Expression
+	var ellipsisPositions []file.Idx
+	var trailingComma file.Idx
 	if self.token != token.RIGHT_PARENTHESIS {
 		for {
 			if self.token == token.ELLIPSIS {
-				start := self.idx
-				self.errorUnexpectedToken(token.ELLIPSIS)
+				ellipsisPositions = append(ellipsisPositions, self.idx)
 				self.next()
 				expr := self.parseAssignmentExpression()
-				list = append(list, &ast.BadExpression{
-					From: start,
-					To:   expr.Idx1(),
+				list = append(list, &ast.SpreadElement{
+					Expression: expr,
 				})
 			} else {
 				list = append(list, self.parseAssignmentExpression())
@@ -199,17 +284,58 @@ func (self *_parser) parseParenthesisedExpression() ast.Expression {
 			if self.token != token.COMMA {
 				break
 			}
+			comma := self.idx
 			self.next()
 			if self.token == token.RIGHT_PARENTHESIS {
-				self.errorUnexpectedToken(token.RIGHT_PARENTHESIS)
+				trailingComma = comma
 				break
 			}
 		}
 	}
-	self.expect(token.RIGHT_PARENTHESIS)
+	closing := self.expect(token.RIGHT_PARENTHESIS)
+	isArrow := self.token == token.ARROW
+	self.endFuncParamErrors(cand, isArrow, false)
+	if isArrow {
+		var expr ast.Expression
+		if len(list) == 1 {
+			expr = list[0]
+		} else if len(list) == 0 {
+			// A placeholder for "() =>": the parameter list itself is empty, but
+			// the expression chain needs a valid node until the arrow is built.
+			expr = &ast.BadExpression{
+				From: opening,
+				To:   closing + 1,
+			}
+		} else {
+			expr = &ast.SequenceExpression{
+				Sequence: list,
+			}
+		}
+		self.arrowHead = &arrowHead{
+			expr:    expr,
+			list:    list,
+			opening: opening,
+			closing: closing,
+		}
+		if trailingComma != 0 {
+			if len(list) > 0 {
+				if _, ok := list[len(list)-1].(*ast.SpreadElement); ok {
+					// A trailing comma is not allowed after a rest parameter.
+					self.error(trailingComma, err_UnexpectedToken, token.COMMA)
+				}
+			}
+		}
+		return expr
+	}
+	for _, pos := range ellipsisPositions {
+		self.error(pos, err_UnexpectedToken, token.ELLIPSIS)
+	}
+	if trailingComma != 0 {
+		self.error(closing, err_UnexpectedToken, token.RIGHT_PARENTHESIS)
+	}
 	if len(list) == 1 && len(self.errors) == 0 {
 		switch list[0].(type) {
-		case *ast.AssignExpression, *ast.ArrayLiteral, *ast.ObjectLiteral:
+		case *ast.AssignExpression, *ast.ArrayLiteral, *ast.ObjectLiteral, *ast.Identifier:
 			if self.parenthesized == nil {
 				self.parenthesized = make(map[ast.Expression]struct{})
 			}
@@ -288,6 +414,9 @@ func (self *_parser) isBindingId(tok token.Token) bool {
 
 func (self *_parser) tokenToBindingId() {
 	if self.isBindingId(self.token) {
+		if self.token == token.AWAIT {
+			self.recordAwaitInParams(self.idx)
+		}
 		self.token = token.IDENTIFIER
 	}
 }
@@ -441,6 +570,9 @@ func (self *_parser) parseObjectProperty() ast.Property {
 			}
 		case self.token == token.COMMA || self.token == token.RIGHT_BRACE || self.token == token.ASSIGN: // shorthand property
 			if self.isBindingId(tkn) {
+				if tkn == token.AWAIT {
+					self.recordAwaitInParams(value.Idx0())
+				}
 				var initializer ast.Expression
 				if self.token == token.ASSIGN {
 					// allow the initializer syntax here in case the object literal
@@ -627,8 +759,9 @@ func (self *_parser) parseTaggedTemplateLiteral(tag ast.Expression) *ast.Templat
 	return l
 }
 
-func (self *_parser) parseArgumentList() (argumentList []ast.Expression, idx0, idx1 file.Idx) {
+func (self *_parser) parseArgumentList() (argumentList []ast.Expression, idx0, idx1, restComma file.Idx) {
 	idx0 = self.expect(token.LEFT_PARENTHESIS)
+	lastWasSpread := false
 	for self.token != token.RIGHT_PARENTHESIS {
 		var item ast.Expression
 		if self.token == token.ELLIPSIS {
@@ -636,27 +769,40 @@ func (self *_parser) parseArgumentList() (argumentList []ast.Expression, idx0, i
 			item = &ast.SpreadElement{
 				Expression: self.parseAssignmentExpression(),
 			}
+			lastWasSpread = true
 		} else {
 			item = self.parseAssignmentExpression()
+			lastWasSpread = false
 		}
 		argumentList = append(argumentList, item)
 		if self.token != token.COMMA {
 			break
 		}
+		comma := self.idx
 		self.next()
+		if self.token == token.RIGHT_PARENTHESIS && lastWasSpread {
+			restComma = comma
+		}
 	}
 	idx1 = self.expect(token.RIGHT_PARENTHESIS)
 	return
 }
 
 func (self *_parser) parseCallExpression(left ast.Expression) ast.Expression {
-	argumentList, idx0, idx1 := self.parseArgumentList()
-	return &ast.CallExpression{
+	argumentList, idx0, idx1, restComma := self.parseArgumentList()
+	call := &ast.CallExpression{
 		Callee:           left,
 		LeftParenthesis:  idx0,
 		ArgumentList:     argumentList,
 		RightParenthesis: idx1,
 	}
+	if restComma != 0 {
+		if self.callRestComma == nil {
+			self.callRestComma = make(map[*ast.CallExpression]file.Idx)
+		}
+		self.callRestComma[call] = restComma
+	}
+	return call
 }
 
 func (self *_parser) parseDotMember(left ast.Expression) ast.Expression {
@@ -738,7 +884,7 @@ func (self *_parser) parseNewExpression() ast.Expression {
 		Callee: callee,
 	}
 	if self.token == token.LEFT_PARENTHESIS {
-		argumentList, idx0, idx1 := self.parseArgumentList()
+		argumentList, idx0, idx1, _ := self.parseArgumentList()
 		node.ArgumentList = argumentList
 		node.LeftParenthesis = idx0
 		node.RightParenthesis = idx1
@@ -900,7 +1046,7 @@ func (self *_parser) parseUnaryExpression() ast.Expression {
 				}
 			}
 			if self.scope.inFuncParams {
-				self.error(idx, "Illegal await-expression in formal parameters of async function")
+				self.errorInFuncParams(idx, "Illegal await-expression in formal parameters of async function")
 			}
 			return &ast.AwaitExpression{
 				Await:    idx,
@@ -1264,10 +1410,9 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 	start := self.idx
 	parenthesis := false
 	async := false
-	var state parserState
+	var asyncParamScope *funcParamErrorScope
 	switch self.token {
 	case token.LEFT_PARENTHESIS:
-		self.mark(&state)
 		parenthesis = true
 	case token.ASYNC:
 		tok := self.peek()
@@ -1276,8 +1421,8 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 			self.next()
 			return self.parseSingleArgArrowFunction(start, true)
 		} else if tok == token.LEFT_PARENTHESIS {
-			self.mark(&state)
 			async = true
+			asyncParamScope = self.startFuncParamErrors()
 		}
 	case token.YIELD:
 		if self.scope.allowYield {
@@ -1288,6 +1433,13 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 		self.tokenToBindingId()
 	}
 	left := self.parseConditionalExpression()
+	var asyncCall *ast.CallExpression
+	if async {
+		if call, ok := left.(*ast.CallExpression); ok && self.token == token.ARROW && isAsyncCallee(call, start) {
+			asyncCall = call
+		}
+		self.endFuncParamErrors(asyncParamScope, asyncCall != nil, true)
+	}
 	var operator token.Token
 	switch self.token {
 	case token.ASSIGN:
@@ -1324,33 +1476,37 @@ func (self *_parser) parseAssignmentExpression() ast.Expression {
 		operator = token.COALESCE
 	case token.ARROW:
 		var paramList *ast.ParameterList
-		if id, ok := left.(*ast.Identifier); ok {
-			paramList = &ast.ParameterList{
-				Opening: id.Idx,
-				Closing: id.Idx1() - 1,
-				List: []*ast.Binding{{
-					Target: id,
-				}},
-			}
-		} else if parenthesis {
-			if seq, ok := left.(*ast.SequenceExpression); ok && len(self.errors) == 0 {
-				paramList = self.reinterpretSequenceAsArrowFuncParams(seq.Sequence)
-			} else {
-				self.restore(&state)
-				paramList = self.parseFunctionParameterList()
-			}
-		} else if async {
+		head := self.arrowHead
+		self.arrowHead = nil
+		switch {
+		case head != nil && head.expr == left:
+			paramList = self.reinterpretSequenceAsArrowFuncParams(head.list)
+			paramList.Opening = head.opening
+			paramList.Closing = head.closing
+		case asyncCall != nil:
 			// async (x, y) => ...
+			if pos, ok := self.callRestComma[asyncCall]; ok {
+				delete(self.callRestComma, asyncCall)
+				self.error(pos, err_UnexpectedToken, token.COMMA)
+			}
 			if !self.scope.allowAwait {
 				self.scope.allowAwait = true
 				defer func() {
 					self.scope.allowAwait = false
 				}()
 			}
-			if _, ok := left.(*ast.CallExpression); ok {
-				self.restore(&state)
-				self.next() // skip "async"
-				paramList = self.parseFunctionParameterList()
+			paramList = self.reinterpretSequenceAsArrowFuncParams(asyncCall.ArgumentList)
+			paramList.Opening = asyncCall.LeftParenthesis
+			paramList.Closing = asyncCall.RightParenthesis
+		default:
+			if id, ok := left.(*ast.Identifier); ok && !parenthesis {
+				paramList = &ast.ParameterList{
+					Opening: id.Idx,
+					Closing: id.Idx1() - 1,
+					List: []*ast.Binding{{
+						Target: id,
+					}},
+				}
 			}
 		}
 		if paramList == nil {
@@ -1403,30 +1559,36 @@ func (self *_parser) parseYieldExpression() ast.Expression {
 	idx := self.expect(token.YIELD)
 
 	if self.scope.inFuncParams {
-		self.error(idx, "Yield expression not allowed in formal parameter")
+		self.errorInFuncParams(idx, "Yield expression not allowed in formal parameter")
 	}
 
 	node := &ast.YieldExpression{
 		Yield: idx,
 	}
 
-	if !self.implicitSemicolon && self.token == token.MULTIPLY {
+	hasNoLineTerminator := !self.implicitSemicolon
+	if hasNoLineTerminator && self.token == token.MULTIPLY {
 		node.Delegate = true
 		self.next()
 	}
 
-	if !self.implicitSemicolon && self.token != token.SEMICOLON && self.token != token.RIGHT_BRACE && self.token != token.EOF {
-		var state parserState
-		self.mark(&state)
-		expr := self.parseAssignmentExpression()
-		if _, bad := expr.(*ast.BadExpression); bad {
-			expr = nil
-			self.restore(&state)
-		}
-		node.Argument = expr
+	// The set of tokens that can follow an AssignmentExpression and cannot start
+	// one. This lets us tell a bare yield from a yield with an argument without
+	// backtracking.
+	if hasNoLineTerminator && (node.Delegate || !self.isYieldTerminator()) {
+		node.Argument = self.parseAssignmentExpression()
 	}
 
 	return node
+}
+
+func (self *_parser) isYieldTerminator() bool {
+	switch self.token {
+	case token.EOF, token.SEMICOLON, token.RIGHT_BRACE, token.RIGHT_BRACKET,
+		token.RIGHT_PARENTHESIS, token.COLON, token.COMMA, token.IN:
+		return true
+	}
+	return false
 }
 
 func (self *_parser) parseExpression() ast.Expression {
@@ -1505,7 +1667,7 @@ func (self *_parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) as
 			rest = self.reinterpretAsDestructBindingTarget(spread.Expression)
 			value = value[:len(value)-1]
 		} else {
-			value[i] = self.reinterpretAsAssignmentElement(item)
+			value[i] = self.reinterpretAsBindingElement(item)
 		}
 	}
 	return &ast.ArrayPattern{
@@ -1688,6 +1850,10 @@ func (self *_parser) reinterpretAsDestructAssignTarget(item ast.Expression) ast.
 }
 
 func (self *_parser) reinterpretAsDestructBindingTarget(item ast.Expression) ast.BindingTarget {
+	if item != nil && self.isParenthesized(item) {
+		self.error(item.Idx0(), "Invalid destructuring assignment target")
+		return &ast.BadExpression{From: item.Idx0(), To: item.Idx1()}
+	}
 	switch item := item.(type) {
 	case nil:
 		return nil
@@ -1709,6 +1875,10 @@ func (self *_parser) reinterpretAsDestructBindingTarget(item ast.Expression) ast
 }
 
 func (self *_parser) reinterpretAsBindingRestElement(expr ast.Expression) ast.Expression {
+	if self.isParenthesized(expr) {
+		self.error(expr.Idx0(), "Invalid destructuring assignment target")
+		return &ast.BadExpression{From: expr.Idx0(), To: expr.Idx1()}
+	}
 	if _, ok := expr.(*ast.Identifier); ok {
 		return expr
 	}

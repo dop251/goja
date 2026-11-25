@@ -156,7 +156,6 @@ func (self *_parser) scanIdentifier() (string, unistring.String, bool, string) {
 	var parsed unistring.String
 	if hasEscape || isUnicode {
 		var err string
-		// TODO strict
 		parsed, err = parseStringLiteral(literal, length, isUnicode, false)
 		if err != "" {
 			return "", "", false, err
@@ -190,40 +189,15 @@ func isLineTerminator(chr rune) bool {
 	return false
 }
 
-type parserState struct {
-	idx, prevTokenEnd                  file.Idx
-	tok                                token.Token
-	literal                            string
-	parsedLiteral                      unistring.String
-	sloppyLiteral                      bool
-	numLiteralKind                     ast.NumberLiteralKind
-	implicitSemicolon, insertSemicolon bool
-	chr                                rune
-	chrOffset, offset                  int
-	errorCount                         int
-}
-
-func (self *_parser) mark(state *parserState) *parserState {
-	if state == nil {
-		state = &parserState{}
-	}
-	state.idx, state.prevTokenEnd, state.tok, state.literal, state.parsedLiteral, state.sloppyLiteral, state.numLiteralKind, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset =
-		self.idx, self.prevTokenEnd, self.token, self.literal, self.parsedLiteral, self.sloppyLiteral, self.numLiteralKind, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
-
-	state.errorCount = len(self.errors)
-	return state
-}
-
-func (self *_parser) restore(state *parserState) {
-	self.idx, self.prevTokenEnd, self.token, self.literal, self.parsedLiteral, self.sloppyLiteral, self.numLiteralKind, self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset =
-		state.idx, state.prevTokenEnd, state.tok, state.literal, state.parsedLiteral, state.sloppyLiteral, state.numLiteralKind, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset
-	self.errors = self.errors[:state.errorCount]
+func (self *_parser) peekToken() (token.Token, string, unistring.String) {
+	implicitSemicolon, insertSemicolon, chr, chrOffset, offset := self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
+	tok, literal, parsedLiteral, _, _, _ := self.scan()
+	self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset = implicitSemicolon, insertSemicolon, chr, chrOffset, offset
+	return tok, literal, parsedLiteral
 }
 
 func (self *_parser) peek() token.Token {
-	implicitSemicolon, insertSemicolon, chr, chrOffset, offset := self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset
-	tok, _, _, _, _, _ := self.scan()
-	self.implicitSemicolon, self.insertSemicolon, self.chr, self.chrOffset, self.offset = implicitSemicolon, insertSemicolon, chr, chrOffset, offset
+	tok, _, _ := self.peekToken()
 	return tok
 }
 

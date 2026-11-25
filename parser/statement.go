@@ -175,6 +175,11 @@ func (self *_parser) parseFunctionParameterList() *ast.ParameterList {
 			self.scope.inFuncParams = false
 		}()
 	}
+	savedInGenuineFuncParams := self.inGenuineFuncParams
+	self.inGenuineFuncParams = true
+	defer func() {
+		self.inGenuineFuncParams = savedInGenuineFuncParams
+	}()
 	for self.token != token.RIGHT_PARENTHESIS && self.token != token.EOF {
 		if self.token == token.ELLIPSIS {
 			self.next()
@@ -742,14 +747,9 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 			var expr ast.Expression
 			if forAwait && self.token == token.ASYNC {
 				// 'async of' is only a valid for-of head in for-await
-				var state parserState
-				self.mark(&state)
-				id := &ast.Identifier{Name: "async", Idx: self.idx}
-				self.next()
-				if self.token == token.IDENTIFIER && self.literal == "of" {
-					expr = id
-				} else {
-					self.restore(&state)
+				if tkn, literal, _ := self.peekToken(); tkn == token.IDENTIFIER && literal == "of" {
+					expr = &ast.Identifier{Name: "async", Idx: self.idx}
+					self.next()
 				}
 			}
 			if expr == nil {
@@ -763,10 +763,15 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 				forOf = true
 			}
 			if forIn || forOf {
-				if self.isParenthesized(expr) {
-					self.error(idx, "Invalid left-hand side in for-in or for-of")
-					self.nextStatement()
-					return &ast.BadStatement{From: idx, To: self.idx}
+				// A parenthesized simple target, e.g. for ((a) of []) or for ((a.b) of []), is valid,
+				// but a parenthesized pattern or assignment expression is not.
+				switch expr.(type) {
+				case *ast.AssignExpression, *ast.ArrayLiteral, *ast.ObjectLiteral:
+					if self.isParenthesized(expr) {
+						self.error(idx, "Invalid left-hand side in for-in or for-of")
+						self.nextStatement()
+						return &ast.BadStatement{From: idx, To: self.idx}
+					}
 				}
 				switch e := expr.(type) {
 				case *ast.Identifier, *ast.DotExpression, *ast.PrivateDotExpression, *ast.BracketExpression, *ast.Binding:

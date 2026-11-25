@@ -6928,6 +6928,20 @@ func TestNestedBindingPatternDefaults(t *testing.T) {
 	testScriptWithTestLib(SCRIPT, _undefined, t)
 }
 
+func TestArrowFunctionParameters(t *testing.T) {
+	const SCRIPT = `
+	var f = (...[a, b]) => a + b;
+	assert.sameValue(f(1, 2), 3);
+	assert.sameValue(((...a) => a.length)(1, 2, 3), 3);
+	assert.sameValue(((a, b = 1) => 0).length, 1);
+	assert.sameValue(((...a) => 0).length, 0);
+	assert.sameValue(((a,) => a)(7), 7);
+	var g = ({a: [x]}) => x;
+	assert.sameValue(g({a: [7]}), 7);
+	`
+	testScriptWithTestLib(SCRIPT, _undefined, t)
+}
+
 func TestAwaitInAsyncArrowInParameters(t *testing.T) {
 	const SCRIPT = `
 	async function f(p = async (q) => await q) {}
