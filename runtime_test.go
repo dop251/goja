@@ -4131,6 +4131,22 @@ func TestDeleteEvalBindings(t *testing.T) {
 			"undefined,true,true"), t)
 }
 
+func TestFunctionOwnKeysPrototypeOrder(t *testing.T) {
+	const SCRIPT = `
+	function f1() {}
+	function f2() {}
+	void f2.prototype;
+	function f3() {}
+	f3.extra = 1;
+	[
+		Reflect.ownKeys(f1).join(),
+		Reflect.ownKeys(f2).join(),
+		Reflect.ownKeys(f3).join(),
+	].join(" / ");
+	`
+	testScript(SCRIPT, asciiString("length,name,prototype / length,name,prototype / length,name,prototype,extra"), t)
+}
+
 func TestStrToIntLoneDash(t *testing.T) {
 	const SCRIPT = `
 	""["-"];
