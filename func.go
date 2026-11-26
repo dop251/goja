@@ -224,7 +224,28 @@ func (f *funcObject) deleteStr(name unistring.String, throw bool) bool {
 func (f *funcObject) addPrototype() Value {
 	proto := f.val.runtime.NewObject()
 	proto.self._putProp("constructor", f.val, true, false, true)
-	return f._putProp("prototype", proto, true, false, false)
+	prop := f._putProp("prototype", proto, true, false, false)
+
+	// The prototype property is created when the function object is initialized,
+	// after length and name but before any subsequently added properties. Preserve
+	// that creation order when the lazy property is materialized later.
+	names := f.propNames
+	if len(names) > 1 && names[len(names)-1] == "prototype" {
+		if namesMarkedForCopy(names) {
+			newNames := make([]unistring.String, len(names))
+			copy(newNames, names)
+			names = newNames
+			f.propNames = names
+		}
+		for i, name := range names {
+			if name == "name" && i+1 < len(names)-1 {
+				copy(names[i+2:], names[i+1:len(names)-1])
+				names[i+1] = "prototype"
+				break
+			}
+		}
+	}
+	return prop
 }
 
 func (f *funcObject) hasOwnPropertyStr(name unistring.String) bool {
@@ -241,7 +262,7 @@ func (f *funcObject) hasOwnPropertyStr(name unistring.String) bool {
 func (f *funcObject) stringKeys(all bool, accum []Value) []Value {
 	if all {
 		if _, exists := f.values["prototype"]; !exists {
-			accum = append(accum, asciiString("prototype"))
+			f.addPrototype()
 		}
 	}
 	return f.baseFuncObject.stringKeys(all, accum)
