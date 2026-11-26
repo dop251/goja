@@ -79,6 +79,24 @@ func TestJSONParseReviver(t *testing.T) {
 	testScript(SCRIPT, intToValue(10), t)
 }
 
+func TestJSONParseReviverSource(t *testing.T) {
+	const SCRIPT = `
+	var sources = [];
+	var o = JSON.parse('{"big": 12345678901234567890, "list": [1.0, "\\u0041"], "dup": 1, "dup": 2}', function(key, value, { source }) {
+		sources.push(key + "=" + source);
+		return key === "big" ? source : value;
+	});
+	var inf = JSON.parse('[1e400]', function(key, value, { source }) {
+		return key === "0" ? [value, source] : value;
+	});
+	o.big === "12345678901234567890" &&
+	sources.join() === 'big=12345678901234567890,0=1.0,1="\\u0041",list=undefined,dup=2,=undefined' &&
+	inf[0][0] === Infinity && inf[0][1] === "1e400";
+	`
+
+	testScript(SCRIPT, valueTrue, t)
+}
+
 func TestJSONParseNumberOverflow(t *testing.T) {
 	const SCRIPT = `
 	JSON.parse('1e400') === Infinity &&
