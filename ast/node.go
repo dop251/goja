@@ -83,9 +83,10 @@ type (
 	}
 
 	ArrayLiteral struct {
-		LeftBracket  file.Idx
-		RightBracket file.Idx
-		Value        []Expression
+		LeftBracket   file.Idx
+		RightBracket  file.Idx
+		Value         []Expression
+		TrailingComma file.Idx
 	}
 
 	ArrayPattern struct {
@@ -231,9 +232,10 @@ type (
 	}
 
 	ObjectLiteral struct {
-		LeftBrace  file.Idx
-		RightBrace file.Idx
-		Value      []Property
+		LeftBrace     file.Idx
+		RightBrace    file.Idx
+		Value         []Property
+		TrailingComma file.Idx
 	}
 
 	ObjectPattern struct {
