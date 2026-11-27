@@ -196,7 +196,9 @@ lenNotInt:
 	}
 
 	v := &Object{runtime: r}
-	ff := r.newNativeFuncAndConstruct(v, r.boundCallable(fcall, call.Arguments), r.boundConstruct(v, construct, call.Arguments), nil, nameStr.string(), l)
+	ff := r.newNativeFuncAndConstruct(v, r.boundCallable(fcall, call.Arguments), r.boundConstruct(v, construct, call.Arguments), nil, "", l)
+	// Keep the name as it was concatenated rather than flattening it: binding a bound function again and again would otherwise copy an ever longer "bound bound ..." name each time, using memory quadratic in the length of the chain.
+	ff._putProp("name", nameStr, false, false, true)
 	bf := &boundFuncObject{
 		nativeFuncObject: *ff,
 		wrapped:          obj,

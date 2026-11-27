@@ -2161,6 +2161,12 @@ func (r *Runtime) wrapReflectFunc(value reflect.Value) func(FunctionCall) Value 
 }
 
 func (r *Runtime) toReflectValue(v Value, dst reflect.Value, ctx *objectExportCtx) error {
+	if obj, ok := v.(*Object); ok {
+		if ex := ctx.enter(obj); ex != nil {
+			return ex
+		}
+		defer ctx.leave()
+	}
 	typ := dst.Type()
 
 	if typ == typeValue {
@@ -2472,12 +2478,25 @@ func (r *Runtime) wrapJSFunc(fn Callable, typ reflect.Type) func(args []reflect.
 // (such as 'length' or [Symbol.iterator]). This means exporting them to slice types works, however
 // exporting a proxied Map into a map type does not produce its contents, because the Proxy is not recognised
 // as a Map. Same applies to a proxied Set.
-func (r *Runtime) ExportTo(v Value, target interface{}) error {
+func (r *Runtime) ExportTo(v Value, target interface{}) (err error) {
 	tval := reflect.ValueOf(target)
 	if tval.Kind() != reflect.Ptr || tval.IsNil() {
 		return errors.New("target must be a non-nil pointer")
 	}
-	return r.toReflectValue(v, tval.Elem(), &objectExportCtx{})
+	ctx := &objectExportCtx{}
+	defer func() {
+		// Exporting into an interface goes through Export, which panics when the value is nested too deeply.
+		if ctx.tooDeep == nil {
+			return
+		}
+		if x := recover(); x != nil {
+			if ex, ok := x.(*Exception); !ok || ex != ctx.tooDeep {
+				panic(x)
+			}
+			err = ctx.tooDeep
+		}
+	}()
+	return r.toReflectValue(v, tval.Elem(), ctx)
 }
 
 // GlobalObject returns the global object.
@@ -2541,6 +2560,8 @@ func (r *Runtime) SetParserOptions(opts ...parser.Option) {
 // SetMaxCallStackSize sets the maximum function call depth. When exceeded, a *StackOverflowError is thrown and
 // returned by RunProgram or by a Callable call. This is useful to prevent memory exhaustion caused by an
 // infinite recursion. The default value is math.MaxInt32.
+//
+// Calls that native functions make to other native functions (e.g. a getter, toString or valueOf that is a built-in, a bound function's target, or Reflect.apply) count against the same limit, as they recurse in Go and would otherwise overflow the goroutine stack, which cannot be recovered from. Exceeding it with such a call throws a RangeError, which JavaScript code can catch. The limit also bounds how deeply Object.Export and ExportTo descend into nested objects.
 // This method (as the rest of the Set* methods) is not safe for concurrent use and may only be called
 // from the vm goroutine or when the vm is not running.
 func (r *Runtime) SetMaxCallStackSize(size int) {

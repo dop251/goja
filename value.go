@@ -792,6 +792,8 @@ func (o *Object) baseObject(*Runtime) *Object {
 // In all other cases returns own enumerable non-symbol properties as map[string]interface{}.
 //
 // This method will panic with an *Exception if a JavaScript exception is thrown in the process. Use Runtime.Try to catch these.
+//
+// A value nested more objects deep than the call stack size (see Runtime.SetMaxCallStackSize) makes it panic with a RangeError *Exception, and Runtime.ExportTo return one.
 func (o *Object) Export() interface{} {
 	return o.self.export(&objectExportCtx{})
 }
@@ -1158,6 +1160,10 @@ func (s *Symbol) getWeakMapRefs(create bool) *weakMapRefs {
 
 func exportValue(v Value, ctx *objectExportCtx) interface{} {
 	if obj, ok := v.(*Object); ok {
+		if ex := ctx.enter(obj); ex != nil {
+			panic(ex)
+		}
+		defer ctx.leave()
 		return obj.self.export(ctx)
 	}
 	return v.Export()

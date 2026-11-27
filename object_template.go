@@ -33,6 +33,10 @@ type templatedFuncObject struct {
 
 	f         func(FunctionCall) Value
 	construct func(args []Value, newTarget *Object) *Object
+
+	// nativeF and nativeConstruct are as in nativeFuncObject.
+	nativeF         func(FunctionCall) Value
+	nativeConstruct func(args []Value, newTarget *Object) *Object
 }
 
 // This type exists because Array.prototype is supposed to be an array itself and I could not find
@@ -340,7 +344,10 @@ func (f *templatedFuncObject) export(*objectExportCtx) interface{} {
 
 func (f *templatedFuncObject) assertCallable() (func(FunctionCall) Value, bool) {
 	if f.f != nil {
-		return f.f, true
+		if f.nativeF == nil {
+			f.nativeF = f.val.runtime.vm.nativeCallable(f.f)
+		}
+		return f.nativeF, true
 	}
 	return nil, false
 }
@@ -352,7 +359,13 @@ func (f *templatedFuncObject) vmCall(vm *vm, n int) {
 }
 
 func (f *templatedFuncObject) assertConstructor() func(args []Value, newTarget *Object) *Object {
-	return f.construct
+	if f.construct == nil {
+		return nil
+	}
+	if f.nativeConstruct == nil {
+		f.nativeConstruct = f.val.runtime.vm.nativeConstructor(f.construct)
+	}
+	return f.nativeConstruct
 }
 
 func (f *templatedFuncObject) exportType() reflect.Type {

@@ -512,6 +512,8 @@ type vm struct {
 	result    Value
 
 	maxCallStackSize int
+	// nativeCallDepth is the number of calls to native functions made from native code that are in progress. Unlike calls made by vmCall(), they push no context onto callStack, so they are counted here against maxCallStackSize. Without this, native functions calling each other (e.g. a toString that is Object.prototype.toLocaleString, or a chain of bound functions) recurse in Go until the goroutine stack overflows, which is fatal.
+	nativeCallDepth int
 
 	stashAllocs int
 
@@ -1064,7 +1066,7 @@ func (vm *vm) saveCtx(ctx *context) {
 }
 
 func (vm *vm) pushCtx() {
-	if len(vm.callStack) > vm.maxCallStackSize {
+	if len(vm.callStack)+vm.nativeCallDepth > vm.maxCallStackSize {
 		ex := &StackOverflowError{}
 		ex.stack = vm.captureStack(nil, 0)
 		panic(ex)
@@ -1072,6 +1074,36 @@ func (vm *vm) pushCtx() {
 	vm.callStack = append(vm.callStack, context{})
 	ctx := &vm.callStack[len(vm.callStack)-1]
 	vm.saveCtx(ctx)
+}
+
+// enterNative counts a call to a native function made from native code against the call stack limit, throwing a RangeError when it is exceeded. Each call must be paired with a deferred leaveNative().
+func (vm *vm) enterNative() {
+	if len(vm.callStack)+vm.nativeCallDepth > vm.maxCallStackSize {
+		panic(rangeError("Maximum call stack size exceeded"))
+	}
+	vm.nativeCallDepth++
+}
+
+func (vm *vm) leaveNative() {
+	vm.nativeCallDepth--
+}
+
+// nativeCallable returns f counted against the call stack limit, for native code to call.
+func (vm *vm) nativeCallable(f func(FunctionCall) Value) func(FunctionCall) Value {
+	return func(call FunctionCall) Value {
+		vm.enterNative()
+		defer vm.leaveNative()
+		return f(call)
+	}
+}
+
+// nativeConstructor returns f counted against the call stack limit, for native code to call.
+func (vm *vm) nativeConstructor(f func(args []Value, newTarget *Object) *Object) func(args []Value, newTarget *Object) *Object {
+	return func(args []Value, newTarget *Object) *Object {
+		vm.enterNative()
+		defer vm.leaveNative()
+		return f(args, newTarget)
+	}
 }
 
 func (vm *vm) restoreCtx(ctx *context) {
