@@ -1289,7 +1289,11 @@ func (r *Runtime) regexpproto_stdReplacer(call FunctionCall) Value {
 	} else {
 		index = rx.getLastIndex()
 	}
-	found := rx.pattern.findAllSubmatchIndex(s, toIntStrict(index), find, rx.pattern.sticky)
+	var found []regexpResult
+	// A lastIndex past the end matches nothing (RegExpBuiltinExec), as in execRegexp.
+	if index <= int64(s.Length()) {
+		found = rx.pattern.findAllSubmatchIndex(s, toIntStrict(index), find, rx.pattern.sticky)
+	}
 	if rx.pattern.global || rx.pattern.sticky {
 		var newLastIndex int64
 		if !rx.pattern.global && len(found) > 0 {
