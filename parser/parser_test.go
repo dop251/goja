@@ -553,6 +553,13 @@ func TestParserErr(t *testing.T) {
 		test(`for ((a = 1) of []);`, "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
 		test(`for ((a = 1) in {});`, "(anonymous): Line 1:1 Invalid left-hand side in for-in or for-of")
 		test(`for ([a] of []); for ({a} of []); for ((a) in {}); for ((a.b) of []);`, nil)
+		// The left-hand side of a for-of loop may not start with "let".
+		test(`for (let.x of []);`, "(anonymous): Line 1:6 The left-hand side of a for-of loop may not start with 'let'")
+		test(`for (let().x of []);`, "(anonymous): Line 1:6 The left-hand side of a for-of loop may not start with 'let'")
+		test(`for (let.x.y of []);`, "(anonymous): Line 1:6 The left-hand side of a for-of loop may not start with 'let'")
+		test(`async function f() { for await (let.x of []); }`, "(anonymous): Line 1:33 The left-hand side of a for-of loop may not start with 'let'")
+		test(`for ((let).x of []); for ((let) of []); for (let.x in {}); for (let().x in {}); for (let.x;;);`, nil)
+		test(`async function f() { for await ((let).x of []); }`, nil)
 		test(`[(a) = 1, ((b)) = 2, (c.d) = 3, (e)] = []`, nil)
 		test(`({x: (a) = 1, y: (b.c)} = {})`, nil)
 		test(`[(a = 1), ([b]), ({c})]`, nil)
