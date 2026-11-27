@@ -549,7 +549,32 @@ func mkTime(year, m, day, hour, min, sec, msec float64, loc *time.Location) (t t
 	// The time of day is passed as seconds and nanoseconds, because in nanoseconds it does not fit
 	// in a 32-bit int.
 	ms := int(tv - float64(d*msPerDay))
-	return time.Date(1970, time.January, 1+int(d), 0, 0, ms/1e3, ms%1e3*1e6, loc), true
+	t = time.Date(1970, time.January, 1+int(d), 0, 0, ms/1e3, ms%1e3*1e6, time.UTC)
+	if loc != time.UTC {
+		t = localTimeToTime(t, loc)
+	}
+	return t, true
+}
+
+// localTimeToTime returns the instant at which the wall clock in loc shows the date and time that
+// wall (in UTC) shows, as the UTC(t) abstract operation of the specification does. time.Date does not
+// specify which instant it returns when the wall time is skipped or repeated at a time zone
+// transition, and it resolves it differently depending on the zone. The specification requires the
+// earlier instant for a repeated wall time, and the offset in effect before the transition for a
+// skipped one, so for example 02:30 on a day when the clocks go forward from 02:00 to 03:00 becomes
+// 03:30.
+func localTimeToTime(wall time.Time, loc *time.Location) time.Time {
+	_, offBefore := wall.Add(-24 * time.Hour).In(loc).Zone()
+	t := wall.Add(-time.Duration(offBefore) * time.Second).In(loc)
+	if _, off := t.Zone(); off != offBefore {
+		// The offset has changed since the day before. Use the new one, unless the wall time is in
+		// a gap, where no instant has either offset.
+		t1 := wall.Add(-time.Duration(off) * time.Second).In(loc)
+		if _, off1 := t1.Zone(); off1 == off {
+			t = t1
+		}
+	}
+	return t
 }
 
 func _intArg(call FunctionCall, argNum int) (float64, bool) {

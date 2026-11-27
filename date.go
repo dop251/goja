@@ -44,13 +44,11 @@ func dateParse(date string) (t time.Time, ok bool) {
 		ok = false
 		return
 	}
-	var loc *time.Location
 	if d.isLocal {
-		loc = time.Local
+		t = localTimeToTime(time.Date(d.year, time.Month(d.month), d.day, d.hour, d.min, d.sec, d.msec*1e6, time.UTC), time.Local)
 	} else {
-		loc = time.FixedZone("", d.timeZoneOffset*60)
+		t = time.Date(d.year, time.Month(d.month), d.day, d.hour, d.min, d.sec, d.msec*1e6, time.FixedZone("", d.timeZoneOffset*60))
 	}
-	t = time.Date(d.year, time.Month(d.month), d.day, d.hour, d.min, d.sec, d.msec*1e6, loc)
 	_, ok = timeToMsecClip(t)
 	return
 }
