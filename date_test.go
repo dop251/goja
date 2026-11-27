@@ -130,6 +130,51 @@ func TestTimezoneOffset(t *testing.T) {
 	testScript(SCRIPT, intToValue(-60), t)
 }
 
+func TestDateLocalTimeAtTransitions(t *testing.T) {
+	l := time.Local
+	defer func() {
+		time.Local = l
+	}()
+
+	setLocal := func(name string) {
+		loc, err := time.LoadLocation(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Local = loc
+	}
+
+	// A skipped wall time uses the offset from before the transition, and a repeated one resolves
+	// to the earlier instant.
+	setLocal("America/New_York")
+	testScriptWithTestLib(`
+	assert.sameValue(new Date(2020, 2, 8, 2, 30).getTime(), 1583652600000, "skipped, new Date()");
+	assert.sameValue(new Date(2020, 2, 8, 2, 30).getHours(), 3, "skipped, getHours()");
+	assert.sameValue(Date.parse("2020-03-08T02:30"), 1583652600000, "skipped, Date.parse()");
+	var d = new Date(2020, 2, 8, 12);
+	assert.sameValue(d.setHours(2, 30), 1583652600000, "skipped, setHours()");
+	assert.sameValue(new Date(2020, 10, 1, 1, 30).getTime(), 1604208600000, "repeated, new Date()");
+	assert.sameValue(Date.parse("2020-11-01T01:30"), 1604208600000, "repeated, Date.parse()");
+	`, _undefined, t)
+
+	setLocal("Europe/Berlin")
+	testScriptWithTestLib(`
+	assert.sameValue(new Date(2020, 9, 25, 2, 30).getTime(), 1603585800000, "repeated");
+	assert.sameValue(new Date(2020, 2, 29, 2, 30).getTime(), 1585445400000, "skipped");
+	`, _undefined, t)
+
+	// Clocks go forward from 00:00 to 01:00, so a skipped midnight must not move to the previous day.
+	setLocal("America/Havana")
+	testScriptWithTestLib(`
+	var d = new Date(2019, 0, 1);
+	assert.sameValue(d.setFullYear(2019, 2, 10), 1552194000000, "setFullYear()");
+	assert.sameValue(d.getDate(), 10, "getDate()");
+	d.setHours(12);
+	assert.sameValue(d.getDate(), 10, "getDate() after setHours()");
+	assert.sameValue(d.getTime(), 1552233600000, "getTime() after setHours()");
+	`, _undefined, t)
+}
+
 func TestDateValueOf(t *testing.T) {
 	const SCRIPT = `
 	var d9 = new Date(1.23e15);
