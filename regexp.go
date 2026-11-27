@@ -363,7 +363,7 @@ func (r *regexp2Wrapper) findAllSubmatchIndexUnicode(s unicodeString, start, lim
 				return false
 			}
 			if result.indexes[0] == result.indexes[1] {
-				start = advanceStringIndex(s, start, false)
+				start = advanceStringIndex(s, start, true)
 			} else {
 				start = result.indexes[1]
 			}
