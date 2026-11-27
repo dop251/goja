@@ -745,6 +745,10 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 			}
 		} else {
 			var expr ast.Expression
+			letIdx := file.Idx(0)
+			if self.token == token.LET {
+				letIdx = self.idx
+			}
 			if forAwait && self.token == token.ASYNC {
 				// 'async of' is only a valid for-of head in for-await
 				if tkn, literal, _ := self.peekToken(); tkn == token.IDENTIFIER && literal == "of" {
@@ -759,6 +763,9 @@ func (self *_parser) parseForOrForInStatement() ast.Statement {
 				self.next()
 				forIn = true
 			} else if self.token == token.IDENTIFIER && self.literal == "of" {
+				if letIdx != 0 {
+					self.error(letIdx, "The left-hand side of a for-of loop may not start with 'let'")
+				}
 				self.next()
 				forOf = true
 			}
