@@ -180,6 +180,21 @@ func (r *Runtime) newAggregateErrorErrors(errors []Value) *Object {
 	return obj.val
 }
 
+func (r *Runtime) builtin_SuppressedError(args []Value, proto *Object) *Object {
+	call := FunctionCall{Arguments: args}
+	return r.newSuppressedError(proto, call.Argument(0), call.Argument(1), call.Argument(2))
+}
+
+func (r *Runtime) newSuppressedError(proto *Object, err, suppressed, message Value) *Object {
+	obj := r.newErrorObject(proto, classError)
+	if !IsUndefined(message) {
+		obj._putProp("message", message.toString(), true, false, true)
+	}
+	obj._putProp("error", err, true, false, true)
+	obj._putProp("suppressed", suppressed, true, false, true)
+	return obj.val
+}
+
 func (r *Runtime) error_isError(call FunctionCall) Value {
 	if o, ok := call.Argument(0).(*Object); ok {
 		if o.self.className() == classError {
@@ -264,6 +279,17 @@ func (r *Runtime) getAggregateError() *Object {
 		ret = &Object{runtime: r}
 		r.global.AggregateError = ret
 		r.newNativeFuncConstructProto(ret, r.builtin_AggregateError, "AggregateError", r.createErrorPrototype(stringAggregateError, ret), r.getError(), 2)
+	}
+	return ret
+}
+
+func (r *Runtime) getSuppressedError() *Object {
+	ret := r.global.SuppressedError
+	if ret == nil {
+		ret = &Object{runtime: r}
+		r.global.SuppressedError = ret
+		proto := r.createErrorPrototype(asciiString("SuppressedError"), ret)
+		r.newNativeFuncConstructProto(ret, r.builtin_SuppressedError, "SuppressedError", proto, r.getError(), 3)
 	}
 	return ret
 }

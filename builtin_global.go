@@ -349,6 +349,7 @@ func createGlobalObjectTemplate() *objectTemplate {
 	t.putStr("Reflect", func(r *Runtime) Value { return valueProp(r.getReflect(), true, false, true) })
 	t.putStr("Error", func(r *Runtime) Value { return valueProp(r.getError(), true, false, true) })
 	t.putStr("AggregateError", func(r *Runtime) Value { return valueProp(r.getAggregateError(), true, false, true) })
+	t.putStr("SuppressedError", func(r *Runtime) Value { return valueProp(r.getSuppressedError(), true, false, true) })
 	t.putStr("TypeError", func(r *Runtime) Value { return valueProp(r.getTypeError(), true, false, true) })
 	t.putStr("ReferenceError", func(r *Runtime) Value { return valueProp(r.getReferenceError(), true, false, true) })
 	t.putStr("SyntaxError", func(r *Runtime) Value { return valueProp(r.getSyntaxError(), true, false, true) })
@@ -369,6 +370,8 @@ func createGlobalObjectTemplate() *objectTemplate {
 	t.putStr("Set", func(r *Runtime) Value { return valueProp(r.getSet(), true, false, true) })
 	t.putStr("Promise", func(r *Runtime) Value { return valueProp(r.getPromise(), true, false, true) })
 	t.putStr("Iterator", func(r *Runtime) Value { return valueProp(r.getIteratorCtor(), true, false, true) })
+	t.putStr("DisposableStack", func(r *Runtime) Value { return valueProp(r.getDisposableStack(), true, false, true) })
+	t.putStr("AsyncDisposableStack", func(r *Runtime) Value { return valueProp(r.getAsyncDisposableStack(), true, false, true) })
 
 	t.putStr("globalThis", func(r *Runtime) Value { return valueProp(r.globalObject, true, false, true) })
 	t.putStr("NaN", func(r *Runtime) Value { return valueProp(_NaN, false, false, false) })

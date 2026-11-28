@@ -89,16 +89,20 @@ type global struct {
 	Map     *Object
 	Set     *Object
 
-	Error          *Object
-	AggregateError *Object
-	TypeError      *Object
-	ReferenceError *Object
-	SyntaxError    *Object
-	RangeError     *Object
-	EvalError      *Object
-	URIError       *Object
+	Error           *Object
+	AggregateError  *Object
+	SuppressedError *Object
+	TypeError       *Object
+	ReferenceError  *Object
+	SyntaxError     *Object
+	RangeError      *Object
+	EvalError       *Object
+	URIError        *Object
 
 	GoError *Object
+
+	DisposableStack      *Object
+	AsyncDisposableStack *Object
 
 	ObjectPrototype   *Object
 	ArrayPrototype    *Object
@@ -437,6 +441,7 @@ func (r *Runtime) createIterProto(val *Object) objectImpl {
 	o := newBaseObjectObj(val, r.global.ObjectPrototype, classObject)
 
 	o._putSym(SymIterator, valueProp(r.newNativeFunc(r.returnThis, "[Symbol.iterator]", 0), true, false, true))
+	o._putSym(SymDispose, r.methodProp(r.iteratorProto_dispose, "[Symbol.dispose]", 0))
 	r.addIteratorHelpers(o)
 	return o
 }
